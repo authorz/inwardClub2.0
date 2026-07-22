@@ -1,0 +1,15 @@
+.pf { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.pf__card { padding: 0 32rpx; }
+.pf__row { display: flex; align-items: center; gap: 20rpx; min-height: 108rpx; padding: 20rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.pf__row--last { border-bottom: none; }
+.pf__row--hover { opacity: 0.7; }
+.pf__label { font-size: 30rpx; color: var(--ic-text); flex: none; }
+.pf__value { flex: 1; text-align: right; font-size: 30rpx; color: var(--ic-black); }
+.pf__hint { flex: 1; text-align: right; font-size: 28rpx; color: var(--ic-text-3); }
+.pf__input { flex: 1; text-align: right; font-size: 30rpx; color: var(--ic-black); }
+.pf__ph { color: var(--ic-text-4); }
+.pf__avatar { width: 88rpx; height: 88rpx; border-radius: 50%; overflow: hidden; background: #111; }
+.pf__avatar-img { width: 100%; height: 100%; }
+.pf__avatar-ph { width: 100%; height: 100%; background: linear-gradient(160deg, #444, #111); }
+.pf__note { display: block; margin: 24rpx 12rpx; font-size: 24rpx; color: var(--ic-text-3); }
+.pf__save { margin-top: 40rpx; }

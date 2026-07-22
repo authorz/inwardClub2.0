@@ -1,0 +1,26 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{order}}" class="od">
+  <view class="od-head">
+    <view class="od-head__icon"><view class="ic-ic {{done ? 'ic-ic-check' : 'ic-ic-clock'}} ic-ic--sm"></view></view>
+    <text class="od-head__status">{{order.statusText}}</text>
+    <text class="od-head__no">#{{order.orderNo}}</text>
+  </view>
+
+  <view class="od-card">
+    <view class="od-row"><text class="od-row__label">充值金额</text><text class="od-row__value od-row__value--big">¥{{order.amountText}}</text></view>
+    <view class="od-row"><text class="od-row__label">到账金币</text><text class="od-row__value od-row__value--strong">{{order.coins}}</text></view>
+    <view class="od-row"><text class="od-row__label">赠送金币</text><text class="od-row__value">{{order.bonusCoins}}</text></view>
+  </view>
+
+  <view class="od-card">
+    <view class="od-row"><text class="od-row__label">支付方式</text><text class="od-row__value">{{order.payChannelText}}</text></view>
+    <view class="od-row"><text class="od-row__label">支付时间</text><text class="od-row__value">{{order.paidText}}</text></view>
+    <view class="od-row"><text class="od-row__label">到账时间</text><text class="od-row__value">{{order.creditedText}}</text></view>
+    <view wx:if="{{order.note}}" class="od-row"><text class="od-row__label">交易说明</text><text class="od-row__value">{{order.note}}</text></view>
+  </view>
+
+  <view class="od-bar">
+    <button class="ic-btn ic-btn-primary ic-btn-block" bindtap="goLedger">查看钱包流水</button>
+  </view>
+</view>

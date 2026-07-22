@@ -1,0 +1,20 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{rsv}}" class="od">
+  <view class="od-head">
+    <view class="od-head__icon"><view class="ic-ic ic-ic-calendar ic-ic--sm"></view></view>
+    <text class="od-head__status">{{rsv.statusLabel}}</text>
+  </view>
+
+  <view class="od-card">
+    <view class="od-row"><text class="od-row__label">座位</text><text class="od-row__value od-row__value--strong">{{rsv.tableName}} · {{rsv.seatNo}}号座位</text></view>
+    <view class="od-row"><text class="od-row__label">时间</text><text class="od-row__value">{{rsv.timeText}}</text></view>
+    <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{rsv.storeName}}</text></view>
+  </view>
+
+  <view class="rd__hint">{{rsv.note}}</view>
+
+  <view wx:if="{{canCancel}}" class="od-bar">
+    <button class="ic-btn ic-btn-ghost ic-btn-block" bindtap="cancel">取消预约</button>
+  </view>
+</view>

@@ -1,0 +1,19 @@
+<view class="sheet {{show ? 'is-show' : ''}}" catchtouchmove="noop">
+  <view class="sheet__mask" bindtap="onMask"></view>
+  <view class="sheet__panel" style="height:{{height}}; max-height:{{maxHeight}}">
+    <view class="sheet__grip"></view>
+    <view wx:if="{{title}}" class="sheet__head">
+      <text class="sheet__title">{{title}}</text>
+      <view wx:if="{{showClose}}" class="sheet__close" bindtap="onClose">
+        <view class="sheet__x"></view>
+      </view>
+    </view>
+    <scroll-view wx:if="{{scrollBody}}" scroll-y class="sheet__body">
+      <slot></slot>
+    </scroll-view>
+    <view wx:else class="sheet__body sheet__body--static">
+      <slot></slot>
+    </view>
+    <view class="sheet__footer"><slot name="footer"></slot></view>
+  </view>
+</view>

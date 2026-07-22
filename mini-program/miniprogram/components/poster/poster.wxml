@@ -1,0 +1,8 @@
+<view class="poster poster--{{tone}}" style="border-radius:{{radius}}">
+  <image wx:if="{{src}}" class="poster__img" src="{{src}}" mode="aspectFill" style="border-radius:{{radius}}" />
+  <view wx:else class="poster__ph">
+    <text class="poster__sub">{{subtitle}}</text>
+    <text class="poster__title">{{title}}</text>
+    <view class="poster__spade">♠</view>
+  </view>
+</view>

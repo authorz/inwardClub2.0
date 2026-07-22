@@ -1,0 +1,182 @@
+package reservation
+
+import (
+	"context"
+	"fmt"
+	"math/rand"
+	"time"
+
+	apperr "github.com/inwardclub/server/internal/platform/errors"
+	"github.com/inwardclub/server/internal/platform/httpx"
+)
+
+// Service provides reservation, waitlist and arrival operations for both the
+// mini program (member scope) and the store console (store scope).
+type Service struct {
+	repo Repository
+	now  func() time.Time
+}
+
+// NewService builds the reservation service.
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo, now: time.Now}
+}
+
+// ListTables returns the store's tables for the availability view.
+func (s *Service) ListTables(ctx context.Context, storeID int64) ([]TableView, error) {
+	tables, err := s.repo.ListTables(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]TableView, 0, len(tables))
+	for _, t := range tables {
+		views = append(views, tableView(t))
+	}
+	return views, nil
+}
+
+// ListSeats returns the store's seats for the availability view.
+func (s *Service) ListSeats(ctx context.Context, storeID int64) ([]SeatView, error) {
+	seats, err := s.repo.ListSeats(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]SeatView, 0, len(seats))
+	for _, seat := range seats {
+		views = append(views, seatView(seat))
+	}
+	return views, nil
+}
+
+// ListReservations returns the member's reservations, most recent first.
+func (s *Service) ListReservations(ctx context.Context, memberID int64, page httpx.Page) ([]ReservationView, int64, error) {
+	items, total, err := s.repo.ListMemberReservations(ctx, memberID, page.Limit(), page.Offset())
+	if err != nil {
+		return nil, 0, err
+	}
+	views := make([]ReservationView, 0, len(items))
+	for _, r := range items {
+		views = append(views, reservationView(r))
+	}
+	return views, total, nil
+}
+
+// ListStoreReservations returns the acting store's reservations, most recent
+// first (store console). storeID is the store scope pinned from the token.
+func (s *Service) ListStoreReservations(ctx context.Context, storeID int64, page httpx.Page) ([]ReservationView, int64, error) {
+	items, total, err := s.repo.ListStoreReservations(ctx, storeID, page.Limit(), page.Offset())
+	if err != nil {
+		return nil, 0, err
+	}
+	views := make([]ReservationView, 0, len(items))
+	for _, r := range items {
+		views = append(views, reservationView(r))
+	}
+	return views, total, nil
+}
+
+// CreateReservation books a table/seat for the member.
+func (s *Service) CreateReservation(ctx context.Context, memberID int64, req CreateReservationRequest) (ReservationView, error) {
+	if req.StoreID <= 0 {
+		return ReservationView{}, apperr.Invalid("storeId is required")
+	}
+	if req.PartySize <= 0 {
+		return ReservationView{}, apperr.Invalid("partySize must be positive")
+	}
+	if req.ReservedAt.IsZero() {
+		return ReservationView{}, apperr.Invalid("reservedAt is required")
+	}
+	if req.ReservedAt.Before(s.now()) {
+		return ReservationView{}, apperr.Invalid("reservedAt must be in the future")
+	}
+
+	now := s.now().UTC()
+	res := Reservation{
+		ReservationNo: s.newReservationNo(now),
+		StoreID:       req.StoreID,
+		MemberID:      memberID,
+		TableID:       req.TableID,
+		SeatID:        req.SeatID,
+		PartySize:     req.PartySize,
+		ReservedAt:    req.ReservedAt.UTC(),
+		Status:        StatusBooked,
+		Remark:        req.Remark,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	id, err := s.repo.CreateReservation(ctx, res)
+	if err != nil {
+		return ReservationView{}, err
+	}
+	res.ID = id
+	return reservationView(res), nil
+}
+
+// GetReservation returns a single reservation owned by the member.
+func (s *Service) GetReservation(ctx context.Context, memberID, id int64) (ReservationView, error) {
+	res, err := s.repo.GetReservation(ctx, id)
+	if err != nil {
+		return ReservationView{}, err
+	}
+	if res.MemberID != memberID {
+		// Do not disclose existence of another member's reservation.
+		return ReservationView{}, apperr.NotFound("reservation not found")
+	}
+	return reservationView(res), nil
+}
+
+// GetStoreReservation returns a single reservation within the acting store's
+// scope (store console). A booking outside the scope is reported as not found,
+// mirroring the member-scoped GetReservation.
+func (s *Service) GetStoreReservation(ctx context.Context, storeID, id int64) (ReservationView, error) {
+	res, err := s.repo.GetReservation(ctx, id)
+	if err != nil {
+		return ReservationView{}, err
+	}
+	if res.StoreID != storeID {
+		return ReservationView{}, apperr.NotFound("reservation not found")
+	}
+	return reservationView(res), nil
+}
+
+// CancelReservation cancels a member's still-booked reservation.
+func (s *Service) CancelReservation(ctx context.Context, memberID, id int64) error {
+	return s.repo.CancelReservation(ctx, id, memberID, s.now().UTC())
+}
+
+// CreateWaitlistEntry queues a walk-in party for the member.
+func (s *Service) CreateWaitlistEntry(ctx context.Context, memberID int64, req CreateWaitlistRequest) (WaitlistEntryView, error) {
+	if req.StoreID <= 0 {
+		return WaitlistEntryView{}, apperr.Invalid("storeId is required")
+	}
+	if req.PartySize <= 0 {
+		return WaitlistEntryView{}, apperr.Invalid("partySize must be positive")
+	}
+	now := s.now().UTC()
+	entry := WaitlistEntry{
+		StoreID:   req.StoreID,
+		MemberID:  memberID,
+		PartySize: req.PartySize,
+		Status:    WaitlistWaiting,
+		QueuedAt:  now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	id, err := s.repo.CreateWaitlistEntry(ctx, entry)
+	if err != nil {
+		return WaitlistEntryView{}, err
+	}
+	entry.ID = id
+	return waitlistView(entry), nil
+}
+
+// ArriveReservation records a member's arrival against a booking (store console).
+// storeID is the acting store's scope; byType/byID identify the staff member.
+func (s *Service) ArriveReservation(ctx context.Context, storeID, reservationID int64, byType string, byID int64) error {
+	return s.repo.ArriveReservation(ctx, reservationID, storeID, byType, byID, s.now().UTC())
+}
+
+// newReservationNo builds a human-readable, collision-resistant booking number.
+func (s *Service) newReservationNo(now time.Time) string {
+	return fmt.Sprintf("R%s%04d", now.Format("20060102150405"), rand.Intn(10000))
+}

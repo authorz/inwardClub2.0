@@ -1,0 +1,20 @@
+<view
+  class="ts"
+  bindtouchstart="onStart"
+  catchtouchmove="onMove"
+  bindtouchend="onEnd"
+  bindtouchcancel="onEnd"
+>
+  <view class="ts__stage">
+    <view
+      wx:for="{{cards}}"
+      wx:key="id"
+      class="ts__card {{dragging ? 'is-dragging' : ''}} {{index === current ? 'is-active' : ''}}"
+      style="{{item._style}}"
+      data-index="{{index}}"
+      catchtap="onTap"
+    >
+      <ic-poster src="{{item.imageUrl}}" title="{{item.title}}" tone="{{item.tone}}" radius="24rpx" />
+    </view>
+  </view>
+</view>

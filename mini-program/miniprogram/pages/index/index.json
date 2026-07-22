@@ -1,0 +1,7 @@
+{
+  "usingComponents": {
+    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet"
+  },
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "Inward Club"
+}

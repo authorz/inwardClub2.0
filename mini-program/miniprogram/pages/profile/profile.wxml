@@ -1,0 +1,47 @@
+<view class="pf">
+  <view class="pf__card ic-card">
+    <view class="pf__row" hover-class="pf__row--hover" bindtap="chooseAvatar">
+      <text class="pf__label">头像</text>
+      <view class="pf__avatar">
+        <image wx:if="{{me.avatarUrl}}" class="pf__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
+        <view wx:else class="pf__avatar-ph"></view>
+      </view>
+      <text class="pf__hint">更换头像</text>
+      <view class="ic-arrow"></view>
+    </view>
+
+    <view class="pf__row">
+      <text class="pf__label">昵称</text>
+      <input class="pf__input" value="{{me.nickname}}" placeholder="设置昵称" placeholder-class="pf__ph" bindinput="onNickname" />
+    </view>
+
+    <view class="pf__row" hover-class="pf__row--hover" bindtap="bindPhone">
+      <text class="pf__label">手机号</text>
+      <text class="pf__value">{{phoneMasked || '未绑定'}}</text>
+      <view class="ic-arrow"></view>
+    </view>
+
+    <view class="pf__row">
+      <text class="pf__label">会员等级</text>
+      <text class="pf__value">{{me.tierName || 'VIP1'}}</text>
+    </view>
+
+    <view class="pf__row" hover-class="pf__row--hover" bindtap="copyInvite">
+      <text class="pf__label">邀请码</text>
+      <text class="pf__value">{{me.inviteCode || '--'}}</text>
+      <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+    </view>
+
+    <view class="pf__row pf__row--last" hover-class="pf__row--hover" bindtap="bindInviter">
+      <text class="pf__label">绑定邀请人</text>
+      <text class="pf__value">{{me.boundInviter || '未绑定'}}</text>
+      <view wx:if="{{!me.boundInviter}}" class="ic-arrow"></view>
+    </view>
+  </view>
+
+  <text class="pf__note">资料仅用于会员权益和订单通知</text>
+
+  <view class="pf__save">
+    <button class="ic-btn ic-btn-primary ic-btn-block" loading="{{saving}}" bindtap="save">保存</button>
+  </view>
+</view>

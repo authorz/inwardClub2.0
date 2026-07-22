@@ -1,0 +1,47 @@
+<view class="ss">
+  <view class="ss__brand">
+    <text class="ss__brand-name">InwardClub</text>
+    <text class="ss__brand-sub">BELONG TO YOUR BEST</text>
+  </view>
+
+  <view class="ss__sort">
+    <text>距离最近</text>
+    <view class="ss__sort-caret"></view>
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!stores.length}}" text="暂无门店" />
+
+  <view wx:else class="ss__list">
+    <view class="ss__store" wx:for="{{stores}}" wx:key="id">
+      <view class="ss__main" data-id="{{item.id}}" bindtap="onSelect" hover-class="ss__main--hover">
+        <view class="ss__head">
+          <text class="ss__name ic-ellipsis">{{item.name}}</text>
+        </view>
+        <view class="ss__meta">
+          <text class="ss__status {{item.open ? 'is-open' : 'is-closed'}}">{{item.open ? '营业中' : '休息中'}}</text>
+          <text class="ss__hours">{{item.hours}}</text>
+          <text wx:if="{{currentId === item.id}}" class="ss__current">当前</text>
+        </view>
+        <view class="ss__addr">
+          <text class="ss__addr-text">{{item.address}}{{item.addressDetail ? ' · ' + item.addressDetail : ''}}</text>
+        </view>
+        <view class="ss__detail" catchtap="goDetail" data-id="{{item.id}}"><text>查看详情</text><view class="ic-arrow"></view></view>
+      </view>
+      <view class="ss__side">
+        <text class="ss__distance">{{item.distanceText}}</text>
+        <view class="ss__actions">
+          <view class="ss__act" catchtap="onNav" data-id="{{item.id}}">
+            <view class="ic-ic ic-ic-nav ic-ic--sm"></view>
+            <text class="ss__act-text">导航</text>
+          </view>
+          <view class="ss__vline"></view>
+          <view class="ss__act" catchtap="onCall" data-id="{{item.id}}">
+            <view class="ic-ic ic-ic-phone ic-ic--sm"></view>
+            <text class="ss__act-text">电话</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

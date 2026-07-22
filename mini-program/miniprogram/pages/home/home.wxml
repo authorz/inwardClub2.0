@@ -1,0 +1,141 @@
+<page-meta page-style="{{ (showRecharge || showPoint) ? 'overflow: hidden;' : '' }}" />
+<view class="ic-page ic-page--tab mine">
+  <!-- profile header -->
+  <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
+    <view class="mine__avatar">
+      <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
+      <view wx:else class="mine__avatar-ph"><text>{{me.nickname}}</text></view>
+      <image wx:if="{{genderIcon}}" class="mine__gender" src="{{genderIcon}}" mode="aspectFit" />
+    </view>
+    <view class="mine__ident">
+      <view class="mine__nameline">
+        <text class="mine__name">{{me.nickname || '会员'}}</text>
+        <text wx:if="{{me.tierShort}}" class="ic-tag ic-tag-dark mine__tier">{{me.tierShort}}</text>
+      </view>
+      <view class="mine__invite" catchtap="copyInvite">
+        <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>
+        <view class="ic-ic ic-ic-copy mine__invite-copy"></view>
+      </view>
+    </view>
+    <view class="ic-arrow"></view>
+  </view>
+
+  <!-- assets: 金币 / 积分 / 券（大数字友好，三列） -->
+  <view class="mine__assets ic-card">
+    <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
+      <text class="mine__asset-num">{{coinsText}}</text>
+      <view class="mine__asset-label">
+        <image class="mine__asset-ico" src="/assets/payment/coin.png" mode="aspectFit" />
+        <text>金币</text>
+      </view>
+    </view>
+    <view class="mine__asset-div"></view>
+    <view class="mine__asset" data-asset="points" bindtap="onAsset" hover-class="mine__asset--hover">
+      <text class="mine__asset-num">{{pointsText}}</text>
+      <view class="mine__asset-label">
+        <image class="mine__asset-ico" src="/assets/mine-menu/save-points.png" mode="aspectFit" />
+        <text>积分</text>
+      </view>
+    </view>
+    <view class="mine__asset-div"></view>
+    <view class="mine__asset" data-asset="coupons" bindtap="onAsset" hover-class="mine__asset--hover">
+      <text class="mine__asset-num">{{wallet.couponCount || 0}}<text class="mine__asset-unit">张</text></text>
+      <view class="mine__asset-label">
+        <image class="mine__asset-ico" src="/assets/mine-menu/coupons.png" mode="aspectFit" />
+        <text>券</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- order center -->
+  <view class="mine__block">
+    <text class="ic-h2 mine__block-title">订单中心</text>
+    <view class="mine__grid">
+      <view class="mine__grid-item" wx:for="{{orderEntries}}" wx:key="type" data-type="{{item.type}}" bindtap="goOrder" hover-class="mine__grid-item--hover">
+        <view class="mine__obox"><view class="ic-ic {{item.icon}} mine__oicon mine__oicon--{{item.type}}"></view></view>
+        <text class="mine__grid-label">{{item.label}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 会员功能 -->
+  <view class="mine__block">
+    <text class="ic-h2 mine__block-title">会员功能</text>
+    <view class="mine__menu">
+      <view class="mine__menu-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__grid-item--hover">
+        <image class="mine__menu-ico" src="/assets/mine-menu/{{item.icon}}.png" mode="aspectFit" />
+        <text class="mine__grid-label">{{item.label}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 工作人员功能（仅员工可见） -->
+  <view wx:if="{{isStaff}}" class="mine__block">
+    <text class="ic-h2 mine__block-title">工作人员功能</text>
+    <view class="mine__menu">
+      <view class="mine__menu-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__grid-item--hover">
+        <image class="mine__menu-ico" src="/assets/mine-menu/{{item.icon}}.png" mode="aspectFit" />
+        <text class="mine__grid-label">{{item.label}}</text>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 充值金币弹层（仅微信支付） -->
+<ic-bottom-sheet show="{{showRecharge}}" title="充值金币" height="78vh" max-height="78vh" bind:close="closeRecharge">
+  <view class="sheet-row">
+    <text class="sheet-row__label">当前金币</text>
+    <text class="sheet-row__num">{{wallet.coins}}</text>
+  </view>
+  <view class="rc__tiles">
+    <view
+      class="rc__tile {{productId === item.id ? 'is-active' : ''}}"
+      wx:for="{{products}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="pickProduct"
+    >
+      <text class="rc__price">¥{{item.priceYuan}}</text>
+      <text class="rc__coins">得 {{item.totalCoins}} 金币</text>
+      <view wx:if="{{productId === item.id}}" class="rc__check"><view class="ic-ic ic-ic-check ic-ic--sm"></view></view>
+    </view>
+  </view>
+  <view class="rc__custom {{productId === 'custom' ? 'is-active' : ''}}" data-id="custom" bindtap="pickProduct">
+    <text class="rc__custom-label">自定义金额</text>
+    <view class="rc__custom-field">
+      <text class="rc__custom-sign">¥</text>
+      <input class="rc__custom-input" type="number" value="{{customAmount}}" placeholder="输入金额" placeholder-class="rc__custom-ph" bindinput="onCustomAmount" />
+    </view>
+  </view>
+  <view class="sheet-row sheet-row--bordered">
+    <text class="sheet-row__label">支付方式</text>
+    <view class="rc__pay"><image class="rc__wx" src="/assets/payment/wechat-pay.png" mode="aspectFit" /><text>微信支付</text></view>
+  </view>
+  <text class="sheet-note">到账金币以后台充值档位为准</text>
+  <view slot="footer" class="rc__footer">
+    <view class="rc__total"><text class="rc__total-label">合计</text><text class="rc__total-num">¥{{rechargeTotal}}</text></view>
+    <button class="ic-btn ic-btn-primary rc__btn" loading="{{submitting}}" bindtap="confirmRecharge">确认充值</button>
+  </view>
+</ic-bottom-sheet>
+
+<!-- 存取积分弹层（固定当前门店，工作人员审核） -->
+<ic-bottom-sheet show="{{showPoint}}" title="{{pointSheetTitle}}" height="auto" max-height="58vh" scroll-body="{{false}}" bind:close="closePoint">
+  <view class="sheet-row sheet-row--bordered ps__store ps__row">
+    <text class="sheet-row__label ps__store-label">门店</text>
+    <text class="ps__store-name ic-ellipsis">{{pointStoreName}}</text>
+  </view>
+  <view class="ps__balance">
+    <text class="ps__balance-label">积分余额</text>
+    <text class="ps__balance-num">{{wallet.points}}</text>
+  </view>
+  <view class="ps__field">
+    <text class="ps__field-label">积分数量</text>
+    <input class="ps__input" type="number" value="{{pointAmount}}" placeholder="请输入积分数量" placeholder-class="ps__ph" bindinput="onPointAmount" />
+    <text class="ps__unit">积分</text>
+  </view>
+  <view class="ps__hint"><text class="ps__hint-ico">!</text>提交后由工作人员审核</view>
+  <view class="ps__ledger" bindtap="goLedger"><text>查看积分流水</text><view class="ic-arrow"></view></view>
+  <view slot="footer" class="ps__footer">
+    <button class="ic-btn ic-btn-primary ic-btn-block ps__submit" loading="{{submitting}}" bindtap="confirmPoint">{{pointSubmitText}}</button>
+  </view>
+</ic-bottom-sheet>

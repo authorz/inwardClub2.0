@@ -1,0 +1,13 @@
+.wl { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.wl__seg { margin-top: 8rpx; }
+.wl__dir { margin-top: 8rpx; padding: 0 8rpx; }
+.wl__list { margin-top: 16rpx; padding: 0 32rpx; }
+.wl__row { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; padding: 34rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.wl__row:last-child { border-bottom: none; }
+.wl__row-main { display: flex; flex-direction: column; gap: 10rpx; min-width: 0; }
+.wl__row-title { font-size: 30rpx; line-height: 1.4; color: var(--ic-black); }
+.wl__row-note { font-size: 24rpx; line-height: 1.4; color: var(--ic-text-3); }
+.wl__row-time { font-size: 24rpx; line-height: 1.4; color: var(--ic-text-4); }
+.wl__row-delta { font-size: 40rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.wl__row-delta.is-income { color: var(--ic-success); }
+.wl__foot { display: block; text-align: center; margin-top: 30rpx; font-size: 22rpx; color: var(--ic-text-4); }

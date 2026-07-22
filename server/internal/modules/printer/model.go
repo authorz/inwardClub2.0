@@ -1,0 +1,68 @@
+package printer
+
+import "time"
+
+// Device statuses and providers. Phase-1 only manages device records; the
+// FakePrinter is the execution end, so no real provider credentials are used.
+const (
+	StatusActive   = "active"
+	StatusDisabled = "disabled"
+
+	ProviderXpyun = "xpyun"
+)
+
+// Device is a cloud printer registered to a store (row of printer_devices).
+type Device struct {
+	ID        int64
+	StoreID   int64
+	Name      string
+	Provider  string
+	DeviceSN  string
+	DeviceKey string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// DeviceInput is the create payload for a printer device.
+type DeviceInput struct {
+	Name      string `json:"name"`
+	Provider  string `json:"provider"`
+	DeviceSN  string `json:"deviceSn"`
+	DeviceKey string `json:"deviceKey"`
+	Status    string `json:"status"`
+}
+
+// DevicePatch is the partial-update payload; nil fields are left unchanged.
+type DevicePatch struct {
+	Name      *string `json:"name"`
+	DeviceSN  *string `json:"deviceSn"`
+	DeviceKey *string `json:"deviceKey"`
+	Status    *string `json:"status"`
+}
+
+// DeviceView is the JSON shape returned by the console endpoints. The device
+// key is intentionally omitted from reads.
+type DeviceView struct {
+	ID        int64     `json:"id"`
+	StoreID   int64     `json:"storeId"`
+	Name      string    `json:"name"`
+	Provider  string    `json:"provider"`
+	DeviceSN  string    `json:"deviceSn"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (d Device) view() DeviceView {
+	return DeviceView{
+		ID:        d.ID,
+		StoreID:   d.StoreID,
+		Name:      d.Name,
+		Provider:  d.Provider,
+		DeviceSN:  d.DeviceSN,
+		Status:    d.Status,
+		CreatedAt: d.CreatedAt,
+		UpdatedAt: d.UpdatedAt,
+	}
+}

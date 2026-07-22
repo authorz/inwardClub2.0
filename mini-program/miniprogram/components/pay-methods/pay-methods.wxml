@@ -1,0 +1,18 @@
+<view class="pm pm--{{layout}}">
+  <view
+    wx:for="{{items}}"
+    wx:key="code"
+    class="pm__item {{value === item.code ? 'is-active' : ''}} {{item.code === 'coin' && coinDisabled ? 'is-disabled' : ''}}"
+    data-code="{{item.code}}"
+    bindtap="onPick"
+  >
+    <view class="pm__icon pm__icon--{{item.code}}">
+      <image wx:if="{{item.code === 'wechat'}}" class="pm__img" src="/assets/payment/wechat-pay.png" mode="aspectFit" />
+      <image wx:elif="{{item.code === 'coin'}}" class="pm__img" src="/assets/payment/coin.png" mode="aspectFit" />
+    </view>
+    <text class="pm__label">{{item.label}}</text>
+    <view class="pm__radio">
+      <view wx:if="{{value === item.code}}" class="pm__radio-on"></view>
+    </view>
+  </view>
+</view>

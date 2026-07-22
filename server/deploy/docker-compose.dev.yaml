@@ -1,0 +1,45 @@
+# Development infrastructure for the InwardClub 2.0 server.
+# Brings up MySQL 8 and Redis; the Go processes run on the host.
+#
+#   docker compose -f deploy/docker-compose.dev.yaml up -d
+#
+# Then, from server/:
+#   export MYSQL_DSN='inward:inward@tcp(127.0.0.1:3307)/inwardclub2?parseTime=true&loc=UTC&charset=utf8mb4'
+#   export REDIS_ADDR='127.0.0.1:6379'
+#   export JWT_SIGNING_KEY='dev-signing-key'
+#   go run ./cmd/migrate up && go run ./cmd/migrate seed
+#   go run ./cmd/api
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: inwardclub2-mysql
+    command: --default-authentication-plugin=mysql_native_password --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: inwardclub2
+      MYSQL_USER: inward
+      MYSQL_PASSWORD: inward
+    ports:
+      - "3307:3306"
+    volumes:
+      - inwardclub2_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: inwardclub2-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  inwardclub2_mysql:

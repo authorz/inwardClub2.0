@@ -1,0 +1,32 @@
+.iv { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+
+.iv__code-card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 40rpx 32rpx; }
+.iv__code-label { font-size: 24rpx; color: var(--ic-text-3); }
+.iv__code-row { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; }
+.iv__code { font-size: 48rpx; font-weight: 700; color: var(--ic-black); letter-spacing: 6rpx; font-variant-numeric: tabular-nums; }
+.iv__copy { display: flex; align-items: center; gap: 8rpx; font-size: 24rpx; color: var(--ic-text-2); }
+.iv__share { margin-top: 32rpx; }
+.iv__share-ico { color: #fff; margin-right: 12rpx; }
+
+.iv__rules { margin-top: 24rpx; padding: 8rpx 32rpx; }
+.iv__rule { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.iv__rule:last-child { border-bottom: none; }
+.iv__rule-main { display: flex; flex-direction: column; gap: 6rpx; }
+.iv__rule-title { font-size: 30rpx; color: var(--ic-black); }
+.iv__rule-desc { font-size: 24rpx; color: var(--ic-text-3); }
+
+.iv__stats { display: flex; align-items: center; margin-top: 24rpx; padding: 32rpx 0; }
+.iv__stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
+.iv__stat-num { font-size: 44rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.iv__stat-label { font-size: 24rpx; color: var(--ic-text-3); }
+.iv__stat-div { width: 1rpx; height: 60rpx; background: var(--ic-line); }
+
+.iv__records { margin-top: 32rpx; }
+.iv__records-title { display: block; padding: 0 8rpx 20rpx; }
+.iv__record { padding: 0 32rpx; }
+.iv__record-row { display: flex; align-items: center; gap: 20rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.iv__record-row:last-child { border-bottom: none; }
+.iv__record-name { flex: 1; font-size: 30rpx; color: var(--ic-black); }
+.iv__record-status { font-size: 24rpx; color: var(--ic-text-3); }
+.iv__record-status.is-ok { color: var(--ic-black); }
+.iv__record-date { font-size: 24rpx; color: var(--ic-text-4); min-width: 160rpx; text-align: right; }

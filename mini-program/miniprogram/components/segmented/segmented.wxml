@@ -1,0 +1,12 @@
+<view class="seg seg--{{variant}}">
+  <view
+    wx:for="{{items}}"
+    wx:key="value"
+    class="seg__item {{value === item.value ? 'is-active' : ''}}"
+    data-value="{{item.value}}"
+    bindtap="onSelect"
+  >
+    <text class="seg__label">{{item.label}}</text>
+    <view wx:if="{{variant === 'line'}}" class="seg__underline"></view>
+  </view>
+</view>

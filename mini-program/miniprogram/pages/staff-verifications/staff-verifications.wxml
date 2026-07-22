@@ -1,0 +1,15 @@
+<view class="svl">
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!list.length}}" text="暂无核销记录" />
+
+  <view wx:else class="svl__list ic-card">
+    <view class="svl__row" wx:for="{{list}}" wx:key="id">
+      <view class="svl__main">
+        <text class="svl__activity">{{item.activityTitle}}</text>
+        <text class="svl__code">{{item.code}}</text>
+        <text class="svl__time">{{item.timeText}}{{item.memberName ? ' · ' + item.memberName : ''}}</text>
+      </view>
+      <text class="svl__result {{item.success ? 'is-ok' : 'is-fail'}}">{{item.resultLabel}}</text>
+    </view>
+  </view>
+</view>

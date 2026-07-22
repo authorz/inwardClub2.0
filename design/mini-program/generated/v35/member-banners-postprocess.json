@@ -1,0 +1,79 @@
+{
+  "version": "v35",
+  "base_version": "v32",
+  "goal": "Move VIP1-VIP8 mark to the left side and make it more artistic/integrated with the card surface.",
+  "records": [
+    {
+      "file": "v1-normal.jpg",
+      "text": "VIP1",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v1-normal.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v1-normal.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 90,
+      "size_kb": 159.9
+    },
+    {
+      "file": "v2-bronze.jpg",
+      "text": "VIP2",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v2-bronze.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v2-bronze.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 90,
+      "size_kb": 197.7
+    },
+    {
+      "file": "v3-silver.jpg",
+      "text": "VIP3",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v3-silver.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v3-silver.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 90,
+      "size_kb": 182.5
+    },
+    {
+      "file": "v4-gold.jpg",
+      "text": "VIP4",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v4-gold.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v4-gold.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 87,
+      "size_kb": 186.2
+    },
+    {
+      "file": "v5-platinum.jpg",
+      "text": "VIP5",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v5-platinum.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v5-platinum.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 90,
+      "size_kb": 139.0
+    },
+    {
+      "file": "v6-diamond.jpg",
+      "text": "VIP6",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v6-diamond.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v6-diamond.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 90,
+      "size_kb": 187.0
+    },
+    {
+      "file": "v7-star.jpg",
+      "text": "VIP7",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v7-star.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v7-star.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 87,
+      "size_kb": 193.6
+    },
+    {
+      "file": "v8-master.jpg",
+      "text": "VIP8",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v8-master.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v35/final/v8-master.jpg",
+      "postprocess_spec": "Left-side artistic membership mark: low-contrast engraved VIP watermark, metallic VIP foreground, separate number seal, no extra words; preserve card background and exact text.",
+      "quality": 78,
+      "size_kb": 192.2
+    }
+  ]
+}

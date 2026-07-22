@@ -1,0 +1,40 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{order}}" class="od">
+  <view class="od-head">
+    <view class="od-head__icon"><view class="ic-ic ic-ic-clock ic-ic--sm"></view></view>
+    <text class="od-head__status">{{order.statusText}}</text>
+    <text class="od-head__no">#{{order.orderNo}}</text>
+  </view>
+
+  <view class="od-card od-card--pad rod__item">
+    <view class="rod__glass"><view class="ic-ic ic-ic-coupon"></view></view>
+    <view class="rod__item-main">
+      <text class="rod__item-title">{{order.title}}</text>
+      <text class="rod__item-sub">{{order.couponName}} · x{{order.qty}}</text>
+    </view>
+    <text class="rod__valid">有效期至 {{order.validUntil}}</text>
+  </view>
+
+  <view class="od-card od-card--pad rod__code">
+    <view class="ic-qr">
+      <view class="ic-qr__row" wx:for="{{qr}}" wx:for-item="row" wx:key="id">
+        <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
+      </view>
+    </view>
+    <text class="rod__code-label">兑换码</text>
+    <view class="rod__code-num" bindtap="copyCode"><text>{{order.code}}</text><view class="ic-ic ic-ic-copy ic-ic--sm"></view></view>
+    <text class="rod__code-hint">请到门店向工作人员出示</text>
+  </view>
+
+  <view class="od-card">
+    <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{order.storeName}}</text></view>
+    <view class="od-row"><text class="od-row__label">兑换时间</text><text class="od-row__value">{{order.createdText}}</text></view>
+    <view class="od-row"><text class="od-row__label">状态</text><text class="od-row__value">{{order.statusHint || order.statusText}}</text></view>
+  </view>
+
+  <view class="od-bar">
+    <button class="ic-btn ic-btn-ghost" bindtap="cancel">取消兑换</button>
+    <button class="ic-btn ic-btn-primary" bindtap="copyCode">出示兑换码</button>
+  </view>
+</view>

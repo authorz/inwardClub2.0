@@ -1,0 +1,103 @@
+.mine { background: var(--ic-bg); }
+
+/* ---- profile header ---- */
+.mine__profile { display: flex; align-items: center; padding: 40rpx 32rpx; background: var(--ic-white); }
+.mine__profile--hover { opacity: 0.85; }
+.mine__avatar { position: relative; width: 128rpx; height: 128rpx; border-radius: 50%; background: #111; flex: none; }
+.mine__avatar-img { width: 100%; height: 100%; border-radius: 50%; }
+.mine__avatar-ph { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30rpx; overflow: hidden; }
+.mine__gender { position: absolute; right: -4rpx; bottom: -4rpx; width: 40rpx; height: 40rpx; border-radius: 50%; background: var(--ic-white); box-sizing: border-box; border: 2rpx solid var(--ic-white); }
+.mine__ident { flex: 1; min-width: 0; margin-left: 28rpx; }
+.mine__nameline { display: flex; align-items: center; gap: 12rpx; }
+.mine__name { min-width: 0; max-width: 320rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 40rpx; font-weight: 700; color: var(--ic-black); }
+.mine__tier { flex: none; }
+.mine__invite { display: inline-flex; align-items: center; gap: 6rpx; margin-top: 14rpx; }
+.mine__invite-text { font-size: 24rpx; color: var(--ic-text-3); line-height: 1; }
+.mine__invite-copy { width: 32rpx; height: 32rpx; color: var(--ic-text-3); transform: scale(0.62); transform-origin: center; }
+
+/* ---- assets: 三列大数字 ---- */
+.mine__assets { margin: 20rpx 24rpx; padding: 24rpx 0; display: flex; align-items: center; }
+.mine__asset { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; padding: 4rpx 12rpx; }
+.mine__asset--hover { opacity: 0.6; }
+.mine__asset-ico { width: 28rpx; height: 28rpx; flex: none; }
+.mine__asset-num { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 40rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.mine__asset-unit { font-size: 22rpx; font-weight: 400; margin-left: 4rpx; color: var(--ic-text-3); }
+.mine__asset-label { display: flex; align-items: center; justify-content: center; gap: 6rpx; font-size: 24rpx; color: var(--ic-text-3); }
+.mine__asset-div { width: 1rpx; height: 56rpx; background: var(--ic-line); flex: none; }
+
+/* ---- blocks (order center / menus) ---- */
+.mine__block { margin: 20rpx 24rpx; padding: 30rpx 12rpx; background: var(--ic-white); border-radius: var(--ic-radius); }
+/* 区块标题视觉减重：更小、更细、更浅、下边距更克制（局部覆盖 ic-h2） */
+.mine__block-title { padding: 0 16rpx 12rpx; font-size: 24rpx; font-weight: 400; color: var(--ic-text-3); }
+.mine__grid { display: flex; }
+.mine__grid-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 16rpx; padding: 12rpx 0; }
+.mine__grid-item--hover { opacity: 0.55; }
+.mine__grid-label { font-size: 28rpx; color: var(--ic-text); text-align: center; }
+/* order center: 固定 icon box 统一视觉大小；字体图标做光学校正 */
+.mine__obox { width: 64rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; }
+.mine__oicon { font-size: 52rpx; line-height: 1; color: var(--ic-black); }
+/* 各字体图标字面尺寸不一，逐个微调让肉眼一致 */
+.mine__oicon--activity { transform: scale(0.94); }
+.mine__oicon--recharge { transform: scale(0.96); }
+.mine__oicon--coupon { transform: scale(1.02); }
+
+/* ---- 会员 / 工作人员功能 grid（一行 4 个） ---- */
+.mine__menu { display: flex; flex-wrap: wrap; }
+.mine__menu-item { width: 25%; display: flex; flex-direction: column; align-items: center; gap: 14rpx; padding: 20rpx 0; }
+.mine__menu-ico { width: 56rpx; height: 56rpx; }
+
+/* ---- recharge sheet ---- */
+/* 三列自适应：6 档位换行完整展示 */
+.rc__tiles { display: flex; flex-wrap: wrap; gap: 18rpx; margin: 20rpx 0 8rpx; }
+.rc__tile {
+  position: relative; width: calc((100% - 36rpx) / 3); box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 8rpx;
+  padding: 26rpx 8rpx; border: 2rpx solid var(--ic-line-strong); border-radius: 18rpx; background: #fff;
+}
+.rc__tile.is-active { border-color: #111; }
+.rc__price { font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
+.rc__coins { font-size: 22rpx; color: var(--ic-text-3); }
+.rc__check { position: absolute; top: -2rpx; right: -2rpx; width: 40rpx; height: 40rpx; border-radius: 0 16rpx 0 16rpx; background: #111; display: flex; align-items: center; justify-content: center; }
+.rc__check .ic-ic { color: #fff; }
+/* 自定义金额行 */
+.rc__custom { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 4rpx 0 8rpx; padding: 22rpx 24rpx; border: 2rpx solid var(--ic-line-strong); border-radius: 18rpx; background: #fff; }
+.rc__custom.is-active { border-color: #111; }
+.rc__custom-label { font-size: 28rpx; color: var(--ic-text); flex: none; }
+.rc__custom-field { display: flex; align-items: baseline; gap: 6rpx; }
+.rc__custom-sign { font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
+.rc__custom-input { min-width: 160rpx; text-align: right; font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
+.rc__custom-ph { font-weight: 400; color: var(--ic-text-4); }
+.rc__pay { display: flex; align-items: center; gap: 14rpx; font-size: 28rpx; color: var(--ic-text); }
+.rc__wx { width: 42rpx; height: 42rpx; display: block; }
+/* footer 避开自定义 tabbar（100rpx）与底部安全区，确认按钮宽度稳定 */
+.rc__footer { display: flex; align-items: center; gap: 24rpx; margin-bottom: calc(100rpx + env(safe-area-inset-bottom)); }
+.rc__total { display: flex; align-items: baseline; gap: 8rpx; flex: none; }
+.rc__total-label { font-size: 24rpx; color: var(--ic-text-2); }
+.rc__total-num { font-size: 40rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.rc__btn { flex: 1; margin-left: 0 !important; margin-right: 0 !important; }
+.rc__btn::after { border: none; }
+
+/* ---- point-saving sheet ---- */
+.ps__store { margin-top: 12rpx; }
+/* 门店信息视觉弱化：更小、更浅 */
+.ps__store-label { font-size: 24rpx; color: var(--ic-text-3); }
+.ps__store-name { max-width: 60%; font-size: 24rpx; color: var(--ic-text-2); }
+/* 表单 item 固定 44px(88rpx)，行与行之间再留一点垂直间距 */
+.ps__row { height: 88rpx; box-sizing: border-box; padding: 0; margin-bottom: 12rpx; }
+/* 余额行：弱提示，让输入行成为主内容 */
+.ps__balance { display: flex; align-items: baseline; justify-content: space-between; padding: 12rpx 0; }
+.ps__balance-label { font-size: 24rpx; color: var(--ic-text-3); }
+.ps__balance-num { font-size: 24rpx; color: var(--ic-text-3); }
+.ps__field { display: flex; align-items: center; gap: 16rpx; height: 104rpx; box-sizing: border-box; padding: 0; margin-top: 20rpx; margin-bottom: 12rpx; border-top: 1rpx solid var(--ic-line); }
+.ps__field-label { width: 140rpx; font-size: 30rpx; color: var(--ic-text); }
+.ps__input { flex: 1; font-size: 30rpx; color: var(--ic-black); }
+.ps__ph { color: var(--ic-text-4); }
+.ps__unit { font-size: 24rpx; color: var(--ic-text-3); }
+.ps__hint { display: flex; align-items: center; gap: 8rpx; margin-top: 20rpx; font-size: 22rpx; color: var(--ic-text-4); }
+.ps__hint-ico { display: inline-flex; align-items: center; justify-content: center; width: 26rpx; height: 26rpx; border: 1rpx solid var(--ic-text-4); border-radius: 50%; font-size: 18rpx; line-height: 1; color: var(--ic-text-4); }
+.ps__ledger { display: flex; align-items: center; justify-content: center; gap: 8rpx; padding: 26rpx 0 4rpx; font-size: 24rpx; color: var(--ic-text-2); }
+/* 提交按钮需避开自定义 tabbar（100rpx）与底部安全区 */
+.ps__footer { width: 100%; box-sizing: border-box; margin-bottom: calc(100rpx + env(safe-area-inset-bottom)); }
+/* 提交申请按钮横向撑满：强覆盖微信 button 默认左右 margin */
+.ps__submit { width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; display: flex; align-items: center; justify-content: center; height: 88rpx; line-height: 88rpx; padding-left: 0; padding-right: 0; box-sizing: border-box; text-align: center; }
+.ps__submit::after { border: none; }

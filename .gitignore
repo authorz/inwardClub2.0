@@ -1,0 +1,58 @@
+# ===== 敏感配置 / 密钥（严禁提交）=====
+# 真实环境变量（.env.example 是占位模板，可提交）
+server/.env
+**/.env
+!**/.env.example
+# 生产前端配置（含真实域名/网关）
+**/.env.production
+**/.env.local
+**/.env.*.local
+# API 密钥、证书私钥
+image-key.json
+image-key*.json
+**/cert/*.pem
+**/*.key
+**/*_key.pem
+**/*secret*
+
+# ===== 依赖 / 构建产物 =====
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/miniprogram_npm/
+**/build/
+server/tmp/
+server/bin/
+
+# ===== 微信小程序本地私有配置 =====
+**/project.private.config.json
+
+# ===== 编辑器 / 系统 =====
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ===== Claude / 本地临时 =====
+.claude/
+/tmp/
+**/*.log
+
+# ===== 大文件 / 打包 =====
+LOGO.zip
+*.zip
+
+# ===== Go =====
+*.test
+*.out
+# 编译产物（可从源码重建）
+server/worker
+server/api
+server/migrate
+
+# ===== 临时 / 过程产物（非正式代码）=====
+output/
+bug/
+tasks/
+design-demo/

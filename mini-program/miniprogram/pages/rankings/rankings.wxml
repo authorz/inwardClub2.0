@@ -1,0 +1,35 @@
+<view class="rk">
+  <view class="rk__seg">
+    <ic-segmented options="{{scopeOptions}}" value="{{scope}}" variant="pill" bind:change="onScopeChange" />
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+
+  <block wx:elif="{{board}}">
+    <view wx:if="{{board.myRank}}" class="rk__me ic-card">
+      <view class="rk__me-block">
+        <text class="rk__me-label">我的排名</text>
+        <text class="rk__me-num">{{board.myRank}}</text>
+      </view>
+      <view class="rk__me-div"></view>
+      <view class="rk__me-block">
+        <text class="rk__me-label">积分</text>
+        <text class="rk__me-num">{{board.myScore}}</text>
+      </view>
+    </view>
+
+    <view class="rk__list ic-card">
+      <view class="rk__row" wx:for="{{board.top}}" wx:key="rank">
+        <text class="rk__rank {{item.top3 ? 'is-top' : ''}}">{{item.rank}}</text>
+        <view class="rk__avatar">
+          <image wx:if="{{item.avatarUrl}}" class="rk__avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
+          <text wx:else class="rk__avatar-initial">{{item.initial}}</text>
+        </view>
+        <text class="rk__name ic-ellipsis">{{item.name}}</text>
+        <text class="rk__score">{{item.score}}</text>
+      </view>
+    </view>
+
+    <text class="rk__foot">{{board.updatedText}}</text>
+  </block>
+</view>

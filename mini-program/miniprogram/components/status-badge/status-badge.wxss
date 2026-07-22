@@ -1,0 +1,14 @@
+.badge { display: inline-flex; align-items: center; gap: 8rpx; height: 44rpx; padding: 0 18rpx; border-radius: 999rpx; background: #f2f2f2; }
+.badge__dot { width: 12rpx; height: 12rpx; border-radius: 50%; background: #9a9a9a; }
+.badge__text { font-size: 24rpx; color: #666; }
+/* tones: paired with the dot + always a text label, never color alone */
+.badge--active { background: #f2f2f2; }
+.badge--active .badge__dot { background: #111; }
+.badge--active .badge__text { color: #111; }
+.badge--done .badge__dot { background: #111; }
+.badge--done .badge__text { color: #333; }
+.badge--danger { background: #f6f6f6; }
+.badge--danger .badge__dot { background: #9a9a9a; }
+.badge--danger .badge__text { color: #666; }
+.badge--neutral .badge__dot { background: #b8b8b8; }
+.badge--plain { background: transparent; padding: 0; height: auto; }

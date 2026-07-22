@@ -1,0 +1,18 @@
+@import "../../styles/tokens.wxss";
+.trow {
+  background: #fff;
+  border: 1rpx solid var(--ic-line);
+  border-radius: 20rpx;
+  padding: 24rpx;
+}
+.trow--hover { opacity: 0.72; }
+.trow__top,
+.trow__bottom { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
+.trow__head { display: flex; flex-direction: column; }
+.trow__title { font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
+.trow__code,
+.trow__desc,
+.trow__time { font-size: 22rpx; color: var(--ic-text-3); }
+.trow__status { font-size: 22rpx; color: var(--ic-text-2); background: var(--ic-bg-2); padding: 6rpx 14rpx; border-radius: 999rpx; }
+.trow__body { margin: 18rpx 0; display: flex; flex-direction: column; gap: 8rpx; }
+.trow__amount { font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }

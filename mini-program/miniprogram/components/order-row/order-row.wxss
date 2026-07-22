@@ -1,0 +1,47 @@
+@import "../../styles/tokens.wxss";
+.orow {
+  background: #fff;
+  padding: 30rpx 0;
+  border-bottom: 1rpx solid var(--ic-line);
+}
+.orow--last { border-bottom: none; }
+.orow--hover { opacity: 0.72; }
+
+/* top: 标题 + 订单号同行(左) · 状态文字 + 箭头(右) */
+.orow__top { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
+.orow__head { display: flex; align-items: baseline; gap: 16rpx; min-width: 0; }
+.orow__title { font-size: 30rpx; font-weight: 600; color: var(--ic-black); }
+.orow__code { font-size: 28rpx; color: var(--ic-text-2); }
+.orow__status { display: flex; align-items: center; gap: 12rpx; flex: none; }
+.orow__statustext { font-size: 28rpx; color: var(--ic-text); }
+.orow__arrow {
+  width: 14rpx; height: 14rpx;
+  border-right: 3rpx solid var(--ic-text-2);
+  border-top: 3rpx solid var(--ic-text-2);
+  transform: rotate(45deg);
+}
+
+/* body: 门店行(上) · meta(desc/时间 与 金额/支付方式) */
+.orow__body { margin-top: 22rpx; display: flex; flex-direction: column; gap: 20rpx; }
+
+/* 门店信息行：CSS 线性店铺图标 + 门店名称 */
+.orow__store { display: flex; align-items: center; gap: 14rpx; }
+.orow__storename { font-size: 30rpx; color: var(--ic-text); }
+.orow__shop { position: relative; width: 34rpx; height: 34rpx; flex: none; color: var(--ic-black); }
+.orow__shop::before {
+  content: ""; position: absolute; top: 2rpx; left: 0; right: 0; height: 11rpx;
+  border: 2rpx solid currentColor; border-radius: 8rpx 8rpx 0 0;
+}
+.orow__shop::after {
+  content: ""; position: absolute; top: 13rpx; left: 3rpx; right: 3rpx; bottom: 2rpx;
+  border: 2rpx solid currentColor; border-top: none; border-radius: 0 0 4rpx 4rpx;
+}
+
+/* meta：左列 desc/时间，右列 金额/支付方式（底部对齐，金额与 desc 同高） */
+.orow__meta { display: flex; align-items: flex-end; justify-content: space-between; gap: 20rpx; }
+.orow__metaL { display: flex; flex-direction: column; gap: 14rpx; min-width: 0; }
+.orow__metaR { display: flex; flex-direction: column; align-items: flex-end; gap: 12rpx; }
+.orow__desc { font-size: 28rpx; color: var(--ic-text-2); }
+.orow__time { font-size: 24rpx; color: var(--ic-text-3); margin-top: 12rpx; }
+.orow__amount { font-size: 40rpx; font-weight: 600; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.orow__paytext { font-size: 24rpx; color: var(--ic-text-3); margin-top: 12rpx; }

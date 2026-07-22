@@ -1,0 +1,11 @@
+.fod__item { display: flex; align-items: center; gap: 20rpx; padding: 18rpx 0; }
+.fod__thumb { width: 88rpx; height: 88rpx; border-radius: 12rpx; overflow: hidden; flex: none; background: var(--ic-fill); }
+.fod__pic { width: 100%; height: 100%; }
+.fod__ph { width: 100%; height: 100%; background: linear-gradient(160deg, #ececec, #dcdcdc); }
+.fod__name { flex: 1; min-width: 0; font-size: 30rpx; color: var(--ic-black); }
+.fod__qty { font-size: 24rpx; color: var(--ic-text-3); }
+.fod__amt { font-size: 30rpx; font-weight: 600; color: var(--ic-black); min-width: 120rpx; text-align: right; }
+.fod__sum { margin-top: 18rpx; padding-top: 22rpx; border-top: 1rpx solid var(--ic-line); }
+.fod__sum-row { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 0; font-size: 28rpx; color: var(--ic-text-2); }
+.fod__sum-row--total { margin-top: 8rpx; padding-top: 20rpx; border-top: 1rpx solid var(--ic-line); font-size: 30rpx; color: var(--ic-black); font-weight: 600; }
+.fod__pay { font-size: 40rpx; font-weight: 700; font-variant-numeric: tabular-nums; }

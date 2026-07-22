@@ -1,0 +1,1 @@
+.rd__hint { margin: 0 4rpx 12rpx; padding: 22rpx 26rpx; background: var(--ic-fill); border-radius: 14rpx; font-size: 24rpx; color: var(--ic-text-2); }

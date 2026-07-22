@@ -1,0 +1,43 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  font-size: var(--ic-font-base);
+  color: var(--ic-color-text);
+  background: var(--ic-color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 通用工具类：页面内轻背景区块，替代重阴影卡片 */
+.ic-band {
+  background: var(--ic-color-surface);
+  border: var(--ic-divider);
+  border-radius: var(--ic-radius-md);
+}
+
+.ic-muted {
+  color: var(--ic-color-text-secondary);
+}
+
+.ic-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}

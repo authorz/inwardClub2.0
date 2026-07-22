@@ -1,0 +1,15 @@
+/** 公共组件统一出口。 */
+
+export { default as AppIcon } from './AppIcon.vue'
+export { default as AssetImage } from './AssetImage.vue'
+export { default as CollectionCodeDialog } from './CollectionCodeDialog.vue'
+export { default as DataTable } from './DataTable.vue'
+export { default as EmptyState } from './EmptyState.vue'
+export { default as MetricTile } from './MetricTile.vue'
+export { default as PageHeader } from './PageHeader.vue'
+export { default as PermissionButton } from './PermissionButton.vue'
+export { default as PrintStatusIndicator } from './PrintStatusIndicator.vue'
+export { default as ReviewDialog } from './ReviewDialog.vue'
+export { default as StatusFilterBar } from './StatusFilterBar.vue'
+export { default as StatusTag } from './StatusTag.vue'
+export { default as VerifyDialog } from './VerifyDialog.vue'

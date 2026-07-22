@@ -1,0 +1,105 @@
+<view class="ord">
+  <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
+  <view class="ord__nav" style="padding-top: {{navStatusBar}}px;">
+    <view class="ord__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
+      <view class="ord__nav-store" bindtap="openStoreSheet">
+        <image class="ord__nav-loc" src="/assets/icons/location.svg" mode="aspectFit" />
+        <text class="ord__nav-name ic-ellipsis">{{store.name || '选择门店'}}</text>
+      </view>
+      <text class="ord__nav-title">点餐</text>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedCoupon}}" class="ord__coupon-tip">
+    <view class="ord__coupon-main">
+      <text class="ord__coupon-name">{{selectedCoupon.name}}</text>
+      <text class="ord__coupon-desc">{{selectedCoupon.desc}}</text>
+    </view>
+    <view class="ord__coupon-clear" bindtap="clearSelectedCoupon">移除</view>
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!groups.length}}" text="当前门店暂无菜单" />
+
+  <view wx:else class="ord__body">
+    <!-- left category rail -->
+    <scroll-view class="ord__cats" scroll-y>
+      <view
+        class="ord__cat {{activeCat === item.id ? 'is-active' : ''}}"
+        wx:for="{{groups}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onPickCat"
+      >
+        <text>{{item.name}}</text>
+      </view>
+    </scroll-view>
+
+    <!-- right item grid, grouped by category -->
+    <scroll-view class="ord__items" scroll-y scroll-into-view="{{intoView}}" scroll-with-animation>
+      <view class="ord__group" wx:for="{{groups}}" wx:key="id" wx:for-item="group">
+        <view class="ord__group-title" id="cat-{{group.id}}">{{group.name}}</view>
+        <view class="ord__grid">
+          <view class="ord__item" wx:for="{{group.items}}" wx:key="id" wx:for-item="it">
+            <view class="ord__item-img">
+              <image wx:if="{{it.imageUrl}}" class="ord__item-pic" src="{{it.imageUrl}}" mode="aspectFill" />
+              <view wx:else class="ord__item-ph"><text>{{it.name}}</text></view>
+              <view wx:if="{{it.soldOut}}" class="ord__soldout">已售罄</view>
+            </view>
+            <text class="ord__item-name ic-ellipsis">{{it.name}}</text>
+            <view class="ord__item-foot">
+              <view class="ord__item-row">
+                <text class="ord__item-yuan {{it.priceCompact ? 'ord__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
+                <view wx:if="{{!it.soldOut}}" class="ord__item-stepper">
+                  <ic-stepper
+                    value="{{it.qty}}"
+                    min="{{0}}"
+                    max="{{it.stock}}"
+                    size="sm"
+                    hide-zero="{{true}}"
+                    data-id="{{it.id}}"
+                    bind:change="onQtyChange"
+                  />
+                </view>
+              </view>
+              <text class="ord__item-pay">微信 / 金币可用</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="ord__grid-gap"></view>
+    </scroll-view>
+  </view>
+
+  <!-- bottom cart bar -->
+  <view class="ord__cart">
+    <view class="ord__cart-icon {{cartCount ? 'is-full' : ''}}">
+      <view class="ic-ic ic-ic-bag"></view>
+      <view wx:if="{{cartCount}}" class="ord__cart-badge">{{cartCount}}</view>
+    </view>
+    <view class="ord__cart-meta">
+      <text class="ord__cart-count">已选 {{cartCount}} 件</text>
+      <text class="ord__cart-hint">微信 / 金币可用</text>
+    </view>
+    <text class="ord__cart-total">¥{{totalText}}</text>
+    <button class="ic-btn ic-btn-primary ord__cart-btn {{cartCount ? '' : 'ic-disabled'}}" bindtap="onCheckout">去结算</button>
+  </view>
+</view>
+
+<ic-bottom-sheet show="{{showStoreSheet}}" title="选择门店" max-height="72vh" bind:close="closeStoreSheet">
+  <view class="ord-store-list">
+    <view
+      class="ord-store {{store.id === item.id ? 'is-active' : ''}}"
+      wx:for="{{stores}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onSelectStore"
+    >
+      <view class="ord-store__main">
+        <text class="ord-store__name">{{item.name}}</text>
+        <text class="ord-store__addr ic-ellipsis">{{item.address}}{{item.addressDetail ? ' · ' + item.addressDetail : ''}}</text>
+      </view>
+      <text wx:if="{{store.id === item.id}}" class="ord-store__current">当前</text>
+    </view>
+  </view>
+</ic-bottom-sheet>

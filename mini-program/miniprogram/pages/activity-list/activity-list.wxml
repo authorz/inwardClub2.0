@@ -1,0 +1,66 @@
+<view class="al">
+  <!-- Custom navigation: dark, back arrow left, capsule-safe right -->
+  <view class="al__nav" style="padding-top: {{navStatusBar}}px;">
+    <view class="al__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">
+      <view class="al__nav-back" bindtap="goBack"><view class="al__nav-arrow"></view></view>
+    </view>
+  </view>
+
+  <!-- left-aligned heading: 近期活动 / 精彩回顾 tabs -->
+  <view class="al__head">
+    <text class="al__head-title {{mode === 'current' ? 'is-active' : ''}}" bindtap="onCurrent">近期活动</text>
+    <text class="al__head-title {{mode === 'review' ? 'is-active' : ''}}" bindtap="onReview">精彩回顾</text>
+  </view>
+
+  <!-- ===== 近期活动：塔式轮播 ===== -->
+  <block wx:if="{{mode === 'current'}}">
+    <ic-loading wx:if="{{loading}}" />
+
+    <view wx:elif="{{!activities.length}}" class="al__empty">
+      <image class="al__empty-icon" src="/assets/empty/activity-empty.png" mode="aspectFit" />
+      <text class="al__empty-text">还没有新的内容哦，请期待一下吧</text>
+    </view>
+
+    <block wx:else>
+      <!-- tower-swiper card stack: active poster up front, neighbours fanned out -->
+      <ic-tower-swiper list="{{activities}}" bindchange="onCardChange" bindtap="onCardTap" />
+
+      <view class="al__dots">
+        <view class="al__dot {{index === current ? 'is-active' : ''}}" wx:for="{{activities}}" wx:key="id"></view>
+      </view>
+
+      <!-- selected activity summary -->
+      <view class="al__info">
+        <text class="al__info-title">{{currentItem.title}}</text>
+        <text class="al__date">{{currentItem.dateRangeText}}</text>
+        <button class="al__detail" bindtap="goTickets">
+          <view class="ic-ic ic-ic-ticket"></view>
+          <text>我的入场券</text>
+        </button>
+      </view>
+    </block>
+  </block>
+
+  <!-- ===== 精彩回顾：已结束活动列表 ===== -->
+  <block wx:else>
+    <ic-loading wx:if="{{reviewLoading}}" />
+
+    <view wx:elif="{{!reviews.length}}" class="al__empty">
+      <image class="al__empty-icon" src="/assets/empty/activity-empty.png" mode="aspectFit" />
+      <text class="al__empty-text">还没有已结束的活动哦</text>
+    </view>
+
+    <view wx:else class="al__reviews">
+      <view class="al__review" wx:for="{{reviews}}" wx:key="id" data-id="{{item.id}}" bindtap="onReviewTap">
+        <view class="al__review-main">
+          <text class="al__review-title ic-ellipsis">{{item.title}}</text>
+          <view class="al__review-meta">
+            <text wx:if="{{item.timeText}}" class="al__review-time">{{item.timeText}}</text>
+            <text wx:if="{{item.storeName}}" class="al__review-store ic-ellipsis">{{item.storeName}}</text>
+          </view>
+        </view>
+        <view class="al__review-arrow"></view>
+      </view>
+    </view>
+  </block>
+</view>

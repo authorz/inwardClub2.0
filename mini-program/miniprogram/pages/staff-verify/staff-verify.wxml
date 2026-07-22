@@ -1,0 +1,58 @@
+<view class="sv">
+  <view class="sv__store">
+    <text class="sv__store-label">当前门店</text>
+    <text class="sv__store-name ic-ellipsis">{{storeName}}</text>
+  </view>
+
+  <view class="sv__actions">
+    <view class="sv__action" hover-class="sv__action--hover" bindtap="scan">
+      <view class="ic-ic ic-ic-scan"></view>
+      <text class="sv__action-text">扫码核销</text>
+    </view>
+    <view class="sv__action" hover-class="sv__action--hover" bindtap="manual">
+      <view class="ic-ic ic-ic-doc"></view>
+      <text class="sv__action-text">手输核销码</text>
+    </view>
+  </view>
+
+  <view wx:if="{{lastResult}}" class="sv__result {{lastResult.success ? 'is-ok' : 'is-fail'}}">
+    <text class="sv__result-title">{{lastResult.resultLabel}}</text>
+    <text class="sv__result-code">{{lastResult.codeText}}</text>
+    <text wx:if="{{lastResult.message}}" class="sv__result-msg">{{lastResult.message}}</text>
+  </view>
+
+  <view wx:if="{{todayActivity}}" class="sv__today ic-card">
+    <view class="sv__today-head"><view class="ic-ic ic-ic-calendar ic-ic--sm"></view><text>今日活动</text></view>
+    <view class="sv__today-body">
+      <view class="sv__today-main">
+        <text class="sv__today-title">{{todayActivity.title}}</text>
+        <text class="sv__today-time">{{todayActivity.timeText}}</text>
+      </view>
+      <view class="sv__today-pending"><text class="sv__today-num">{{todayActivity.pendingVerify}}</text><text class="sv__today-label">待核销</text></view>
+    </view>
+  </view>
+
+  <view class="sv__stats ic-card">
+    <view class="sv__stats-head"><view class="ic-ic ic-ic-doc ic-ic--sm"></view><text>核销结果</text></view>
+    <view class="sv__stats-row">
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.verified}}</text><text class="sv__stat-label">已核销</text></view>
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.success}}</text><text class="sv__stat-label">成功</text></view>
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.failed}}</text><text class="sv__stat-label">失败</text></view>
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.void}}</text><text class="sv__stat-label">退款/作废</text></view>
+    </view>
+  </view>
+
+  <view class="sv__history">
+    <text class="ic-h2 sv__history-title">核销历史</text>
+    <view class="sv__hist ic-card" wx:if="{{verifications.length}}">
+      <view class="sv__hist-row" wx:for="{{verifications}}" wx:key="id">
+        <view class="sv__hist-main">
+          <text class="sv__hist-code">{{item.code}}</text>
+          <text class="sv__hist-time">{{item.timeText}} · {{item.memberName}}</text>
+        </view>
+        <text class="sv__hist-result {{item.success ? 'is-ok' : 'is-fail'}}">{{item.resultLabel}}</text>
+      </view>
+    </view>
+    <ic-empty wx:else text="暂无核销记录" compact="{{true}}" />
+  </view>
+</view>

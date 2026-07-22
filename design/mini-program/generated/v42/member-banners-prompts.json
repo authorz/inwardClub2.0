@@ -1,0 +1,95 @@
+{
+  "version": "v42",
+  "base": "v41",
+  "note": "Increase top-left VIP badge size; previous versions retained for client review.",
+  "records": [
+    {
+      "file": "v1-normal.jpg",
+      "vip": "VIP1",
+      "tier": "normal silver-white / pearl tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP1, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP1. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: normal silver-white / pearl tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v1-normal.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v1-normal.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v1-normal.jpg",
+      "quality": 88,
+      "size_kb": 192.5
+    },
+    {
+      "file": "v2-bronze.jpg",
+      "vip": "VIP2",
+      "tier": "bronze tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP2, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP2. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: bronze tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v2-bronze.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v2-bronze.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v2-bronze.jpg",
+      "quality": 84,
+      "size_kb": 213.9
+    },
+    {
+      "file": "v3-silver.jpg",
+      "vip": "VIP3",
+      "tier": "silver tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP3, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP3. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: silver tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v3-silver.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v3-silver.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v3-silver.jpg",
+      "quality": 88,
+      "size_kb": 204.5
+    },
+    {
+      "file": "v4-gold.jpg",
+      "vip": "VIP4",
+      "tier": "gold tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP4, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP4. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: gold tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v4-gold.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v4-gold.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v4-gold.jpg",
+      "quality": 84,
+      "size_kb": 197.1
+    },
+    {
+      "file": "v5-platinum.jpg",
+      "vip": "VIP5",
+      "tier": "platinum tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP5, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP5. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: platinum tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v5-platinum.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v5-platinum.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v5-platinum.jpg",
+      "quality": 88,
+      "size_kb": 177.1
+    },
+    {
+      "file": "v6-diamond.jpg",
+      "vip": "VIP6",
+      "tier": "diamond icy blue silver tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP6, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP6. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: diamond icy blue silver tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v6-diamond.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v6-diamond.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v6-diamond.jpg",
+      "quality": 84,
+      "size_kb": 201.7
+    },
+    {
+      "file": "v7-star.jpg",
+      "vip": "VIP7",
+      "tier": "star midnight silver-blue tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP7, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP7. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: star midnight silver-blue tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v7-star.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v7-star.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v7-star.jpg",
+      "quality": 84,
+      "size_kb": 200.1
+    },
+    {
+      "file": "v8-master.jpg",
+      "vip": "VIP8",
+      "tier": "master black-gold tier",
+      "prompt": "Edit the provided 16:9 luxury membership banner while preserving its existing composition, card border, dark background, right-side emblem/crest, material style, and tier color identity.\n\nOnly adjust the top-left VIP level badge: make it noticeably larger than the current version, about 1.45x to 1.65x bigger, easier to see at mobile size, but still a refined top-left corner badge rather than a giant title. Keep it integrated into the card surface as foil embossing / engraved metal. Keep the badge in the top-left area and do not move it to the center.\n\nThe exact visible text in the badge must remain VIP8, no spaces, no punctuation, no extra letters or numbers.\n\nStrict constraints: keep standard 16:9 banner ratio; do not add chip, card number, QR code, barcode, payment card elements, logo, watermark, Chinese characters, or any text besides VIP8. Do not redesign the whole card unnecessarily. Avoid tiny VIP badge, avoid huge title.\nTier identity: master black-gold tier. Keep this tier's metal/color style consistent.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v8-master.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/raw/v8-master.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v42/final/v8-master.jpg",
+      "quality": 76,
+      "size_kb": 224.8
+    }
+  ]
+}

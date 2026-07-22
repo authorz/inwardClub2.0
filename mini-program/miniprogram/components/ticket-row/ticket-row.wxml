@@ -1,0 +1,18 @@
+<view class="trow" bindtap="onTap" hover-class="trow--hover">
+  <view class="trow__top">
+    <view class="trow__head">
+      <text class="trow__title">{{title}}</text>
+      <text class="trow__code">{{code}}</text>
+    </view>
+    <view class="trow__status">{{status}}</view>
+  </view>
+
+  <view class="trow__body">
+    <text class="trow__desc">{{desc}}</text>
+    <text class="trow__time">{{timeText}}</text>
+  </view>
+
+  <view class="trow__bottom">
+    <text class="trow__amount">{{amountText}}</text>
+  </view>
+</view>

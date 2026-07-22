@@ -1,0 +1,8 @@
+{
+  "usingComponents": {
+    "ic-tower-swiper": "/components/tower-swiper/tower-swiper"
+  },
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "近期活动",
+  "backgroundColor": "#171717"
+}

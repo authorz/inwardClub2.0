@@ -1,0 +1,71 @@
+<view wx:if="{{ready && !store}}" class="oc-empty">
+  <ic-empty text="没有待确认的订单" hint="请先在点餐页选择商品" />
+</view>
+
+<view wx:elif="{{store}}" class="oc">
+  <!-- store + table -->
+  <view class="oc__card ic-card">
+    <ic-cell label="当前门店" value="{{store.name}}" value-strong="{{true}}" arrow="{{true}}" bind:tap="editStore" />
+    <ic-cell label="桌台" value="{{tableText || '扫码点餐 · 到店堂食'}}" arrow="{{true}}" bordered="{{false}}" bind:tap="editStore" />
+  </view>
+
+  <!-- item detail -->
+  <view class="oc__card ic-card oc__goods">
+    <text class="ic-h2 oc__goods-title">商品明细</text>
+    <view class="oc__item" wx:for="{{items}}" wx:key="name">
+      <view class="oc__item-thumb">
+        <image wx:if="{{item.imageUrl}}" class="oc__item-pic" src="{{item.imageUrl}}" mode="aspectFill" />
+        <view wx:else class="oc__item-ph"></view>
+      </view>
+      <text class="oc__item-name ic-ellipsis">{{item.name}}</text>
+      <text class="oc__item-qty">x{{item.qty}}</text>
+      <text class="oc__item-amt">¥{{item.lineText}}</text>
+    </view>
+    <view class="oc__note">
+      <text class="oc__note-label">备注</text>
+      <input class="oc__note-input" value="{{note}}" placeholder="口味、冰块等需求" placeholder-class="oc__note-ph" bindinput="onNote" />
+    </view>
+  </view>
+
+  <!-- payment（单选，不支持组合支付） -->
+  <view class="oc__card ic-card oc__pay">
+    <text class="ic-h2 oc__pay-title">支付方式</text>
+
+    <view
+      wx:if="{{supportsWechat}}"
+      class="oc__pm"
+      bindtap="selectWechat"
+    >
+      <image class="oc__pm-icon" src="/assets/payment/wechat-pay.png" mode="aspectFit" />
+      <view class="oc__pm-main">
+        <text class="oc__pm-name">微信支付</text>
+      </view>
+      <view class="oc__pm-radio {{payMethod === 'wechat' ? 'oc__pm-radio--on' : ''}}"></view>
+    </view>
+
+    <view
+      wx:if="{{supportsCoin}}"
+      class="oc__pm {{coinDisabled ? 'oc__pm--disabled' : ''}}"
+      bindtap="selectCoin"
+    >
+      <image class="oc__pm-icon" src="/assets/payment/coin.png" mode="aspectFit" />
+      <view class="oc__pm-main">
+        <text class="oc__pm-name">金币支付</text>
+        <text class="oc__pm-desc">{{coinDisabled ? '余额不足' : '余额 ' + coinBalance + ' 金币'}}</text>
+      </view>
+      <view class="oc__pm-radio {{payMethod === 'coin' ? 'oc__pm-radio--on' : ''}}"></view>
+    </view>
+  </view>
+
+  <!-- summary -->
+  <view class="oc__card ic-card oc__sum">
+    <view class="oc__sum-row"><text>商品金额</text><text>¥{{goodsText}}</text></view>
+    <view class="oc__sum-row oc__sum-row--total"><text>合计</text><text class="oc__sum-total">¥{{payText}}</text></view>
+  </view>
+
+  <!-- fixed pay bar -->
+  <view class="oc__bar">
+    <text class="oc__bar-amt">¥{{payText}}</text>
+    <button class="ic-btn ic-btn-primary oc__bar-btn" loading="{{submitting}}" bindtap="confirmPay">确认支付</button>
+  </view>
+</view>

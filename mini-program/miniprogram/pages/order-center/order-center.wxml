@@ -1,0 +1,30 @@
+<view class="oce">
+  <view class="oce__types">
+    <ic-segmented options="{{typeOptions}}" value="{{type}}" variant="line" bind:change="onTypeChange" />
+  </view>
+  <view class="oce__status">
+    <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="pill" bind:change="onStatusChange" />
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!list.length}}" text="暂无订单" />
+
+  <view wx:else class="oce__list">
+    <view class="oce__item" wx:for="{{list}}" wx:key="id">
+      <ic-order-row
+        title="{{item.title}}"
+        code="{{item.code}}"
+        status="{{item.statusText}}"
+        store-name="{{item.storeName}}"
+        desc="{{item.desc}}"
+        time-text="{{item.timeText}}"
+        amount-text="{{item.amountText}}"
+        pay-text="{{item.payText}}"
+        last="{{index === list.length - 1}}"
+        data-id="{{item.id}}"
+        data-type="{{item.type}}"
+        bind:tap="onTapOrder"
+      />
+    </view>
+  </view>
+</view>

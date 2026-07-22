@@ -1,0 +1,255 @@
+// Package activity owns activities, sessions, ticket types, orders, tickets and
+// verifications. Phase-1 exposes the mini-program public read paths.
+package activity
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"time"
+
+	platdb "github.com/inwardclub/server/internal/platform/db"
+	apperr "github.com/inwardclub/server/internal/platform/errors"
+	"github.com/inwardclub/server/internal/platform/httpx"
+)
+
+// Activity is an activity/event template or store instance.
+type Activity struct {
+	ID            int64
+	ScopeType     string
+	StoreID       *int64
+	StoreName     string
+	Title         string
+	Description   string
+	Content       string
+	AssetID       *int64
+	StartAt       *time.Time
+	EndAt         *time.Time
+	PayChannels   []string
+	PurchaseLimit int
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// ActivityView is the public representation. TicketTypes is populated only on
+// the detail read (Get); the list read leaves it nil to avoid a per-row lookup.
+type ActivityView struct {
+	ID            int64                  `json:"id"`
+	StoreID       *int64                 `json:"storeId,omitempty"`
+	StoreName     string                 `json:"storeName,omitempty"`
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description,omitempty"`
+	Content       string                 `json:"content,omitempty"`
+	ImageURL      string                 `json:"imageUrl,omitempty"`
+	StartAt       *time.Time             `json:"startAt,omitempty"`
+	EndAt         *time.Time             `json:"endAt,omitempty"`
+	PayChannels   []string               `json:"payChannels"`
+	PurchaseLimit int                    `json:"purchaseLimit,omitempty"`
+	Status        string                 `json:"status"`
+	TicketTypes   []PublicTicketTypeView `json:"ticketTypes,omitempty"`
+}
+
+// PublicTicketTypeView is a sellable ticket tier as shown on the mini-program
+// activity detail purchase sheet (pages/activity-detail). It is the public,
+// buyer-facing subset of the console TicketType — no sold count, audit
+// timestamps or scope. Stock is the remaining sellable quantity; -1 signals an
+// uncapped ticket type (stock_quantity 0).
+type PublicTicketTypeView struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	PriceCent   int64      `json:"priceCent"`
+	Stock       int64      `json:"stock"`
+	SaleEndAt   *time.Time `json:"saleEndAt,omitempty"`
+	PayChannels []string   `json:"payChannels"`
+}
+
+// AssetResolver resolves an asset id to a public URL.
+type AssetResolver interface {
+	PublicURLByID(ctx context.Context, id int64) (string, error)
+}
+
+// Repository is the activity read persistence port.
+type Repository interface {
+	ListPublished(ctx context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error)
+	GetByID(ctx context.Context, id int64) (Activity, error)
+	// ListSellableTicketTypes returns an activity's active ticket types for the
+	// buyer-facing detail page, cheapest first.
+	ListSellableTicketTypes(ctx context.Context, activityID int64) ([]TicketType, error)
+}
+
+type sqlRepository struct{ db *platdb.DB }
+
+// NewRepository builds the MySQL activity repository.
+func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
+
+// activityColumns is alias-qualified because reads LEFT JOIN stores to surface
+// the owning store's name (the mini activity list/detail render storeName).
+const activityColumns = `a.id, a.scope_type, a.store_id, COALESCE(s.name,''), a.title, COALESCE(a.description,''),
+	COALESCE(a.content,''), a.asset_id, a.start_at, a.end_at, a.pay_channels, a.purchase_limit_per_member, a.status`
+
+const activityFrom = ` FROM activities a LEFT JOIN stores s ON s.id = a.store_id `
+
+func scanActivity(row interface{ Scan(...any) error }) (Activity, error) {
+	var a Activity
+	var payChannels []byte
+	err := row.Scan(&a.ID, &a.ScopeType, &a.StoreID, &a.StoreName, &a.Title, &a.Description,
+		&a.Content, &a.AssetID, &a.StartAt, &a.EndAt, &payChannels, &a.PurchaseLimit, &a.Status)
+	if err != nil {
+		return Activity{}, err
+	}
+	a.PayChannels = decodeChannels(payChannels)
+	return a, nil
+}
+
+func (r *sqlRepository) ListPublished(ctx context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error) {
+	where := `a.status = 'published'`
+	var args []any
+	if storeID != nil {
+		where += ` AND (a.scope_type = 'global' OR a.store_id = ?)`
+		args = append(args, *storeID)
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)`+activityFrom+`WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	q := `SELECT ` + activityColumns + activityFrom + `WHERE ` + where + ` ORDER BY a.start_at DESC, a.id DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	defer rows.Close()
+	var out []Activity
+	for rows.Next() {
+		a, err := scanActivity(rows)
+		if err != nil {
+			return nil, 0, apperr.Internal(err)
+		}
+		out = append(out, a)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *sqlRepository) GetByID(ctx context.Context, id int64) (Activity, error) {
+	const q = `SELECT ` + activityColumns + activityFrom + `WHERE a.id = ?`
+	a, err := scanActivity(r.db.QueryRowContext(ctx, q, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Activity{}, apperr.NotFound("activity not found")
+	}
+	if err != nil {
+		return Activity{}, apperr.Internal(err)
+	}
+	return a, nil
+}
+
+// ListSellableTicketTypes reads the activity's active ticket types for the
+// public detail page. Reuses the console ticket-type columns/scanner (same
+// package); only status = 'active' rows are exposed and they are ordered
+// cheapest-first to match the "from ¥X" summary the client renders.
+func (r *sqlRepository) ListSellableTicketTypes(ctx context.Context, activityID int64) ([]TicketType, error) {
+	const q = `SELECT ` + ticketTypeColumns + ` FROM activity_ticket_types
+		WHERE activity_id = ? AND status = 'active' ORDER BY price_cent ASC, id ASC`
+	rows, err := r.db.QueryContext(ctx, q, activityID)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	var out []TicketType
+	for rows.Next() {
+		t, err := scanTicketType(rows)
+		if err != nil {
+			return nil, apperr.Internal(err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func decodeChannels(raw []byte) []string {
+	if len(raw) == 0 {
+		return []string{}
+	}
+	var ch []string
+	if err := json.Unmarshal(raw, &ch); err != nil {
+		return []string{}
+	}
+	return ch
+}
+
+// Service provides activity read operations.
+type Service struct {
+	repo   Repository
+	assets AssetResolver
+}
+
+// NewService builds the activity service.
+func NewService(repo Repository, assets AssetResolver) *Service {
+	return &Service{repo: repo, assets: assets}
+}
+
+// List returns published activities, optionally scoped to a store.
+func (s *Service) List(ctx context.Context, storeID *int64, page httpx.Page) ([]ActivityView, int64, error) {
+	acts, total, err := s.repo.ListPublished(ctx, storeID, page.Limit(), page.Offset())
+	if err != nil {
+		return nil, 0, err
+	}
+	views := make([]ActivityView, 0, len(acts))
+	for _, a := range acts {
+		views = append(views, s.view(ctx, a))
+	}
+	return views, total, nil
+}
+
+// Get returns a single published activity view enriched with its sellable
+// ticket types so the mini-program detail page can build the purchase sheet.
+func (s *Service) Get(ctx context.Context, id int64) (ActivityView, error) {
+	a, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return ActivityView{}, err
+	}
+	v := s.view(ctx, a)
+	tts, err := s.repo.ListSellableTicketTypes(ctx, id)
+	if err != nil {
+		return ActivityView{}, err
+	}
+	v.TicketTypes = make([]PublicTicketTypeView, 0, len(tts))
+	for _, t := range tts {
+		v.TicketTypes = append(v.TicketTypes, publicTicketTypeView(t))
+	}
+	return v, nil
+}
+
+func publicTicketTypeView(t TicketType) PublicTicketTypeView {
+	return PublicTicketTypeView{
+		ID: t.ID, Name: t.Name, PriceCent: t.PriceCent,
+		Stock:     remainingStock(t.StockQuantity, t.SoldQuantity),
+		SaleEndAt: t.SaleEndAt, PayChannels: t.PayChannels,
+	}
+}
+
+// remainingStock reports a ticket type's sellable count: -1 for an uncapped
+// type (stock_quantity 0, matching the reserve path's "unlimited" rule),
+// otherwise the non-negative remainder of stock minus sold.
+func remainingStock(stockQty, soldQty int64) int64 {
+	if stockQty == 0 {
+		return -1
+	}
+	if rem := stockQty - soldQty; rem > 0 {
+		return rem
+	}
+	return 0
+}
+
+func (s *Service) view(ctx context.Context, a Activity) ActivityView {
+	v := ActivityView{
+		ID: a.ID, StoreID: a.StoreID, StoreName: a.StoreName, Title: a.Title, Description: a.Description,
+		Content: a.Content, StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
+		PurchaseLimit: a.PurchaseLimit, Status: a.Status,
+	}
+	if a.AssetID != nil {
+		v.ImageURL, _ = s.assets.PublicURLByID(ctx, *a.AssetID)
+	}
+	return v
+}

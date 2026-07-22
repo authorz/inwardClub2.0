@@ -1,0 +1,26 @@
+<view class="sbar {{flat ? 'sbar--flat' : ''}}">
+  <view class="sbar__thumb"><text>INWARD</text></view>
+  <view class="sbar__main" bindtap="onName">
+    <view class="sbar__nameline">
+      <text class="sbar__name ic-ellipsis">{{name || '选择门店'}}</text>
+      <view wx:if="{{nameArrow}}" class="ic-arrow"></view>
+    </view>
+    <text wx:if="{{subtitle}}" class="sbar__sub">{{subtitle}}</text>
+    <text wx:elif="{{distanceText}}" class="sbar__sub">{{distanceText}}</text>
+  </view>
+
+  <view class="sbar__actions">
+    <view wx:if="{{showSwitch}}" class="sbar__act" bindtap="onSwitch">
+      <image class="sbar__act-ico" src="/assets/icons/home-switch.png" mode="aspectFit" />
+      <text class="sbar__act-text">切换门店</text>
+    </view>
+    <view wx:if="{{showSwitch && showNav}}" class="sbar__vline"></view>
+    <view wx:if="{{showNav}}" class="sbar__act" bindtap="onNav">
+      <image class="sbar__act-ico" src="/assets/icons/home-nav.png" mode="aspectFit" />
+      <text class="sbar__act-text">导航</text>
+    </view>
+    <view wx:if="{{showScan}}" class="sbar__scan" bindtap="onScan">
+      <view class="sbar__scan-ico"></view>
+    </view>
+  </view>
+</view>

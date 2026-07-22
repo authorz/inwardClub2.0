@@ -1,0 +1,13 @@
+.sto { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.sto__card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 30rpx 32rpx; margin-bottom: 20rpx; }
+.sto__card--hover { opacity: 0.85; }
+.sto__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24rpx; }
+.sto__info { flex: 1; min-width: 0; }
+.sto__title { font-size: 30rpx; font-weight: 500; color: var(--ic-black); }
+.sto__meta { display: flex; align-items: center; gap: 14rpx; margin-top: 14rpx; }
+.sto__time, .sto__store { font-size: 24rpx; color: var(--ic-text-2); min-width: 0; }
+.sto__icon { width: 28rpx; height: 28rpx; flex: none; display: block; opacity: 0.72; }
+.sto__stats { flex: none; display: flex; align-items: flex-start; gap: 24rpx; margin-top: 0; padding-top: 0; border-top: none; }
+.sto__stat { display: flex; flex-direction: column; align-items: flex-end; gap: 8rpx; }
+.sto__num { font-size: 40rpx; font-weight: 600; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.sto__label { font-size: 22rpx; color: var(--ic-text-3); }

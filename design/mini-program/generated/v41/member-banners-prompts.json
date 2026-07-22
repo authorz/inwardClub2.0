@@ -1,0 +1,84 @@
+{
+  "version": "v41",
+  "base": "v40 VIP8 approved direction",
+  "note": "Previous versions are retained; this set generates VIP1-VIP7 and copies approved VIP8 sample for full preview.",
+  "records": [
+    {
+      "file": "v1-normal.jpg",
+      "vip": "VIP1",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: normal / entry private-club membership tier.\nTier-specific visual style: black pearl and soft silver, elegant restrained silver-white foil, subtle pearl ornament, less ornate than higher tiers.\nExact visible text requirement: the top-left badge must read exactly VIP1, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v1-normal.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v1-normal.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v1-normal.jpg",
+      "quality": 88,
+      "size_kb": 175.4
+    },
+    {
+      "file": "v2-bronze.jpg",
+      "vip": "VIP2",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: bronze private-club membership tier.\nTier-specific visual style: dark black lacquer with warm bronze foil, polished bronze highlights, refined bronze crest details.\nExact visible text requirement: the top-left badge must read exactly VIP2, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v2-bronze.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v2-bronze.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v2-bronze.jpg",
+      "quality": 84,
+      "size_kb": 215.7
+    },
+    {
+      "file": "v3-silver.jpg",
+      "vip": "VIP3",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: silver private-club membership tier.\nTier-specific visual style: deep graphite black with bright polished silver foil, clean cold metallic highlights, no warm gold.\nExact visible text requirement: the top-left badge must read exactly VIP3, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v3-silver.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v3-silver.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v3-silver.jpg",
+      "quality": 88,
+      "size_kb": 200.1
+    },
+    {
+      "file": "v4-gold.jpg",
+      "vip": "VIP4",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: gold private-club membership tier.\nTier-specific visual style: black lacquer with bright champagne gold foil, rich but still below VIP8 master level.\nExact visible text requirement: the top-left badge must read exactly VIP4, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v4-gold.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v4-gold.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v4-gold.jpg",
+      "quality": 88,
+      "size_kb": 214.6
+    },
+    {
+      "file": "v5-platinum.jpg",
+      "vip": "VIP5",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: platinum private-club membership tier.\nTier-specific visual style: black and ivory platinum ceramic, bright platinum-white metallic highlights, elite calm luxury.\nExact visible text requirement: the top-left badge must read exactly VIP5, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v5-platinum.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v5-platinum.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v5-platinum.jpg",
+      "quality": 88,
+      "size_kb": 167.1
+    },
+    {
+      "file": "v6-diamond.jpg",
+      "vip": "VIP6",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: diamond private-club membership tier.\nTier-specific visual style: cold blue-black and icy silver diamond material, bright crystal highlights, no warm gold, clearly different from VIP8.\nExact visible text requirement: the top-left badge must read exactly VIP6, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v6-diamond.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v6-diamond.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v6-diamond.jpg",
+      "quality": 88,
+      "size_kb": 213.8
+    },
+    {
+      "file": "v7-star.jpg",
+      "vip": "VIP7",
+      "prompt": "Edit the provided membership banner into a NORMAL STANDARD 16:9 horizontal luxury membership card banner, similar to 1536x864. Use the same overall design direction as the approved VIP8 sample: premium private-club identity card, deep black lacquer background, ornate right-side emblem/crest area, elegant border, rich metal highlights, and a small integrated VIP level mark in the TOP-LEFT corner.\n\nThe VIP mark must be small and restrained, like an embossed/foil membership level corner badge, not a giant title. It must feel native to the card surface, not pasted on. Keep lower-left and center-left dark and clean enough for native app text overlays.\n\nStrict constraints: no chip, no card number, no QR code, no barcode, no payment card elements, no logo, no watermark, no Chinese characters, no extra text besides the exact VIP mark. Avoid ultra-wide/panoramic layout, avoid square crop, avoid giant VIP text.\n\nTier: star glory private-club membership tier.\nTier-specific visual style: midnight black with silver-blue star glow, luminous celestial metallic highlights, elegant and premium.\nExact visible text requirement: the top-left badge must read exactly VIP7, no spaces, no punctuation, no other letters or numbers.\nGold/metal brightness: make the metallic accents bright and eye-catching like polished foil, but refined and not cheap. For non-gold tiers, keep the tier color identity while using crisp luminous metallic highlights.",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v7-star.jpg",
+      "raw": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/raw/v7-star.png",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v7-star.jpg",
+      "quality": 84,
+      "size_kb": 198.2
+    },
+    {
+      "file": "v8-master.jpg",
+      "vip": "VIP8",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v40-test/v8-standard-16x9-brighter-gold.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v41/final/v8-master.jpg",
+      "note": "Approved v40 VIP8 sample copied into v41 set; previous versions retained."
+    }
+  ]
+}

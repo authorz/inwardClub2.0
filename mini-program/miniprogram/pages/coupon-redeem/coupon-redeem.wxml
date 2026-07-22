@@ -1,0 +1,78 @@
+<view class="cr">
+  <!-- Custom navigation: store + location left, title centered -->
+  <view class="cr__nav" style="padding-top: {{navStatusBar}}px;">
+    <view class="cr__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
+      <view class="cr__nav-store">
+        <image class="cr__nav-loc" src="/assets/icons/location.svg" mode="aspectFit" />
+        <text class="cr__nav-name ic-ellipsis">{{store.name || '选择门店'}}</text>
+      </view>
+      <text class="cr__nav-title">券兑换</text>
+    </view>
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!groups.length}}" text="当前门店暂无可兑换商品" />
+
+  <view wx:else class="cr__body">
+    <!-- left category rail -->
+    <scroll-view class="cr__cats" scroll-y>
+      <view
+        class="cr__cat {{activeCat === item.id ? 'is-active' : ''}}"
+        wx:for="{{groups}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onPickCat"
+      >
+        <text>{{item.name}}</text>
+      </view>
+    </scroll-view>
+
+    <!-- right item grid, grouped by category -->
+    <scroll-view class="cr__items" scroll-y scroll-into-view="{{intoView}}" scroll-with-animation>
+      <view class="cr__group" wx:for="{{groups}}" wx:key="id" wx:for-item="group">
+        <view class="cr__group-title" id="cat-{{group.id}}">{{group.name}}</view>
+        <view class="cr__grid">
+          <view class="cr__item" wx:for="{{group.items}}" wx:key="id" wx:for-item="it">
+            <view class="cr__item-img">
+              <image wx:if="{{it.imageUrl}}" class="cr__item-pic" src="{{it.imageUrl}}" mode="aspectFill" />
+              <view wx:else class="cr__item-ph"><text>{{it.name}}</text></view>
+              <view wx:if="{{it.soldOut}}" class="cr__soldout">已售罄</view>
+            </view>
+            <text class="cr__item-name ic-ellipsis">{{it.name}}</text>
+            <view class="cr__item-foot">
+              <view class="cr__item-row">
+                <text class="cr__item-yuan {{it.priceCompact ? 'cr__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
+                <view wx:if="{{!it.soldOut}}" class="cr__item-stepper">
+                  <ic-stepper
+                    value="{{it.qty}}"
+                    min="{{0}}"
+                    max="{{it.stock}}"
+                    size="sm"
+                    hide-zero="{{true}}"
+                    data-id="{{it.id}}"
+                    bind:change="onQtyChange"
+                  />
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="cr__grid-gap"></view>
+    </scroll-view>
+  </view>
+
+  <!-- bottom redeem bar -->
+  <view class="cr__bar">
+    <view class="cr__bar-meta">
+      <view class="cr__bar-line">
+        <text class="cr__bar-label">已选</text>
+        <text class="cr__bar-total">¥{{totalText}}</text>
+        <text class="cr__bar-sub">/ 券面额 ¥{{couponAmountText}}</text>
+      </view>
+      <text wx:if="{{overCent > 0}}" class="cr__bar-over">超出 ¥{{overText}}</text>
+      <text wx:else class="cr__bar-remain">剩余额度 ¥{{remainText}}</text>
+    </view>
+    <button class="ic-btn ic-btn-primary cr__bar-btn {{canConfirm ? '' : 'ic-disabled'}}" bindtap="confirmRedeem">确认兑换</button>
+  </view>
+</view>

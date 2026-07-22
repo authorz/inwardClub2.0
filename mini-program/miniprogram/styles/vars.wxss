@@ -1,0 +1,51 @@
+/* =====================================================================
+ * InwardClub 2.0 — design variables + page base.
+ *
+ * This file uses the `page` selector, which is ONLY allowed in global/page
+ * wxss (never in component wxss). It is therefore imported exclusively from
+ * app.wxss. CSS custom properties declared on `page` are inherited properties,
+ * so they cascade into every custom component automatically — components read
+ * them via var(--ic-*) without importing this file (which would re-introduce
+ * the disallowed `page` selector and trigger "selectors not allowed in
+ * component wxss" warnings).
+ * ===================================================================== */
+
+page {
+  /* palette */
+  --ic-black: #111111;
+  --ic-ink: #1a1a1a;
+  --ic-text: #222222;
+  --ic-text-2: #666666;
+  --ic-text-3: #9a9a9a;
+  --ic-text-4: #b8b8b8;
+  --ic-line: #ededed;
+  --ic-line-strong: #e2e2e2;
+  --ic-bg: #f5f5f5;
+  --ic-bg-soft: #f7f7f7;
+  --ic-bg-2: #f2f2f2;
+  --ic-fill: #f2f2f2;
+  --ic-fill-2: #f6f6f6;
+  --ic-white: #ffffff;
+  --ic-success: #2fa84f;
+  --ic-danger: #d23b3b;
+  --ic-warn: #b9820a;
+
+  /* spacing */
+  --ic-gap-xs: 12rpx;
+  --ic-gap-sm: 20rpx;
+  --ic-gap: 32rpx;
+  --ic-gap-lg: 48rpx;
+  --ic-pad: 32rpx;
+
+  /* radius */
+  --ic-radius-sm: 12rpx;
+  --ic-radius: 20rpx;
+  --ic-radius-lg: 28rpx;
+  --ic-radius-pill: 999rpx;
+
+  background: var(--ic-bg);
+  color: var(--ic-text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}

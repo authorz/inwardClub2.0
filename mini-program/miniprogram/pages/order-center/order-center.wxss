@@ -1,0 +1,5 @@
+.oce { min-height: 100vh; background: var(--ic-bg); }
+.oce__types { background: var(--ic-white); padding: 0 24rpx; position: sticky; top: 0; z-index: 5; }
+.oce__status { padding: 20rpx 24rpx 8rpx; }
+.oce__list { margin-top: 8rpx; padding: 0 24rpx 40rpx; background: var(--ic-white); }
+.oce__item { padding: 0; }

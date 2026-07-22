@@ -1,0 +1,20 @@
+.rk { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.rk__seg { padding: 0 60rpx; }
+
+.rk__me { display: flex; align-items: center; margin-top: 24rpx; padding: 40rpx 0; }
+.rk__me-block { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 12rpx; }
+.rk__me-label { font-size: 24rpx; color: var(--ic-text-3); }
+.rk__me-num { font-size: 48rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.rk__me-div { width: 1rpx; height: 72rpx; background: var(--ic-line); }
+
+.rk__list { margin-top: 24rpx; padding: 0 32rpx; }
+.rk__row { display: flex; align-items: center; gap: 22rpx; padding: 24rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.rk__row:last-child { border-bottom: none; }
+.rk__rank { width: 48rpx; text-align: center; font-size: 30rpx; font-weight: 700; color: var(--ic-text-3); font-variant-numeric: tabular-nums; }
+.rk__rank.is-top { color: var(--ic-black); }
+.rk__avatar { width: 72rpx; height: 72rpx; border-radius: 50%; overflow: hidden; background: var(--ic-fill); display: flex; align-items: center; justify-content: center; flex: none; }
+.rk__avatar-img { width: 100%; height: 100%; }
+.rk__avatar-initial { font-size: 28rpx; color: var(--ic-text-2); }
+.rk__name { flex: 1; min-width: 0; font-size: 30rpx; color: var(--ic-black); }
+.rk__score { font-size: 30rpx; font-weight: 600; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.rk__foot { display: block; text-align: center; margin-top: 30rpx; font-size: 22rpx; color: var(--ic-text-4); }

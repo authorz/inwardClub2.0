@@ -1,0 +1,22 @@
+<view class="wt">
+  <ic-loading wx:if="{{loading}}" />
+
+  <block wx:elif="{{entry}}">
+    <view class="wt__card">
+      <text class="wt__label">当前排位</text>
+      <text class="wt__num">{{entry.position}}</text>
+      <text class="wt__store">{{storeName}}</text>
+      <view class="wt__status"><view class="wt__dot"></view><text>排队中，叫号后请尽快到店</text></view>
+    </view>
+
+    <view class="wt__tips ic-card">
+      <view class="wt__tip"><view class="ic-ic ic-ic-clock ic-ic--sm"></view><text>空位释放后按顺序叫号</text></view>
+      <view class="wt__tip"><view class="ic-ic ic-ic-pin ic-ic--sm"></view><text>请在门店附近等候，超时将顺延</text></view>
+    </view>
+
+    <view class="wt__actions">
+      <button class="ic-btn ic-btn-ghost" bindtap="refresh">刷新排位</button>
+      <button class="ic-btn ic-btn-primary" bindtap="leave">离开队列</button>
+    </view>
+  </block>
+</view>

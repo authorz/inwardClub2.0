@@ -1,0 +1,40 @@
+<view class="cp">
+  <view class="cp__seg">
+    <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="line" bind:change="onStatusChange" />
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
+
+  <block wx:else>
+    <text class="cp__count">{{statusCountLabel}} {{statusCount}} 张</text>
+    <view class="cp__list">
+      <view class="cp__card {{item.status !== 'unused' ? 'is-dim' : ''}}" wx:for="{{list}}" wx:key="id">
+        <view class="cp__left">
+          <image class="cp__icon" src="/assets/icons/coupon-gpt.png" mode="aspectFit" />
+        </view>
+        <view class="cp__mid">
+          <text class="cp__name">{{item.name}}</text>
+          <text class="cp__amount">面额 {{item.amountText}}</text>
+          <text class="cp__desc">{{item.desc}}</text>
+          <text class="cp__valid">{{item.dateLabel}} {{item.dateText}}</text>
+        </view>
+        <view class="cp__right">
+          <view
+            wx:if="{{item.status === 'unused'}}"
+            class="cp__action"
+            data-id="{{item.id}}"
+            bindtap="onAction"
+            hover-class="cp__action--hover"
+          >{{item.actionText}}</view>
+          <view wx:else class="cp__stamp cp__stamp--{{item.status}}">{{item.statusLabel}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="cp__records" bindtap="goRecords">
+      <view class="ic-ic ic-ic-list ic-ic--sm"></view>
+      <text>使用记录</text>
+    </view>
+  </block>
+</view>

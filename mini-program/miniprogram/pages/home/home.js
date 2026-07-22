@@ -1,0 +1,303 @@
+// 我的 — 会员资产 / 订单入口 / 会员功能 · 工作人员功能 grid / 资产操作弹层
+// Reference: design/mini-program/final/member-center/08-member-center-final-profile.png
+//            design/mini-program/final/member-asset-sheets/*
+const api = require('../../services/api');
+const auth = require('../../utils/auth');
+const ui = require('../../utils/ui');
+const http = require('../../utils/request');
+const pay = require('../../utils/pay');
+const storeCtx = require('../../utils/store-context');
+const { amount } = require('../../utils/format');
+const { mergeCachedProfile } = require('../../utils/member-profile');
+const { POINT_SAVING } = require('../../constants/index');
+
+// 会员等级短标：优先按 tierCode 映射 VIP1-8，其次从 tierName 取 VIPn，兜底 VIP1
+const TIER_SHORT = { normal: 'VIP1', bronze: 'VIP2', silver: 'VIP3', gold: 'VIP4', platinum: 'VIP5', diamond: 'VIP6', star: 'VIP7', master: 'VIP8' };
+function tierShortOf(me) {
+  if (me && me.tierCode && TIER_SHORT[me.tierCode]) return TIER_SHORT[me.tierCode];
+  const m = me && me.tierName && me.tierName.match(/VIP\s*(\d+)/i);
+  if (m) return 'VIP' + m[1];
+  return 'VIP1';
+}
+
+Page({
+  data: {
+    me: {},
+    wallet: { coins: 0, points: 0, couponCount: 0 },
+    coinsText: '0',
+    pointsText: '0',
+    genderIcon: '',
+    isStaff: false,
+    orderEntries: [
+      { type: 'food', label: '点餐订单', icon: 'ic-ic-dining' },
+      { type: 'activity', label: '活动订单', icon: 'ic-ic-calendar' },
+      { type: 'recharge', label: '充值订单', icon: 'ic-ic-wallet' },
+      { type: 'coupon', label: '兑换订单', icon: 'ic-ic-bag' },
+    ],
+    // 会员功能 grid — icon 为 assets/mine-menu/*.png 文件名
+    memberMenuEntries: [
+      { label: '充值', icon: 'recharge-coins', action: 'recharge' },
+      { label: '存积分', icon: 'save-points', action: 'point', dir: POINT_SAVING.DEPOSIT },
+      { label: '取积分', icon: 'withdraw-points', action: 'point', dir: POINT_SAVING.WITHDRAW },
+      { label: '排行榜', icon: 'rankings', action: 'nav', url: '/pages/rankings/rankings' },
+      { label: '邀请有礼', icon: 'invite-gift', action: 'nav', url: '/pages/invitations/invitations' },
+      { label: '交易记录', icon: 'transactions', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
+      { label: '会员权益', icon: 'member-benefits', action: 'nav', url: '/pages/benefits/benefits' },
+      { label: '加入社群', icon: 'community', action: 'toast' },
+    ],
+    // 工作人员功能 grid — 仅 isStaff 时显示，直接进入对应页面
+    staffMenuEntries: [
+      { label: '活动核销', icon: 'staff-verify', url: '/pages/staff-verify/staff-verify' },
+      { label: '积分审核', icon: 'staff-point-review', url: '/pages/staff-point-review/staff-point-review' },
+      { label: '核销记录', icon: 'staff-records', url: '/pages/staff-verifications/staff-verifications' },
+      { label: '今日活动', icon: 'staff-today', url: '/pages/staff-today/staff-today' },
+    ],
+
+    // recharge sheet
+    showRecharge: false,
+    products: [],
+    productId: '',
+    customAmount: '', // 自定义充值金额（元，正整数）
+    rechargeTotal: '0',
+
+    // point-saving sheet
+    showPoint: false,
+    pointDir: POINT_SAVING.DEPOSIT,
+    pointSheetTitle: '存积分',
+    pointSubmitText: '提交存积分申请',
+    pointAmount: '',
+    pointStoreName: '',
+    submitting: false,
+  },
+
+  onShow() {
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({ selected: 3 });
+    }
+    this.loadProfile();
+  },
+
+  loadProfile() {
+    Promise.all([
+      api.getMe().catch(() => ({ data: {} })),
+      api.getWallet().catch(() => ({ data: {} })),
+      // wallet has no couponCount field on the backend — derive it from the
+      // real coupons list instead.
+      api.getCoupons().catch(() => ({ data: [] })),
+    ]).then(([meRes, walletRes, couponsRes]) => {
+      // Fall back to the cached avatar/nickname/gender when getMe returns them
+      // empty, so a refresh still shows the WeChat avatar (not a black placeholder).
+      const me = mergeCachedProfile(meRes.data || {});
+      // Accept both nickname (our API) and nickName (WeChat) shapes.
+      me.nickname = me.nickname || me.nickName || '';
+      me.tierShort = tierShortOf(me);
+      const couponCount = (couponsRes.data || []).filter((c) => c.status === 'unused').length;
+      const wallet = Object.assign({ coins: 0, points: 0 }, walletRes.data, { couponCount });
+      this.setData({
+        me,
+        wallet,
+        coinsText: amount(wallet.coins),
+        pointsText: amount(wallet.points),
+        genderIcon: this.genderIconOf(me.gender),
+        isStaff: !!me.isStaff || auth.isStaff(),
+      });
+    });
+  },
+
+  // Gender: 1/'male'=male, 2/'female'=female, 其它/未登录 不显示性别贴标
+  genderIconOf(gender) {
+    if (gender === 1 || gender === 'male') return '/assets/icons/gender-male.svg';
+    if (gender === 2 || gender === 'female') return '/assets/icons/gender-female.svg';
+    return '';
+  },
+
+  // app.onSessionExpired broadcasts here when a 401 invalidated the session: drop
+  // member data at once instead of leaving stale coins/tier on screen.
+  onSessionExpired() {
+    this.setData({
+      me: {},
+      wallet: { coins: 0, points: 0, couponCount: 0 },
+      coinsText: '0',
+      pointsText: '0',
+      genderIcon: '',
+      isStaff: false,
+    });
+  },
+
+  // Gate member-only actions: log in first (via a user tap), then run `next`.
+  requireLogin(next) {
+    if (auth.isLoggedIn()) return next();
+    getApp()
+      .loginWithWechat()
+      .then(() => {
+        this.loadProfile();
+        next();
+      })
+      .catch((err) => {
+        if (err && err.isApiError) ui.error(err.message || '登录失败');
+      });
+  },
+
+  /* ---------- navigation ---------- */
+  goProfile() {
+    this.requireLogin(() => wx.navigateTo({ url: '/pages/profile/profile' }));
+  },
+  copyInvite() {
+    if (this.data.me.inviteCode) ui.copy(this.data.me.inviteCode, '邀请码已复制');
+  },
+  goOrder(e) {
+    const type = e.currentTarget.dataset.type;
+    this.requireLogin(() => wx.navigateTo({ url: '/pages/order-center/order-center?type=' + type }));
+  },
+
+  /* ---------- asset taps ---------- */
+  onAsset(e) {
+    const asset = e.currentTarget.dataset.asset;
+    this.requireLogin(() => {
+      // 充/存/取 已在会员功能里，资产区金币/积分直接看流水；券进优惠券页。
+      if (asset === 'coins') wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=coins' });
+      else if (asset === 'points') wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=points' });
+      else wx.navigateTo({ url: '/pages/coupons/coupons' });
+    });
+  },
+
+  /* ---------- 会员功能 grid ---------- */
+  goMember(e) {
+    const item = this.data.memberMenuEntries[e.currentTarget.dataset.index];
+    if (!item) return;
+    this.requireLogin(() => {
+      if (item.action === 'point') this.openPoint(item.dir);
+      else if (item.action === 'recharge') this.openRecharge();
+      else if (item.action === 'toast') ui.toast('社群功能即将上线');
+      else wx.navigateTo({ url: item.url });
+    });
+  },
+
+  /* ---------- 工作人员功能 grid ---------- */
+  goStaffMenu(e) {
+    const item = this.data.staffMenuEntries[e.currentTarget.dataset.index];
+    if (item) wx.navigateTo({ url: item.url });
+  },
+
+  /* ---------- coin recharge sheet (wechat only) ---------- */
+  openRecharge() {
+    this.setData({ showRecharge: true });
+    if (!this.data.products.length) {
+      api.getRechargeProducts().then((res) => {
+        const products = (res.data || []).map((p) => ({
+          id: p.id,
+          priceYuan: String(Math.round(p.priceCent / 100)),
+          amountCent: p.priceCent,
+          totalCoins: (p.coins || 0) + (p.bonusCoins || 0),
+        }));
+        const first = products[0];
+        this.setData({
+          products,
+          productId: first ? first.id : '',
+          rechargeTotal: first ? first.priceYuan : '0',
+        });
+      });
+    }
+  },
+  closeRecharge() {
+    this.setData({ showRecharge: false });
+  },
+  pickProduct(e) {
+    const id = e.currentTarget.dataset.id;
+    if (id === 'custom') {
+      this.setData({ productId: 'custom', rechargeTotal: this.data.customAmount || '0' });
+      return;
+    }
+    const p = this.data.products.find((x) => x.id === id);
+    this.setData({ productId: id, rechargeTotal: p ? p.priceYuan : '0' });
+  },
+  // 自定义金额输入：只保留正整数，并自动选中 custom 档位
+  onCustomAmount(e) {
+    const val = (e.detail.value || '').replace(/\D/g, '').replace(/^0+/, '');
+    this.setData({ customAmount: val, productId: 'custom', rechargeTotal: val || '0' });
+  },
+  confirmRecharge() {
+    if (this.data.submitting) return;
+    let payload;
+    if (this.data.productId === 'custom') {
+      const yuan = Number(this.data.customAmount);
+      if (!yuan || yuan <= 0) return ui.toast('请输入充值金额');
+      payload = { productId: '', amountCent: yuan * 100, payChannel: 'wechat' };
+    } else {
+      const p = this.data.products.find((x) => x.id === this.data.productId);
+      if (!p) return;
+      payload = { productId: p.id, amountCent: p.amountCent, payChannel: 'wechat' };
+    }
+    this.setData({ submitting: true });
+    ui.showLoading('提交中');
+    api
+      .createRechargeOrder(payload, http.uuid())
+      .then((res) => api.payWechatJsapi((res.data && res.data.paymentOrderId) || 'po_recharge', http.uuid()))
+      .then((r) => pay.settle(r))
+      .then(() => {
+        ui.hideLoading();
+        this.setData({ submitting: false, showRecharge: false });
+        ui.success('充值已提交');
+        this.loadProfile();
+      })
+      .catch((err) => {
+        ui.hideLoading();
+        this.setData({ submitting: false });
+        ui.error((err && err.message) || '充值失败');
+      });
+  },
+
+  /* ---------- point saving sheet (fixed store, staff review) ---------- */
+  openPoint(dir) {
+    const isWithdraw = dir === POINT_SAVING.WITHDRAW;
+    this.setData({
+      showPoint: true,
+      pointAmount: '',
+      pointDir: isWithdraw ? POINT_SAVING.WITHDRAW : POINT_SAVING.DEPOSIT,
+      pointSheetTitle: isWithdraw ? '取积分' : '存积分',
+      pointSubmitText: isWithdraw ? '提交取积分申请' : '提交存积分申请',
+      pointStoreName: (storeCtx.get() || {}).name || '当前门店',
+    });
+    // Ensure a store is resolved (nearest by default) so confirmPoint has a storeId
+    // even when 我的 is the first page opened.
+    storeCtx.ensureStore().then((store) => {
+      if (store) this.setData({ pointStoreName: store.name });
+    });
+  },
+  closePoint() {
+    this.setData({ showPoint: false });
+  },
+  onPointAmount(e) {
+    this.setData({ pointAmount: e.detail.value });
+  },
+  goLedger() {
+    this.setData({ showPoint: false });
+    wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=points' });
+  },
+  confirmPoint() {
+    const points = Number(this.data.pointAmount);
+    if (!points || points <= 0) {
+      ui.toast('请输入积分数量');
+      return;
+    }
+    if (this.data.submitting) return;
+    const store = storeCtx.get();
+    this.setData({ submitting: true });
+    ui.showLoading('提交中');
+    api
+      .createPointSaving(
+        { storeId: store && store.id, direction: this.data.pointDir, points, note: '' },
+        http.uuid()
+      )
+      .then(() => {
+        ui.hideLoading();
+        this.setData({ submitting: false, showPoint: false });
+        ui.success('已提交，待工作人员审核');
+      })
+      .catch((err) => {
+        ui.hideLoading();
+        this.setData({ submitting: false });
+        ui.error((err && err.message) || '提交失败');
+      });
+  },
+});

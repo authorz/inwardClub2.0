@@ -1,0 +1,25 @@
+@import "../../styles/tokens.wxss";
+
+/* ---- list (order confirm): full-width rows with a right radio ---- */
+.pm--list .pm__item { display: flex; align-items: center; min-height: 108rpx; border-bottom: 1rpx solid var(--ic-line); }
+.pm--list .pm__item:last-child { border-bottom: none; }
+.pm__icon { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; margin-right: 22rpx; }
+.pm__img { width: 100%; height: 100%; display: block; }
+.pm__label { flex: 1; font-size: 30rpx; color: var(--ic-text); }
+.pm__radio { width: 40rpx; height: 40rpx; border-radius: 50%; border: 3rpx solid #cfcfcf; display: flex; align-items: center; justify-content: center; }
+.pm__item.is-active .pm__radio { border-color: #111; background: #111; }
+.pm__radio-on { width: 16rpx; height: 16rpx; border-radius: 50%; background: #fff; }
+
+/* ---- grid (purchase sheet): two selectable boxes ---- */
+.pm--grid { display: flex; gap: 20rpx; }
+.pm--grid .pm__item {
+  flex: 1; display: flex; align-items: center; gap: 16rpx;
+  height: 108rpx; padding: 0 26rpx; border-radius: 18rpx;
+  border: 2rpx solid var(--ic-line-strong); background: #fff;
+}
+.pm--grid .pm__item.is-active { border-color: #111; }
+.pm--grid .pm__icon { width: 48rpx; height: 48rpx; margin-right: 0; }
+.pm--grid .pm__label { flex: 1; font-size: 28rpx; }
+.pm--grid .pm__radio { width: 34rpx; height: 34rpx; }
+
+.pm__item.is-disabled { opacity: 0.4; }

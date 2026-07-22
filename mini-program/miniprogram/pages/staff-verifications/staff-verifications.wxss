@@ -1,0 +1,11 @@
+.svl { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.svl__list { padding: 0 32rpx; }
+.svl__row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.svl__row:last-child { border-bottom: none; }
+.svl__main { display: flex; flex-direction: column; gap: 8rpx; min-width: 0; }
+.svl__activity { font-size: 28rpx; color: var(--ic-black); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svl__code { font-size: 24rpx; color: var(--ic-text-2); letter-spacing: 1rpx; }
+.svl__time { font-size: 22rpx; color: var(--ic-text-3); }
+.svl__result { font-size: 24rpx; flex: none; }
+.svl__result.is-ok { color: var(--ic-black); }
+.svl__result.is-fail { color: var(--ic-text-3); }

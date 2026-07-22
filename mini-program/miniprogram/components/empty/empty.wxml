@@ -1,0 +1,8 @@
+<view class="empty {{compact ? 'empty--compact' : ''}}">
+  <view class="empty__mark">
+    <image wx:if="{{icon}}" class="empty__icon" src="{{icon}}" mode="aspectFit" />
+  </view>
+  <text class="empty__text">{{text}}</text>
+  <text wx:if="{{hint}}" class="empty__hint">{{hint}}</text>
+  <view class="empty__slot"><slot></slot></view>
+</view>

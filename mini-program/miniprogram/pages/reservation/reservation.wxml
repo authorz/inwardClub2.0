@@ -1,0 +1,119 @@
+<page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
+
+<view class="ic-page ic-page--tab rsv">
+  <!-- store + time selectors -->
+  <view class="rsv__field" hover-class="rsv__field--hover" bindtap="switchStore">
+    <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
+    <text class="rsv__field-text ic-ellipsis">{{store.name || '选择门店'}}</text>
+    <view class="rsv__caret"></view>
+  </view>
+
+  <picker mode="selector" range="{{timeOptions}}" bindchange="onPickTime">
+    <view class="rsv__field">
+      <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
+      <text class="rsv__field-text">{{timeText}}</text>
+      <view class="rsv__caret"></view>
+    </view>
+  </picker>
+
+  <!-- legend -->
+  <view class="rsv__legend">
+    <view class="rsv__legend-item" wx:for="{{legend}}" wx:key="state">
+      <view class="rseat__dot rseat__dot--{{item.state}}"></view>
+      <text class="rsv__legend-text">{{item.label}}</text>
+    </view>
+  </view>
+
+  <view class="rsv__sec">
+    <text class="ic-h2">可预约桌台</text>
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!tables.length}}" text="当前门店暂无可预约桌台" />
+
+  <block wx:else>
+    <view class="rsv__table ic-card" wx:for="{{tables}}" wx:key="id" data-tid="{{item.id}}">
+      <view class="rsv__thead" data-id="{{item.id}}" bindtap="onToggleTable">
+        <text class="rsv__tname">{{item.name}}</text>
+        <text class="rsv__ttype">{{item.type}}</text>
+        <text class="rsv__tseats">座位 {{item.reservedText}}</text>
+        <text wx:if="{{expandedId === item.id}}" class="rsv__tupdated">更新 {{item.updatedText}}</text>
+        <text wx:else class="rsv__tmore">查看座位</text>
+        <view class="rsv__tcaret {{expandedId === item.id ? 'is-open' : ''}}"></view>
+      </view>
+
+      <!-- expanded: full 9-seat Texas Hold'em table -->
+      <view wx:if="{{expandedId === item.id}}" class="rtable">
+        <view class="rtable__felt">
+          <view class="rtable__suits">
+            <text>♠</text><text>♥</text><text>♦</text><text>♣</text>
+          </view>
+          <text class="rtable__brand">TEXAS HOLD'EM</text>
+        </view>
+        <view
+          class="rseat rseat--{{seat.state}}"
+          wx:for="{{item.seats}}"
+          wx:for-item="seat"
+          wx:key="no"
+          style="{{seat.style}}"
+          data-tid="{{item.id}}"
+          data-no="{{seat.no}}"
+          bindtap="onSeatTap"
+        >
+          <view class="rseat__circle">
+            <block wx:if="{{seat.state === 'reserved'}}">
+              <image wx:if="{{seat.avatarUrl}}" class="rseat__avatar" src="{{seat.avatarUrl}}" mode="aspectFill"></image>
+              <text wx:else class="rseat__initial">{{seat.initial}}</text>
+              <image wx:if="{{seat.genderIcon}}" class="rseat__gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
+            </block>
+            <block wx:else>{{seat.no}}</block>
+          </view>
+          <text class="rseat__label">{{seat.state === 'reserved' && seat.nickname ? seat.nickname : seat.label}}</text>
+        </view>
+      </view>
+
+      <!-- collapsed: compact 9-dot summary -->
+      <view wx:else class="rsv__dots" data-id="{{item.id}}" bindtap="onToggleTable">
+        <view class="rseat__dot rseat__dot--{{seat.state}}" wx:for="{{item.seats}}" wx:for-item="seat" wx:key="no"></view>
+      </view>
+    </view>
+  </block>
+
+  <view class="rsv__actions">
+    <button class="ic-btn ic-btn-primary ic-btn-block rsv__waitbtn" bindtap="onWaitlist">排队等候</button>
+    <view class="rsv__mine ic-card" hover-class="rsv__field--hover" bindtap="goMyReservations">
+      <view class="ic-ic ic-ic-calendar ic-ic--sm"></view>
+      <text class="rsv__mine-text">我的预约</text>
+      <view class="ic-arrow"></view>
+    </view>
+  </view>
+</view>
+
+<!-- 座位预约确认弹层 -->
+<ic-bottom-sheet show="{{showConfirm}}" title="确认预约" max-height="78vh" bind:close="onCloseConfirm">
+  <view class="rsvc">
+    <view class="rsvc__row">
+      <view class="ic-ic ic-ic-person ic-ic--sm"></view>
+      <text class="rsvc__val">{{selected.tableName}} · {{selected.seatNo}}号座位</text>
+    </view>
+    <view class="ic-divider"></view>
+    <view class="rsvc__row">
+      <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
+      <text class="rsvc__val">{{timeText}}</text>
+    </view>
+    <view class="ic-divider"></view>
+    <view class="rsvc__row">
+      <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
+      <text class="rsvc__val ic-ellipsis">{{store.name}}</text>
+    </view>
+    <view class="rsvc__hint">请按预约时间到店，超时将释放座位</view>
+    <view class="rsvc__waitlist" hover-class="rsv__field--hover" bindtap="onWaitlist">
+      <text>改为排队等候</text>
+      <view class="ic-arrow"></view>
+    </view>
+  </view>
+  <view slot="footer" class="rsvc__footer">
+    <button class="ic-btn ic-btn-ghost rsvc__btn" bindtap="onCloseConfirm">取消</button>
+    <button class="ic-btn ic-btn-primary rsvc__btn" loading="{{submitting}}" bindtap="onConfirm">确认预约</button>
+  </view>
+</ic-bottom-sheet>

@@ -1,0 +1,79 @@
+{
+  "version": "v34",
+  "base_version": "v32",
+  "goal": "Add exact artistic VIP1-VIP8 text only to finalized membership banners.",
+  "records": [
+    {
+      "file": "v1-normal.jpg",
+      "text": "VIP1",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v1-normal.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v1-normal.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 152.0
+    },
+    {
+      "file": "v2-bronze.jpg",
+      "text": "VIP2",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v2-bronze.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v2-bronze.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 190.4
+    },
+    {
+      "file": "v3-silver.jpg",
+      "text": "VIP3",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v3-silver.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v3-silver.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 173.9
+    },
+    {
+      "file": "v4-gold.jpg",
+      "text": "VIP4",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v4-gold.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v4-gold.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 192.7
+    },
+    {
+      "file": "v5-platinum.jpg",
+      "text": "VIP5",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v5-platinum.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v5-platinum.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 134.7
+    },
+    {
+      "file": "v6-diamond.jpg",
+      "text": "VIP6",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v6-diamond.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v6-diamond.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 90,
+      "size_kb": 176.8
+    },
+    {
+      "file": "v7-star.jpg",
+      "text": "VIP7",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v7-star.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v7-star.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 87,
+      "size_kb": 184.1
+    },
+    {
+      "file": "v8-master.jpg",
+      "text": "VIP8",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v8-master.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v34/final/v8-master.jpg",
+      "postprocess_spec": "Overlay exact VIP text only, using Didot luxury typography, metallic gradient, subtle glow/shadow, right-side placement preserving left native text area. No extra text added.",
+      "quality": 84,
+      "size_kb": 197.4
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+<view class="tk">
+  <view class="tk__seg">
+    <ic-segmented options="{{statusOptions}}" value="{{bucket}}" variant="line" bind:change="onStatusChange" />
+  </view>
+
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
+
+  <view wx:else class="tk__list">
+    <view class="tk__card {{item.usable ? '' : 'is-dim'}}" wx:for="{{list}}" wx:key="id">
+      <view class="tk__poster" data-id="{{item.id}}" bindtap="goDetail">
+        <image wx:if="{{item.imageUrl}}" class="tk__poster-img" src="{{item.imageUrl}}" mode="aspectFit" />
+        <view wx:else class="tk__poster-ph tk__poster-ph--{{item.tone}}">
+          <text class="tk__poster-sub">INWARD CLUB</text>
+          <text class="tk__poster-title">{{item.title}}</text>
+        </view>
+      </view>
+      <view class="tk__main">
+        <text class="tk__title">{{item.title}}</text>
+        <view class="tk__meta">
+          <image class="tk__meta-icon" src="/assets/icons/ticket-time.svg" mode="aspectFit" />
+          <text class="tk__time">{{item.timeText}}</text>
+        </view>
+        <view class="tk__meta">
+          <image class="tk__meta-icon" src="/assets/icons/location.svg" mode="aspectFit" />
+          <text class="tk__store ic-ellipsis">{{item.storeName}}</text>
+        </view>
+        <text class="tk__ticket">{{item.ticketName}} x{{item.qty}}</text>
+      </view>
+      <view class="tk__action">
+        <view class="tk__status tk__status--{{item.bucket}}">
+          <view class="tk__status-dot"></view>
+          <text class="tk__status-text">{{item.statusLabel}}</text>
+        </view>
+        <view
+          wx:if="{{item.usable}}"
+          class="tk__codebtn"
+          data-id="{{item.id}}"
+          bindtap="showCode"
+          hover-class="tk__codebtn--hover"
+        >
+          <image class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
+          <text class="tk__codehint">展示二维码</text>
+        </view>
+        <text wx:else class="tk__view" data-id="{{item.id}}" bindtap="goDetail">查看详情</text>
+      </view>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{showCodeSheet}}" class="tk-modal" catchtouchmove="noop">
+  <view class="tk-modal__mask" bindtap="closeCodeSheet"></view>
+  <view class="tk-modal__panel">
+    <view class="tk-modal__close" bindtap="closeCodeSheet">
+      <view class="tk-modal__x"></view>
+    </view>
+    <text class="tk-modal__title">{{ticketCode.title}}</text>
+    <text class="tk-modal__sub">{{ticketCode.sub}}</text>
+    <view class="tk-modal__qr">
+      <view class="ic-qr">
+        <view class="ic-qr__row" wx:for="{{ticketCode.qr}}" wx:for-item="row" wx:key="id">
+          <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
+        </view>
+      </view>
+    </view>
+    <view class="tk-modal__code" bindtap="copyCode">
+      <text class="tk-modal__code-num">{{ticketCode.code}}</text>
+      <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+    </view>
+    <text class="tk-modal__hint">入场时向工作人员出示</text>
+  </view>
+</view>

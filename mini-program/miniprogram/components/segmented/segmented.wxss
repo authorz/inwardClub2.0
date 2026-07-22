@@ -1,0 +1,62 @@
+@import "../../styles/tokens.wxss";
+
+/* ---- block: rounded track, black active fill ---- */
+.seg--block {
+  display: flex;
+  padding: 6rpx;
+  background: var(--ic-fill);
+  border-radius: 16rpx;
+}
+.seg--block .seg__item {
+  flex: 1;
+  height: 76rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: var(--ic-text-2);
+}
+.seg--block .seg__item.is-active {
+  background: var(--ic-black);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---- pill: pill track, black active pill ---- */
+.seg--pill {
+  display: flex;
+  padding: 8rpx;
+  background: var(--ic-fill);
+  border-radius: 999rpx;
+}
+.seg--pill .seg__item {
+  flex: 1;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  color: var(--ic-text-2);
+}
+.seg--pill .seg__item.is-active {
+  background: var(--ic-black);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---- line: underline tabs ---- */
+.seg--line { display: flex; }
+.seg--line .seg__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx 0;
+  font-size: 30rpx;
+  color: var(--ic-text-3);
+}
+.seg--line .seg__item.is-active { color: var(--ic-black); font-weight: 700; }
+.seg--line .seg__underline { width: 44rpx; height: 6rpx; border-radius: 6rpx; margin-top: 12rpx; background: transparent; }
+.seg--line .seg__item.is-active .seg__underline { background: var(--ic-black); }

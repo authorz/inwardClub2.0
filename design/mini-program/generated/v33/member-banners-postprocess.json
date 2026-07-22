@@ -1,0 +1,80 @@
+{
+  "version": "v33",
+  "base_version": "v32",
+  "goal": "Add exact artistic VIP1-VIP8 text to finalized membership banners without regenerating image backgrounds.",
+  "reason": "Exact text is better handled by deterministic typography post-processing than generative image text.",
+  "records": [
+    {
+      "file": "v1-normal.jpg",
+      "text": "VIP1",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v1-normal.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v1-normal.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 153.0
+    },
+    {
+      "file": "v2-bronze.jpg",
+      "text": "VIP2",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v2-bronze.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v2-bronze.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 191.6
+    },
+    {
+      "file": "v3-silver.jpg",
+      "text": "VIP3",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v3-silver.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v3-silver.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 175.3
+    },
+    {
+      "file": "v4-gold.jpg",
+      "text": "VIP4",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v4-gold.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v4-gold.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 193.6
+    },
+    {
+      "file": "v5-platinum.jpg",
+      "text": "VIP5",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v5-platinum.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v5-platinum.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 135.4
+    },
+    {
+      "file": "v6-diamond.jpg",
+      "text": "VIP6",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v6-diamond.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v6-diamond.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 90,
+      "size_kb": 176.4
+    },
+    {
+      "file": "v7-star.jpg",
+      "text": "VIP7",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v7-star.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v7-star.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 87,
+      "size_kb": 184.1
+    },
+    {
+      "file": "v8-master.jpg",
+      "text": "VIP8",
+      "source": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v32/final/v8-master.jpg",
+      "output": "/Users/authorz/Documents/Project/InwardClub2.0/output/imagegen/member-banners-v33/final/v8-master.jpg",
+      "postprocess_spec": "Overlay exact VIP text with Didot/Bodoni luxury typography, metallic gradient, subtle shadow/glow, right-side placement preserving left native text area.",
+      "quality": 84,
+      "size_kb": 197.4
+    }
+  ]
+}

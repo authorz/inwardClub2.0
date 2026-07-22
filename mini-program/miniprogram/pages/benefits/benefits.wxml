@@ -1,0 +1,61 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{tier}}" class="bf">
+  <swiper class="bf__cards" current="{{tier.current}}" previous-margin="36rpx" next-margin="36rpx">
+    <swiper-item class="bf__card-item" wx:for="{{tier.cards}}" wx:key="code">
+      <view class="bf__card {{item.state === 'current' ? 'is-current' : ''}}">
+        <image class="bf__card-bg" src="{{item.banner}}" mode="aspectFill" />
+        <view class="bf__card-body">
+          <view class="bf__card-top">
+            <text class="bf__card-no">{{item.no}} / {{item.total}}</text>
+            <text wx:if="{{item.state === 'current'}}" class="bf__card-tag">当前</text>
+          </view>
+          <view class="bf__card-bottom">
+            <text class="bf__card-name">{{item.name}}</text>
+            <view wx:if="{{item.state === 'current'}}" class="bf__growth">
+              <view class="bf__growth-head">
+                <text class="bf__growth-label">成长值</text>
+                <text class="bf__growth-val">{{tier.growthValue}} / {{tier.growthMax}}</text>
+              </view>
+              <view class="bf__bar"><view class="bf__bar-fill" style="width:{{tier.growthPct}}%"></view></view>
+            </view>
+            <text wx:elif="{{item.state === 'locked'}}" class="bf__card-hint">继续升级解锁此等级权益</text>
+            <text wx:else class="bf__card-hint">已解锁此等级权益</text>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+  </swiper>
+
+  <view class="bf__sec">
+    <text class="ic-h2">本级权益</text>
+    <view class="bf__benefits ic-card">
+      <view class="bf__benefit" wx:for="{{tier.benefits}}" wx:key="title">
+        <view class="bf__icon {{item.icon}}"></view>
+        <view class="bf__benefit-main">
+          <text class="bf__benefit-title">{{item.title}}</text>
+          <text class="bf__benefit-desc">{{item.desc}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="bf__sec">
+    <text class="ic-h2">等级说明</text>
+    <view class="bf__levels ic-card">
+      <view class="bf__level {{item.current ? 'is-current' : ''}} {{item.state}}" wx:for="{{tier.levels}}" wx:key="code">
+        <image class="bf__level-icon" src="{{item.icon}}" mode="aspectFit"></image>
+        <view class="bf__level-main">
+          <view class="bf__level-head">
+            <text class="bf__level-ver">{{item.ver}}</text>
+            <text class="bf__level-name">{{item.name}}</text>
+            <text wx:if="{{item.current}}" class="bf__level-tag">当前</text>
+          </view>
+          <text class="bf__level-desc">{{item.desc}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <text class="bf__note">权益内容以门店和后台规则为准</text>
+</view>

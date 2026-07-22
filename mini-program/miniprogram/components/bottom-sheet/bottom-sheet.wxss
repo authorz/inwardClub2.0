@@ -1,0 +1,28 @@
+@import "../../styles/tokens.wxss";
+.sheet { position: fixed; inset: 0; z-index: 1000; visibility: hidden; }
+.sheet.is-show { visibility: visible; }
+.sheet__mask {
+  position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45);
+  opacity: 0; transition: opacity 0.25s ease;
+}
+.sheet.is-show .sheet__mask { opacity: 1; }
+.sheet__panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: #fff; border-radius: 28rpx 28rpx 0 0;
+  padding: 12rpx 32rpx calc(env(safe-area-inset-bottom) + 24rpx);
+  transform: translateY(100%); transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex; flex-direction: column;
+}
+.sheet.is-show .sheet__panel { transform: translateY(0); }
+.sheet__grip { width: 72rpx; height: 8rpx; border-radius: 8rpx; background: #e2e2e2; margin: 8rpx auto 10rpx; }
+.sheet__head { position: relative; display: flex; align-items: center; justify-content: center; padding: 18rpx 0 22rpx; }
+.sheet__title { font-size: 34rpx; font-weight: 700; color: var(--ic-black); }
+.sheet__close { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; }
+.sheet__x { width: 30rpx; height: 30rpx; position: relative; }
+.sheet__x::before, .sheet__x::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 3rpx; background: #888; }
+.sheet__x::before { transform: rotate(45deg); }
+.sheet__x::after { transform: rotate(-45deg); }
+.sheet__body { flex: 1; }
+.sheet__body--static { overflow: hidden; }
+.sheet__footer:empty { display: none; }
+.sheet__footer { padding-top: 20rpx; }

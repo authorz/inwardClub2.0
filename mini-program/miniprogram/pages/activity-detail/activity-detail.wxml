@@ -1,0 +1,150 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{activity}}" class="ad">
+  <scroll-view
+    class="ad__scroll"
+    scroll-y
+    scroll-into-view="{{intoView}}"
+    scroll-with-animation
+    bindscroll="onScroll"
+  >
+    <!-- header artwork -->
+    <view class="ad__hero">
+      <ic-poster src="{{activity.imageUrl}}" title="{{activity.title}}" tone="{{activity.tone}}" radius="0" />
+    </view>
+
+    <!-- title + price -->
+    <view class="ad__head">
+      <text class="ad__title">{{activity.title}}</text>
+      <view class="ad__head-sub">
+        <view class="ad__status"><view class="ad__status-dot"></view><text>{{activity.statusText}}</text></view>
+        <view class="ad__head-price"><text class="ad__head-yuan">¥{{minPriceText}}</text><text class="ad__head-from">起</text></view>
+      </view>
+    </view>
+
+    <!-- sticky anchor tabs -->
+    <view class="ad__tabs {{tabFixed ? 'is-fixed' : ''}}">
+      <ic-segmented options="{{tabs}}" value="{{activeTab}}" variant="line" bind:change="onPickTab" />
+    </view>
+
+    <!-- ===== 活动信息 ===== -->
+    <view id="sec-info" class="ad__anchor" data-tab="info"></view>
+    <view class="ad__block">
+      <view class="ad__meta">
+        <view class="ad__meta-item">
+          <view class="ad__mi ad__mi--time"></view>
+          <text class="ad__meta-text ic-ellipsis">{{activity.timeText}}</text>
+        </view>
+        <view class="ad__meta-item {{mapPoint ? 'ad__meta-item--tap' : ''}}" bindtap="openLocation">
+          <view class="ad__mi ad__mi--store"></view>
+          <text class="ad__meta-text ic-ellipsis">{{activity.storeName}}</text>
+        </view>
+        <view wx:if="{{activity.distanceText}}" class="ad__meta-item">
+          <view class="ad__mi ad__mi--distance"></view>
+          <text class="ad__meta-text">距您 {{activity.distanceText}}</text>
+        </view>
+        <view class="ad__meta-item">
+          <view class="ad__mi ad__mi--sale"></view>
+          <text class="ad__meta-text">售卖至 {{activity.saleEndText}}</text>
+        </view>
+      </view>
+
+      <!-- map card (only when backend provides coordinates) -->
+      <view wx:if="{{mapPoint}}" class="ad__map" bindtap="openLocation">
+        <map
+          class="ad__map-canvas"
+          latitude="{{mapPoint.latitude}}"
+          longitude="{{mapPoint.longitude}}"
+          scale="16"
+          markers="{{mapMarkers}}"
+        ></map>
+        <view class="ad__map-foot">
+          <text class="ad__map-name ic-ellipsis">{{mapPoint.name}}</text>
+          <text class="ad__map-go">导航</text>
+        </view>
+      </view>
+
+      <!-- ticket types overview (payment lives in the sheet) -->
+      <view class="ad__sec ad__sec--tickets">
+        <text class="ad__section-title ad__section-title--muted">票类型</text>
+        <view class="ad__tickets {{activity.tickets.length === 1 ? 'ad__tickets--single' : ''}}">
+          <view class="ad__ticket" wx:for="{{activity.tickets}}" wx:key="id">
+            <text class="ad__ticket-name ic-ellipsis">{{item.name}}</text>
+            <text class="ad__ticket-yuan">¥{{item.priceText}}</text>
+            <text class="ad__ticket-side">余{{item.stock}} · 限{{activity.purchaseLimit}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- ===== 图文详情 ===== -->
+    <view id="sec-detail" class="ad__anchor" data-tab="detail"></view>
+    <view class="ad__block">
+      <text class="ic-h2 ad__block-title">图文详情</text>
+      <rich-text wx:if="{{activity.hasDetail}}" class="ad__rich" nodes="{{activity.detailNodes}}"></rich-text>
+      <view wx:else class="ad__empty">暂无图文详情</view>
+    </view>
+
+    <!-- ===== 购票须知 ===== -->
+    <view id="sec-notice" class="ad__anchor" data-tab="notice"></view>
+    <view class="ad__block ad__block--last">
+      <text class="ic-h2 ad__block-title">购票须知</text>
+      <view wx:if="{{noticeItems.length}}" class="ad__notice">
+        <view class="ad__notice-item" wx:for="{{noticeItems}}" wx:key="label">
+          <text class="ad__notice-label">{{item.label}}</text>
+          <text class="ad__notice-text">{{item.text}}</text>
+        </view>
+      </view>
+      <view wx:else class="ad__empty">暂无购票须知</view>
+    </view>
+  </scroll-view>
+
+  <!-- fixed purchase bar -->
+  <view class="ad__bar">
+    <view class="ad__bar-price">
+      <view class="ad__bar-amount"><text class="ad__bar-yuan">¥{{minPriceText}}</text><text class="ad__bar-from">起</text></view>
+      <text class="ad__bar-ticket">{{minTicketName}}</text>
+    </view>
+    <button class="ic-btn ic-btn-primary ad__bar-btn" bindtap="openPurchase">立即购票</button>
+  </view>
+</view>
+
+<!-- 票档 / 支付弹层 -->
+<ic-bottom-sheet show="{{showPurchase}}" title="选择票档" height="96vh" max-height="96vh" bind:close="closePurchase">
+  <view class="pt__list">
+    <view
+      class="pt__item {{ticketId === item.id ? 'is-active' : ''}}"
+      wx:for="{{activity.tickets}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onPickTicket"
+    >
+      <view class="pt__radio"><view wx:if="{{ticketId === item.id}}" class="pt__radio-on"></view></view>
+      <view class="pt__main">
+        <view class="pt__line">
+          <text class="pt__name">{{item.name}}</text>
+          <text class="pt__price">¥{{item.priceText}}</text>
+        </view>
+        <text class="pt__sub">剩余 {{item.stock}} 张 · 售卖至 {{item.saleEndText}}</text>
+      </view>
+      <view wx:if="{{ticketId === item.id}}" class="pt__qty" catchtap="noop">
+        <text class="pt__qty-label">数量</text>
+        <ic-stepper value="{{qty}}" min="{{1}}" max="{{activity.purchaseLimit}}" size="sm" bind:change="onQty" />
+      </view>
+    </view>
+  </view>
+
+  <view class="pt__pay">
+    <text class="ic-h2">支付方式</text>
+    <ic-pay-methods methods="{{payMethods}}" value="{{payMethod}}" layout="grid" bind:change="onPay" />
+  </view>
+  <view class="pt__limit">
+    <view class="ic-ic ic-ic-shield ic-ic--sm"></view>
+    <text>限购 {{activity.purchaseLimit}} 张</text>
+  </view>
+
+  <view slot="footer" class="pt__footer">
+    <view class="pt__total"><text class="pt__total-label">合计</text><text class="pt__total-num">¥{{totalText}}</text></view>
+    <button class="ic-btn ic-btn-primary pt__btn" loading="{{submitting}}" bindtap="confirmPurchase">确认购买</button>
+  </view>
+</ic-bottom-sheet>

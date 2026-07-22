@@ -1,0 +1,59 @@
+# InwardClub 2.0 server configuration example.
+# Load via CONFIG_FILE=configs/config.example.yaml; environment variables always
+# override these values. Keep real secrets out of this file — use env or a
+# secret manager for anything sensitive.
+
+appEnv: development
+logLevel: info
+httpAddr: ":8080"
+
+# Fakes keep local dev and tests offline. Set false only with real credentials.
+useFakeAdapters: true
+
+# Connection strings are intentionally blank here; provide them via env.
+mysqlDsn: ""
+redisAddr: "127.0.0.1:6379"
+
+jwt:
+  signingKey: ""          # set via JWT_SIGNING_KEY
+  issuer: inwardclub
+  accessTtl: 2h
+  refreshTtl: 720h        # 30 days
+
+qiniu:
+  bucket: ""
+  region: ""
+  publicDomain: ""
+  privateDomain: ""
+  uploadCallbackUrl: ""
+  tokenTtl: 10m
+  privateUrlTtl: 5m
+
+# WeChat mini-program login + WeChat Pay v3. Required only when
+# useFakeAdapters=false; keep secrets in env / a secret manager, not here.
+wechat:
+  miniAppId: ""              # WECHAT_MINI_APP_ID
+  miniAppSecret: ""          # WECHAT_MINI_APP_SECRET
+  payMchId: ""               # WECHAT_PAY_MCH_ID (merchant id)
+  payMchCertSerialNo: ""     # WECHAT_PAY_MCH_CERT_SERIAL_NO (merchant cert serial)
+  payPrivateKeyPath: ""      # WECHAT_PAY_PRIVATE_KEY_PATH (PEM; signs API requests)
+  payApiV3Key: ""            # WECHAT_PAY_API_V3_KEY (exactly 32 bytes; decrypts notify)
+  payNotifyUrl: ""           # WECHAT_PAY_NOTIFY_URL (public /internal/payments/wechat/notify)
+  payPublicKeyPath: ""       # WECHAT_PAY_PUBLIC_KEY_PATH (platform public key PEM; verifies notify)
+  payPublicKeyId: ""         # WECHAT_PAY_PUBLIC_KEY_ID (matched against Wechatpay-Serial)
+
+# Offline aggregated-collection acquirer (store-side; the only Alipay-capable
+# channel). Required only when useFakeAdapters=false. The real client signs each
+# request/callback with apiKey (HMAC-SHA256) and posts to baseUrl.
+offlineAcquirer:
+  provider: ""               # OFFLINE_ACQUIRER_PROVIDER
+  merchantId: ""             # OFFLINE_ACQUIRER_MERCHANT_ID
+  apiKey: ""                 # OFFLINE_ACQUIRER_API_KEY (HMAC signing key)
+  notifyUrl: ""              # OFFLINE_ACQUIRER_NOTIFY_URL (/internal/payments/offline-acquirer/notify)
+  baseUrl: ""                # OFFLINE_ACQUIRER_BASE_URL (acquirer HTTP API root)
+
+# Xpyun (芯烨云) cloud printer. Required only when useFakeAdapters=false; the
+# worker's print:receipt handler prints through the real client.
+xpyun:
+  user: ""                   # XPYUN_USER
+  ukey: ""                   # XPYUN_UKEY

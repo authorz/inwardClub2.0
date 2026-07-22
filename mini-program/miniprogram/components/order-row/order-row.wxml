@@ -1,0 +1,30 @@
+<view class="orow {{last ? 'orow--last' : ''}}" bindtap="onTap" hover-class="orow--hover">
+  <view class="orow__top">
+    <view class="orow__head">
+      <text class="orow__title">{{title}}</text>
+      <text wx:if="{{code}}" class="orow__code">{{code}}</text>
+    </view>
+    <view class="orow__status">
+      <text class="orow__statustext">{{status}}</text>
+      <view class="orow__arrow"></view>
+    </view>
+  </view>
+
+  <view class="orow__body">
+    <view wx:if="{{storeName}}" class="orow__store">
+      <view class="orow__shop"></view>
+      <text class="orow__storename">{{storeName}}</text>
+    </view>
+
+    <view class="orow__meta">
+      <view class="orow__metaL">
+        <text wx:if="{{desc}}" class="orow__desc">{{desc}}</text>
+        <text class="orow__time">{{timeText}}</text>
+      </view>
+      <view class="orow__metaR">
+        <text class="orow__amount">{{amountText}}</text>
+        <text wx:if="{{payText}}" class="orow__paytext">{{payText}}</text>
+      </view>
+    </view>
+  </view>
+</view>

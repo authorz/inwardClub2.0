@@ -1,0 +1,9 @@
+@import "../../styles/tokens.wxss";
+.cell { display: flex; align-items: center; min-height: 104rpx; padding: 22rpx 0; }
+.cell--bordered { border-bottom: 1rpx solid var(--ic-line); }
+.cell__icon:empty { display: none; }
+.cell__icon { margin-right: 20rpx; }
+.cell__label { display: flex; flex-direction: column; font-size: 30rpx; color: var(--ic-text); }
+.cell__label2 { font-size: 24rpx; color: var(--ic-text-3); margin-top: 4rpx; }
+.cell__value { flex: 1; display: flex; align-items: center; justify-content: flex-end; text-align: right; font-size: 30rpx; color: var(--ic-text-2); }
+.cell__value--strong { color: var(--ic-black); font-weight: 600; }

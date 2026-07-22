@@ -1,0 +1,15 @@
+/** 服务层统一出口。页面通过此处导入领域服务。 */
+
+export { authService } from './auth'
+export { orderService } from './orders'
+export { catalogService } from './catalog'
+export { activityService } from './activities'
+export { verificationService } from './verification'
+export { pointSavingService } from './pointSavings'
+export { reservationService } from './reservations'
+export { collectionService } from './collection'
+export { printerService } from './printers'
+export { reportService } from './reports'
+export { profileService } from './profile'
+export { memberService } from './members'
+export { cashierService, staffAccountService } from './staff'

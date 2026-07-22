@@ -1,0 +1,14 @@
+<view class="pr">
+  <view class="pr__icon {{success ? 'is-ok' : 'is-fail'}}">
+    <view wx:if="{{success}}" class="ic-ic ic-ic-check"></view>
+    <text wx:else class="pr__fail-mark">!</text>
+  </view>
+  <text class="pr__title">{{title}}</text>
+  <text wx:if="{{amount}}" class="pr__amount">¥{{amount}}</text>
+  <text class="pr__desc">{{desc}}</text>
+
+  <view class="pr__actions">
+    <button class="ic-btn ic-btn-ghost pr__act" bindtap="goHome">返回首页</button>
+    <button class="ic-btn ic-btn-primary pr__act" bindtap="viewOrder">查看订单</button>
+  </view>
+</view>

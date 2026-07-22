@@ -1,0 +1,18 @@
+<view class="tc">
+  <text class="tc__title">{{title}}</text>
+  <text class="tc__sub">{{sub}}</text>
+
+  <view class="tc__qr">
+    <view class="ic-qr">
+      <view class="ic-qr__row" wx:for="{{qr}}" wx:for-item="row" wx:key="id">
+        <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
+      </view>
+    </view>
+  </view>
+
+  <view class="tc__code" bindtap="copyCode">
+    <text class="tc__code-num">{{code}}</text>
+    <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+  </view>
+  <text class="tc__hint">入场时向工作人员出示</text>
+</view>

@@ -1,0 +1,33 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{home}}" class="st">
+  <!-- fixed bound store, no switch -->
+  <view class="st__store ic-card">
+    <view class="st__store-ico"><view class="ic-ic ic-ic-pin"></view></view>
+    <view class="st__store-main">
+      <text class="st__store-label">当前门店</text>
+      <text class="st__store-name ic-ellipsis">{{home.storeName}}</text>
+    </view>
+    <text class="st__store-lock">已绑定 · 不可切换</text>
+  </view>
+
+  <view class="st__list ic-card">
+    <ic-cell label="活动核销" label2="扫码核销 · 输入核销码" arrow="{{true}}" bind:tap="goVerify">
+      <view slot="icon" class="ic-ic ic-ic-ticket"></view>
+    </ic-cell>
+    <ic-cell label="积分审核" arrow="{{true}}" bind:tap="goReview">
+      <view slot="icon" class="ic-ic ic-ic-shield"></view>
+      <view slot="value" class="st__badge">待审核 {{home.pendingReview}}</view>
+    </ic-cell>
+    <ic-cell label="核销记录" arrow="{{true}}" bind:tap="goRecords">
+      <view slot="icon" class="ic-ic ic-ic-doc"></view>
+      <view slot="value" class="st__count">今日 {{home.todayVerifications}} 条</view>
+    </ic-cell>
+    <ic-cell label="今日活动" arrow="{{true}}" bordered="{{false}}" bind:tap="goToday">
+      <view slot="icon" class="ic-ic ic-ic-calendar"></view>
+      <view slot="value" class="st__count" wx:if="{{home.todayActivity}}">{{home.todayActivity.title}} {{home.todayActivity.timeText}}</view>
+    </ic-cell>
+  </view>
+
+  <text class="st__note">工作人员仅可操作已绑定门店的数据</text>
+</view>

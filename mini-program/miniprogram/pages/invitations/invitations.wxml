@@ -1,0 +1,45 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{info}}" class="iv">
+  <view class="iv__code-card">
+    <text class="iv__code-label">我的邀请码</text>
+    <view class="iv__code-row">
+      <text class="iv__code">{{info.inviteCode}}</text>
+      <view class="iv__copy" bindtap="copyCode"><view class="ic-ic ic-ic-copy ic-ic--sm"></view><text>复制</text></view>
+    </view>
+    <button class="ic-btn ic-btn-primary ic-btn-block iv__share" open-type="share">
+      <view class="ic-ic ic-ic-share ic-ic--sm iv__share-ico"></view>
+      <text>分享给好友</text>
+    </button>
+  </view>
+
+  <view wx:if="{{info.rules.length}}" class="iv__rules ic-card">
+    <view class="iv__rule" wx:for="{{info.rules}}" wx:key="title">
+      <view class="ic-ic {{item.icon}} ic-ic--sm"></view>
+      <view class="iv__rule-main">
+        <text class="iv__rule-title">{{item.title}}</text>
+        <text class="iv__rule-desc">{{item.desc}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="iv__stats ic-card">
+    <view class="iv__stat"><text class="iv__stat-num">{{info.invited}}</text><text class="iv__stat-label">已邀请</text></view>
+    <view class="iv__stat-div"></view>
+    <view class="iv__stat"><text class="iv__stat-num">{{info.effective}}</text><text class="iv__stat-label">已生效</text></view>
+    <view class="iv__stat-div"></view>
+    <view class="iv__stat"><text class="iv__stat-num">{{info.pending}}</text><text class="iv__stat-label">待结算</text></view>
+  </view>
+
+  <view class="iv__records">
+    <text class="ic-h2 iv__records-title">邀请记录</text>
+    <view class="iv__record ic-card" wx:if="{{info.records.length}}">
+      <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">
+        <text class="iv__record-name">{{item.name}}</text>
+        <text class="iv__record-status {{item.effective ? 'is-ok' : ''}}">{{item.statusLabel}}</text>
+        <text class="iv__record-date">{{item.date}}</text>
+      </view>
+    </view>
+    <ic-empty wx:else text="暂无邀请记录" compact="{{true}}" />
+  </view>
+</view>

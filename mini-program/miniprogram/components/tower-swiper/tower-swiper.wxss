@@ -1,0 +1,57 @@
+/* Tower swiper — absolutely stacked portrait cards fanned around a bottom
+   pivot. Transforms are applied inline per card (see tower-swiper.js); this
+   sheet owns geometry, the framed-poster look and the open/close transition. */
+.ts {
+  position: relative;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  /* Tall enough to contain the fanned neighbours' rotated bottoms (the lowest
+     transformed corner lands ~800rpx below the top). overflow:hidden still clips
+     horizontally 1:1, so the drag white-edge fix is untouched — only vertical
+     room grew. */
+  height: 800rpx;
+  overflow: hidden;
+}
+.ts__stage {
+  position: absolute;
+  left: 50%;
+  /* Lifted from 24rpx so the extra clip height needed at the bottom stays small,
+     limiting how far the content below drops. Foreground card top stays >= 0. */
+  top: 8rpx;
+  width: 0;
+  height: 0;
+}
+
+/* Each card is centred on the stage; its inline transform offsets it from the
+   active card. Bottom pivot so rotation splays the tops like an opening fan. */
+.ts__card {
+  position: absolute;
+  left: -220rpx;
+  top: 0;
+  width: 440rpx;
+  height: 660rpx;
+  transform-origin: center bottom;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.7s ease;
+}
+/* Mid-drag the deck must track the finger 1:1 — no easing. */
+.ts__card.is-dragging {
+  transition: none;
+}
+
+/* Framed poster: pale border reads clearly on the black background; radius
+   matches ic-poster. Border kept a touch thick per design. */
+.ts__card ic-poster {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 6rpx solid rgba(255, 255, 255, 0.24);
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.55);
+}
+/* The front card gets the brightest frame and deepest shadow for clear depth. */
+.ts__card.is-active ic-poster {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 1rpx rgba(0, 0, 0, 0.4), 0 12rpx 34rpx rgba(0, 0, 0, 0.55);
+}

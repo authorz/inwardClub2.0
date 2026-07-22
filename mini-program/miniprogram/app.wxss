@@ -1,0 +1,13 @@
+@import "./styles/vars.wxss";
+@import "./styles/tokens.wxss";
+
+/*
+ * No global tag-name reset here. Every page uses components (global
+ * usingComponents in app.json), so WeChat compiles page styles with
+ * component-level scoping, where tag / id / attribute selectors are
+ * rejected ("Some selectors are not allowed in component wxss") and
+ * silently dropped. A `view, text, … { box-sizing: border-box }` reset
+ * therefore never actually applied and only produced console warnings.
+ * box-sizing is set on the shared layout primitives in styles/tokens.wxss
+ * (.ic-page, .ic-btn, .ic-tag, …); pages compose those classes.
+ */

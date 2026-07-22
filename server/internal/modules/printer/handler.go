@@ -1,0 +1,129 @@
+package printer
+
+import (
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+
+	apperr "github.com/inwardclub/server/internal/platform/errors"
+	"github.com/inwardclub/server/internal/platform/httpx"
+	"github.com/inwardclub/server/internal/platform/storescope"
+)
+
+// ConsoleHandler exposes printer device management for the admin (cross-store
+// read) and store (own-store CRUD) consoles. Route wiring decides which group
+// mounts which method.
+type ConsoleHandler struct {
+	svc *ConsoleService
+}
+
+// NewConsoleHandler builds the printer console handler.
+func NewConsoleHandler(svc *ConsoleService) *ConsoleHandler { return &ConsoleHandler{svc: svc} }
+
+// --- Admin ---
+
+// AdminList handles GET /admin/printer-devices. An optional ?storeId filter
+// narrows the result to a single store.
+func (h *ConsoleHandler) AdminList(c *gin.Context) {
+	var storeID *int64
+	if raw := c.Query("storeId"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			httpx.Fail(c, apperr.Invalid("invalid storeId"))
+			return
+		}
+		storeID = &id
+	}
+	views, err := h.svc.AdminList(c.Request.Context(), storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
+}
+
+// --- Store ---
+
+// StoreList handles GET /store/printer-devices.
+func (h *ConsoleHandler) StoreList(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	views, err := h.svc.StoreList(c.Request.Context(), storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
+}
+
+// StoreCreate handles POST /store/printer-devices. The device is pinned to the
+// caller's own store scope.
+func (h *ConsoleHandler) StoreCreate(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	var in DeviceInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	view, err := h.svc.StoreCreate(c.Request.Context(), storeID, in)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// StoreUpdate handles PATCH /store/printer-devices/:id.
+func (h *ConsoleHandler) StoreUpdate(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var patch DevicePatch
+	if err := c.ShouldBindJSON(&patch); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	view, err := h.svc.StoreUpdate(c.Request.Context(), storeID, id, patch)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// StoreDelete handles DELETE /store/printer-devices/:id.
+func (h *ConsoleHandler) StoreDelete(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreDelete(c.Request.Context(), storeID, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"id": id})
+}
+
+func pathID(c *gin.Context, name string) (int64, error) {
+	id, err := strconv.ParseInt(c.Param(name), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, apperr.Invalid("invalid " + name)
+	}
+	return id, nil
+}

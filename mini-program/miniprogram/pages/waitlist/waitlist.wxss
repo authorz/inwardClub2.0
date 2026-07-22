@@ -1,0 +1,13 @@
+.wt { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.wt__card { display: flex; flex-direction: column; align-items: center; background: var(--ic-white); border-radius: var(--ic-radius); padding: 60rpx 32rpx; }
+.wt__label { font-size: 24rpx; color: var(--ic-text-3); }
+.wt__num { font-size: 48rpx; font-weight: 700; color: var(--ic-black); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wt__store { margin-top: 12rpx; font-size: 28rpx; color: var(--ic-text-2); }
+.wt__status { display: flex; align-items: center; gap: 12rpx; margin-top: 24rpx; padding: 12rpx 24rpx; background: var(--ic-fill); border-radius: 999rpx; }
+.wt__dot { width: 12rpx; height: 12rpx; border-radius: 50%; background: var(--ic-black); }
+.wt__status text { font-size: 24rpx; color: var(--ic-text-2); }
+.wt__tips { margin-top: 24rpx; padding: 12rpx 32rpx; }
+.wt__tip { display: flex; align-items: center; gap: 18rpx; padding: 24rpx 0; border-bottom: 1rpx solid var(--ic-line); font-size: 24rpx; color: var(--ic-text-2); }
+.wt__tip:last-child { border-bottom: none; }
+.wt__actions { display: flex; gap: 20rpx; margin-top: 32rpx; }
+.wt__actions .ic-btn { flex: 1; }

@@ -1,0 +1,11 @@
+.st { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.st__store { display: flex; align-items: center; gap: 22rpx; padding: 32rpx; }
+.st__store-ico { width: 80rpx; height: 80rpx; border-radius: 18rpx; background: var(--ic-fill); display: flex; align-items: center; justify-content: center; flex: none; }
+.st__store-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
+.st__store-label { font-size: 24rpx; color: var(--ic-text-3); }
+.st__store-name { font-size: 34rpx; font-weight: 700; color: var(--ic-black); }
+.st__store-lock { font-size: 22rpx; color: var(--ic-text-4); flex: none; }
+.st__list { margin-top: 24rpx; padding: 0 32rpx; }
+.st__badge { padding: 4rpx 16rpx; background: var(--ic-black); color: #fff; border-radius: 999rpx; font-size: 22rpx; }
+.st__count { font-size: 24rpx; color: var(--ic-text-3); }
+.st__note { display: block; margin: 30rpx 12rpx; font-size: 22rpx; color: var(--ic-text-4); }

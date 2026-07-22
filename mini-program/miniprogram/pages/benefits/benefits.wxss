@@ -1,0 +1,57 @@
+.bf { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+
+/* 全部等级卡横向 swiper：初始定位当前等级，可滑动预览更高等级 */
+.bf__cards { height: 320rpx; }
+.bf__card-item { box-sizing: border-box; padding: 0 12rpx; }
+.bf__card { position: relative; height: 100%; border-radius: 20rpx; overflow: hidden; opacity: 0.72; transition: opacity 0.3s; }
+.bf__card.is-current { opacity: 1; }
+.bf__card-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* 顶部/底部压暗渐变保证叠加文字可读 */
+.bf__card-body { position: absolute; inset: 0; padding: 30rpx 32rpx; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.6) 100%); }
+.bf__card-top { display: flex; align-items: center; justify-content: space-between; }
+.bf__card-no { font-size: 22rpx; letter-spacing: 1rpx; color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; }
+.bf__card-tag { font-size: 20rpx; color: #fff; padding: 2rpx 14rpx; border: 1rpx solid rgba(255,255,255,0.6); border-radius: 999rpx; }
+.bf__card-name { display: block; font-size: 42rpx; font-weight: 700; color: #fff; text-shadow: 0 2rpx 8rpx rgba(0,0,0,0.35); }
+.bf__card-hint { display: block; margin-top: 14rpx; font-size: 24rpx; color: rgba(255,255,255,0.8); }
+
+.bf__growth { margin-top: 20rpx; }
+.bf__growth-head { display: flex; align-items: center; justify-content: space-between; }
+.bf__growth-label { font-size: 24rpx; color: rgba(255,255,255,0.85); }
+.bf__growth-val { font-size: 24rpx; color: #fff; font-variant-numeric: tabular-nums; }
+.bf__bar { margin-top: 14rpx; height: 12rpx; border-radius: 999rpx; background: rgba(255,255,255,0.3); overflow: hidden; }
+.bf__bar-fill { height: 100%; background: #fff; border-radius: 999rpx; }
+
+/* 本页稳定 CSS 线性图标：黑白克制，不依赖背景大图 */
+.bf__icon { position: relative; width: 36rpx; height: 36rpx; box-sizing: border-box; flex: none; color: var(--ic-black); }
+.bf__icon--calendar { border: 2rpx solid currentColor; border-radius: 6rpx; }
+.bf__icon--calendar::before { content: ""; position: absolute; left: -2rpx; right: -2rpx; top: 9rpx; height: 2rpx; background: currentColor; }
+.bf__icon--calendar::after { content: ""; position: absolute; top: -6rpx; left: 9rpx; width: 2rpx; height: 8rpx; background: currentColor; box-shadow: 15rpx 0 0 currentColor; }
+.bf__icon--coupon { border: 2rpx solid currentColor; border-radius: 6rpx; }
+.bf__icon--coupon::before { content: ""; position: absolute; top: 50%; left: -2rpx; width: 10rpx; height: 10rpx; margin-top: -5rpx; border-radius: 50%; background: var(--ic-white); border: 2rpx solid currentColor; }
+.bf__icon--coupon::after { content: ""; position: absolute; top: 50%; right: -2rpx; width: 10rpx; height: 10rpx; margin-top: -5rpx; border-radius: 50%; background: var(--ic-white); border: 2rpx solid currentColor; }
+.bf__icon--gift { background: linear-gradient(currentColor, currentColor) no-repeat; background-size: 28rpx 7rpx; background-position: 4rpx 8rpx; }
+.bf__icon--gift::before { content: ""; position: absolute; left: 6rpx; right: 6rpx; top: 15rpx; bottom: 3rpx; border: 2rpx solid currentColor; border-top: none; }
+.bf__icon--gift::after { content: ""; position: absolute; left: 50%; top: 8rpx; bottom: 3rpx; width: 2rpx; margin-left: -1rpx; background: currentColor; }
+
+.bf__sec { margin-top: 32rpx; }
+.bf__sec .ic-h2 { display: block; padding: 0 8rpx 20rpx; }
+
+.bf__benefits, .bf__levels { padding: 8rpx 32rpx; }
+.bf__benefit { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.bf__benefit:last-child { border-bottom: none; }
+.bf__benefit-main { display: flex; flex-direction: column; gap: 6rpx; }
+.bf__benefit-title { font-size: 30rpx; color: var(--ic-black); }
+.bf__benefit-desc { font-size: 24rpx; color: var(--ic-text-3); }
+
+.bf__level { display: flex; align-items: center; gap: 22rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.bf__level:last-child { border-bottom: none; }
+.bf__level-main { flex: 1; }
+.bf__level-head { display: flex; align-items: center; gap: 14rpx; }
+.bf__level-ver { font-size: 22rpx; font-weight: 600; color: var(--ic-text-2); padding: 2rpx 10rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 6rpx; font-variant-numeric: tabular-nums; }
+.bf__level-name { font-size: 30rpx; font-weight: 600; color: var(--ic-black); }
+.bf__level-tag { font-size: 22rpx; color: var(--ic-black); padding: 2rpx 12rpx; background: var(--ic-fill); border-radius: 6rpx; }
+.bf__level-desc { display: block; margin-top: 6rpx; font-size: 24rpx; color: var(--ic-text-3); }
+.bf__level.is-current .bf__level-name { color: var(--ic-black); }
+
+.bf__level-icon { width: 64rpx; height: 64rpx; flex: none; }
+.bf__note { display: block; text-align: center; margin-top: 30rpx; font-size: 22rpx; color: var(--ic-text-4); }

@@ -1,0 +1,82 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/reservation/reservation",
+    "pages/order/order",
+    "pages/home/home",
+    "pages/store-select/store-select",
+    "pages/store-detail/store-detail",
+    "pages/activity-list/activity-list",
+    "pages/activity-detail/activity-detail",
+    "pages/order-confirm/order-confirm",
+    "pages/pay-result/pay-result",
+    "pages/reservation-list/reservation-list",
+    "pages/reservation-detail/reservation-detail",
+    "pages/waitlist/waitlist",
+    "pages/profile/profile",
+    "pages/wallet-ledger/wallet-ledger",
+    "pages/order-center/order-center",
+    "pages/food-order-detail/food-order-detail",
+    "pages/activity-order-detail/activity-order-detail",
+    "pages/recharge-order-detail/recharge-order-detail",
+    "pages/redemption-order-detail/redemption-order-detail",
+    "pages/coupons/coupons",
+    "pages/coupon-redeem/coupon-redeem",
+    "pages/tickets/tickets",
+    "pages/ticket-code/ticket-code",
+    "pages/invitations/invitations",
+    "pages/rankings/rankings",
+    "pages/benefits/benefits",
+    "pages/staff/staff",
+    "pages/staff-verify/staff-verify",
+    "pages/staff-point-review/staff-point-review",
+    "pages/staff-point-detail/staff-point-detail",
+    "pages/staff-today/staff-today",
+    "pages/staff-verifications/staff-verifications"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "Inward Club",
+    "backgroundColor": "#f5f5f5",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于定位并默认选择离你最近的门店"
+    }
+  },
+  "requiredPrivateInfos": ["getLocation"],
+  "tabBar": {
+    "custom": true,
+    "color": "#8a8a8a",
+    "selectedColor": "#111111",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页", "iconPath": "assets/tab/home.png", "selectedIconPath": "assets/tab/home-active.png" },
+      { "pagePath": "pages/reservation/reservation", "text": "预约", "iconPath": "assets/tab/reservation.png", "selectedIconPath": "assets/tab/reservation-active.png" },
+      { "pagePath": "pages/order/order", "text": "点餐", "iconPath": "assets/tab/order.png", "selectedIconPath": "assets/tab/order-active.png" },
+      { "pagePath": "pages/home/home", "text": "我的", "iconPath": "assets/tab/me.png", "selectedIconPath": "assets/tab/me-active.png" }
+    ]
+  },
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-cell": "/components/cell/cell",
+    "ic-segmented": "/components/segmented/segmented",
+    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet",
+    "ic-stepper": "/components/stepper/stepper",
+    "ic-asset-strip": "/components/asset-strip/asset-strip",
+    "ic-order-row": "/components/order-row/order-row",
+    "ic-ticket-row": "/components/ticket-row/ticket-row",
+    "ic-status-badge": "/components/status-badge/status-badge",
+    "ic-pay-methods": "/components/pay-methods/pay-methods",
+    "ic-poster": "/components/poster/poster",
+    "ic-store-bar": "/components/store-bar/store-bar"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,22 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{item}}" class="od">
+  <view class="od-head">
+    <view class="od-head__icon"><view class="ic-ic ic-ic-shield ic-ic--sm"></view></view>
+    <text class="od-head__status">{{item.statusLabel}}</text>
+  </view>
+
+  <view class="od-card">
+    <view class="od-row"><text class="od-row__label">会员</text><text class="od-row__value od-row__value--strong">{{item.memberName}}</text></view>
+    <view class="od-row"><text class="od-row__label">类型</text><text class="od-row__value">{{item.directionLabel}}积分</text></view>
+    <view class="od-row"><text class="od-row__label">积分数量</text><text class="od-row__value od-row__value--big">{{item.points}}</text></view>
+    <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{item.storeName}}</text></view>
+    <view class="od-row"><text class="od-row__label">提交时间</text><text class="od-row__value">{{item.timeText}}</text></view>
+    <view class="od-row"><text class="od-row__label">备注</text><text class="od-row__value">{{item.note}}</text></view>
+  </view>
+
+  <view wx:if="{{pending}}" class="od-bar">
+    <button class="ic-btn ic-btn-ghost" data-decision="reject" bindtap="review">驳回</button>
+    <button class="ic-btn ic-btn-primary" data-decision="approve" bindtap="review">通过</button>
+  </view>
+</view>
