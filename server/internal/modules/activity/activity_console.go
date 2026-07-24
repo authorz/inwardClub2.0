@@ -59,19 +59,21 @@ type TicketType struct {
 // distinct from ActivityView (the mini-program public read view) because the
 // console additionally exposes scope, status and audit timestamps.
 type ConsoleActivityView struct {
-	ID          int64      `json:"id"`
-	ScopeType   string     `json:"scopeType"`
-	StoreID     *int64     `json:"storeId,omitempty"`
-	Title       string     `json:"title"`
-	Description string     `json:"description,omitempty"`
-	Content     string     `json:"content,omitempty"`
-	AssetID     *int64     `json:"assetId,omitempty"`
-	StartAt     *time.Time `json:"startAt,omitempty"`
-	EndAt       *time.Time `json:"endAt,omitempty"`
-	PayChannels []string   `json:"payChannels"`
-	Status      string     `json:"status"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	ID                     int64      `json:"id"`
+	ScopeType              string     `json:"scopeType"`
+	StoreID                *int64     `json:"storeId,omitempty"`
+	Title                  string     `json:"title"`
+	Description            string     `json:"description,omitempty"`
+	Content                string     `json:"content,omitempty"`
+	AssetID                *int64     `json:"assetId,omitempty"`
+	ImageURL               string     `json:"imageUrl,omitempty"`
+	StartAt                *time.Time `json:"startAt,omitempty"`
+	EndAt                  *time.Time `json:"endAt,omitempty"`
+	PayChannels            []string   `json:"payChannels"`
+	PurchaseLimitPerMember int        `json:"purchaseLimitPerMember"`
+	Status                 string     `json:"status"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
 // SessionView is the console representation of an activity session.
@@ -108,6 +110,7 @@ type TicketTypeView struct {
 
 // ActivityInput is the console create/update payload for an activity.
 type ActivityInput struct {
+	StoreID                *int64     `json:"storeId"`
 	Title                  string     `json:"title" binding:"required"`
 	Description            string     `json:"description"`
 	Content                string     `json:"content"`
@@ -170,13 +173,15 @@ type sqlConsoleRepository struct{ db *platdb.DB }
 func NewConsoleRepository(db *platdb.DB) ConsoleRepository { return &sqlConsoleRepository{db: db} }
 
 const consoleActivityColumns = `id, scope_type, store_id, title, COALESCE(description,''),
-	COALESCE(content,''), asset_id, start_at, end_at, pay_channels, status, created_at, updated_at`
+	COALESCE(content,''), asset_id, start_at, end_at, pay_channels,
+	purchase_limit_per_member, status, created_at, updated_at`
 
 func scanConsoleActivity(row interface{ Scan(...any) error }) (Activity, error) {
 	var a Activity
 	var payChannels []byte
 	err := row.Scan(&a.ID, &a.ScopeType, &a.StoreID, &a.Title, &a.Description,
-		&a.Content, &a.AssetID, &a.StartAt, &a.EndAt, &payChannels, &a.Status, &a.CreatedAt, &a.UpdatedAt)
+		&a.Content, &a.AssetID, &a.StartAt, &a.EndAt, &payChannels, &a.PurchaseLimit,
+		&a.Status, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return Activity{}, err
 	}
@@ -240,19 +245,27 @@ func encodeChannels(ch []string) []byte {
 	return b
 }
 
-// scopeInsert resolves the scope_type/store_id an insert should carry: a store
-// console pins scope_type='store' + its own store id; the admin console creates
-// global rows.
-func scopeInsert(scope ConsoleScope) (string, any) {
+// scopeWrite resolves the scope_type/store_id a write should carry. A store
+// console is always pinned to its JWT store; the admin console may explicitly
+// bind the activity to a store or leave storeId empty for a global activity.
+func scopeWrite(scope ConsoleScope, requestedStoreID *int64) (string, any) {
 	if scope.StoreID != nil {
 		return "store", *scope.StoreID
+	}
+	if requestedStoreID != nil {
+		return "store", *requestedStoreID
 	}
 	return "global", nil
 }
 
 func (r *sqlConsoleRepository) CreateActivity(ctx context.Context, scope ConsoleScope, in ActivityInput) (Activity, error) {
 	now := time.Now().UTC()
-	scopeType, storeID := scopeInsert(scope)
+	if scope.StoreID == nil && in.StoreID != nil {
+		if err := validateActivityStore(ctx, r.db, *in.StoreID); err != nil {
+			return Activity{}, err
+		}
+	}
+	scopeType, storeID := scopeWrite(scope, in.StoreID)
 	status := in.Status
 	if status == "" {
 		status = "draft"
@@ -280,17 +293,63 @@ func (r *sqlConsoleRepository) UpdateActivity(ctx context.Context, scope Console
 	if status == "" {
 		status = "draft"
 	}
+	scopeType, storeID := scopeWrite(scope, in.StoreID)
 	where, args := scopeWhere(scope)
-	q := `UPDATE activities SET title=?, description=?, content=?, asset_id=?, start_at=?, end_at=?,
-		pay_channels=?, purchase_limit_per_member=?, status=?, updated_at=? WHERE id=? AND ` + where
-	qArgs := append([]any{in.Title, in.Description, in.Content, in.AssetID, in.StartAt, in.EndAt,
-		encodeChannels(in.PayChannels), in.PurchaseLimitPerMember, status, now, id}, args...)
-	if _, err := r.db.ExecContext(ctx, q, qArgs...); err != nil {
-		return Activity{}, apperr.Internal(err)
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if scope.StoreID == nil && in.StoreID != nil {
+			if err := validateActivityStore(ctx, tx, *in.StoreID); err != nil {
+				return err
+			}
+		}
+		var existingID int64
+		lockArgs := append([]any{id}, args...)
+		if err := tx.QueryRowContext(
+			ctx,
+			`SELECT id FROM activities WHERE id=? AND `+where+` FOR UPDATE`,
+			lockArgs...,
+		).Scan(&existingID); errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("activity not found")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+		q := `UPDATE activities SET scope_type=?, store_id=?, title=?, description=?, content=?,
+			asset_id=?, start_at=?, end_at=?, pay_channels=?, purchase_limit_per_member=?,
+			status=?, updated_at=? WHERE id=? AND ` + where
+		qArgs := append([]any{scopeType, storeID, in.Title, in.Description, in.Content, in.AssetID,
+			in.StartAt, in.EndAt, encodeChannels(in.PayChannels), in.PurchaseLimitPerMember,
+			status, now, id}, args...)
+		if _, err := tx.ExecContext(ctx, q, qArgs...); err != nil {
+			return apperr.Internal(err)
+		}
+		for _, q := range []string{
+			`UPDATE activity_sessions SET store_id=?, updated_at=? WHERE activity_id=?`,
+			`UPDATE activity_ticket_types SET store_id=?, updated_at=? WHERE activity_id=?`,
+		} {
+			if _, err := tx.ExecContext(ctx, q, storeID, now, id); err != nil {
+				return apperr.Internal(err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return Activity{}, err
 	}
-	// Re-read within scope; an out-of-scope id matched no row and surfaces as
-	// NOT_FOUND here rather than silently succeeding.
 	return r.GetActivity(ctx, scope, id)
+}
+
+type activityStoreQuerier interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func validateActivityStore(ctx context.Context, q activityStoreQuerier, storeID int64) error {
+	var exists bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM stores WHERE id=?)`, storeID).Scan(&exists); err != nil {
+		return apperr.Internal(err)
+	}
+	if !exists {
+		return apperr.Invalid("storeId does not reference an existing store")
+	}
+	return nil
 }
 
 func (r *sqlConsoleRepository) DeleteActivity(ctx context.Context, scope ConsoleScope, id int64) error {
@@ -511,19 +570,31 @@ func (r *sqlConsoleRepository) DeleteTicketType(ctx context.Context, activityID,
 // ConsoleService provides the console CRUD operations for activities,
 // sessions and ticket types, mapping repository models onto console views.
 type ConsoleService struct {
-	repo ConsoleRepository
+	repo   ConsoleRepository
+	assets AssetResolver
 }
 
 // NewConsoleService builds the console service.
-func NewConsoleService(repo ConsoleRepository) *ConsoleService { return &ConsoleService{repo: repo} }
+func NewConsoleService(repo ConsoleRepository, assets ...AssetResolver) *ConsoleService {
+	var resolver AssetResolver
+	if len(assets) > 0 {
+		resolver = assets[0]
+	}
+	return &ConsoleService{repo: repo, assets: resolver}
+}
 
-func activityView(a Activity) ConsoleActivityView {
-	return ConsoleActivityView{
+func (s *ConsoleService) activityView(ctx context.Context, a Activity) ConsoleActivityView {
+	view := ConsoleActivityView{
 		ID: a.ID, ScopeType: a.ScopeType, StoreID: a.StoreID, Title: a.Title,
 		Description: a.Description, Content: a.Content, AssetID: a.AssetID,
-		StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels, Status: a.Status,
+		StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
+		PurchaseLimitPerMember: a.PurchaseLimit, Status: a.Status,
 		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 	}
+	if s.assets != nil && a.AssetID != nil {
+		view.ImageURL, _ = s.assets.PublicURLByID(ctx, *a.AssetID)
+	}
+	return view
 }
 
 func sessionView(s Session) SessionView {
@@ -550,7 +621,7 @@ func (s *ConsoleService) ListActivities(ctx context.Context, scope ConsoleScope,
 	}
 	out := make([]ConsoleActivityView, 0, len(acts))
 	for _, a := range acts {
-		out = append(out, activityView(a))
+		out = append(out, s.activityView(ctx, a))
 	}
 	return out, total, nil
 }
@@ -561,7 +632,7 @@ func (s *ConsoleService) GetActivity(ctx context.Context, scope ConsoleScope, id
 	if err != nil {
 		return ConsoleActivityView{}, err
 	}
-	return activityView(a), nil
+	return s.activityView(ctx, a), nil
 }
 
 // CreateActivity creates an activity within scope.
@@ -570,7 +641,7 @@ func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope,
 	if err != nil {
 		return ConsoleActivityView{}, err
 	}
-	return activityView(a), nil
+	return s.activityView(ctx, a), nil
 }
 
 // UpdateActivity updates an activity within scope.
@@ -579,7 +650,7 @@ func (s *ConsoleService) UpdateActivity(ctx context.Context, scope ConsoleScope,
 	if err != nil {
 		return ConsoleActivityView{}, err
 	}
-	return activityView(a), nil
+	return s.activityView(ctx, a), nil
 }
 
 // DeleteActivity deletes an activity within scope.

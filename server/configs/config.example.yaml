@@ -5,7 +5,7 @@
 
 appEnv: development
 logLevel: info
-httpAddr: ":8080"
+httpAddr: ":8081"
 
 # Fakes keep local dev and tests offline. Set false only with real credentials.
 useFakeAdapters: true

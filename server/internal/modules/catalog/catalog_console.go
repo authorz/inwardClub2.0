@@ -1,7 +1,7 @@
 // Console CRUD contracts for categories, items and variants. Reads and writes
 // are implemented against catalog_categories/items/variants, with scope_type /
-// store_id enforced from the console scope (admin owns global rows, a store
-// scope owns its own rows).
+// store_id enforced from the selected store in headquarters or from the
+// authenticated store scope in the store console.
 package catalog
 
 import (
@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	platdb "github.com/inwardclub/server/internal/platform/db"
@@ -40,6 +41,7 @@ type ConsoleScope struct {
 
 // CategoryInput is the create/update body for a console category.
 type CategoryInput struct {
+	StoreID   *int64 `json:"storeId"`
 	Name      string `json:"name" binding:"required"`
 	ParentID  *int64 `json:"parentId"`
 	AssetID   *int64 `json:"assetId"`
@@ -49,6 +51,7 @@ type CategoryInput struct {
 
 // ItemInput is the create/update body for a console item.
 type ItemInput struct {
+	StoreID       *int64   `json:"storeId"`
 	CategoryID    *int64   `json:"categoryId"`
 	Name          string   `json:"name" binding:"required"`
 	Description   string   `json:"description"`
@@ -76,6 +79,7 @@ type ConsoleCategoryView struct {
 	ID        int64  `json:"id"`
 	ScopeType string `json:"scopeType"`
 	StoreID   *int64 `json:"storeId,omitempty"`
+	StoreName string `json:"storeName,omitempty"`
 	ParentID  *int64 `json:"parentId,omitempty"`
 	Name      string `json:"name"`
 	AssetID   *int64 `json:"assetId,omitempty"`
@@ -88,10 +92,13 @@ type ConsoleItemView struct {
 	ID            int64     `json:"id"`
 	ScopeType     string    `json:"scopeType"`
 	StoreID       *int64    `json:"storeId,omitempty"`
+	StoreName     string    `json:"storeName,omitempty"`
 	CategoryID    *int64    `json:"categoryId,omitempty"`
+	CategoryName  string    `json:"categoryName,omitempty"`
 	Name          string    `json:"name"`
 	Description   string    `json:"description,omitempty"`
 	AssetID       *int64    `json:"assetId,omitempty"`
+	ImageURL      string    `json:"imageUrl,omitempty"`
 	ItemType      string    `json:"itemType"`
 	PriceCent     int64     `json:"priceCent"`
 	StockQuantity int64     `json:"stockQuantity"`
@@ -116,15 +123,25 @@ type VariantView struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
+// ConsoleListFilter contains the catalog list filters shared by the admin and
+// store consoles. Store scope still comes from the authenticated store console;
+// StoreID is only used by headquarters to select one store.
+type ConsoleListFilter struct {
+	StoreID    *int64
+	CategoryID *int64
+	Keyword    string
+	Status     string
+}
+
 // ConsoleRepository is the catalog console CRUD persistence port.
 type ConsoleRepository interface {
-	ListCategories(ctx context.Context, scope ConsoleScope, page httpx.Page) ([]Category, int64, error)
+	ListCategories(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Category, int64, error)
 	GetCategory(ctx context.Context, scope ConsoleScope, id int64) (Category, error)
 	CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error)
 	UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error)
 	DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error
 
-	ListItems(ctx context.Context, scope ConsoleScope, categoryID *int64, page httpx.Page) ([]Item, int64, error)
+	ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error)
 	GetItem(ctx context.Context, scope ConsoleScope, id int64) (Item, error)
 	CreateItem(ctx context.Context, scope ConsoleScope, in ItemInput) (Item, error)
 	UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (Item, error)
@@ -151,13 +168,46 @@ func scopeWhere(scope ConsoleScope) (string, []any) {
 	return " AND scope_type = 'store' AND store_id = ?", []any{*scope.StoreID}
 }
 
-// scopeForInsert maps a console scope to the (scope_type, store_id) pair written
-// on create. Admin/HQ owns global rows; a store scope owns store rows.
-func scopeForInsert(scope ConsoleScope) (string, *int64) {
+func scopedAliasWhere(scope ConsoleScope, alias string) (string, []any) {
 	if scope.StoreID == nil {
-		return "global", nil
+		return "", nil
 	}
-	return "store", scope.StoreID
+	return " AND " + alias + ".scope_type = 'store' AND " + alias + ".store_id = ?", []any{*scope.StoreID}
+}
+
+func scopeForWrite(scope ConsoleScope, requestedStoreID *int64) (string, *int64) {
+	if scope.StoreID != nil {
+		return "store", scope.StoreID
+	}
+	return "store", requestedStoreID
+}
+
+func escapeLike(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `%`, `\%`)
+	return strings.ReplaceAll(value, `_`, `\_`)
+}
+
+func consoleListWhere(scope ConsoleScope, filter ConsoleListFilter, alias string) (string, []any) {
+	where := "1=1"
+	var args []any
+	storeColumn := alias + ".store_id"
+	if scope.StoreID != nil {
+		where += " AND " + alias + ".scope_type = 'store' AND " + storeColumn + " = ?"
+		args = append(args, *scope.StoreID)
+	} else if filter.StoreID != nil {
+		where += " AND " + storeColumn + " = ?"
+		args = append(args, *filter.StoreID)
+	}
+	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
+		where += " AND " + alias + `.name LIKE ? ESCAPE '\\'`
+		args = append(args, "%"+escapeLike(keyword)+"%")
+	}
+	if filter.Status != "" {
+		where += " AND " + alias + ".status = ?"
+		args = append(args, filter.Status)
+	}
+	return where, args
 }
 
 // encodeChannels serialises pay channels to the JSON column, defaulting to an
@@ -173,14 +223,17 @@ func encodeChannels(ch []string) []byte {
 	return raw
 }
 
-func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope ConsoleScope, page httpx.Page) ([]Category, int64, error) {
-	where, args := scopeWhere(scope)
+func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Category, int64, error) {
+	where, args := consoleListWhere(scope, filter, "c")
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_categories WHERE 1=1`+where, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_categories c WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, parent_id, name, asset_id, sort_order, status
-		FROM catalog_categories WHERE 1=1` + where + ` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`
+	q := `SELECT c.id, c.scope_type, c.store_id, COALESCE(s.name,''), c.parent_id,
+		c.name, c.asset_id, c.sort_order, c.status
+		FROM catalog_categories c
+		LEFT JOIN stores s ON s.id = c.store_id
+		WHERE ` + where + ` ORDER BY c.sort_order ASC, c.id ASC LIMIT ? OFFSET ?`
 	qArgs := append(append([]any{}, args...), page.Limit(), page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, qArgs...)
 	if err != nil {
@@ -190,7 +243,8 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope Console
 	var out []Category
 	for rows.Next() {
 		var c Category
-		if err := rows.Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.ParentID, &c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
+		if err := rows.Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.StoreName, &c.ParentID,
+			&c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, c)
@@ -202,12 +256,16 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope Console
 }
 
 func (r *sqlConsoleRepository) GetCategory(ctx context.Context, scope ConsoleScope, id int64) (Category, error) {
-	where, args := scopeWhere(scope)
-	q := `SELECT id, scope_type, store_id, parent_id, name, asset_id, sort_order, status
-		FROM catalog_categories WHERE id = ?` + where
+	where, args := scopedAliasWhere(scope, "c")
+	q := `SELECT c.id, c.scope_type, c.store_id, COALESCE(s.name,''), c.parent_id,
+		c.name, c.asset_id, c.sort_order, c.status
+		FROM catalog_categories c
+		LEFT JOIN stores s ON s.id = c.store_id
+		WHERE c.id = ?` + where
 	qArgs := append([]any{id}, args...)
 	var c Category
-	if err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.ParentID, &c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
+	if err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.StoreName,
+		&c.ParentID, &c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
 		if err == sql.ErrNoRows {
 			return Category{}, apperr.NotFound("catalog category not found")
 		}
@@ -217,7 +275,7 @@ func (r *sqlConsoleRepository) GetCategory(ctx context.Context, scope ConsoleSco
 }
 
 func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error) {
-	scopeType, storeID := scopeForInsert(scope)
+	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	res, err := r.db.ExecContext(ctx, `INSERT INTO catalog_categories
 		(scope_type, store_id, parent_id, name, asset_id, sort_order, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -233,6 +291,16 @@ func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, scope Console
 }
 
 func (r *sqlConsoleRepository) UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error) {
+	if scope.StoreID == nil {
+		if _, err := r.db.ExecContext(ctx, `UPDATE catalog_categories
+			SET scope_type = 'store', store_id = ?, parent_id = ?, name = ?, asset_id = ?,
+			    sort_order = ?, status = ?, updated_at = NOW()
+			WHERE id = ?`,
+			in.StoreID, in.ParentID, in.Name, in.AssetID, in.SortOrder, in.Status, id); err != nil {
+			return Category{}, apperr.Internal(err)
+		}
+		return r.GetCategory(ctx, scope, id)
+	}
 	where, args := scopeWhere(scope)
 	execArgs := append([]any{in.ParentID, in.Name, in.AssetID, in.SortOrder, in.Status, id}, args...)
 	if _, err := r.db.ExecContext(ctx, `UPDATE catalog_categories
@@ -257,20 +325,24 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, scope Console
 	return nil
 }
 
-func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope, categoryID *int64, page httpx.Page) ([]Item, int64, error) {
-	where, args := scopeWhere(scope)
-	if categoryID != nil {
-		where += " AND category_id = ?"
-		args = append(args, *categoryID)
+func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error) {
+	where, args := consoleListWhere(scope, filter, "i")
+	if filter.CategoryID != nil {
+		where += " AND i.category_id = ?"
+		args = append(args, *filter.CategoryID)
 	}
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_items WHERE 1=1`+where, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_items i WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
-		asset_id, item_type, price_cent, stock_quantity, pay_channels, points_reward,
-		sort_order, status, created_at, updated_at
-		FROM catalog_items WHERE 1=1` + where + ` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`
+	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
+		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.points_reward, i.sort_order,
+		i.status, i.created_at, i.updated_at
+		FROM catalog_items i
+		LEFT JOIN stores s ON s.id = i.store_id
+		LEFT JOIN catalog_categories c ON c.id = i.category_id
+		WHERE ` + where + ` ORDER BY i.sort_order ASC, i.id ASC LIMIT ? OFFSET ?`
 	qArgs := append(append([]any{}, args...), page.Limit(), page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, qArgs...)
 	if err != nil {
@@ -281,9 +353,10 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 	for rows.Next() {
 		var it Item
 		var payChannels []byte
-		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
-			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &it.PointsReward,
-			&it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
+		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName, &it.CategoryID,
+			&it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
+			&it.PriceCent, &it.StockQuantity, &payChannels, &it.PointsReward, &it.SortOrder,
+			&it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		it.PayChannels = decodeChannels(payChannels)
@@ -296,17 +369,22 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 }
 
 func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, id int64) (Item, error) {
-	where, args := scopeWhere(scope)
-	q := `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
-		asset_id, item_type, price_cent, stock_quantity, pay_channels, points_reward,
-		sort_order, status, created_at, updated_at
-		FROM catalog_items WHERE id = ?` + where
+	where, args := scopedAliasWhere(scope, "i")
+	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
+		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.points_reward, i.sort_order,
+		i.status, i.created_at, i.updated_at
+		FROM catalog_items i
+		LEFT JOIN stores s ON s.id = i.store_id
+		LEFT JOIN catalog_categories c ON c.id = i.category_id
+		WHERE i.id = ?` + where
 	qArgs := append([]any{id}, args...)
 	var it Item
 	var payChannels []byte
-	err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
-		&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &it.PointsReward,
-		&it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName,
+		&it.CategoryID, &it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
+		&it.PriceCent, &it.StockQuantity, &payChannels, &it.PointsReward, &it.SortOrder,
+		&it.Status, &it.CreatedAt, &it.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return Item{}, apperr.NotFound("catalog item not found")
@@ -318,7 +396,7 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 }
 
 func (r *sqlConsoleRepository) CreateItem(ctx context.Context, scope ConsoleScope, in ItemInput) (Item, error) {
-	scopeType, storeID := scopeForInsert(scope)
+	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	res, err := r.db.ExecContext(ctx, `INSERT INTO catalog_items
 		(scope_type, store_id, category_id, name, description, asset_id, item_type,
 		 price_cent, stock_quantity, pay_channels, points_reward, sort_order, status, created_at, updated_at)
@@ -336,6 +414,20 @@ func (r *sqlConsoleRepository) CreateItem(ctx context.Context, scope ConsoleScop
 }
 
 func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (Item, error) {
+	if scope.StoreID == nil {
+		if _, err := r.db.ExecContext(ctx, `UPDATE catalog_items
+			SET scope_type = 'store', store_id = ?, category_id = ?, name = ?,
+			    description = ?, asset_id = ?, item_type = ?, price_cent = ?,
+			    stock_quantity = ?, pay_channels = ?, points_reward = ?, sort_order = ?,
+			    status = ?, updated_at = NOW()
+			WHERE id = ?`,
+			in.StoreID, in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
+			in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), in.PointsReward,
+			in.SortOrder, in.Status, id); err != nil {
+			return Item{}, apperr.Internal(err)
+		}
+		return r.GetItem(ctx, scope, id)
+	}
 	where, args := scopeWhere(scope)
 	execArgs := append([]any{in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
 		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), in.PointsReward, in.SortOrder, in.Status, id}, args...)
@@ -487,27 +579,40 @@ func (r *sqlConsoleRepository) assertItemOwned(ctx context.Context, scope Consol
 
 // ConsoleService provides catalog console CRUD operations.
 type ConsoleService struct {
-	repo ConsoleRepository
+	repo   ConsoleRepository
+	assets AssetResolver
 }
 
 // NewConsoleService builds the catalog console service.
-func NewConsoleService(repo ConsoleRepository) *ConsoleService { return &ConsoleService{repo: repo} }
+func NewConsoleService(repo ConsoleRepository, assets ...AssetResolver) *ConsoleService {
+	var resolver AssetResolver
+	if len(assets) > 0 {
+		resolver = assets[0]
+	}
+	return &ConsoleService{repo: repo, assets: resolver}
+}
 
 func categoryToView(c Category) ConsoleCategoryView {
 	return ConsoleCategoryView{
 		ID: c.ID, ScopeType: c.ScopeType, StoreID: c.StoreID, ParentID: c.ParentID,
-		Name: c.Name, AssetID: c.AssetID, SortOrder: c.SortOrder, Status: c.Status,
+		StoreName: c.StoreName, Name: c.Name, AssetID: c.AssetID,
+		SortOrder: c.SortOrder, Status: c.Status,
 	}
 }
 
-func itemToView(it Item) ConsoleItemView {
-	return ConsoleItemView{
+func (s *ConsoleService) itemToView(ctx context.Context, it Item) ConsoleItemView {
+	view := ConsoleItemView{
 		ID: it.ID, ScopeType: it.ScopeType, StoreID: it.StoreID, CategoryID: it.CategoryID,
-		Name: it.Name, Description: it.Description, AssetID: it.AssetID, ItemType: it.ItemType,
+		StoreName: it.StoreName, CategoryName: it.CategoryName, Name: it.Name,
+		Description: it.Description, AssetID: it.AssetID, ItemType: it.ItemType,
 		PriceCent: it.PriceCent, StockQuantity: it.StockQuantity, PayChannels: it.PayChannels,
 		PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		CreatedAt: it.CreatedAt, UpdatedAt: it.UpdatedAt,
 	}
+	if s.assets != nil && it.AssetID != nil {
+		view.ImageURL, _ = s.assets.PublicURLByID(ctx, *it.AssetID)
+	}
+	return view
 }
 
 func variantToView(v Variant) VariantView {
@@ -518,9 +623,47 @@ func variantToView(v Variant) VariantView {
 	}
 }
 
+func storeIDForWrite(scope ConsoleScope, requested *int64) (*int64, error) {
+	if scope.StoreID != nil {
+		return scope.StoreID, nil
+	}
+	if requested == nil || *requested <= 0 {
+		return nil, apperr.Invalid("catalog: storeId is required")
+	}
+	return requested, nil
+}
+
+func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleScope, in *ItemInput) error {
+	storeID, err := storeIDForWrite(scope, in.StoreID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return apperr.Invalid("catalog: item name is required")
+	}
+	if in.CategoryID == nil || *in.CategoryID <= 0 {
+		return apperr.Invalid("catalog: categoryId is required")
+	}
+	if in.AssetID == nil || *in.AssetID <= 0 {
+		return apperr.Invalid("catalog: assetId is required")
+	}
+	if _, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID); err != nil {
+		if apperr.From(err).Code == apperr.CodeNotFound {
+			return apperr.Invalid("catalog: category must belong to the selected store")
+		}
+		return err
+	}
+	in.StoreID = storeID
+	in.Name = strings.TrimSpace(in.Name)
+	if in.ItemType == "" {
+		in.ItemType = ItemTypeFood
+	}
+	return nil
+}
+
 // ListCategories returns the categories visible under scope.
-func (s *ConsoleService) ListCategories(ctx context.Context, scope ConsoleScope, page httpx.Page) ([]ConsoleCategoryView, int64, error) {
-	cats, total, err := s.repo.ListCategories(ctx, scope, page)
+func (s *ConsoleService) ListCategories(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]ConsoleCategoryView, int64, error) {
+	cats, total, err := s.repo.ListCategories(ctx, scope, filter, page)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -542,6 +685,15 @@ func (s *ConsoleService) GetCategory(ctx context.Context, scope ConsoleScope, id
 
 // CreateCategory creates a category under scope.
 func (s *ConsoleService) CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (ConsoleCategoryView, error) {
+	storeID, err := storeIDForWrite(scope, in.StoreID)
+	if err != nil {
+		return ConsoleCategoryView{}, err
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return ConsoleCategoryView{}, apperr.Invalid("catalog: category name is required")
+	}
+	in.StoreID = storeID
+	in.Name = strings.TrimSpace(in.Name)
 	c, err := s.repo.CreateCategory(ctx, scope, in)
 	if err != nil {
 		return ConsoleCategoryView{}, err
@@ -551,6 +703,15 @@ func (s *ConsoleService) CreateCategory(ctx context.Context, scope ConsoleScope,
 
 // UpdateCategory updates a category under scope.
 func (s *ConsoleService) UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (ConsoleCategoryView, error) {
+	storeID, err := storeIDForWrite(scope, in.StoreID)
+	if err != nil {
+		return ConsoleCategoryView{}, err
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return ConsoleCategoryView{}, apperr.Invalid("catalog: category name is required")
+	}
+	in.StoreID = storeID
+	in.Name = strings.TrimSpace(in.Name)
 	c, err := s.repo.UpdateCategory(ctx, scope, id, in)
 	if err != nil {
 		return ConsoleCategoryView{}, err
@@ -564,14 +725,14 @@ func (s *ConsoleService) DeleteCategory(ctx context.Context, scope ConsoleScope,
 }
 
 // ListItems returns the items visible under scope.
-func (s *ConsoleService) ListItems(ctx context.Context, scope ConsoleScope, categoryID *int64, page httpx.Page) ([]ConsoleItemView, int64, error) {
-	items, total, err := s.repo.ListItems(ctx, scope, categoryID, page)
+func (s *ConsoleService) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]ConsoleItemView, int64, error) {
+	items, total, err := s.repo.ListItems(ctx, scope, filter, page)
 	if err != nil {
 		return nil, 0, err
 	}
 	views := make([]ConsoleItemView, 0, len(items))
 	for _, it := range items {
-		views = append(views, itemToView(it))
+		views = append(views, s.itemToView(ctx, it))
 	}
 	return views, total, nil
 }
@@ -582,25 +743,31 @@ func (s *ConsoleService) GetItem(ctx context.Context, scope ConsoleScope, id int
 	if err != nil {
 		return ConsoleItemView{}, err
 	}
-	return itemToView(it), nil
+	return s.itemToView(ctx, it), nil
 }
 
 // CreateItem creates an item under scope.
 func (s *ConsoleService) CreateItem(ctx context.Context, scope ConsoleScope, in ItemInput) (ConsoleItemView, error) {
+	if err := s.validateItemInput(ctx, scope, &in); err != nil {
+		return ConsoleItemView{}, err
+	}
 	it, err := s.repo.CreateItem(ctx, scope, in)
 	if err != nil {
 		return ConsoleItemView{}, err
 	}
-	return itemToView(it), nil
+	return s.itemToView(ctx, it), nil
 }
 
 // UpdateItem updates an item under scope.
 func (s *ConsoleService) UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (ConsoleItemView, error) {
+	if err := s.validateItemInput(ctx, scope, &in); err != nil {
+		return ConsoleItemView{}, err
+	}
 	it, err := s.repo.UpdateItem(ctx, scope, id, in)
 	if err != nil {
 		return ConsoleItemView{}, err
 	}
-	return itemToView(it), nil
+	return s.itemToView(ctx, it), nil
 }
 
 // DeleteItem deletes an item under scope.
@@ -890,7 +1057,12 @@ func (h *ConsoleHandler) StoreDeleteVariant(c *gin.Context) {
 
 func (h *ConsoleHandler) listCategories(c *gin.Context, scope ConsoleScope) {
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListCategories(c.Request.Context(), scope, page)
+	filter, err := consoleListFilterFromQuery(c, false)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	views, total, err := h.svc.ListCategories(c.Request.Context(), scope, filter, page)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -960,18 +1132,49 @@ func (h *ConsoleHandler) deleteCategory(c *gin.Context, scope ConsoleScope) {
 
 func (h *ConsoleHandler) listItems(c *gin.Context, scope ConsoleScope) {
 	page := httpx.ParsePage(c)
-	var categoryID *int64
-	if v := c.Query("categoryId"); v != "" {
-		if id, perr := strconv.ParseInt(v, 10, 64); perr == nil {
-			categoryID = &id
-		}
+	filter, err := consoleListFilterFromQuery(c, true)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
 	}
-	views, total, err := h.svc.ListItems(c.Request.Context(), scope, categoryID, page)
+	views, total, err := h.svc.ListItems(c.Request.Context(), scope, filter, page)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
 	}
 	httpx.List(c, views, httpx.MetaFor(page, total))
+}
+
+func consoleListFilterFromQuery(c *gin.Context, includeCategory bool) (ConsoleListFilter, error) {
+	filter := ConsoleListFilter{
+		Keyword: c.Query("keyword"),
+		Status:  c.Query("status"),
+	}
+	storeID, err := positiveQueryID(c, "storeId")
+	if err != nil {
+		return ConsoleListFilter{}, err
+	}
+	filter.StoreID = storeID
+	if includeCategory {
+		categoryID, err := positiveQueryID(c, "categoryId")
+		if err != nil {
+			return ConsoleListFilter{}, err
+		}
+		filter.CategoryID = categoryID
+	}
+	return filter, nil
+}
+
+func positiveQueryID(c *gin.Context, key string) (*int64, error) {
+	value := c.Query(key)
+	if value == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, apperr.Invalid("catalog: invalid " + key)
+	}
+	return &id, nil
 }
 
 func (h *ConsoleHandler) getItem(c *gin.Context, scope ConsoleScope) {

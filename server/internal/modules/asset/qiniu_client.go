@@ -77,10 +77,17 @@ func (q *QiniuObjectStore) CreateUploadCredential(ctx context.Context, input Cre
 	policy = policy.
 		SetInsertOnly(1).
 		SetFsizeLimit(input.MaxSizeBytes).
-		SetReturnBody(callbackBody).
-		SetCallbackUrl(q.cfg.UploadCallbackURL).
-		SetCallbackBody(callbackBody).
-		SetCallbackBodyType("application/json")
+		SetReturnBody(callbackBody)
+	// Bind the server callback only when a reachable callback URL is configured.
+	// Without it (e.g. local dev, where Qiniu cannot reach localhost) Qiniu would
+	// reject an upload that sets a callback body but an empty URL; the client
+	// instead relies on the returnBody and the pre-generated object key.
+	if q.cfg.UploadCallbackURL != "" {
+		policy = policy.
+			SetCallbackUrl(q.cfg.UploadCallbackURL).
+			SetCallbackBody(callbackBody).
+			SetCallbackBodyType("application/json")
+	}
 
 	token, err := uptoken.NewSigner(policy, q.v2creds).GetUpToken(ctx)
 	if err != nil {

@@ -19,7 +19,7 @@ type fakeVersions struct {
 	err     error
 }
 
-func (f fakeVersions) CurrentTokenVersion(context.Context, int64) (int64, error) {
+func (f fakeVersions) CurrentTokenVersion(context.Context, SubjectType, int64) (int64, error) {
 	return f.current, f.err
 }
 

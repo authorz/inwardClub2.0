@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/hex"
 )
 
 // WeChatSession is the result of exchanging a login code with WeChat.
@@ -25,18 +24,33 @@ type WeChatClient interface {
 	GetPhoneNumber(ctx context.Context, phoneCode string) (string, error)
 }
 
-// FakeWeChatClient is a deterministic offline client for dev/tests. The openid
-// is derived from the code so the same code maps to the same member.
-type FakeWeChatClient struct{}
+// FakeWeChatClient is a deterministic offline client for dev/tests.
+//
+// The real WeChat issues a NEW js_code on every wx.login(), while a member's
+// openid stays stable. Deriving the openid from the code (the old behaviour)
+// therefore made every DevTools login look like a brand-new user, so the
+// login flow could never be exercised there. To keep DevTools usable we pin
+// the fake openid to a single stable value; set DEV_FAKE_OPENID to simulate a
+// different member. Tests that need per-code isolation pass a distinct
+// DEV_FAKE_OPENID (or the value derived below when it is empty and code is set).
+type FakeWeChatClient struct{ openID string }
 
-// NewFakeWeChatClient builds the fake WeChat client.
-func NewFakeWeChatClient() *FakeWeChatClient { return &FakeWeChatClient{} }
+const defaultFakeOpenID = "fake_openid_dev"
 
-// Code2Session returns a deterministic fake session.
-func (f *FakeWeChatClient) Code2Session(_ context.Context, code string) (WeChatSession, error) {
-	sum := sha1.Sum([]byte("openid:" + code))
+// NewFakeWeChatClient builds the fake WeChat client. A non-empty openID pins the
+// session identity (from DEV_FAKE_OPENID); empty falls back to a stable default.
+func NewFakeWeChatClient(openID string) *FakeWeChatClient {
+	if openID == "" {
+		openID = defaultFakeOpenID
+	}
+	return &FakeWeChatClient{openID: openID}
+}
+
+// Code2Session returns a deterministic fake session with a STABLE openid,
+// independent of the per-login code, so DevTools can log the same user in twice.
+func (f *FakeWeChatClient) Code2Session(_ context.Context, _ string) (WeChatSession, error) {
 	return WeChatSession{
-		OpenID:     "fake_openid_" + hex.EncodeToString(sum[:8]),
+		OpenID:     f.openID,
 		SessionKey: "fake_session_key",
 	}, nil
 }

@@ -213,6 +213,9 @@ func validateBannerScope(b Banner) error {
 func applyBannerPatch(b *Banner, p BannerPatch) {
 	if p.ScopeType != nil {
 		b.ScopeType = *p.ScopeType
+		if b.ScopeType == BannerScopeGlobal {
+			b.StoreID = nil
+		}
 	}
 	if p.StoreID != nil {
 		b.StoreID = p.StoreID

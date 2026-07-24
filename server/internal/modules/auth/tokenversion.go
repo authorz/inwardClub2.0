@@ -1,19 +1,51 @@
 package auth
 
-import "context"
+import (
+	"context"
 
-// MemberTokenVersions adapts the member store to authn.TokenVersionChecker so
-// the mini access-token middleware can reject tokens minted before a member
-// logout (LogoutMember bumps token_version).
-type MemberTokenVersions struct{ members MemberRepository }
+	"github.com/inwardclub/server/internal/platform/authn"
+	apperr "github.com/inwardclub/server/internal/platform/errors"
+)
 
-// NewMemberTokenVersions builds the mini-audience token-version checker.
-func NewMemberTokenVersions(members MemberRepository) *MemberTokenVersions {
-	return &MemberTokenVersions{members: members}
+// MemberTokenVersions adapts the member and staff stores to
+// authn.TokenVersionChecker so mini access tokens are checked against the
+// identity that issued them.
+type MemberTokenVersions struct {
+	members MemberRepository
+	staff   StaffRepository
 }
 
-// CurrentTokenVersion returns the member's stored token_version.
-func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, id int64) (int64, error) {
+// NewMemberTokenVersions builds the mini-audience token-version checker.
+func NewMemberTokenVersions(members MemberRepository, staff ...StaffRepository) *MemberTokenVersions {
+	var staffRepo StaffRepository
+	if len(staff) > 0 {
+		staffRepo = staff[0]
+	}
+	return &MemberTokenVersions{members: members, staff: staffRepo}
+}
+
+// CurrentTokenVersion returns the member or staff binding token_version.
+func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, subject authn.SubjectType, id int64) (int64, error) {
+	if subject == authn.SubjectStaff {
+		if v.staff == nil {
+			return 0, apperr.NotFound("staff account not found")
+		}
+		member, err := v.members.GetByID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if member.Status != StatusActive {
+			return 0, apperr.NotFound("member not found")
+		}
+		staff, err := v.staff.GetByMemberID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if staff.Status != StatusActive {
+			return 0, apperr.NotFound("staff account not found")
+		}
+		return staff.TokenVersion, nil
+	}
 	m, err := v.members.GetByID(ctx, id)
 	if err != nil {
 		return 0, err
@@ -32,7 +64,7 @@ func NewAccountTokenVersions(accounts AccountRepository) *AccountTokenVersions {
 }
 
 // CurrentTokenVersion returns the account's stored token_version.
-func (v *AccountTokenVersions) CurrentTokenVersion(ctx context.Context, id int64) (int64, error) {
+func (v *AccountTokenVersions) CurrentTokenVersion(ctx context.Context, _ authn.SubjectType, id int64) (int64, error) {
 	a, err := v.accounts.GetByID(ctx, id)
 	if err != nil {
 		return 0, err

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -20,41 +21,165 @@ type MemberTierResolver interface {
 	CurrentTier(ctx context.Context, memberID int64) (*MemberVIPTier, error)
 }
 
+// AvatarUploader uploads a registration avatar to object storage and returns its
+// public URL. It is satisfied by the asset service; kept as an interface here so
+// the auth module stays decoupled from asset.
+type AvatarUploader interface {
+	UploadAvatar(ctx context.Context, r io.Reader, size int64, contentType string) (string, error)
+}
+
 // Service implements the authentication flows for all three audiences.
 type Service struct {
 	tokens   *authn.Manager
 	wechat   WeChatClient
 	members  MemberRepository
 	accounts AccountRepository
+	staff    StaffRepository
 	tiers    MemberTierResolver
+	avatars  AvatarUploader
 }
 
 // NewService builds the auth service. tiers may be nil until the member VIP-tier
-// resolver is wired; the "me" profile then omits tier info.
-func NewService(tokens *authn.Manager, wechat WeChatClient, members MemberRepository, accounts AccountRepository, tiers MemberTierResolver) *Service {
-	return &Service{tokens: tokens, wechat: wechat, members: members, accounts: accounts, tiers: tiers}
+// resolver is wired; the "me" profile then omits tier info. avatars may be nil in
+// tests that never exercise the registration avatar upload. staff is optional
+// for older unit tests that do not exercise staff identity.
+func NewService(tokens *authn.Manager, wechat WeChatClient, members MemberRepository, accounts AccountRepository, tiers MemberTierResolver, avatars AvatarUploader, staff ...StaffRepository) *Service {
+	var staffRepo StaffRepository
+	if len(staff) > 0 {
+		staffRepo = staff[0]
+	}
+	return &Service{
+		tokens: tokens, wechat: wechat, members: members, accounts: accounts,
+		staff: staffRepo, tiers: tiers, avatars: avatars,
+	}
 }
 
-// MiniLogin exchanges a WeChat code for a member session, creating the member on
-// first login, and mints a mini-audience access/refresh pair.
+// MiniLogin exchanges a WeChat code for a member session. A returning member is
+// logged straight in. A first-time user is NOT created here: the response
+// carries IsNew=true and a short-lived register ticket (no token), and the
+// member row is inserted only when the profile form is submitted (MiniRegister).
 func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, error) {
 	session, err := s.wechat.Code2Session(ctx, code)
 	if err != nil {
 		return LoginResponse{}, apperr.Unauthenticated("wechat login failed")
 	}
-	isNew := false
 	member, err := s.members.GetByOpenID(ctx, session.OpenID)
 	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
-		id, cerr := s.createMember(ctx, session.OpenID)
+		// First-time user: defer creation until the form is submitted. Hand back a
+		// register ticket (no phone yet) instead of a member session.
+		ticket, terr := s.tokens.IssueRegisterTicket(session.OpenID, "")
+		if terr != nil {
+			return LoginResponse{}, apperr.Internal(terr)
+		}
+		return LoginResponse{IsNew: true, RegisterTicket: ticket}, nil
+	}
+	if err != nil {
+		return LoginResponse{}, err
+	}
+	if s.staff != nil {
+		staff, staffErr := s.staff.GetByMemberID(ctx, member.ID)
+		if staffErr == nil && staff.Status == StatusActive {
+			return s.issueStaffSession(member, staff, false)
+		}
+		if staffErr != nil && apperr.From(staffErr).Code != apperr.CodeNotFound {
+			return LoginResponse{}, staffErr
+		}
+	}
+	return s.issueMemberSession(member, false)
+}
+
+// MiniRegister completes a first-time member's registration: it verifies the
+// register ticket, resolves the WeChat-authorized phone number and inserts the
+// member with the submitted profile (avatar, nickname, gender, phone), then mints
+// a mini session. This is the ONLY path that creates a member — nothing is
+// persisted before the form is submitted.
+func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (LoginResponse, error) {
+	openID, phone, err := s.tokens.ParseRegisterTicket(req.RegisterTicket)
+	if err != nil || openID == "" {
+		return LoginResponse{}, apperr.Unauthenticated("invalid or expired register ticket")
+	}
+	if phone == "" {
+		// The phone must have been authorized (and embedded in the ticket) via the
+		// phone-mask step before registration; the single-use WeChat code is never
+		// decrypted here.
+		return LoginResponse{}, apperr.Invalid("phone is required")
+	}
+	avatarURL := strings.TrimSpace(req.AvatarURL)
+	if avatarURL == "" {
+		return LoginResponse{}, apperr.Invalid("avatarUrl is required")
+	}
+	nickname := strings.TrimSpace(req.Nickname)
+	if nickname == "" {
+		return LoginResponse{}, apperr.Invalid("nickname is required")
+	}
+	gender := strings.TrimSpace(req.Gender)
+	if gender == "" {
+		return LoginResponse{}, apperr.Invalid("gender is required")
+	}
+	if gender != "male" && gender != "female" && gender != "other" {
+		return LoginResponse{}, apperr.Invalid("gender must be male, female, or other")
+	}
+
+	// Idempotent: if the member already exists (double submit / retry after a
+	// dropped response), log them in rather than failing.
+	member, err := s.members.GetByOpenID(ctx, openID)
+	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
+		id, cerr := s.createMember(ctx, openID, avatarURL, nickname, gender, phone)
 		if cerr != nil {
 			return LoginResponse{}, cerr
 		}
-		isNew = true // member did not exist before this login: first-time registration
 		member, err = s.members.GetByID(ctx, id)
 	}
 	if err != nil {
 		return LoginResponse{}, err
 	}
+	return s.issueMemberSession(member, true)
+}
+
+// GetPhoneMask decrypts the single-use WeChat phone code ONCE, embeds the phone
+// number into a fresh register ticket (so registration never re-decrypts the
+// code), and returns the masked phone for display plus the new ticket. The
+// client must submit the returned ticket to /register.
+func (s *Service) GetPhoneMask(ctx context.Context, registerTicket, phoneCode string) (masked, ticket string, err error) {
+	openID, _, terr := s.tokens.ParseRegisterTicket(registerTicket)
+	if terr != nil || openID == "" {
+		return "", "", apperr.Unauthenticated("invalid or expired register ticket")
+	}
+	phone, perr := s.wechat.GetPhoneNumber(ctx, phoneCode)
+	if perr != nil {
+		return "", "", apperr.Invalid("phone authorization failed")
+	}
+	ticket, terr = s.tokens.IssueRegisterTicket(openID, phone)
+	if terr != nil {
+		return "", "", apperr.Internal(terr)
+	}
+	return maskPhone(phone), ticket, nil
+}
+
+// RegisterAvatar uploads a first-time user's chosen avatar during registration
+// (authorized by the register ticket, since no member/session exists yet) and
+// returns its public https URL, which the client then submits to /register.
+func (s *Service) RegisterAvatar(ctx context.Context, registerTicket string, r io.Reader, size int64, contentType string) (string, error) {
+	openID, _, err := s.tokens.ParseRegisterTicket(registerTicket)
+	if err != nil || openID == "" {
+		return "", apperr.Unauthenticated("invalid or expired register ticket")
+	}
+	if s.avatars == nil {
+		return "", apperr.Internal(fmt.Errorf("avatar uploader not configured"))
+	}
+	return s.avatars.UploadAvatar(ctx, r, size, contentType)
+}
+
+// maskPhone returns a masked phone number for display (e.g. "13812345678" -> "138****5678").
+func maskPhone(phone string) string {
+	if len(phone) != 11 {
+		return phone // fallback for non-standard formats
+	}
+	return phone[:3] + "****" + phone[7:]
+}
+
+// issueMemberSession mints a mini access/refresh pair for an active member.
+func (s *Service) issueMemberSession(member Member, isNew bool) (LoginResponse, error) {
 	if member.Status != StatusActive {
 		return LoginResponse{}, apperr.Forbidden("member is disabled")
 	}
@@ -68,20 +193,48 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 	if err != nil {
 		return LoginResponse{}, apperr.Internal(err)
 	}
-	return LoginResponse{Token: pair, Profile: memberProfile(member), IsNew: isNew}, nil
+	return LoginResponse{
+		Token: pair, Profile: memberProfile(member), IsNew: isNew,
+		SubjectType: authn.SubjectMember,
+	}, nil
 }
 
-// createMember inserts a new member on first WeChat login, assigning a unique
-// 6-digit numeric invite code. Uniqueness is enforced by the members
-// .invite_code UNIQUE constraint; a duplicate-key collision retries with a new
-// code (a handful of attempts is ample given the 1e6 code space and small
-// membership).
-func (s *Service) createMember(ctx context.Context, openID string) (int64, error) {
+func (s *Service) issueStaffSession(member Member, staff Staff, isNew bool) (LoginResponse, error) {
+	if member.Status != StatusActive || staff.Status != StatusActive {
+		return LoginResponse{}, apperr.Forbidden("staff account is disabled")
+	}
+	pair, err := s.tokens.Issue(authn.Identity{
+		// Staff retains the member id as the subject because the mini application
+		// also exposes the member's wallet/orders/profile to the same identity.
+		SubjectID: member.ID, SubjectType: authn.SubjectStaff, Role: authn.RoleStaff,
+		Audience: authn.AudienceMini, StoreID: staff.StoreID, TokenVersion: staff.TokenVersion,
+	})
+	if err != nil {
+		return LoginResponse{}, apperr.Internal(err)
+	}
+	return LoginResponse{
+		Token: pair, Profile: memberProfile(member), IsNew: isNew,
+		SubjectType: authn.SubjectStaff, StoreID: staff.StoreID,
+	}, nil
+}
+
+// createMember inserts a new member at registration time with the submitted
+// avatar, nickname, gender, and WeChat-resolved phone, assigning a unique 6-digit
+// numeric invite code. Uniqueness is enforced by the members.invite_code UNIQUE
+// constraint; a duplicate-key collision retries with a new code (a handful of
+// attempts is ample given the 1e6 code space and small membership).
+func (s *Service) createMember(ctx context.Context, openID, avatarURL, nickname, gender, phone string) (int64, error) {
+	if nickname == "" {
+		nickname = "会员"
+	}
 	const maxAttempts = 8
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		id, err := s.members.Create(ctx, Member{
 			WeChatOpenID: openID,
-			Nickname:     "会员",
+			AvatarURL:    avatarURL,
+			Nickname:     nickname,
+			Gender:       gender,
+			Phone:        phone,
 			InviteCode:   newInviteCode(),
 		})
 		if err == nil {
@@ -142,7 +295,27 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, audience aut
 		if err != nil {
 			return authn.TokenPair{}, err
 		}
-		if member.TokenVersion != claims.TokenVersion || member.Status != StatusActive {
+		if member.Status != StatusActive {
+			return authn.TokenPair{}, apperr.Unauthenticated("session expired")
+		}
+		if claims.SubjectType == authn.SubjectStaff {
+			if s.staff == nil {
+				return authn.TokenPair{}, apperr.Unauthenticated("session expired")
+			}
+			staff, err := s.staff.GetByMemberID(ctx, member.ID)
+			if err != nil {
+				if apperr.From(err).Code == apperr.CodeNotFound {
+					return authn.TokenPair{}, apperr.Unauthenticated("session expired")
+				}
+				return authn.TokenPair{}, err
+			}
+			if staff.Status != StatusActive || staff.TokenVersion != claims.TokenVersion {
+				return authn.TokenPair{}, apperr.Unauthenticated("session expired")
+			}
+			resp, err := s.issueStaffSession(member, staff, false)
+			return resp.Token, err
+		}
+		if member.TokenVersion != claims.TokenVersion {
 			return authn.TokenPair{}, apperr.Unauthenticated("session expired")
 		}
 		return s.tokens.Issue(authn.Identity{
@@ -187,8 +360,16 @@ func (s *Service) AccountProfile(ctx context.Context, id int64) (AccountProfile,
 	return accountProfile(account), nil
 }
 
-// LogoutMember invalidates all of a member's tokens by bumping token_version.
-func (s *Service) LogoutMember(ctx context.Context, id int64) error {
+// LogoutMini invalidates the current mini identity without invalidating the
+// member's other role: staff tokens bump staff_accounts, member tokens bump
+// members.
+func (s *Service) LogoutMini(ctx context.Context, subject authn.SubjectType, id int64) error {
+	if subject == authn.SubjectStaff {
+		if s.staff == nil {
+			return apperr.NotFound("staff account not found")
+		}
+		return s.staff.BumpTokenVersionByMemberID(ctx, id)
+	}
 	return s.members.BumpTokenVersion(ctx, id)
 }
 
@@ -245,7 +426,7 @@ func subjectForRole(role string) authn.SubjectType {
 }
 
 func memberProfile(m Member) MemberProfile {
-	return MemberProfile{ID: m.ID, Nickname: m.Nickname, MemberNo: formatMemberNo(m.ID), Phone: m.Phone, InviteCode: m.InviteCode, Status: m.Status}
+	return MemberProfile{ID: m.ID, Nickname: m.Nickname, AvatarURL: m.AvatarURL, MemberNo: formatMemberNo(m.ID), Phone: m.Phone, InviteCode: m.InviteCode, Status: m.Status}
 }
 
 // formatMemberNo derives a stable, display-only membership card number from the

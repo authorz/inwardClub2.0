@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -15,18 +16,26 @@ type fakeConsoleRepo struct {
 	items      []Item
 	variants   []Variant
 
-	lastScope ConsoleScope
+	lastScope  ConsoleScope
+	lastFilter ConsoleListFilter
 }
 
-func (r *fakeConsoleRepo) ListCategories(_ context.Context, scope ConsoleScope, _ httpx.Page) ([]Category, int64, error) {
+type fakeCatalogAssets struct{}
+
+func (fakeCatalogAssets) PublicURLByID(_ context.Context, id int64) (string, error) {
+	return "https://cdn.example.com/assets/" + strconv.FormatInt(id, 10), nil
+}
+
+func (r *fakeConsoleRepo) ListCategories(_ context.Context, scope ConsoleScope, filter ConsoleListFilter, _ httpx.Page) ([]Category, int64, error) {
 	r.lastScope = scope
+	r.lastFilter = filter
 	return r.categories, int64(len(r.categories)), nil
 }
 
 func (r *fakeConsoleRepo) GetCategory(_ context.Context, scope ConsoleScope, id int64) (Category, error) {
 	r.lastScope = scope
 	for _, c := range r.categories {
-		if c.ID == id {
+		if c.ID == id && (scope.StoreID == nil || c.StoreID != nil && *c.StoreID == *scope.StoreID) {
 			return c, nil
 		}
 	}
@@ -35,7 +44,7 @@ func (r *fakeConsoleRepo) GetCategory(_ context.Context, scope ConsoleScope, id 
 
 func (r *fakeConsoleRepo) CreateCategory(_ context.Context, scope ConsoleScope, in CategoryInput) (Category, error) {
 	r.lastScope = scope
-	scopeType, storeID := scopeForInsert(scope)
+	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	c := Category{ID: 100, ScopeType: scopeType, StoreID: storeID, ParentID: in.ParentID,
 		Name: in.Name, AssetID: in.AssetID, SortOrder: in.SortOrder, Status: in.Status}
 	r.categories = append(r.categories, c)
@@ -45,6 +54,8 @@ func (r *fakeConsoleRepo) UpdateCategory(_ context.Context, scope ConsoleScope, 
 	r.lastScope = scope
 	for i, c := range r.categories {
 		if c.ID == id {
+			r.categories[i].ScopeType = "store"
+			r.categories[i].StoreID = in.StoreID
 			r.categories[i].Name = in.Name
 			r.categories[i].Status = in.Status
 			return r.categories[i], nil
@@ -63,8 +74,9 @@ func (r *fakeConsoleRepo) DeleteCategory(_ context.Context, scope ConsoleScope, 
 	return apperr.NotFound("catalog category not found")
 }
 
-func (r *fakeConsoleRepo) ListItems(_ context.Context, scope ConsoleScope, _ *int64, _ httpx.Page) ([]Item, int64, error) {
+func (r *fakeConsoleRepo) ListItems(_ context.Context, scope ConsoleScope, filter ConsoleListFilter, _ httpx.Page) ([]Item, int64, error) {
 	r.lastScope = scope
+	r.lastFilter = filter
 	return r.items, int64(len(r.items)), nil
 }
 
@@ -80,9 +92,9 @@ func (r *fakeConsoleRepo) GetItem(_ context.Context, scope ConsoleScope, id int6
 
 func (r *fakeConsoleRepo) CreateItem(_ context.Context, scope ConsoleScope, in ItemInput) (Item, error) {
 	r.lastScope = scope
-	scopeType, storeID := scopeForInsert(scope)
+	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	it := Item{ID: 200, ScopeType: scopeType, StoreID: storeID, CategoryID: in.CategoryID,
-		Name: in.Name, Description: in.Description, ItemType: in.ItemType, PriceCent: in.PriceCent,
+		Name: in.Name, Description: in.Description, AssetID: in.AssetID, ItemType: in.ItemType, PriceCent: in.PriceCent,
 		StockQuantity: in.StockQuantity, PayChannels: in.PayChannels, Status: in.Status}
 	r.items = append(r.items, it)
 	return it, nil
@@ -91,6 +103,10 @@ func (r *fakeConsoleRepo) UpdateItem(_ context.Context, scope ConsoleScope, id i
 	r.lastScope = scope
 	for i, it := range r.items {
 		if it.ID == id {
+			r.items[i].ScopeType = "store"
+			r.items[i].StoreID = in.StoreID
+			r.items[i].CategoryID = in.CategoryID
+			r.items[i].AssetID = in.AssetID
 			r.items[i].Name = in.Name
 			r.items[i].Status = in.Status
 			return r.items[i], nil
@@ -161,7 +177,8 @@ func TestConsoleService_ListCategories_MapsAndPropagatesScope(t *testing.T) {
 	storeID := int64(42)
 	scope := ConsoleScope{StoreID: &storeID}
 
-	views, total, err := svc.ListCategories(context.Background(), scope, httpx.Page{Page: 1, PageSize: 20})
+	filter := ConsoleListFilter{Keyword: "Drink"}
+	views, total, err := svc.ListCategories(context.Background(), scope, filter, httpx.Page{Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,13 +191,17 @@ func TestConsoleService_ListCategories_MapsAndPropagatesScope(t *testing.T) {
 	if repo.lastScope.StoreID == nil || *repo.lastScope.StoreID != storeID {
 		t.Fatalf("expected scope to propagate store id %d, got %+v", storeID, repo.lastScope)
 	}
+	if repo.lastFilter.Keyword != "Drink" {
+		t.Fatalf("expected filter to propagate, got %+v", repo.lastFilter)
+	}
 }
 
 func TestConsoleService_GetItem_AdminScopePropagatesNil(t *testing.T) {
+	assetID := int64(19)
 	repo := &fakeConsoleRepo{items: []Item{
-		{ID: 7, Name: "Combo", Status: "draft", PayChannels: []string{"wechat"}},
+		{ID: 7, Name: "Combo", AssetID: &assetID, Status: "draft", PayChannels: []string{"wechat"}},
 	}}
-	svc := NewConsoleService(repo)
+	svc := NewConsoleService(repo, fakeCatalogAssets{})
 
 	view, err := svc.GetItem(context.Background(), ConsoleScope{}, 7)
 	if err != nil {
@@ -188,6 +209,9 @@ func TestConsoleService_GetItem_AdminScopePropagatesNil(t *testing.T) {
 	}
 	if view.Name != "Combo" {
 		t.Fatalf("unexpected view: %+v", view)
+	}
+	if view.ImageURL != "https://cdn.example.com/assets/19" {
+		t.Fatalf("expected resolved item image, got %+v", view)
 	}
 	if repo.lastScope.StoreID != nil {
 		t.Fatalf("expected admin scope to propagate nil store id, got %+v", repo.lastScope)
@@ -227,16 +251,6 @@ func TestConsoleService_ListVariants_PropagatesScope(t *testing.T) {
 		t.Fatalf("expected scope propagation, got %+v", repo.lastScope)
 	}
 }
-func TestScopeForInsert(t *testing.T) {
-	if st, sid := scopeForInsert(ConsoleScope{}); st != "global" || sid != nil {
-		t.Fatalf("admin scope should insert global/nil, got %s/%v", st, sid)
-	}
-	storeID := int64(5)
-	if st, sid := scopeForInsert(ConsoleScope{StoreID: &storeID}); st != "store" || sid == nil || *sid != storeID {
-		t.Fatalf("store scope should insert store/%d, got %s/%v", storeID, st, sid)
-	}
-}
-
 func TestScopeWhere(t *testing.T) {
 	if where, args := scopeWhere(ConsoleScope{}); where != "" || args != nil {
 		t.Fatalf("admin scope should not filter, got %q/%v", where, args)
@@ -251,6 +265,22 @@ func TestScopeWhere(t *testing.T) {
 	}
 }
 
+func TestConsoleListWhereSupportsStoreAndEscapedFuzzyName(t *testing.T) {
+	storeID := int64(7)
+	where, args := consoleListWhere(ConsoleScope{}, ConsoleListFilter{
+		StoreID: &storeID,
+		Keyword: `Latte%_`,
+		Status:  "published",
+	}, "i")
+	wantWhere := `1=1 AND i.store_id = ? AND i.name LIKE ? ESCAPE '\\' AND i.status = ?`
+	if where != wantWhere {
+		t.Fatalf("unexpected list filter: %q", where)
+	}
+	if len(args) != 3 || args[0] != storeID || args[1] != `%Latte\%\_%` || args[2] != "published" {
+		t.Fatalf("unexpected list args: %#v", args)
+	}
+}
+
 func TestEncodeChannels(t *testing.T) {
 	if got := string(encodeChannels(nil)); got != "[]" {
 		t.Fatalf("nil channels should encode to empty array, got %q", got)
@@ -260,34 +290,65 @@ func TestEncodeChannels(t *testing.T) {
 	}
 }
 
-func TestConsoleService_CreateCategory_AdminWritesGlobal(t *testing.T) {
+func TestConsoleService_CreateCategory_AdminRequiresAndBindsStore(t *testing.T) {
 	repo := &fakeConsoleRepo{}
 	svc := NewConsoleService(repo)
+	storeID := int64(6)
 
-	view, err := svc.CreateCategory(context.Background(), adminScope(), CategoryInput{Name: "Snacks", Status: "active"})
+	view, err := svc.CreateCategory(context.Background(), adminScope(), CategoryInput{
+		StoreID: &storeID, Name: "Snacks", Status: "active",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if view.ScopeType != "global" || view.StoreID != nil {
-		t.Fatalf("admin create should be global, got %+v", view)
+	if view.ScopeType != "store" || view.StoreID == nil || *view.StoreID != storeID {
+		t.Fatalf("admin create should bind store %d, got %+v", storeID, view)
 	}
-	if repo.lastScope.StoreID != nil {
-		t.Fatalf("admin scope should propagate nil store id, got %+v", repo.lastScope)
+	if _, err := svc.CreateCategory(context.Background(), adminScope(), CategoryInput{
+		Name: "Missing Store", Status: "active",
+	}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected missing store to be rejected, got %v", err)
 	}
 }
 
 func TestConsoleService_CreateItem_StoreWritesOwnStore(t *testing.T) {
-	repo := &fakeConsoleRepo{}
-	svc := NewConsoleService(repo)
 	storeID := int64(3)
+	categoryID := int64(8)
+	assetID := int64(9)
+	repo := &fakeConsoleRepo{categories: []Category{
+		{ID: categoryID, ScopeType: "store", StoreID: &storeID, Name: "Drinks"},
+	}}
+	svc := NewConsoleService(repo)
 
 	view, err := svc.CreateItem(context.Background(), ConsoleScope{StoreID: &storeID},
-		ItemInput{Name: "Latte", ItemType: ItemTypeFood, Status: "draft"})
+		ItemInput{CategoryID: &categoryID, AssetID: &assetID, Name: "Latte", Status: "draft"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if view.ScopeType != "store" || view.StoreID == nil || *view.StoreID != storeID {
 		t.Fatalf("store create should pin store id %d, got %+v", storeID, view)
+	}
+	if view.ItemType != ItemTypeFood {
+		t.Fatalf("empty internal item type should default to food, got %+v", view)
+	}
+}
+
+func TestConsoleService_CreateItem_AdminRejectsCategoryFromAnotherStore(t *testing.T) {
+	storeID := int64(3)
+	otherStoreID := int64(4)
+	categoryID := int64(8)
+	assetID := int64(9)
+	repo := &fakeConsoleRepo{categories: []Category{
+		{ID: categoryID, ScopeType: "store", StoreID: &otherStoreID, Name: "Other Store"},
+	}}
+	svc := NewConsoleService(repo)
+
+	_, err := svc.CreateItem(context.Background(), adminScope(), ItemInput{
+		StoreID: &storeID, CategoryID: &categoryID, AssetID: &assetID,
+		Name: "Latte", Status: "draft",
+	})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected cross-store category to be rejected, got %v", err)
 	}
 }
 

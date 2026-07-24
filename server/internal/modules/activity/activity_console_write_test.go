@@ -57,9 +57,13 @@ func (r *statefulConsoleRepo) GetActivity(_ context.Context, scope ConsoleScope,
 }
 
 func (r *statefulConsoleRepo) CreateActivity(_ context.Context, scope ConsoleScope, in ActivityInput) (Activity, error) {
+	storeID := scope.StoreID
+	if storeID == nil {
+		storeID = in.StoreID
+	}
 	a := Activity{
 		ID:          r.nextID(),
-		StoreID:     scope.StoreID,
+		StoreID:     storeID,
 		Title:       in.Title,
 		Description: in.Description,
 		Content:     in.Content,
@@ -69,7 +73,7 @@ func (r *statefulConsoleRepo) CreateActivity(_ context.Context, scope ConsoleSco
 		PayChannels: in.PayChannels,
 		Status:      in.Status,
 	}
-	if scope.StoreID == nil {
+	if storeID == nil {
 		a.ScopeType = "global"
 	} else {
 		a.ScopeType = "store"
@@ -82,6 +86,16 @@ func (r *statefulConsoleRepo) UpdateActivity(_ context.Context, scope ConsoleSco
 	a, ok := r.activities[id]
 	if !ok || !r.inScope(scope, a) {
 		return Activity{}, apperr.NotFound("activity not found")
+	}
+	storeID := scope.StoreID
+	if storeID == nil {
+		storeID = in.StoreID
+	}
+	a.StoreID = storeID
+	if storeID == nil {
+		a.ScopeType = "global"
+	} else {
+		a.ScopeType = "store"
 	}
 	a.Title = in.Title
 	a.Status = in.Status
@@ -203,6 +217,82 @@ func (r *statefulConsoleRepo) DeleteTicketType(_ context.Context, activityID, ti
 	return nil
 }
 
+func TestAdminActivityCanBindAndRebindStore(t *testing.T) {
+	repo := newStatefulConsoleRepo()
+	svc := NewConsoleService(repo)
+	ctx := context.Background()
+	store7 := int64(7)
+
+	created, err := svc.CreateActivity(ctx, ConsoleScope{}, ActivityInput{
+		StoreID: &store7,
+		Title:   "Store Fair",
+		Status:  "draft",
+	})
+	if err != nil {
+		t.Fatalf("create store-bound activity: %v", err)
+	}
+	if created.ScopeType != "store" || created.StoreID == nil || *created.StoreID != store7 {
+		t.Fatalf("create did not bind store 7: %+v", created)
+	}
+
+	store8 := int64(8)
+	updated, err := svc.UpdateActivity(ctx, ConsoleScope{}, created.ID, ActivityInput{
+		StoreID: &store8,
+		Title:   "Rebound Fair",
+		Status:  "published",
+	})
+	if err != nil {
+		t.Fatalf("rebind activity: %v", err)
+	}
+	if updated.ScopeType != "store" || updated.StoreID == nil || *updated.StoreID != store8 {
+		t.Fatalf("update did not bind store 8: %+v", updated)
+	}
+
+	global, err := svc.UpdateActivity(ctx, ConsoleScope{}, created.ID, ActivityInput{
+		Title:  "Global Fair",
+		Status: "published",
+	})
+	if err != nil {
+		t.Fatalf("change activity to global: %v", err)
+	}
+	if global.ScopeType != "global" || global.StoreID != nil {
+		t.Fatalf("update did not clear store binding: %+v", global)
+	}
+}
+
+func TestStoreActivityWriteIgnoresRequestedStore(t *testing.T) {
+	repo := newStatefulConsoleRepo()
+	svc := NewConsoleService(repo)
+	ctx := context.Background()
+	ownStore := int64(7)
+	otherStore := int64(8)
+	scope := ConsoleScope{StoreID: &ownStore}
+
+	created, err := svc.CreateActivity(ctx, scope, ActivityInput{
+		StoreID: &otherStore,
+		Title:   "Pinned Fair",
+		Status:  "draft",
+	})
+	if err != nil {
+		t.Fatalf("create activity: %v", err)
+	}
+	if created.StoreID == nil || *created.StoreID != ownStore {
+		t.Fatalf("store create escaped its scope: %+v", created)
+	}
+
+	updated, err := svc.UpdateActivity(ctx, scope, created.ID, ActivityInput{
+		StoreID: &otherStore,
+		Title:   "Still Pinned",
+		Status:  "published",
+	})
+	if err != nil {
+		t.Fatalf("update activity: %v", err)
+	}
+	if updated.StoreID == nil || *updated.StoreID != ownStore {
+		t.Fatalf("store update escaped its scope: %+v", updated)
+	}
+}
+
 // TestConsoleActivityWriteLifecycle drives the full create/update/delete path for
 // an activity and its child session/ticket type under a store scope, asserting
 // the store scope is pinned on create and enforced on cross-store access.
@@ -293,7 +383,10 @@ func TestConsoleChildWritesRequireActivityInScope(t *testing.T) {
 		"ListTicketTypes":  func() error { _, err := svc.ListTicketTypes(ctx, scope, 1, nil); return err },
 		"GetTicketType":    func() error { _, err := svc.GetTicketType(ctx, scope, 1, 100); return err },
 		"CreateTicketType": func() error { _, err := svc.CreateTicketType(ctx, scope, 1, TicketTypeInput{Name: "x"}); return err },
-		"UpdateTicketType": func() error { _, err := svc.UpdateTicketType(ctx, scope, 1, 100, TicketTypeInput{Name: "x"}); return err },
+		"UpdateTicketType": func() error {
+			_, err := svc.UpdateTicketType(ctx, scope, 1, 100, TicketTypeInput{Name: "x"})
+			return err
+		},
 		"DeleteTicketType": func() error { return svc.DeleteTicketType(ctx, scope, 1, 100) },
 	}
 	for name, op := range ops {

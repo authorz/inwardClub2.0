@@ -21,7 +21,7 @@ func newCORSEngine() *gin.Engine {
 func TestDevCORS_PreflightFromAllowedOrigin(t *testing.T) {
 	r := newCORSEngine()
 
-	for _, origin := range []string{"http://127.0.0.1:5182", "http://127.0.0.1:5183"} {
+	for _, origin := range []string{"http://127.0.0.1:5180", "http://127.0.0.1:5181"} {
 		req := httptest.NewRequest(http.MethodOptions, "/ping", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", "GET")
@@ -47,14 +47,14 @@ func TestDevCORS_ActualRequestReflectsOrigin(t *testing.T) {
 	r := newCORSEngine()
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
-	req.Header.Set("Origin", "http://127.0.0.1:5182")
+	req.Header.Set("Origin", "http://127.0.0.1:5180")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK || w.Body.String() != "pong" {
 		t.Fatalf("handler did not run: status=%d body=%q", w.Code, w.Body.String())
 	}
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1:5182" {
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1:5180" {
 		t.Errorf("Allow-Origin = %q, want reflected origin", got)
 	}
 }

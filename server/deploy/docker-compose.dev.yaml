@@ -7,7 +7,7 @@
 #   export MYSQL_DSN='inward:inward@tcp(127.0.0.1:3307)/inwardclub2?parseTime=true&loc=UTC&charset=utf8mb4'
 #   export REDIS_ADDR='127.0.0.1:6379'
 #   export JWT_SIGNING_KEY='dev-signing-key'
-#   go run ./cmd/migrate up && go run ./cmd/migrate seed
+#   go run ./cmd/migrate up
 #   go run ./cmd/api
 
 services:

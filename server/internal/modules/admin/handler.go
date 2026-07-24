@@ -71,6 +71,14 @@ func (h *Handler) CouponTemplates(c *gin.Context) {
 // Activities handles GET /admin/activities.
 func (h *Handler) Activities(c *gin.Context) {
 	f := parseFilter(c)
+	if raw := c.Query("storeId"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			httpx.Fail(c, apperr.Invalid("invalid storeId"))
+			return
+		}
+		f.StoreID = &id
+	}
 	views, total, err := h.svc.ListActivities(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -384,6 +392,34 @@ func (h *Handler) AdminDisableStaffAccount(c *gin.Context) {
 	httpx.OK(c, view)
 }
 
+// AdminDeleteStaffAccount handles DELETE
+// /admin/staff-accounts/:staffID/binding — revokes the staff binding without
+// deleting the member account.
+func (h *Handler) AdminDeleteStaffAccount(c *gin.Context) {
+	id, err := pathID(c, "staffID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.AdminDeleteStaffAccount(c.Request.Context(), id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
+}
+
+// AdminLookupMember handles GET /admin/member-lookup?phone= — fuzzy-searches
+// registered members by phone fragment so headquarters can pick one to bind as
+// store staff.
+func (h *Handler) AdminLookupMember(c *gin.Context) {
+	views, err := h.svc.SearchMembersByPhone(c.Request.Context(), c.Query("phone"))
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
+}
+
 // AdminAccounts handles GET /admin/admin-accounts, listing headquarters
 // super_admin login accounts.
 func (h *Handler) AdminAccounts(c *gin.Context) {
@@ -394,6 +430,55 @@ func (h *Handler) AdminAccounts(c *gin.Context) {
 		return
 	}
 	httpx.List(c, views, httpx.MetaFor(f.Page, total))
+}
+
+// CreateAdminAccount handles POST /admin/admin-accounts.
+func (h *Handler) CreateAdminAccount(c *gin.Context) {
+	var req AdminAccountCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("admin: invalid admin account create body"))
+		return
+	}
+	view, err := h.svc.CreateSuperAdmin(c.Request.Context(), req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, view)
+}
+
+// UpdateAdminAccount handles PATCH /admin/admin-accounts/:accountID.
+func (h *Handler) UpdateAdminAccount(c *gin.Context) {
+	id, err := pathID(c, "accountID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req AdminAccountUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("admin: invalid admin account update body"))
+		return
+	}
+	view, err := h.svc.UpdateSuperAdmin(c.Request.Context(), id, req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// DeleteAdminAccount handles DELETE /admin/admin-accounts/:accountID.
+func (h *Handler) DeleteAdminAccount(c *gin.Context) {
+	id, err := pathID(c, "accountID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.DeleteSuperAdmin(c.Request.Context(), id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
 }
 
 // DisableAdminAccount handles POST /admin/admin-accounts/:accountID/disable.
@@ -848,4 +933,40 @@ func (h *Handler) StoreDisableStaffAccount(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, view)
+}
+
+// StoreDeleteStaffAccount handles DELETE
+// /store/staff-accounts/:staffID/binding — revokes the staff binding for the
+// caller's own store without deleting the member account.
+func (h *Handler) StoreDeleteStaffAccount(c *gin.Context) {
+	scope, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "staffID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreDeleteStaffAccount(c.Request.Context(), scope, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
+}
+
+// StoreLookupMember handles GET /store/member-lookup?phone= — fuzzy-searches
+// registered members by phone fragment so the store can pick one to bind as
+// staff. Not order-gated, so a member who just registered (no orders yet) is
+// still found.
+func (h *Handler) StoreLookupMember(c *gin.Context) {
+	if _, ok := storescope.MustFromContext(c); !ok {
+		return
+	}
+	views, err := h.svc.SearchMembersByPhone(c.Request.Context(), c.Query("phone"))
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
 }

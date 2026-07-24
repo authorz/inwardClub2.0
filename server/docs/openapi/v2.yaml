@@ -375,7 +375,9 @@ components:
       type: object
       properties:
         id: { type: integer, format: int64 }
+        memberId: { type: integer, format: int64 }
         name: { type: string }
+        phone: { type: string, description: Masked member phone }
         storeId: { type: integer, format: int64 }
         storeName: { type: string }
         status: { type: string }
@@ -387,6 +389,7 @@ components:
         username: { type: string }
         displayName: { type: string }
         role: { type: string }
+        isSystem: { type: boolean, description: System administrators cannot be disabled or deleted }
         storeId: { type: integer, format: int64 }
         storeName: { type: string }
         status: { type: string }
@@ -776,11 +779,12 @@ components:
         grossCent: { type: integer, format: int64 }
     ConsoleCategoryView:
       type: object
-      description: Console catalog category (admin sees every scope; a store console sees only its own store rows).
+      description: Store-bound console catalog category.
       properties:
         id: { type: integer, format: int64 }
-        scopeType: { type: string, enum: [global, store] }
+        scopeType: { type: string, enum: [store] }
         storeId: { type: integer, format: int64 }
+        storeName: { type: string }
         parentId: { type: integer, format: int64 }
         name: { type: string }
         assetId: { type: integer, format: int64 }
@@ -790,6 +794,7 @@ components:
       type: object
       required: [name, status]
       properties:
+        storeId: { type: integer, format: int64, description: Required for headquarters; ignored in the store console }
         name: { type: string }
         parentId: { type: integer, format: int64 }
         assetId: { type: integer, format: int64 }
@@ -797,15 +802,18 @@ components:
         status: { type: string }
     ConsoleCatalogItemView:
       type: object
-      description: Console catalog item detail (write model) returned by item create/get/update.
+      description: Store-bound console catalog item returned by list/create/get/update.
       properties:
         id: { type: integer, format: int64 }
-        scopeType: { type: string, enum: [global, store] }
+        scopeType: { type: string, enum: [store] }
         storeId: { type: integer, format: int64 }
+        storeName: { type: string }
         categoryId: { type: integer, format: int64 }
+        categoryName: { type: string }
         name: { type: string }
         description: { type: string }
         assetId: { type: integer, format: int64 }
+        imageUrl: { type: string, format: uri }
         itemType: { type: string, enum: [food, coupon, redeemable, physical] }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
@@ -817,10 +825,10 @@ components:
         updatedAt: { type: string, format: date-time }
     CatalogItemSummary:
       type: object
-      description: Console catalog item list row (GET /catalog/items).
+      description: Store-bound console catalog item list row (GET /catalog/items).
       properties:
         id: { type: integer, format: int64 }
-        scopeType: { type: string, enum: [global, store] }
+        scopeType: { type: string, enum: [store] }
         storeId: { type: integer, format: int64 }
         categoryId: { type: integer, format: int64 }
         name: { type: string }
@@ -831,13 +839,14 @@ components:
         createdAt: { type: string, format: date-time }
     CatalogItemInput:
       type: object
-      required: [name, itemType, status]
+      required: [categoryId, name, assetId, status]
       properties:
+        storeId: { type: integer, format: int64, description: Required for headquarters; ignored in the store console }
         categoryId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
         assetId: { type: integer, format: int64 }
-        itemType: { type: string, enum: [food, coupon, redeemable, physical] }
+        itemType: { type: string, enum: [food, coupon, redeemable, physical], default: food, description: Internal order type; the console-facing product type is categoryId }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string } }
@@ -876,9 +885,11 @@ components:
         description: { type: string }
         content: { type: string }
         assetId: { type: integer, format: int64 }
+        imageUrl: { type: string, format: uri }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
         payChannels: { type: array, items: { type: string } }
+        purchaseLimitPerMember: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -899,6 +910,10 @@ components:
       type: object
       required: [title]
       properties:
+        storeId:
+          type: integer
+          format: int64
+          description: Admin only; bind to this store, or omit/null for a global activity. Store-console writes ignore this field.
         title: { type: string }
         description: { type: string }
         content: { type: string }
@@ -1255,6 +1270,8 @@ paths:
                     properties:
                       token: { $ref: '#/components/schemas/TokenPair' }
                       profile: { type: object }
+                      subjectType: { type: string, enum: [member, staff] }
+                      storeId: { type: integer, format: int64, description: Present for staff }
   /api/v2/mini/auth/refresh:
     post:
       tags: [mini]
@@ -1910,6 +1927,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { name: storeId, in: query, schema: { type: integer, format: int64 } }
         - { name: status, in: query, schema: { type: string } }
         - { name: keyword, in: query, schema: { type: string } }
         - { name: storeId, in: query, schema: { type: integer, format: int64 } }
@@ -2024,6 +2042,23 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/RefundView' } }
                   meta: { $ref: '#/components/schemas/Meta' }
+  /api/v2/admin/member-lookup:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Find active members by a 3-11 digit phone fragment
+      parameters:
+        - { name: phone, in: query, required: true, schema: { type: string, pattern: '^[0-9]{3,11}$' } }
+      responses:
+        '200':
+          description: Up to 20 matching member candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
+        '400': { $ref: '#/components/responses/Error' }
   /api/v2/admin/members/{memberID}:
     get:
       tags: [admin]
@@ -2361,6 +2396,158 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/RuleDefinitionView' }
         '404': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/admin-accounts:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: List headquarters administrator accounts
+      responses:
+        '200':
+          description: headquarters administrator list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminAccountView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Create a non-system headquarters administrator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+                displayName: { type: string }
+      responses:
+        '201':
+          description: administrator created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminAccountView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/admin-accounts/{accountID}:
+    patch:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update an administrator's display name or password
+      parameters:
+        - { name: accountID, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string }
+                password: { type: string, format: password, description: Omit to keep the current password }
+      responses:
+        '200':
+          description: administrator updated; existing tokens are invalidated when password changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminAccountView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Delete a non-system headquarters administrator
+      parameters:
+        - { name: accountID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: administrator deleted }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/admin-accounts/{accountID}/disable:
+    post:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Disable a non-system headquarters administrator
+      parameters:
+        - { name: accountID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: administrator disabled and existing tokens invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminAccountView' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/store-admin-accounts:
+    post:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Create a store administrator with a caller-supplied initial password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeId, username, password]
+              properties:
+                storeId: { type: integer, format: int64 }
+                username: { type: string }
+                password: { type: string, format: password }
+                displayName: { type: string }
+      responses:
+        '201':
+          description: store administrator created; password is never returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminAccountView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/store-admin-accounts/{accountID}:
+    patch:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update a store administrator's profile, store, or password
+      parameters:
+        - { name: accountID, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                storeId: { type: integer, format: int64 }
+                displayName: { type: string }
+                password: { type: string, format: password, description: Omit to keep the current password }
+      responses:
+        '200':
+          description: store administrator updated; existing tokens are invalidated when password changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminAccountView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /api/v2/admin/staff-accounts:
     get:
       tags: [admin]
@@ -2392,9 +2579,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [storeId, name]
+              required: [storeId, memberId]
               properties:
                 storeId: { type: integer, format: int64 }
+                memberId: { type: integer, format: int64 }
                 name: { type: string }
       responses:
         '201':
@@ -2432,6 +2620,16 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/StaffAccountView' }
         '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/staff-accounts/{staffID}/binding:
+    delete:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Remove a staff binding without deleting the member
+      parameters:
+        - { name: staffID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: staff binding removed }
         '404': { $ref: '#/components/responses/Error' }
   /api/v2/admin/staff-accounts/{staffID}/disable:
     post:
@@ -2692,6 +2890,23 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/RefundView' } }
                   meta: { $ref: '#/components/schemas/Meta' }
+  /api/v2/store/member-lookup:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Find active members by a 3-11 digit phone fragment
+      parameters:
+        - { name: phone, in: query, required: true, schema: { type: string, pattern: '^[0-9]{3,11}$' } }
+      responses:
+        '200':
+          description: Up to 20 matching member candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
+        '400': { $ref: '#/components/responses/Error' }
   /api/v2/store/members/{memberID}:
     get:
       tags: [store]
@@ -2895,8 +3110,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              required: [memberId]
               properties:
+                memberId: { type: integer, format: int64 }
                 name: { type: string }
       responses:
         '201':
@@ -2934,6 +3150,18 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/StaffAccountView' }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v2/store/staff-accounts/{staffID}/binding:
+    delete:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Remove a staff binding without deleting the member (own store)
+      parameters:
+        - { name: staffID, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: staff binding removed }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
   /api/v2/store/staff-accounts/{staffID}/disable:
@@ -3237,6 +3465,9 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { name: storeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, description: Fuzzy category-name search, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
       responses:
         '200':
           description: category page
@@ -3250,7 +3481,7 @@ paths:
     post:
       tags: [admin]
       security: [{ bearerAuth: [] }]
-      summary: Create a catalog category
+      summary: Create a store-bound catalog category
       requestBody:
         required: true
         content:
@@ -3329,8 +3560,10 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { name: storeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: categoryId, in: query, schema: { type: integer, format: int64 } }
         - { name: status, in: query, schema: { type: string } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: keyword, in: query, description: Fuzzy item-name search, schema: { type: string } }
       responses:
         '200':
           description: item page
@@ -3339,12 +3572,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { $ref: '#/components/schemas/CatalogItemSummary' } }
+                  data: { type: array, items: { $ref: '#/components/schemas/ConsoleCatalogItemView' } }
                   meta: { $ref: '#/components/schemas/Meta' }
     post:
       tags: [admin]
       security: [{ bearerAuth: [] }]
-      summary: Create a catalog item
+      summary: Create a store-bound catalog item with a same-store category and image
       requestBody:
         required: true
         content:

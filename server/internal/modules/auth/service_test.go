@@ -55,6 +55,28 @@ type memAccountRepo struct {
 	byName map[string]int64
 }
 
+type memStaffRepo struct {
+	byMember map[int64]Staff
+}
+
+func (r *memStaffRepo) GetByMemberID(_ context.Context, memberID int64) (Staff, error) {
+	staff, ok := r.byMember[memberID]
+	if !ok {
+		return Staff{}, apperr.NotFound("staff account not found")
+	}
+	return staff, nil
+}
+
+func (r *memStaffRepo) BumpTokenVersionByMemberID(_ context.Context, memberID int64) error {
+	staff, ok := r.byMember[memberID]
+	if !ok {
+		return apperr.NotFound("staff account not found")
+	}
+	staff.TokenVersion++
+	r.byMember[memberID] = staff
+	return nil
+}
+
 func (r *memAccountRepo) GetByUsername(_ context.Context, u string) (Account, error) {
 	id, ok := r.byName[u]
 	if !ok {
@@ -88,7 +110,7 @@ func newTestService() (*Service, *memMemberRepo, *memAccountRepo) {
 		},
 		byName: map[string]int64{"boss": 1, "shop": 2, "noStore": 3},
 	}
-	return NewService(mgr, NewFakeWeChatClient(), members, accounts, nil), members, accounts
+	return NewService(mgr, NewFakeWeChatClient(""), members, accounts, nil, nil), members, accounts
 }
 
 // stubTierResolver is a configurable MemberTierResolver for exercising the "me"
@@ -110,7 +132,7 @@ func TestMemberProfileIncludesVipTier(t *testing.T) {
 	// The member-facing tier exposes only the short VIP label, never the full
 	// admin tier name (e.g. "VIP3 黄金会员").
 	tier := &MemberVIPTier{ID: 3, Label: "VIP3", Level: 3, Threshold: 5000, BannerURL: "https://cdn.test/banner"}
-	svc := NewService(mgr, NewFakeWeChatClient(), members, &memAccountRepo{}, stubTierResolver{tier: tier})
+	svc := NewService(mgr, NewFakeWeChatClient(""), members, &memAccountRepo{}, stubTierResolver{tier: tier}, nil)
 
 	profile, err := svc.MemberProfile(context.Background(), id)
 	if err != nil {
@@ -130,7 +152,7 @@ func TestMemberProfileOmitsVipTierWhenUnranked(t *testing.T) {
 	id, _ := members.Create(context.Background(), Member{WeChatOpenID: "open-2", Nickname: "会员"})
 
 	// Resolver reports no tier (nil, nil); the profile must omit vipTier.
-	svc := NewService(mgr, NewFakeWeChatClient(), members, &memAccountRepo{}, stubTierResolver{})
+	svc := NewService(mgr, NewFakeWeChatClient(""), members, &memAccountRepo{}, stubTierResolver{}, nil)
 
 	profile, err := svc.MemberProfile(context.Background(), id)
 	if err != nil {
@@ -141,21 +163,51 @@ func TestMemberProfileOmitsVipTierWhenUnranked(t *testing.T) {
 	}
 }
 
-func TestMiniLoginCreatesThenReuses(t *testing.T) {
+func TestMiniLoginDefersCreationUntilRegister(t *testing.T) {
 	svc, members, _ := newTestService()
 	ctx := context.Background()
 
-	if _, err := svc.MiniLogin(ctx, "code-abc"); err != nil {
+	// First login for a new user creates NO member — it returns a register ticket.
+	first, err := svc.MiniLogin(ctx, "code-abc")
+	if err != nil {
 		t.Fatalf("first login: %v", err)
 	}
-	if len(members.byID) != 1 {
-		t.Fatalf("expected 1 member created, got %d", len(members.byID))
+	if !first.IsNew || first.RegisterTicket == "" {
+		t.Fatalf("first login must be new with a register ticket, got %+v", first)
 	}
-	if _, err := svc.MiniLogin(ctx, "code-abc"); err != nil {
+	if len(members.byID) != 0 {
+		t.Fatalf("no member may exist before registration, got %d", len(members.byID))
+	}
+
+	// Authorizing the phone decrypts the one-time code once and re-issues the
+	// ticket with the phone embedded.
+	_, phoneTicket, err := svc.GetPhoneMask(ctx, first.RegisterTicket, "pc")
+	if err != nil {
+		t.Fatalf("phone mask: %v", err)
+	}
+
+	// Submitting the form is what creates the member.
+	reg, err := svc.MiniRegister(ctx, WeChatRegisterRequest{RegisterTicket: phoneTicket, AvatarURL: "https://example.com/avatar.jpg", Nickname: "老大", Gender: "male"})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if reg.Token.AccessToken == "" || !reg.IsNew {
+		t.Fatalf("register must return a new-member session, got %+v", reg)
+	}
+	if len(members.byID) != 1 {
+		t.Fatalf("expected 1 member after registration, got %d", len(members.byID))
+	}
+
+	// A subsequent login for the same openID reuses the member and is not new.
+	second, err := svc.MiniLogin(ctx, "code-abc")
+	if err != nil {
 		t.Fatalf("second login: %v", err)
 	}
+	if second.IsNew {
+		t.Fatal("returning member must not be flagged new")
+	}
 	if len(members.byID) != 1 {
-		t.Fatalf("same code must reuse member, got %d", len(members.byID))
+		t.Fatalf("same openID must reuse member, got %d", len(members.byID))
 	}
 }
 
@@ -197,6 +249,70 @@ func TestStoreLoginRequiresStoreBinding(t *testing.T) {
 	}
 }
 
+func TestMiniLoginUsesActiveStaffBinding(t *testing.T) {
+	svc, members, _ := newTestService()
+	ctx := context.Background()
+
+	first, err := svc.MiniLogin(ctx, "staff-code")
+	if err != nil {
+		t.Fatalf("first login: %v", err)
+	}
+	_, phoneTicket, err := svc.GetPhoneMask(ctx, first.RegisterTicket, "phone-code")
+	if err != nil {
+		t.Fatalf("phone mask: %v", err)
+	}
+	if _, err := svc.MiniRegister(ctx, WeChatRegisterRequest{
+		RegisterTicket: phoneTicket,
+		AvatarURL:      "https://example.com/avatar.jpg",
+		Nickname:       "员工",
+		Gender:         "other",
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	var memberID int64
+	for id := range members.byID {
+		memberID = id
+	}
+	staff := &memStaffRepo{byMember: map[int64]Staff{
+		memberID: {
+			ID: 9, MemberID: memberID, StoreID: 42,
+			Status: StatusActive, TokenVersion: 3,
+		},
+	}}
+	svc.staff = staff
+
+	login, err := svc.MiniLogin(ctx, "staff-code")
+	if err != nil {
+		t.Fatalf("staff login: %v", err)
+	}
+	if login.SubjectType != authn.SubjectStaff || login.StoreID != 42 {
+		t.Fatalf("unexpected staff login response: %+v", login)
+	}
+	claims, err := svc.tokens.Parse(login.Token.AccessToken, authn.AudienceMini)
+	if err != nil {
+		t.Fatalf("parse token: %v", err)
+	}
+	if claims.SubjectType != authn.SubjectStaff || claims.SubjectID() != memberID ||
+		claims.StoreID != 42 || claims.TokenVersion != 3 {
+		t.Fatalf("unexpected staff claims: %+v", claims)
+	}
+
+	if _, err := svc.Refresh(ctx, login.Token.RefreshToken, authn.AudienceMini); err != nil {
+		t.Fatalf("staff refresh: %v", err)
+	}
+	checker := NewMemberTokenVersions(members, staff)
+	if version, err := checker.CurrentTokenVersion(ctx, authn.SubjectStaff, memberID); err != nil || version != 3 {
+		t.Fatalf("staff token version = %d, %v; want 3, nil", version, err)
+	}
+	if err := svc.LogoutMini(ctx, authn.SubjectStaff, memberID); err != nil {
+		t.Fatalf("staff logout: %v", err)
+	}
+	if _, err := svc.Refresh(ctx, login.Token.RefreshToken, authn.AudienceMini); err == nil {
+		t.Fatal("staff refresh must fail after logout")
+	}
+}
+
 func TestRefreshRejectedAfterLogout(t *testing.T) {
 	svc, _, _ := newTestService()
 	ctx := context.Background()
@@ -224,38 +340,46 @@ func TestTokenVersionCheckersReflectLogout(t *testing.T) {
 
 	// Account (admin/store audiences). Account #1 starts at version 0.
 	accountVersions := NewAccountTokenVersions(accounts)
-	if v, err := accountVersions.CurrentTokenVersion(ctx, 1); err != nil || v != 0 {
+	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1); err != nil || v != 0 {
 		t.Fatalf("account version before logout = %d, %v; want 0, nil", v, err)
 	}
 	if err := svc.LogoutAccount(ctx, 1); err != nil {
 		t.Fatalf("account logout: %v", err)
 	}
-	if v, err := accountVersions.CurrentTokenVersion(ctx, 1); err != nil || v != 1 {
+	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1); err != nil || v != 1 {
 		t.Fatalf("account version after logout = %d, %v; want 1, nil", v, err)
 	}
 
-	// Member (mini audience). Create one via MiniLogin, then log out.
-	if _, err := svc.MiniLogin(ctx, "code-xyz"); err != nil {
+	// Member (mini audience). Create one via login + register, then log out.
+	first, err := svc.MiniLogin(ctx, "code-xyz")
+	if err != nil {
 		t.Fatalf("mini login: %v", err)
+	}
+	_, phoneTicket, err := svc.GetPhoneMask(ctx, first.RegisterTicket, "pc")
+	if err != nil {
+		t.Fatalf("phone mask: %v", err)
+	}
+	if _, err := svc.MiniRegister(ctx, WeChatRegisterRequest{RegisterTicket: phoneTicket, AvatarURL: "https://example.com/avatar.jpg", Nickname: "会员", Gender: "female"}); err != nil {
+		t.Fatalf("mini register: %v", err)
 	}
 	var memberID int64
 	for id := range members.byID {
 		memberID = id
 	}
 	memberVersions := NewMemberTokenVersions(members)
-	if v, err := memberVersions.CurrentTokenVersion(ctx, memberID); err != nil || v != 0 {
+	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID); err != nil || v != 0 {
 		t.Fatalf("member version before logout = %d, %v; want 0, nil", v, err)
 	}
-	if err := svc.LogoutMember(ctx, memberID); err != nil {
+	if err := svc.LogoutMini(ctx, authn.SubjectMember, memberID); err != nil {
 		t.Fatalf("member logout: %v", err)
 	}
-	if v, err := memberVersions.CurrentTokenVersion(ctx, memberID); err != nil || v != 1 {
+	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID); err != nil || v != 1 {
 		t.Fatalf("member version after logout = %d, %v; want 1, nil", v, err)
 	}
 
 	// A missing subject surfaces the store's NotFound (mapped to 401 by the
 	// middleware), never a silent zero that would masquerade as a valid version.
-	if _, err := memberVersions.CurrentTokenVersion(ctx, 9999); apperr.From(err).Code != apperr.CodeNotFound {
+	if _, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, 9999); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("missing member: want NOT_FOUND, got %v", err)
 	}
 }

@@ -7,6 +7,18 @@ type WeChatLoginRequest struct {
 	Code string `json:"code" binding:"required"`
 }
 
+// WeChatRegisterRequest completes a first-time member's registration. It is
+// authorized by the register ticket returned from the phone-mask step, which
+// already carries the authorized phone (no member exists until this succeeds).
+// AvatarURL, Nickname, and Gender are all required — the member is NOT created
+// until the complete profile is submitted.
+type WeChatRegisterRequest struct {
+	RegisterTicket string `json:"registerTicket" binding:"required"`
+	AvatarURL      string `json:"avatarUrl" binding:"required"`
+	Nickname       string `json:"nickname" binding:"required"`
+	Gender         string `json:"gender" binding:"required"`
+}
+
 // PasswordLoginRequest is the back-office login body.
 type PasswordLoginRequest struct {
 	Username string `json:"username" binding:"required"`
@@ -23,9 +35,15 @@ type RefreshRequest struct {
 // new user for profile details (phone, avatar, nickname) and skip that prompt
 // for returning members. It is always false for back-office logins.
 type LoginResponse struct {
-	Token   authn.TokenPair `json:"token"`
-	Profile any             `json:"profile"`
-	IsNew   bool            `json:"isNew"`
+	Token       authn.TokenPair   `json:"token"`
+	Profile     any               `json:"profile"`
+	IsNew       bool              `json:"isNew"`
+	SubjectType authn.SubjectType `json:"subjectType,omitempty"`
+	StoreID     int64             `json:"storeId,omitempty"`
+	// RegisterTicket is set (with an empty Token) only when a first-time member
+	// must complete the profile form before any member row is created. The client
+	// submits it back to /mini/auth/wechat/register.
+	RegisterTicket string `json:"registerTicket,omitempty"`
 }
 
 // MemberProfile is the mini-program "me" payload. VipTier carries the member's
@@ -34,6 +52,7 @@ type LoginResponse struct {
 type MemberProfile struct {
 	ID         int64          `json:"id"`
 	Nickname   string         `json:"nickname"`
+	AvatarURL  string         `json:"avatarUrl,omitempty"`
 	MemberNo   string         `json:"memberNo,omitempty"`
 	Phone      string         `json:"phone,omitempty"`
 	InviteCode string         `json:"inviteCode,omitempty"`

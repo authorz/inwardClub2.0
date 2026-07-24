@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,48 @@ import (
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
 )
+
+func TestAdminLookupMemberReturnsCandidateArray(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{members: map[int64]Member{
+		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/member-lookup", h.AdminLookupMember)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/member-lookup?phone=0007", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var envelope struct {
+		Data []MemberView `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(envelope.Data) != 1 || envelope.Data[0].ID != 7 {
+		t.Fatalf("unexpected candidates: %+v", envelope.Data)
+	}
+}
+
+func TestAdminLookupMemberRejectsWildcard(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := NewHandler(NewService(&fakeRepo{}, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/member-lookup", h.AdminLookupMember)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/member-lookup?phone=%25%25%25", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
 
 // TestStaffAccountsHandlerReturnsStaffAccounts guards against the console
 // endpoint GET /admin/staff-accounts regressing to admin_accounts data: the
@@ -349,14 +392,14 @@ func TestStoreDisableCashierHandlerCannotReachOtherStore(t *testing.T) {
 func TestStoreCreateStaffAccountHandlerScopesToStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	repo := &fakeRepo{}
+	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive}}}
 	svc := NewService(repo, fakeStores{}, nil)
 	h := NewHandler(svc)
 
 	router := gin.New()
 	router.POST("/store/staff-accounts", withStoreScope(42), h.StoreCreateStaffAccount)
 
-	body := `{"name":"Waiter Wang"}`
+	body := `{"memberId":7}`
 	req := httptest.NewRequest(http.MethodPost, "/store/staff-accounts", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -398,14 +441,14 @@ func TestStoreDisableStaffAccountHandlerCannotReachOtherStore(t *testing.T) {
 func TestAdminCreateStaffAccountHandlerUsesBodyStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	repo := &fakeRepo{}
+	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive}}}
 	svc := NewService(repo, fakeStores{}, nil)
 	h := NewHandler(svc)
 
 	router := gin.New()
 	router.POST("/admin/staff-accounts", h.AdminCreateStaffAccount)
 
-	body := `{"storeId":42,"name":"Waiter Wang"}`
+	body := `{"storeId":42,"memberId":7}`
 	req := httptest.NewRequest(http.MethodPost, "/admin/staff-accounts", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -421,6 +464,111 @@ func TestAdminCreateStaffAccountHandlerUsesBodyStore(t *testing.T) {
 		if a.StoreID != 42 {
 			t.Fatalf("expected staff account pinned to store 42, got %+v", a)
 		}
+	}
+}
+
+func TestCreateStoreAdminAccountRequiresPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := NewHandler(NewService(&fakeRepo{}, fakeStores{}, nil))
+	router := gin.New()
+	router.POST("/admin/store-admin-accounts", h.CreateStoreAdminAccount)
+
+	body := `{"storeId":42,"username":"store-admin","displayName":"Store Admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/store-admin-accounts", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateAdminAccountAcceptsPasswordWithoutReturningIt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.POST("/admin/admin-accounts", h.CreateAdminAccount)
+
+	body := `{"username":"ops-admin","password":"secret","displayName":"Ops Admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/admin-accounts", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "secret") || strings.Contains(rec.Body.String(), "password") {
+		t.Fatalf("response leaked password data: %s", rec.Body.String())
+	}
+}
+
+func TestUpdateSystemAdminAccountAcceptsNewPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "superadmin", Role: "super_admin", IsSystem: true, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.PATCH("/admin/admin-accounts/:accountID", h.UpdateAdminAccount)
+
+	body := `{"password":"new-secret"}`
+	req := httptest.NewRequest(http.MethodPatch, "/admin/admin-accounts/1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteAdminAccountProtectsSystemAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "superadmin", Role: "super_admin", IsSystem: true, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.DELETE("/admin/admin-accounts/:accountID", h.DeleteAdminAccount)
+
+	req := httptest.NewRequest(http.MethodDelete, "/admin/admin-accounts/1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateStoreAdminAccountAcceptsNewPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "store-admin", DisplayName: "Store Admin", Role: "store_admin", StoreID: &storeID, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.PATCH("/admin/store-admin-accounts/:accountID", h.UpdateStoreAdminAccount)
+
+	body := `{"password":"new-secret"}`
+	req := httptest.NewRequest(http.MethodPatch, "/admin/store-admin-accounts/1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastPasswordHash == "" || repo.lastPasswordHash == "new-secret" {
+		t.Fatal("expected a non-plaintext password hash")
 	}
 }
 
@@ -558,5 +706,30 @@ func TestAdminDisableStaffAccountHandlerReachesAnyStore(t *testing.T) {
 	}
 	if repo.staffAccounts[1].Status != "disabled" {
 		t.Fatalf("expected staff account disabled, got %+v", repo.staffAccounts[1])
+	}
+}
+
+func TestAdminDeleteStaffBindingRouteRemovesBinding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{
+		staffAccounts: map[int64]StaffAccount{
+			1: {ID: 1, Name: "Waiter Wang", StoreID: 42, Status: StatusActive},
+		},
+	}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+
+	router := gin.New()
+	router.DELETE("/admin/staff-accounts/:staffID/binding", h.AdminDeleteStaffAccount)
+
+	req := httptest.NewRequest(http.MethodDelete, "/admin/staff-accounts/1/binding", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := repo.staffAccounts[1]; ok {
+		t.Fatal("expected staff binding to be removed")
 	}
 }

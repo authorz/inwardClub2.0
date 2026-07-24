@@ -41,6 +41,10 @@ type Repository interface {
 	// GetMemberByID returns a single member by id alone, for the headquarters
 	// console which is not pinned to a single store.
 	GetMemberByID(ctx context.Context, memberID int64) (Member, error)
+	// SearchMembersByPhone fuzzy-matches members by phone fragment (tail number
+	// supported) across all members (not store-scoped, not order-gated) so a
+	// newly-registered member can be located for staff binding.
+	SearchMembersByPhone(ctx context.Context, phone string) ([]Member, error)
 	// ListWalletLedger returns a page of wallet_ledger_entries rows. A nil
 	// f.StoreID means no scope filter (admin console); a set f.StoreID pins the
 	// query to members with at least one business order at that store, mirroring
@@ -70,21 +74,29 @@ type Repository interface {
 	ListSuperAdmins(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error)
 	ListStoreAdmins(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error)
 	GetAdminAccountByID(ctx context.Context, id int64) (AdminAccount, error)
+	CreateSuperAdmin(ctx context.Context, username, passwordHash, displayName string) (AdminAccount, error)
+	UpdateSuperAdminByID(ctx context.Context, id int64, displayName, passwordHash *string) (AdminAccount, error)
+	DeleteSuperAdminByID(ctx context.Context, id int64) error
 	CreateStoreAdmin(ctx context.Context, storeID int64, username, passwordHash, displayName string) (AdminAccount, error)
-	UpdateStoreAdminByID(ctx context.Context, id int64, storeID *int64, displayName *string) (AdminAccount, error)
+	UpdateStoreAdminByID(ctx context.Context, id int64, storeID *int64, displayName, passwordHash *string) (AdminAccount, error)
 	DisableAdminAccountByID(ctx context.Context, id int64) (AdminAccount, error)
 
 	// Staff accounts (staff_accounts), always scoped to the caller's own store.
+	// CreateStaffAccount binds an existing member (by id) as store staff.
+	// DeleteStaffAccount removes only the staff binding row; the member account is
+	// untouched.
 	GetStaffAccount(ctx context.Context, storeID, id int64) (StaffAccount, error)
-	CreateStaffAccount(ctx context.Context, storeID int64, name string) (StaffAccount, error)
+	CreateStaffAccount(ctx context.Context, storeID, memberID int64, name string) (StaffAccount, error)
 	UpdateStaffAccount(ctx context.Context, storeID, id int64, name string) (StaffAccount, error)
 	DisableStaffAccount(ctx context.Context, storeID, id int64) (StaffAccount, error)
+	DeleteStaffAccount(ctx context.Context, storeID, id int64) error
 
 	// Staff accounts, admin variants: not scoped to a single store, so
 	// headquarters can manage any store's staff.
 	GetStaffAccountByID(ctx context.Context, id int64) (StaffAccount, error)
 	UpdateStaffAccountByID(ctx context.Context, id int64, storeID *int64, name *string) (StaffAccount, error)
 	DisableStaffAccountByID(ctx context.Context, id int64) (StaffAccount, error)
+	DeleteStaffAccountByID(ctx context.Context, id int64) error
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -386,6 +398,33 @@ func (r *sqlRepository) GetMemberByID(ctx context.Context, memberID int64) (Memb
 	return m, nil
 }
 
+// SearchMembersByPhone fuzzy-matches members whose phone contains the given
+// fragment (e.g. a tail number), across all members (not store-scoped, not
+// order-gated) so a newly-registered member can be located for staff binding.
+// Returns up to 20 matches, newest first; empty slice when none match.
+func (r *sqlRepository) SearchMembersByPhone(ctx context.Context, phone string) ([]Member, error) {
+	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''),
+			COALESCE((SELECT wa.available_amount FROM wallet_accounts wa WHERE wa.member_id = m.id AND wa.asset_type = 'points'), 0),
+			m.status, m.created_at
+		FROM members m
+		WHERE m.status = 'active' AND m.phone IS NOT NULL AND m.phone LIKE ?
+		ORDER BY m.id DESC LIMIT 20`
+	rows, err := r.db.QueryContext(ctx, q, "%"+phone+"%")
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	out := make([]Member, 0)
+	for rows.Next() {
+		var m Member
+		if err := rows.Scan(&m.ID, &m.Nickname, &m.Phone, &m.PointsBalance, &m.Status, &m.CreatedAt); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // ListWalletLedger lists wallet_ledger_entries rows, optionally narrowed by
 // member, asset type, and store scope. Store scope is applied via an EXISTS
 // against business_orders (member has a business order at that store),
@@ -551,7 +590,7 @@ func (r *sqlRepository) ListAdminAccounts(ctx context.Context, f ListFilter) ([]
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
+	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.is_system, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
 		FROM admin_accounts aa LEFT JOIN stores s ON s.id = aa.store_id
 		WHERE ` + where + ` ORDER BY aa.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -563,7 +602,7 @@ func (r *sqlRepository) ListAdminAccounts(ctx context.Context, f ListFilter) ([]
 	out := make([]AdminAccount, 0)
 	for rows.Next() {
 		var a AdminAccount
-		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.IsSystem, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -578,7 +617,7 @@ func (r *sqlRepository) ListCashiers(ctx context.Context, f ListFilter) ([]Admin
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
+	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.is_system, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
 		FROM admin_accounts aa LEFT JOIN stores s ON s.id = aa.store_id
 		WHERE ` + where + ` ORDER BY aa.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -590,7 +629,7 @@ func (r *sqlRepository) ListCashiers(ctx context.Context, f ListFilter) ([]Admin
 	out := make([]AdminAccount, 0)
 	for rows.Next() {
 		var a AdminAccount
-		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.IsSystem, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -605,7 +644,7 @@ func (r *sqlRepository) ListSuperAdmins(ctx context.Context, f ListFilter) ([]Ad
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
+	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.is_system, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
 		FROM admin_accounts aa LEFT JOIN stores s ON s.id = aa.store_id
 		WHERE ` + where + ` ORDER BY aa.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -617,7 +656,7 @@ func (r *sqlRepository) ListSuperAdmins(ctx context.Context, f ListFilter) ([]Ad
 	out := make([]AdminAccount, 0)
 	for rows.Next() {
 		var a AdminAccount
-		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.IsSystem, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -632,7 +671,7 @@ func (r *sqlRepository) ListStoreAdmins(ctx context.Context, f ListFilter) ([]Ad
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
+	q := `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.is_system, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
 		FROM admin_accounts aa LEFT JOIN stores s ON s.id = aa.store_id
 		WHERE ` + where + ` ORDER BY aa.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -644,7 +683,7 @@ func (r *sqlRepository) ListStoreAdmins(ctx context.Context, f ListFilter) ([]Ad
 	out := make([]AdminAccount, 0)
 	for rows.Next() {
 		var a AdminAccount
-		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.IsSystem, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -656,11 +695,11 @@ func (r *sqlRepository) ListStoreAdmins(ctx context.Context, f ListFilter) ([]Ad
 // role or store, for the headquarters account-management endpoints which are
 // not pinned to a single store.
 func (r *sqlRepository) GetAdminAccountByID(ctx context.Context, id int64) (AdminAccount, error) {
-	const q = `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
+	const q = `SELECT aa.id, aa.username, aa.display_name, aa.role, aa.is_system, aa.store_id, COALESCE(s.name,''), aa.status, aa.created_at
 		FROM admin_accounts aa LEFT JOIN stores s ON s.id = aa.store_id
 		WHERE aa.id = ?`
 	var a AdminAccount
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.Username, &a.DisplayName, &a.Role, &a.IsSystem, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return AdminAccount{}, apperr.NotFound("admin account not found")
 	}
@@ -668,6 +707,78 @@ func (r *sqlRepository) GetAdminAccountByID(ctx context.Context, id int64) (Admi
 		return AdminAccount{}, apperr.Internal(err)
 	}
 	return a, nil
+}
+
+// CreateSuperAdmin creates a non-system headquarters administrator.
+func (r *sqlRepository) CreateSuperAdmin(ctx context.Context, username, passwordHash, displayName string) (AdminAccount, error) {
+	const q = `INSERT INTO admin_accounts
+		(username, password_hash, display_name, role, is_system, store_id, status, token_version, created_at, updated_at)
+		VALUES (?, ?, ?, 'super_admin', 0, NULL, 'active', 0, NOW(), NOW())`
+	res, err := r.db.ExecContext(ctx, q, username, passwordHash, displayName)
+	if err != nil {
+		if platdb.IsDuplicate(err) {
+			return AdminAccount{}, apperr.Conflict("username already exists")
+		}
+		return AdminAccount{}, apperr.Internal(err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return AdminAccount{}, apperr.Internal(err)
+	}
+	return r.GetAdminAccountByID(ctx, id)
+}
+
+// UpdateSuperAdminByID changes the display name and/or password. Password
+// changes invalidate all existing sessions for the account.
+func (r *sqlRepository) UpdateSuperAdminByID(ctx context.Context, id int64, displayName, passwordHash *string) (AdminAccount, error) {
+	set := make([]string, 0, 3)
+	var args []any
+	if displayName != nil {
+		set = append(set, "display_name = ?")
+		args = append(args, *displayName)
+	}
+	if passwordHash != nil {
+		set = append(set, "password_hash = ?", "token_version = token_version + 1")
+		args = append(args, *passwordHash)
+	}
+	set = append(set, "updated_at = NOW()")
+	args = append(args, id)
+	res, err := r.db.ExecContext(ctx, `UPDATE admin_accounts SET `+strings.Join(set, ", ")+` WHERE id = ? AND role = 'super_admin'`, args...)
+	if err != nil {
+		return AdminAccount{}, apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		row, err := r.GetAdminAccountByID(ctx, id)
+		if err != nil {
+			return AdminAccount{}, err
+		}
+		if row.Role != "super_admin" {
+			return AdminAccount{}, apperr.NotFound("admin account not found")
+		}
+	}
+	return r.GetAdminAccountByID(ctx, id)
+}
+
+// DeleteSuperAdminByID permanently removes a non-system headquarters account.
+func (r *sqlRepository) DeleteSuperAdminByID(ctx context.Context, id int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM admin_accounts
+		WHERE id = ? AND role = 'super_admin' AND is_system = 0`, id)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		row, err := r.GetAdminAccountByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if row.Role != "super_admin" {
+			return apperr.NotFound("admin account not found")
+		}
+		if row.IsSystem {
+			return apperr.Forbidden("system administrator cannot be deleted")
+		}
+	}
+	return nil
 }
 
 // CreateStoreAdmin creates a store_admin account (admin_accounts) for
@@ -690,21 +801,26 @@ func (r *sqlRepository) CreateStoreAdmin(ctx context.Context, storeID int64, use
 	return r.GetAdminAccountByID(ctx, id)
 }
 
-// UpdateStoreAdminByID applies a partial update (display name and/or a store
-// reassignment) to a store_admin account, not scoped to a single store.
-func (r *sqlRepository) UpdateStoreAdminByID(ctx context.Context, id int64, storeID *int64, displayName *string) (AdminAccount, error) {
-	set := "updated_at = NOW()"
+// UpdateStoreAdminByID applies a partial update to a store_admin account, not
+// scoped to a single store. Password changes also invalidate existing tokens.
+func (r *sqlRepository) UpdateStoreAdminByID(ctx context.Context, id int64, storeID *int64, displayName, passwordHash *string) (AdminAccount, error) {
+	set := make([]string, 0, 4)
 	var args []any
 	if displayName != nil {
-		set = "display_name = ?, " + set
+		set = append(set, "display_name = ?")
 		args = append(args, *displayName)
 	}
 	if storeID != nil {
-		set = "store_id = ?, " + set
+		set = append(set, "store_id = ?")
 		args = append(args, *storeID)
 	}
+	if passwordHash != nil {
+		set = append(set, "password_hash = ?", "token_version = token_version + 1")
+		args = append(args, *passwordHash)
+	}
+	set = append(set, "updated_at = NOW()")
 	args = append(args, id)
-	res, err := r.db.ExecContext(ctx, `UPDATE admin_accounts SET `+set+` WHERE id = ? AND role = 'store_admin'`, args...)
+	res, err := r.db.ExecContext(ctx, `UPDATE admin_accounts SET `+strings.Join(set, ", ")+` WHERE id = ? AND role = 'store_admin'`, args...)
 	if err != nil {
 		return AdminAccount{}, apperr.Internal(err)
 	}
@@ -733,14 +849,18 @@ func (r *sqlRepository) getStoreAdminByID(ctx context.Context, id int64) (AdminA
 // token_version so any outstanding session is invalidated on its next refresh.
 func (r *sqlRepository) DisableAdminAccountByID(ctx context.Context, id int64) (AdminAccount, error) {
 	const q = `UPDATE admin_accounts SET status = 'disabled', token_version = token_version + 1, updated_at = NOW()
-		WHERE id = ?`
+		WHERE id = ? AND is_system = 0`
 	res, err := r.db.ExecContext(ctx, q, id)
 	if err != nil {
 		return AdminAccount{}, apperr.Internal(err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		if _, err := r.GetAdminAccountByID(ctx, id); err != nil {
+		row, err := r.GetAdminAccountByID(ctx, id)
+		if err != nil {
 			return AdminAccount{}, err
+		}
+		if row.IsSystem {
+			return AdminAccount{}, apperr.Forbidden("system administrator cannot be disabled")
 		}
 	}
 	return r.GetAdminAccountByID(ctx, id)
@@ -752,8 +872,10 @@ func (r *sqlRepository) ListStaffAccounts(ctx context.Context, f ListFilter) ([]
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM staff_accounts sa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT sa.id, sa.name, sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
-		FROM staff_accounts sa LEFT JOIN stores s ON s.id = sa.store_id
+	q := `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+		FROM staff_accounts sa
+		LEFT JOIN stores s ON s.id = sa.store_id
+		LEFT JOIN members m ON m.id = sa.member_id
 		WHERE ` + where + ` ORDER BY sa.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -764,7 +886,7 @@ func (r *sqlRepository) ListStaffAccounts(ctx context.Context, f ListFilter) ([]
 	out := make([]StaffAccount, 0)
 	for rows.Next() {
 		var a StaffAccount
-		if err := rows.Scan(&a.ID, &a.Name, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -856,11 +978,13 @@ func (r *sqlRepository) ResetCashierPassword(ctx context.Context, storeID, id in
 }
 
 func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) (StaffAccount, error) {
-	const q = `SELECT sa.id, sa.name, sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
-		FROM staff_accounts sa LEFT JOIN stores s ON s.id = sa.store_id
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+		FROM staff_accounts sa
+		LEFT JOIN stores s ON s.id = sa.store_id
+		LEFT JOIN members m ON m.id = sa.member_id
 		WHERE sa.id = ? AND sa.store_id = ?`
 	var a StaffAccount
-	err := r.db.QueryRowContext(ctx, q, id, storeID).Scan(&a.ID, &a.Name, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id, storeID).Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return StaffAccount{}, apperr.NotFound("staff account not found")
 	}
@@ -870,15 +994,26 @@ func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) 
 	return a, nil
 }
 
-// CreateStaffAccount creates a staff_accounts row not yet bound to a WeChat
-// identity; member_id/wechat_openid are populated later by the WeChat binding
-// flow, not by the store console.
-func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID int64, name string) (StaffAccount, error) {
-	const q = `INSERT INTO staff_accounts (name, store_id, status, token_version, created_at, updated_at)
-		VALUES (?, ?, 'active', 0, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, name, storeID)
+// CreateStaffAccount binds an existing mini-program member (by id) as store
+// staff, copying the member's openid into the staff_accounts row in a single
+// INSERT...SELECT. The staff display name is the provided name, falling back to
+// the member's nickname when blank. A member who does not exist inserts no row
+// (NotFound); a member already bound as staff collides on the member_id/openid
+// unique keys (Conflict).
+func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID, memberID int64, name string) (StaffAccount, error) {
+	const q = `INSERT INTO staff_accounts (member_id, wechat_openid, name, store_id, status, token_version, created_at, updated_at)
+		SELECT m.id, m.wechat_openid, COALESCE(NULLIF(?,''), NULLIF(m.nickname,''), '会员'), ?, 'active',
+			CAST(UNIX_TIMESTAMP(NOW(6)) * 1000000 AS UNSIGNED), NOW(), NOW()
+		FROM members m WHERE m.id = ? AND m.status = 'active'`
+	res, err := r.db.ExecContext(ctx, q, name, storeID, memberID)
 	if err != nil {
+		if platdb.IsDuplicate(err) {
+			return StaffAccount{}, apperr.Conflict("该会员已被绑定为员工")
+		}
 		return StaffAccount{}, apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return StaffAccount{}, apperr.NotFound("member not found")
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
@@ -921,11 +1056,13 @@ func (r *sqlRepository) DisableStaffAccount(ctx context.Context, storeID, id int
 // GetStaffAccountByID looks up a staff account by id alone, for the admin
 // console which is not pinned to a single store.
 func (r *sqlRepository) GetStaffAccountByID(ctx context.Context, id int64) (StaffAccount, error) {
-	const q = `SELECT sa.id, sa.name, sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
-		FROM staff_accounts sa LEFT JOIN stores s ON s.id = sa.store_id
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+		FROM staff_accounts sa
+		LEFT JOIN stores s ON s.id = sa.store_id
+		LEFT JOIN members m ON m.id = sa.member_id
 		WHERE sa.id = ?`
 	var a StaffAccount
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.Name, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return StaffAccount{}, apperr.NotFound("staff account not found")
 	}
@@ -933,6 +1070,33 @@ func (r *sqlRepository) GetStaffAccountByID(ctx context.Context, id int64) (Staf
 		return StaffAccount{}, apperr.Internal(err)
 	}
 	return a, nil
+}
+
+// DeleteStaffAccount removes the staff binding row scoped to the caller's own
+// store. Only the staff_accounts row is deleted — the underlying member account
+// is untouched. NotFound when no matching row exists.
+func (r *sqlRepository) DeleteStaffAccount(ctx context.Context, storeID, id int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM staff_accounts WHERE id = ? AND store_id = ?`, id, storeID)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return apperr.NotFound("staff account not found")
+	}
+	return nil
+}
+
+// DeleteStaffAccountByID removes any staff binding row (headquarters, not
+// store-scoped). Only the staff_accounts row is deleted; the member is untouched.
+func (r *sqlRepository) DeleteStaffAccountByID(ctx context.Context, id int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM staff_accounts WHERE id = ?`, id)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return apperr.NotFound("staff account not found")
+	}
+	return nil
 }
 
 // UpdateStaffAccountByID applies a partial update (name and/or store_id,
@@ -945,7 +1109,9 @@ func (r *sqlRepository) UpdateStaffAccountByID(ctx context.Context, id int64, st
 		args = append(args, *name)
 	}
 	if storeID != nil {
-		set = "store_id = ?, " + set
+		// A staff token embeds its store scope. Reassignment must invalidate the
+		// old token immediately so it cannot continue operating on the old store.
+		set = "store_id = ?, token_version = token_version + 1, " + set
 		args = append(args, *storeID)
 	}
 	args = append(args, id)

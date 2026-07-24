@@ -10,9 +10,10 @@ import "github.com/golang-jwt/jwt/v5"
 type Audience string
 
 const (
-	AudienceMini  Audience = "mini"  // WeChat mini program (member + staff)
-	AudienceAdmin Audience = "admin" // headquarters console
-	AudienceStore Audience = "store" // single-store console
+	AudienceMini     Audience = "mini"     // WeChat mini program (member + staff)
+	AudienceAdmin    Audience = "admin"    // headquarters console
+	AudienceStore    Audience = "store"    // single-store console
+	AudienceRegister Audience = "register" // pre-registration ticket (no member yet)
 )
 
 // SubjectType is the kind of identity behind the token.

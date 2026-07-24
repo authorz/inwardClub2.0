@@ -60,8 +60,12 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	g.GET("/recharge-products", a.memberHandler.RechargeProducts)
 	g.GET("/rankings", a.memberHandler.Rankings)
 
-	// Auth (login/refresh are public; logout/me require a token).
+	// Auth (login/register/refresh are public; logout/me require a token).
+	// Register is authorized by the ticket MiniLogin returns for a new user.
 	g.POST("/auth/wechat/login", a.authHandler.MiniLogin)
+	g.POST("/auth/wechat/register", a.authHandler.MiniRegister)
+	g.POST("/auth/wechat/register-avatar", a.authHandler.RegisterAvatar)
+	g.POST("/auth/wechat/phone-mask", a.authHandler.GetPhoneMask)
 	g.POST("/auth/refresh", a.authHandler.MiniRefresh)
 
 	p := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff))
@@ -103,6 +107,28 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/tickets", a.orderHandler.ListTickets)
 	p.GET("/reservations", a.reservationHandler.ListReservations)
 	p.GET("/reservations/:reservationID", a.reservationHandler.GetReservation)
+
+	// Mini-program staff operations use the mini audience with a staff-only
+	// subject. Store scope comes from the bound staff account in the JWT.
+	staff := g.Group(
+		"/staff",
+		mw.RequireAuth(authn.SubjectStaff),
+		storescope.Inject(),
+	)
+	staff.GET("/home", a.activityStoreHandler.StaffHome)
+	staff.GET("/point-savings", a.activityStoreHandler.ListPointSavings)
+	staff.GET("/point-savings/:requestID", a.activityStoreHandler.GetPointSaving)
+	staff.GET("/activities/today", a.activityStoreHandler.TodayActivities)
+	staff.GET("/verifications", a.activityStoreHandler.ListVerifications)
+
+	staffIdem := g.Group(
+		"/staff",
+		mw.RequireAuth(authn.SubjectStaff),
+		storescope.Inject(),
+		idempotency.Require(),
+	)
+	staffIdem.POST("/tickets/verify", a.activityStoreHandler.VerifyTicket)
+	staffIdem.POST("/point-savings/:requestID/review", a.activityStoreHandler.ReviewPointSaving)
 }
 
 // registerAdmin wires the headquarters console (aud=admin, super_admin only).
@@ -118,7 +144,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 
 	// Representative admin resources (business logic lands in later milestones).
 	p.GET("/stores", a.adminHandler.Stores)
-	p.GET("/catalog/items", a.adminHandler.CatalogItems)
+	p.GET("/catalog/items", a.catalogConsoleHandler.Items)
 	p.GET("/coupon-templates", a.adminHandler.CouponTemplates)
 	p.GET("/activities", a.adminHandler.Activities)
 	p.GET("/orders", a.adminHandler.Orders)
@@ -132,9 +158,13 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/refund-orders", a.adminHandler.Refunds)
 	p.POST("/refunds", a.paymentAdminHandler.CreateRefund)
 	p.GET("/members", a.adminHandler.Members)
+	p.GET("/member-lookup", a.adminHandler.AdminLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.MemberDetail)
 	p.GET("/wallet-ledger", a.adminHandler.WalletLedger)
 	p.GET("/admin-accounts", a.adminHandler.AdminAccounts)
+	p.POST("/admin-accounts", a.adminHandler.CreateAdminAccount)
+	p.PATCH("/admin-accounts/:accountID", a.adminHandler.UpdateAdminAccount)
+	p.DELETE("/admin-accounts/:accountID", a.adminHandler.DeleteAdminAccount)
 	p.POST("/admin-accounts/:accountID/disable", a.adminHandler.DisableAdminAccount)
 	p.GET("/store-admin-accounts", a.adminHandler.StoreAdminAccounts)
 	p.POST("/store-admin-accounts", a.adminHandler.CreateStoreAdminAccount)
@@ -144,6 +174,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/staff-accounts", a.adminHandler.AdminCreateStaffAccount)
 	p.PATCH("/staff-accounts/:staffID", a.adminHandler.AdminUpdateStaffAccount)
 	p.POST("/staff-accounts/:staffID/disable", a.adminHandler.AdminDisableStaffAccount)
+	p.DELETE("/staff-accounts/:staffID/binding", a.adminHandler.AdminDeleteStaffAccount)
 	p.GET("/audit-logs", a.adminHandler.AuditLogs)
 	p.GET("/membership-tiers", a.memberHandler.AdminMembershipTiers)
 	p.GET("/membership-tiers/:tierID", a.memberHandler.AdminGetMembershipTier)
@@ -208,7 +239,7 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.PUT("/catalog/categories/:id", a.catalogConsoleHandler.UpdateCategory)
 	p.DELETE("/catalog/categories/:id", a.catalogConsoleHandler.DeleteCategory)
 
-	// Catalog items (list read already registered as adminHandler.CatalogItems).
+	// Catalog items (list read already registered as catalogConsoleHandler.Items).
 	p.GET("/catalog/items/:id", a.catalogConsoleHandler.GetItem)
 	p.POST("/catalog/items", a.catalogConsoleHandler.CreateItem)
 	p.PUT("/catalog/items/:id", a.catalogConsoleHandler.UpdateItem)
@@ -279,6 +310,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/refunds", a.adminHandler.StoreRefunds)
 	p.GET("/refund-orders", a.adminHandler.StoreRefunds)
 	p.GET("/members", a.adminHandler.StoreMembers)
+	p.GET("/member-lookup", a.adminHandler.StoreLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.StoreMemberDetail)
 	p.GET("/wallet-ledger", a.adminHandler.StoreWalletLedger)
 	p.GET("/cashiers", a.adminHandler.StoreCashiers)
@@ -408,4 +440,5 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/staff-accounts", a.adminHandler.StoreCreateStaffAccount)
 	idem.PATCH("/staff-accounts/:staffID", a.adminHandler.StoreUpdateStaffAccount)
 	idem.POST("/staff-accounts/:staffID/disable", a.adminHandler.StoreDisableStaffAccount)
+	idem.DELETE("/staff-accounts/:staffID/binding", a.adminHandler.StoreDeleteStaffAccount)
 }

@@ -3,7 +3,10 @@ package admin
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/inwardclub/server/internal/modules/wallet"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -16,10 +19,11 @@ type fakeRepo struct {
 	lastFilter ListFilter
 	err        error
 
-	cashiers      map[int64]AdminAccount
-	staffAccounts map[int64]StaffAccount
-	adminAccounts map[int64]AdminAccount
-	nextID        int64
+	cashiers         map[int64]AdminAccount
+	staffAccounts    map[int64]StaffAccount
+	adminAccounts    map[int64]AdminAccount
+	nextID           int64
+	lastPasswordHash string
 
 	members map[int64]Member
 }
@@ -79,6 +83,22 @@ func (f *fakeRepo) GetMemberByID(_ context.Context, memberID int64) (Member, err
 		return Member{}, apperr.NotFound("member not found")
 	}
 	return Member{ID: memberID, Nickname: "n", Status: StatusActive}, nil
+}
+
+func (f *fakeRepo) SearchMembersByPhone(_ context.Context, phone string) ([]Member, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]Member, 0)
+	if f.members != nil {
+		for _, m := range f.members {
+			if strings.Contains(m.Phone, phone) {
+				out = append(out, m)
+			}
+		}
+		return out, nil
+	}
+	return []Member{{ID: 50, Nickname: "n", Phone: phone, Status: StatusActive}}, nil
 }
 
 func (f *fakeRepo) ListWalletLedger(_ context.Context, flt ListFilter) ([]WalletLedgerEntry, int64, error) {
@@ -141,7 +161,7 @@ func (f *fakeRepo) ListSuperAdmins(_ context.Context, flt ListFilter) ([]AdminAc
 	if f.err != nil {
 		return nil, 0, f.err
 	}
-	return []AdminAccount{{ID: 93, Username: "root", DisplayName: "Root Admin", Role: "super_admin"}}, 1, nil
+	return []AdminAccount{{ID: 93, Username: "superadmin", DisplayName: "System Admin", Role: "super_admin", IsSystem: true}}, 1, nil
 }
 func (f *fakeRepo) ListStoreAdmins(_ context.Context, flt ListFilter) ([]AdminAccount, int64, error) {
 	f.lastFilter = flt
@@ -161,6 +181,58 @@ func (f *fakeRepo) GetAdminAccountByID(_ context.Context, id int64) (AdminAccoun
 	}
 	return a, nil
 }
+func (f *fakeRepo) CreateSuperAdmin(_ context.Context, username, passwordHash, displayName string) (AdminAccount, error) {
+	if f.err != nil {
+		return AdminAccount{}, f.err
+	}
+	if f.adminAccounts == nil {
+		f.adminAccounts = map[int64]AdminAccount{}
+	}
+	for _, a := range f.adminAccounts {
+		if a.Username == username {
+			return AdminAccount{}, apperr.Conflict("username already exists")
+		}
+	}
+	f.lastPasswordHash = passwordHash
+	f.nextID++
+	a := AdminAccount{
+		ID: f.nextID, Username: username, DisplayName: displayName,
+		Role: "super_admin", Status: StatusActive,
+	}
+	f.adminAccounts[a.ID] = a
+	return a, nil
+}
+func (f *fakeRepo) UpdateSuperAdminByID(_ context.Context, id int64, displayName, passwordHash *string) (AdminAccount, error) {
+	if f.err != nil {
+		return AdminAccount{}, f.err
+	}
+	a, ok := f.adminAccounts[id]
+	if !ok || a.Role != "super_admin" {
+		return AdminAccount{}, apperr.NotFound("admin account not found")
+	}
+	if displayName != nil {
+		a.DisplayName = *displayName
+	}
+	if passwordHash != nil {
+		f.lastPasswordHash = *passwordHash
+	}
+	f.adminAccounts[id] = a
+	return a, nil
+}
+func (f *fakeRepo) DeleteSuperAdminByID(_ context.Context, id int64) error {
+	if f.err != nil {
+		return f.err
+	}
+	a, ok := f.adminAccounts[id]
+	if !ok || a.Role != "super_admin" {
+		return apperr.NotFound("admin account not found")
+	}
+	if a.IsSystem {
+		return apperr.Forbidden("system administrator cannot be deleted")
+	}
+	delete(f.adminAccounts, id)
+	return nil
+}
 func (f *fakeRepo) CreateStoreAdmin(_ context.Context, storeID int64, username, passwordHash, displayName string) (AdminAccount, error) {
 	if f.err != nil {
 		return AdminAccount{}, f.err
@@ -173,13 +245,14 @@ func (f *fakeRepo) CreateStoreAdmin(_ context.Context, storeID int64, username, 
 			return AdminAccount{}, apperr.Conflict("username already exists")
 		}
 	}
+	f.lastPasswordHash = passwordHash
 	f.nextID++
 	id := f.nextID
 	a := AdminAccount{ID: id, Username: username, DisplayName: displayName, Role: "store_admin", StoreID: &storeID, Status: StatusActive}
 	f.adminAccounts[id] = a
 	return a, nil
 }
-func (f *fakeRepo) UpdateStoreAdminByID(_ context.Context, id int64, storeID *int64, displayName *string) (AdminAccount, error) {
+func (f *fakeRepo) UpdateStoreAdminByID(_ context.Context, id int64, storeID *int64, displayName, passwordHash *string) (AdminAccount, error) {
 	if f.err != nil {
 		return AdminAccount{}, f.err
 	}
@@ -192,6 +265,9 @@ func (f *fakeRepo) UpdateStoreAdminByID(_ context.Context, id int64, storeID *in
 	}
 	if storeID != nil {
 		a.StoreID = storeID
+	}
+	if passwordHash != nil {
+		f.lastPasswordHash = *passwordHash
 	}
 	f.adminAccounts[id] = a
 	return a, nil
@@ -315,18 +391,55 @@ func (f *fakeRepo) GetStaffAccount(_ context.Context, storeID, id int64) (StaffA
 	return a, nil
 }
 
-func (f *fakeRepo) CreateStaffAccount(_ context.Context, storeID int64, name string) (StaffAccount, error) {
+func (f *fakeRepo) CreateStaffAccount(_ context.Context, storeID, memberID int64, name string) (StaffAccount, error) {
 	if f.err != nil {
 		return StaffAccount{}, f.err
 	}
 	if f.staffAccounts == nil {
 		f.staffAccounts = map[int64]StaffAccount{}
 	}
+	phone := ""
+	if f.members != nil {
+		m, ok := f.members[memberID]
+		if !ok {
+			return StaffAccount{}, apperr.NotFound("member not found")
+		}
+		if name == "" {
+			name = m.Nickname
+		}
+		phone = m.Phone
+	}
+	if name == "" {
+		name = "会员"
+	}
 	f.nextID++
 	id := f.nextID
-	a := StaffAccount{ID: id, Name: name, StoreID: storeID, Status: StatusActive}
+	a := StaffAccount{ID: id, MemberID: memberID, Name: name, Phone: phone, StoreID: storeID, Status: StatusActive}
 	f.staffAccounts[id] = a
 	return a, nil
+}
+
+func (f *fakeRepo) DeleteStaffAccount(_ context.Context, storeID, id int64) error {
+	if f.err != nil {
+		return f.err
+	}
+	a, ok := f.staffAccounts[id]
+	if !ok || a.StoreID != storeID {
+		return apperr.NotFound("staff account not found")
+	}
+	delete(f.staffAccounts, id)
+	return nil
+}
+
+func (f *fakeRepo) DeleteStaffAccountByID(_ context.Context, id int64) error {
+	if f.err != nil {
+		return f.err
+	}
+	if _, ok := f.staffAccounts[id]; !ok {
+		return apperr.NotFound("staff account not found")
+	}
+	delete(f.staffAccounts, id)
+	return nil
 }
 
 func (f *fakeRepo) UpdateStaffAccount(_ context.Context, storeID, id int64, name string) (StaffAccount, error) {
@@ -628,8 +741,73 @@ func TestListSuperAdminsMapsAndPassesTotal(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("expected total 1, got %d", total)
 	}
-	if len(views) != 1 || views[0].Role != "super_admin" {
+	if len(views) != 1 || views[0].Role != "super_admin" || !views[0].IsSystem {
 		t.Fatalf("unexpected views: %+v", views)
+	}
+}
+
+func TestCreateSuperAdminHashesProvidedPassword(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	view, err := svc.CreateSuperAdmin(context.Background(), AdminAccountCreateRequest{
+		Username: "ops-admin", Password: "secret", DisplayName: "Ops Admin",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if view.Username != "ops-admin" || view.Role != "super_admin" || view.IsSystem {
+		t.Fatalf("unexpected view: %+v", view)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(repo.lastPasswordHash), []byte("secret")); err != nil {
+		t.Fatalf("stored hash does not match password: %v", err)
+	}
+}
+
+func TestUpdateSystemAdminAllowsPasswordChange(t *testing.T) {
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "superadmin", Role: "super_admin", IsSystem: true, Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+	password := "new-secret"
+
+	view, err := svc.UpdateSuperAdmin(context.Background(), 1, AdminAccountUpdateRequest{Password: &password})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if !view.IsSystem {
+		t.Fatalf("system status was lost: %+v", view)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(repo.lastPasswordHash), []byte(password)); err != nil {
+		t.Fatalf("stored hash does not match new password: %v", err)
+	}
+}
+
+func TestDeleteSuperAdminRemovesNonSystemAccount(t *testing.T) {
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		2: {ID: 2, Username: "ops-admin", Role: "super_admin", Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	if err := svc.DeleteSuperAdmin(context.Background(), 2); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, ok := repo.adminAccounts[2]; ok {
+		t.Fatal("expected account to be deleted")
+	}
+}
+
+func TestSystemAdminCannotBeDisabledOrDeleted(t *testing.T) {
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "superadmin", Role: "super_admin", IsSystem: true, Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	if _, err := svc.DisableAdminAccount(context.Background(), 1); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("expected PERMISSION_DENIED for disable, got %v", err)
+	}
+	if err := svc.DeleteSuperAdmin(context.Background(), 1); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("expected PERMISSION_DENIED for delete, got %v", err)
 	}
 }
 
@@ -676,26 +854,37 @@ func TestListStoreAdminsMapsAndPassesTotal(t *testing.T) {
 	}
 }
 
-func TestCreateStoreAdminGeneratesPasswordAndScopesToStore(t *testing.T) {
+func TestCreateStoreAdminHashesProvidedPasswordAndScopesToStore(t *testing.T) {
 	repo := &fakeRepo{}
 	svc := NewService(repo, fakeStores{}, nil)
 
-	v, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{StoreID: 42, Username: "sa1", DisplayName: "SA One"})
+	v, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{
+		StoreID: 42, Username: "sa1", Password: "chosen-secret", DisplayName: "SA One",
+	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if v.InitialPassword == "" || v.StoreID == nil || *v.StoreID != 42 || v.Role != "store_admin" {
+	if v.StoreID == nil || *v.StoreID != 42 || v.Role != "store_admin" {
 		t.Fatalf("unexpected view: %+v", v)
+	}
+	if repo.lastPasswordHash == "chosen-secret" {
+		t.Fatal("plaintext password was passed to the repository")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(repo.lastPasswordHash), []byte("chosen-secret")); err != nil {
+		t.Fatalf("stored hash does not match provided password: %v", err)
 	}
 }
 
-func TestCreateStoreAdminRejectsMissingStoreOrUsername(t *testing.T) {
+func TestCreateStoreAdminRejectsMissingStoreUsernameOrPassword(t *testing.T) {
 	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
-	if _, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{Username: "sa1"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+	if _, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{Username: "sa1", Password: "secret"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for missing storeId, got %v", err)
 	}
-	if _, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{StoreID: 42}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+	if _, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{StoreID: 42, Password: "secret"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for missing username, got %v", err)
+	}
+	if _, err := svc.CreateStoreAdmin(context.Background(), StoreAdminCreateRequest{StoreID: 42, Username: "sa1"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for missing password, got %v", err)
 	}
 }
 
@@ -717,10 +906,33 @@ func TestUpdateStoreAdminCanReassignStore(t *testing.T) {
 	}
 }
 
+func TestUpdateStoreAdminHashesProvidedPassword(t *testing.T) {
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "sa1", DisplayName: "SA One", Role: "store_admin", StoreID: &storeID, Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	password := "new-secret"
+	if _, err := svc.UpdateStoreAdmin(context.Background(), 1, StoreAdminUpdateRequest{Password: &password}); err != nil {
+		t.Fatalf("update password: %v", err)
+	}
+	if repo.lastPasswordHash == password {
+		t.Fatal("plaintext password was passed to the repository")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(repo.lastPasswordHash), []byte(password)); err != nil {
+		t.Fatalf("stored hash does not match new password: %v", err)
+	}
+}
+
 func TestUpdateStoreAdminRejectsEmptyBody(t *testing.T) {
 	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
 	if _, err := svc.UpdateStoreAdmin(context.Background(), 1, StoreAdminUpdateRequest{}); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+	}
+	emptyPassword := ""
+	if _, err := svc.UpdateStoreAdmin(context.Background(), 1, StoreAdminUpdateRequest{Password: &emptyPassword}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for empty password, got %v", err)
 	}
 }
 
@@ -990,30 +1202,38 @@ func TestStoreResetCashierPasswordGeneratesNewPassword(t *testing.T) {
 	}
 }
 
+// staffMemberRepo returns a fakeRepo pre-seeded with one registered member
+// (id 7) so staff-binding tests can bind by memberId.
+func staffMemberRepo() *fakeRepo {
+	return &fakeRepo{members: map[int64]Member{
+		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive},
+	}}
+}
+
 func TestStoreCreateStaffAccountScopesToStore(t *testing.T) {
-	repo := &fakeRepo{}
+	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	view, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{Name: "Waiter Wang"})
+	view, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if view.Name != "Waiter Wang" || view.StoreID != 42 {
+	if view.Name != "Waiter Wang" || view.StoreID != 42 || view.MemberID != 7 {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 }
 
-func TestStoreCreateStaffAccountRejectsEmptyName(t *testing.T) {
+func TestStoreCreateStaffAccountRejectsMissingMember(t *testing.T) {
 	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
-	_, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{Name: " "})
+	_, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 0})
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
 	}
 }
 
 func TestStoreUpdateStaffAccountCannotReachOtherStore(t *testing.T) {
-	repo := &fakeRepo{}
+	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{Name: "Waiter Wang"})
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -1024,10 +1244,31 @@ func TestStoreUpdateStaffAccountCannotReachOtherStore(t *testing.T) {
 	}
 }
 
-func TestStoreDisableStaffAccountInvalidatesAccount(t *testing.T) {
-	repo := &fakeRepo{}
+func TestStoreDeleteStaffAccountRemovesBinding(t *testing.T) {
+	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{Name: "Waiter Wang"})
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// Cross-store delete must not reach another store's binding.
+	if err := svc.StoreDeleteStaffAccount(context.Background(), 99, created.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected NOT_FOUND for cross-store delete, got %v", err)
+	}
+	if err := svc.StoreDeleteStaffAccount(context.Background(), 42, created.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	// The binding is gone; the member account itself is not tracked here, but the
+	// staff row must no longer resolve.
+	if _, err := repo.GetStaffAccount(context.Background(), 42, created.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected staff binding removed, got %v", err)
+	}
+}
+
+func TestStoreDisableStaffAccountInvalidatesAccount(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -1040,32 +1281,62 @@ func TestStoreDisableStaffAccountInvalidatesAccount(t *testing.T) {
 	}
 }
 
-func TestAdminCreateStaffAccountUsesRequestedStore(t *testing.T) {
-	repo := &fakeRepo{}
+func TestSearchMembersByPhone(t *testing.T) {
+	repo := staffMemberRepo() // member 7, phone 13800000007
 	svc := NewService(repo, fakeStores{}, nil)
-	view, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42, Name: "Waiter Wang"})
+
+	// Tail-number (suffix) fuzzy match hits the member.
+	views, err := svc.SearchMembersByPhone(context.Background(), "0007")
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(views) != 1 || views[0].ID != 7 || views[0].Nickname != "Waiter Wang" ||
+		views[0].Phone != "138****0007" {
+		t.Fatalf("unexpected results: %+v", views)
+	}
+	// Too-short fragment is rejected.
+	if _, err := svc.SearchMembersByPhone(context.Background(), "00"); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for <3 chars, got %v", err)
+	}
+	if _, err := svc.SearchMembersByPhone(context.Background(), "%%%"); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for wildcard input, got %v", err)
+	}
+	if _, err := svc.SearchMembersByPhone(context.Background(), "138000000071"); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for >11 digits, got %v", err)
+	}
+	// No match returns an empty list (not an error).
+	empty, err := svc.SearchMembersByPhone(context.Background(), "999")
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("expected empty result, got %+v err=%v", empty, err)
+	}
+}
+
+func TestAdminCreateStaffAccountUsesRequestedStore(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	view, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42, MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if view.Name != "Waiter Wang" || view.StoreID != 42 {
+	if view.Name != "Waiter Wang" || view.StoreID != 42 || view.MemberID != 7 {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 }
 
-func TestAdminCreateStaffAccountRejectsMissingStoreOrName(t *testing.T) {
+func TestAdminCreateStaffAccountRejectsMissingStoreOrMember(t *testing.T) {
 	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
-	if _, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{Name: "Waiter Wang"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+	if _, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{MemberID: 7}); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for missing storeId, got %v", err)
 	}
-	if _, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42, Name: " "}); apperr.From(err).Code != apperr.CodeInvalidArgument {
-		t.Fatalf("expected INVALID_ARGUMENT for missing name, got %v", err)
+	if _, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for missing memberId, got %v", err)
 	}
 }
 
 func TestAdminUpdateStaffAccountCanReassignStore(t *testing.T) {
-	repo := &fakeRepo{}
+	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	created, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42, Name: "Waiter Wang"})
+	created, err := svc.AdminCreateStaffAccount(context.Background(), AdminStaffAccountCreateRequest{StoreID: 42, MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -1088,9 +1359,9 @@ func TestAdminUpdateStaffAccountRejectsEmptyBody(t *testing.T) {
 }
 
 func TestAdminDisableStaffAccountWorksAcrossStores(t *testing.T) {
-	repo := &fakeRepo{}
+	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{Name: "Waiter Wang"})
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -1100,6 +1371,21 @@ func TestAdminDisableStaffAccountWorksAcrossStores(t *testing.T) {
 	}
 	if view.Status != "disabled" {
 		t.Fatalf("expected disabled status, got %+v", view)
+	}
+}
+
+func TestAdminDeleteStaffAccountRemovesBinding(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := svc.AdminDeleteStaffAccount(context.Background(), created.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := repo.GetStaffAccountByID(context.Background(), created.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected staff binding removed, got %v", err)
 	}
 }
 

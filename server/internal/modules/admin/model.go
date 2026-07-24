@@ -194,6 +194,7 @@ type AdminAccount struct {
 	Username    string
 	DisplayName string
 	Role        string
+	IsSystem    bool
 	StoreID     *int64
 	StoreName   string
 	Status      string
@@ -202,9 +203,12 @@ type AdminAccount struct {
 
 // StaffAccount is the console read model for a staff_accounts row: a
 // WeChat-bound store staff identity, distinct from admin_accounts login accounts.
+// MemberID/Phone come from the bound member (staff_accounts.member_id → members).
 type StaffAccount struct {
 	ID        int64
+	MemberID  int64
 	Name      string
+	Phone     string
 	StoreID   int64
 	StoreName string
 	Status    string

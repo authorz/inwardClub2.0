@@ -1,6 +1,10 @@
 package auth
 
 import (
+	"mime"
+	"path/filepath"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/inwardclub/server/internal/platform/authn"
@@ -29,6 +33,86 @@ func (h *Handler) MiniLogin(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, resp)
+}
+
+// MiniRegister handles POST /mini/auth/wechat/register — completing a first-time
+// member's profile form. This is what actually creates the member row.
+func (h *Handler) MiniRegister(c *gin.Context) {
+	var req WeChatRegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	resp, err := h.svc.MiniRegister(c.Request.Context(), req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, resp)
+}
+
+// GetPhoneMask handles POST /mini/auth/wechat/phone-mask — decrypts the WeChat
+// phone code once during registration and returns the masked phone number for
+// display plus a fresh register ticket carrying the authorized phone. The client
+// submits the returned ticket to /register. No session required (the register
+// ticket authorizes it).
+func (h *Handler) GetPhoneMask(c *gin.Context) {
+	var req struct {
+		RegisterTicket string `json:"registerTicket" binding:"required"`
+		PhoneCode      string `json:"phoneCode" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	masked, ticket, err := h.svc.GetPhoneMask(c.Request.Context(), req.RegisterTicket, req.PhoneCode)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, map[string]string{"phoneMasked": masked, "registerTicket": ticket})
+}
+
+// RegisterAvatar handles POST /mini/auth/wechat/register-avatar — a multipart
+// upload of the first-time user's chosen avatar during registration. Authorized
+// by the register ticket (form field), it uploads the file to object storage and
+// returns its public https URL for the client to submit to /register.
+func (h *Handler) RegisterAvatar(c *gin.Context) {
+	ticket := c.PostForm("registerTicket")
+	if ticket == "" {
+		httpx.Fail(c, apperr.Invalid("registerTicket is required"))
+		return
+	}
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		httpx.Fail(c, apperr.Invalid("file is required"))
+		return
+	}
+	defer file.Close()
+
+	// Resolve the content type from the multipart part, falling back to the
+	// filename extension when the client omits or mis-sets it (some mini-program
+	// clients send application/octet-stream).
+	contentType := header.Header.Get("Content-Type")
+	if _, ok := allowedAvatarMimes[contentType]; !ok {
+		contentType = mime.TypeByExtension(strings.ToLower(filepath.Ext(header.Filename)))
+	}
+
+	url, err := h.svc.RegisterAvatar(c.Request.Context(), ticket, file, header.Size, contentType)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, map[string]string{"avatarUrl": url})
+}
+
+// allowedAvatarMimes mirrors the asset module's image MIME allowlist so the
+// handler can decide whether to trust the multipart part's declared type or fall
+// back to the filename extension.
+var allowedAvatarMimes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/webp": true,
 }
 
 // AdminLogin handles POST /admin/auth/login.
@@ -114,7 +198,7 @@ func (h *Handler) accountMe(c *gin.Context) {
 // MiniLogout handles POST /mini/auth/logout.
 func (h *Handler) MiniLogout(c *gin.Context) {
 	claims := authn.MustFromContext(c)
-	if err := h.svc.LogoutMember(c.Request.Context(), claims.SubjectID()); err != nil {
+	if err := h.svc.LogoutMini(c.Request.Context(), claims.SubjectType, claims.SubjectID()); err != nil {
 		httpx.Fail(c, err)
 		return
 	}

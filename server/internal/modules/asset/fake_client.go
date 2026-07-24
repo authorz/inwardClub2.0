@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -90,9 +91,14 @@ func (f *FakeObjectStore) VerifyUploadCallback(req *http.Request) (CallbackPaylo
 	return payload, nil
 }
 
-// PublicURL joins the public domain with the object key.
+// PublicURL joins the public domain with the object key. If the configured
+// public domain carries no scheme, https:// is assumed (mirrors the real store).
 func (f *FakeObjectStore) PublicURL(objectKey string) string {
-	return f.publicDomain + "/" + objectKey
+	domain := strings.TrimRight(f.publicDomain, "/")
+	if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+		domain = "https://" + domain
+	}
+	return domain + "/" + objectKey
 }
 
 // PrivateURL appends a fake short-lived token.

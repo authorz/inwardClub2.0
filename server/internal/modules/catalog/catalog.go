@@ -1,6 +1,5 @@
-// Package catalog owns categories, items and variants. Phase-1 exposes the
-// mini-program public read paths; global/store CRUD is layered on later using the
-// same scope_type/store_id model.
+// Package catalog owns store-bound categories, items and variants for both
+// console management and mini-program reads.
 package catalog
 
 import (
@@ -26,6 +25,7 @@ type Category struct {
 	ID        int64
 	ScopeType string
 	StoreID   *int64
+	StoreName string
 	ParentID  *int64
 	Name      string
 	AssetID   *int64
@@ -38,7 +38,9 @@ type Item struct {
 	ID            int64
 	ScopeType     string
 	StoreID       *int64
+	StoreName     string
 	CategoryID    *int64
+	CategoryName  string
 	Name          string
 	Description   string
 	AssetID       *int64
@@ -96,7 +98,7 @@ func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 func (r *sqlRepository) ListCategoriesForStore(ctx context.Context, storeID int64) ([]Category, error) {
 	const q = `SELECT id, scope_type, store_id, parent_id, name, asset_id, sort_order, status
 		FROM catalog_categories
-		WHERE status = 'active' AND (scope_type = 'global' OR store_id = ?)
+		WHERE status = 'active' AND scope_type = 'store' AND store_id = ?
 		ORDER BY sort_order ASC, id ASC`
 	rows, err := r.db.QueryContext(ctx, q, storeID)
 	if err != nil {
@@ -115,7 +117,7 @@ func (r *sqlRepository) ListCategoriesForStore(ctx context.Context, storeID int6
 }
 
 func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, categoryID *int64, limit, offset int) ([]Item, int64, error) {
-	where := `status = 'published' AND (scope_type = 'global' OR store_id = ?)`
+	where := `status = 'published' AND scope_type = 'store' AND store_id = ?`
 	args := []any{storeID}
 	if categoryID != nil {
 		where += ` AND category_id = ?`

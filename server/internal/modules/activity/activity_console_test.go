@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -15,6 +16,12 @@ type fakeConsoleRepo struct {
 	lastScope      ConsoleScope
 	lastActivityID int64
 	err            error
+}
+
+type consoleAssetResolver struct{}
+
+func (consoleAssetResolver) PublicURLByID(_ context.Context, id int64) (string, error) {
+	return "https://cdn.test/assets/" + strconv.FormatInt(id, 10), nil
 }
 
 func (f *fakeConsoleRepo) ListActivities(_ context.Context, scope ConsoleScope, _ httpx.Page) ([]Activity, int64, error) {
@@ -31,7 +38,11 @@ func (f *fakeConsoleRepo) GetActivity(_ context.Context, scope ConsoleScope, id 
 	if f.err != nil {
 		return Activity{}, f.err
 	}
-	return Activity{ID: id, ScopeType: "store", Title: "Spring Fair", Status: "draft"}, nil
+	assetID := int64(9)
+	return Activity{
+		ID: id, ScopeType: "store", Title: "Spring Fair", AssetID: &assetID,
+		PurchaseLimit: 3, Status: "draft",
+	}, nil
 }
 
 func (f *fakeConsoleRepo) CreateActivity(context.Context, ConsoleScope, ActivityInput) (Activity, error) {
@@ -111,14 +122,17 @@ func TestConsoleListActivitiesPropagatesScope(t *testing.T) {
 
 func TestConsoleGetActivityMaps(t *testing.T) {
 	repo := &fakeConsoleRepo{}
-	svc := NewConsoleService(repo)
+	svc := NewConsoleService(repo, consoleAssetResolver{})
 
 	view, err := svc.GetActivity(context.Background(), ConsoleScope{}, 7)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if view.ID != 7 || view.Title != "Spring Fair" {
+	if view.ID != 7 || view.Title != "Spring Fair" || view.PurchaseLimitPerMember != 3 {
 		t.Fatalf("unexpected view: %+v", view)
+	}
+	if view.ImageURL != "https://cdn.test/assets/9" {
+		t.Fatalf("unexpected image URL: %q", view.ImageURL)
 	}
 }
 
@@ -171,14 +185,18 @@ func TestEncodeChannels(t *testing.T) {
 	}
 }
 
-// scopeInsert pins a store console to its own scope and defaults the admin
-// console to global rows.
-func TestScopeInsert(t *testing.T) {
-	if st, sid := scopeInsert(ConsoleScope{}); st != "global" || sid != nil {
+// scopeWrite pins a store console to its own scope while allowing the admin
+// console to choose a specific store or a global row.
+func TestScopeWrite(t *testing.T) {
+	if st, sid := scopeWrite(ConsoleScope{}, nil); st != "global" || sid != nil {
 		t.Fatalf("admin scope: expected global/nil, got %q %v", st, sid)
 	}
 	storeID := int64(7)
-	if st, sid := scopeInsert(ConsoleScope{StoreID: &storeID}); st != "store" || sid != int64(7) {
+	if st, sid := scopeWrite(ConsoleScope{}, &storeID); st != "store" || sid != int64(7) {
+		t.Fatalf("admin store binding: expected store/7, got %q %v", st, sid)
+	}
+	otherStoreID := int64(8)
+	if st, sid := scopeWrite(ConsoleScope{StoreID: &storeID}, &otherStoreID); st != "store" || sid != int64(7) {
 		t.Fatalf("store scope: expected store/7, got %q %v", st, sid)
 	}
 }

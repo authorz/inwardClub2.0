@@ -18,7 +18,7 @@ import (
 // Implementations are backed by the member/account stores and are audience-
 // specific (member-backed for mini, account-backed for admin/store).
 type TokenVersionChecker interface {
-	CurrentTokenVersion(ctx context.Context, subjectID int64) (int64, error)
+	CurrentTokenVersion(ctx context.Context, subjectType SubjectType, subjectID int64) (int64, error)
 }
 
 // Middleware verifies bearer tokens for a fixed audience and stores the claims
@@ -84,7 +84,9 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 		// outdated token_version. This is the last gate because it is the only
 		// one that touches the datastore; all cheaper structural checks run first.
 		if m.versions != nil {
-			current, err := m.versions.CurrentTokenVersion(c.Request.Context(), claims.SubjectID())
+			current, err := m.versions.CurrentTokenVersion(
+				c.Request.Context(), claims.SubjectType, claims.SubjectID(),
+			)
 			if err != nil {
 				if apperr.From(err).Code == apperr.CodeNotFound {
 					httpx.Fail(c, apperr.Unauthenticated("session expired"))

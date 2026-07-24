@@ -8,12 +8,12 @@ import (
 
 // devCORSOrigins is the fixed allowlist of local-development front-end origins
 // permitted to make cross-origin browser requests: the admin console (Vite
-// dev server on :5182) and the store console (Vite dev server on :5183). Only
+// dev server on :5180) and the store console (Vite dev server on :5181). Only
 // these exact loopback origins are ever reflected; every other Origin is left
 // untouched, so this stays inert for real traffic.
 var devCORSOrigins = map[string]bool{
-	"http://127.0.0.1:5182": true,
-	"http://127.0.0.1:5183": true,
+	"http://127.0.0.1:5180": true,
+	"http://127.0.0.1:5181": true,
 }
 
 // devCORSAllowHeaders is the exact set of request headers the two consoles send

@@ -25,6 +25,7 @@ type Member struct {
 type ProfileUpdate struct {
 	Nickname      *string
 	AvatarAssetID *int64
+	AvatarURL     *string
 }
 
 // Invitee is a member that the current member has invited.

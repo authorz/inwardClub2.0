@@ -195,3 +195,23 @@ func TestStoreUpdateKeepsScope(t *testing.T) {
 		t.Fatalf("scope must stay pinned, got %+v", v)
 	}
 }
+
+func TestAdminUpdateStoreBannerToGlobalClearsStoreID(t *testing.T) {
+	svc, repo := newBannerSvc()
+	storeID := int64(7)
+	ctx := context.Background()
+	repo.CreateBanner(ctx, Banner{
+		ScopeType: BannerScopeStore,
+		StoreID:   &storeID,
+		AssetID:   1,
+	})
+
+	global := BannerScopeGlobal
+	v, err := svc.AdminUpdate(ctx, 1, BannerPatch{ScopeType: &global})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if v.ScopeType != BannerScopeGlobal || v.StoreID != nil {
+		t.Fatalf("expected global banner without store, got %+v", v)
+	}
+}

@@ -3,8 +3,9 @@ package member
 // UpdateProfileRequest is the PATCH /mini/me body. Fields are optional; only the
 // provided ones are updated.
 type UpdateProfileRequest struct {
-	Nickname *string `json:"nickname"`
-	AssetID  *int64  `json:"assetId"`
+	Nickname  *string `json:"nickname"`
+	AssetID   *int64  `json:"assetId"`
+	AvatarURL *string `json:"avatarUrl"`
 }
 
 // BindPhoneRequest is the POST /mini/me/phone-bindings body. Code is the WeChat

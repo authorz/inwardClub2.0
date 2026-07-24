@@ -218,16 +218,34 @@ type AdminAccountView struct {
 	Username    string    `json:"username"`
 	DisplayName string    `json:"displayName"`
 	Role        string    `json:"role"`
+	IsSystem    bool      `json:"isSystem"`
 	StoreID     *int64    `json:"storeId,omitempty"`
 	StoreName   string    `json:"storeName,omitempty"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+// AdminAccountCreateRequest is the POST /admin/admin-accounts body.
+type AdminAccountCreateRequest struct {
+	Username    string `json:"username"`
+	Password    string `json:"password" binding:"required"`
+	DisplayName string `json:"displayName"`
+}
+
+// AdminAccountUpdateRequest is the PATCH /admin/admin-accounts/:accountID
+// body. Username and system status are immutable.
+type AdminAccountUpdateRequest struct {
+	DisplayName *string `json:"displayName,omitempty"`
+	Password    *string `json:"password,omitempty"`
+}
+
 // StaffAccountView is the console list representation of a staff_accounts row.
+// MemberID/Phone identify the bound mini-program member.
 type StaffAccountView struct {
 	ID        int64     `json:"id"`
+	MemberID  int64     `json:"memberId,omitempty"`
 	Name      string    `json:"name"`
+	Phone     string    `json:"phone,omitempty"`
 	StoreID   int64     `json:"storeId"`
 	StoreName string    `json:"storeName,omitempty"`
 	Status    string    `json:"status"`
@@ -255,9 +273,14 @@ type CashierCredentialView struct {
 	InitialPassword string `json:"initialPassword"`
 }
 
-// StaffAccountCreateRequest is the POST /store/staff-accounts body.
+// StaffAccountCreateRequest is the POST /store/staff-accounts body. A staff
+// member must already be a registered mini-program member; the store binds them
+// by memberId (resolved via GET /store/member-lookup?phone=). Name is the staff
+// display name entered on the create form; when blank it falls back to the
+// member's nickname.
 type StaffAccountCreateRequest struct {
-	Name string `json:"name"`
+	MemberID int64  `json:"memberId" binding:"required"`
+	Name     string `json:"name"`
 }
 
 // StaffAccountUpdateRequest is the PATCH /store/staff-accounts/:staffID body.
@@ -266,11 +289,14 @@ type StaffAccountUpdateRequest struct {
 }
 
 // AdminStaffAccountCreateRequest is the POST /admin/staff-accounts body. Unlike
-// the store console, the admin console is not pinned to one store, so the
-// target store is supplied by the caller.
+// the store console, the admin console is not pinned to one store, so the target
+// store is supplied by the caller. The staff member must already be a registered
+// mini-program member, bound by memberId (resolved via
+// GET /admin/member-lookup?phone=).
 type AdminStaffAccountCreateRequest struct {
-	StoreID int64  `json:"storeId"`
-	Name    string `json:"name"`
+	StoreID  int64  `json:"storeId" binding:"required"`
+	MemberID int64  `json:"memberId" binding:"required"`
+	Name     string `json:"name"`
 }
 
 // AdminStaffAccountUpdateRequest is the PATCH /admin/staff-accounts/:staffID
@@ -282,19 +308,22 @@ type AdminStaffAccountUpdateRequest struct {
 }
 
 // StoreAdminCreateRequest is the POST /admin/store-admin-accounts body: a
-// headquarters-created store_admin login account, pinned to storeId.
+// headquarters-created store_admin login account, pinned to storeId and using
+// the caller-supplied initial password.
 type StoreAdminCreateRequest struct {
 	StoreID     int64  `json:"storeId"`
 	Username    string `json:"username"`
+	Password    string `json:"password" binding:"required"`
 	DisplayName string `json:"displayName"`
 }
 
 // StoreAdminUpdateRequest is the PATCH /admin/store-admin-accounts/:accountID
-// body. A nil field is left unchanged; storeId reassigns the account to a
-// different store.
+// body. A nil field is left unchanged; storeId reassigns the account and
+// password replaces the login password.
 type StoreAdminUpdateRequest struct {
 	StoreID     *int64  `json:"storeId,omitempty"`
 	DisplayName *string `json:"displayName,omitempty"`
+	Password    *string `json:"password,omitempty"`
 }
 
 // StoreProfileView is the single store profile returned to the store console.

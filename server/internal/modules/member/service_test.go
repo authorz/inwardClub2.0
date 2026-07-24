@@ -454,8 +454,15 @@ func TestCurrentTierView(t *testing.T) {
 	}
 }
 
-func TestCurrentTierViewUnranked(t *testing.T) {
+func TestCurrentTierViewUnrankedFallsBackToBaseTier(t *testing.T) {
 	repo := newFakeRepo()
+	banner := int64(8)
+	// Active tiers ordered by level ASC (as the real query returns them); the
+	// first is the base tier (VIP1, threshold 0).
+	repo.tiers = []MembershipTier{
+		{ID: 1, Name: "VIP1", Level: 1, Threshold: 0, BannerAssetID: &banner, Status: StatusActive},
+		{ID: 2, Name: "VIP2", Level: 2, Threshold: 1000, Status: StatusActive},
+	}
 	repo.members[5] = &Member{ID: 5, Status: StatusActive} // no CurrentTierID
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -463,13 +470,28 @@ func TestCurrentTierViewUnranked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current tier: %v", err)
 	}
-	if view != nil {
-		t.Fatalf("expected nil view for unranked member, got %+v", view)
+	if view == nil || view.Name != "VIP1" || view.BannerURL != "https://cdn.test/asset/8" {
+		t.Fatalf("expected base tier VIP1 with banner for unranked member, got %+v", view)
 	}
 }
 
-func TestCurrentTierViewDanglingReference(t *testing.T) {
+func TestCurrentTierViewUnrankedNoTiersConfigured(t *testing.T) {
+	repo := newFakeRepo() // no tiers at all
+	repo.members[5] = &Member{ID: 5, Status: StatusActive}
+	svc := NewService(repo, fakeAssets{}, nil)
+
+	view, err := svc.CurrentTierView(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("current tier: %v", err)
+	}
+	if view != nil {
+		t.Fatalf("expected nil view when no tiers configured, got %+v", view)
+	}
+}
+
+func TestCurrentTierViewDanglingReferenceFallsBackToBaseTier(t *testing.T) {
 	repo := newFakeRepo()
+	repo.tiers = []MembershipTier{{ID: 1, Name: "VIP1", Level: 1, Threshold: 0, Status: StatusActive}}
 	missing := int64(99)
 	repo.members[5] = &Member{ID: 5, CurrentTierID: &missing, Status: StatusActive}
 	svc := NewService(repo, fakeAssets{}, nil)
@@ -478,8 +500,8 @@ func TestCurrentTierViewDanglingReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current tier: %v", err)
 	}
-	if view != nil {
-		t.Fatalf("expected nil view for dangling tier reference, got %+v", view)
+	if view == nil || view.Name != "VIP1" {
+		t.Fatalf("expected fall back to base tier VIP1 for dangling reference, got %+v", view)
 	}
 }
 

@@ -2,6 +2,7 @@ package asset
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -85,6 +86,35 @@ func (s *Service) CreateUploadCredential(ctx context.Context, caller Caller, req
 		MaxSizeBytes: policy.maxSize,
 		Visibility:   visibility,
 	})
+}
+
+// UploadAvatar uploads a registration avatar straight to object storage under an
+// avatar object key and returns its public URL. Unlike the credential flow it
+// needs no caller identity or pending-asset row — it exists for the
+// pre-registration form, where no member (hence no upload-credential caller) yet
+// exists. The member row stores the returned URL directly in avatar_url.
+func (s *Service) UploadAvatar(ctx context.Context, r io.Reader, size int64, contentType string) (string, error) {
+	ext, ok := imageMimes[contentType]
+	if !ok {
+		return "", apperr.Invalid("content type not allowed for avatar")
+	}
+	if size <= 0 || size > policies[UploadPurposeAvatar].maxSize {
+		return "", apperr.Invalid("file size out of allowed range")
+	}
+	key, err := buildObjectKey(s.env, UploadPurposeAvatar, 0, ext)
+	if err != nil {
+		return "", apperr.Internal(err)
+	}
+	out, err := s.store.UploadPublicObject(ctx, PublicUploadInput{
+		ObjectKey:   key,
+		Reader:      r,
+		SizeBytes:   size,
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", err
+	}
+	return out.PublicURL, nil
 }
 
 // HandleCallback verifies the callback signature, matches the pending asset and

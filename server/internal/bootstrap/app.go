@@ -6,6 +6,7 @@ package bootstrap
 import (
 	"context"
 	"log/slog"
+	"os"
 
 	"github.com/inwardclub/server/internal/modules/activity"
 	"github.com/inwardclub/server/internal/modules/admin"
@@ -36,8 +37,8 @@ type App struct {
 	tokens *authn.Manager
 
 	// Per-audience token-version checkers make the access-token middleware reject
-	// tokens invalidated by a logout/disable (mini reads members, admin/store
-	// read accounts).
+	// tokens invalidated by a logout/disable (mini reads members or staff
+	// bindings, admin/store read accounts).
 	memberVersions  authn.TokenVersionChecker
 	accountVersions authn.TokenVersionChecker
 
@@ -110,6 +111,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	// the mini "me" profile can resolve the member's current VIP tier + banner.
 	authMembers := auth.NewMemberRepository(database)
 	authAccounts := auth.NewAccountRepository(database)
+	authStaff := auth.NewStaffRepository(database)
 
 	// Storefront read modules.
 	storeSvc := store.NewService(store.NewRepository(database), assetSvc)
@@ -125,7 +127,10 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
 	// WeChat phone code via the WeChat client (fake offline, real once wired).
 	memberSvc := member.NewService(member.NewRepository(database, businessClock), assetSvc, phoneResolverAdapter{wechatLogin})
-	authSvc := auth.NewService(tokens, wechatLogin, authMembers, authAccounts, memberTierAdapter{memberSvc})
+	authSvc := auth.NewService(
+		tokens, wechatLogin, authMembers, authAccounts,
+		memberTierAdapter{memberSvc}, assetSvc, authStaff,
+	)
 	reservationSvc := reservation.NewService(reservation.NewRepository(database))
 	couponSvc := coupon.NewService(coupon.NewRepository(database))
 	orderSvc := order.NewService(order.NewRepository(database), wechatPay, memberOpenIDAdapter{authMembers}, assetSvc)
@@ -135,8 +140,8 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	// Console CRUD services (admin + store) sharing the module repositories.
 	storeConsoleSvc := store.NewConsoleService(store.NewRepository(database), assetSvc)
 	bannerConsoleSvc := store.NewBannerConsoleService(store.NewRepository(database), assetSvc)
-	catalogConsoleSvc := catalog.NewConsoleService(catalog.NewConsoleRepository(database))
-	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database))
+	catalogConsoleSvc := catalog.NewConsoleService(catalog.NewConsoleRepository(database), assetSvc)
+	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
 
@@ -149,7 +154,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		log:             log,
 		db:              database,
 		tokens:          tokens,
-		memberVersions:  auth.NewMemberTokenVersions(authMembers),
+		memberVersions:  auth.NewMemberTokenVersions(authMembers, authStaff),
 		accountVersions: auth.NewAccountTokenVersions(authAccounts),
 		authHandler:     auth.NewHandler(authSvc),
 		assetHandler:    asset.NewHandler(assetSvc),
@@ -250,8 +255,10 @@ func (a storeProfileAdapter) StoreProfile(ctx context.Context, storeID int64) (a
 // client needs the mini app id/secret, which config.Validate requires when
 // USE_FAKE_ADAPTERS=false.
 func buildWeChatClient(cfg *config.Config, log *slog.Logger) auth.WeChatClient {
-	if cfg.UseFakeAdapters {
-		return auth.NewFakeWeChatClient()
+	if !cfg.WeChatLoginReal() {
+		// DEV_FAKE_OPENID lets a developer simulate a specific member in DevTools;
+		// empty pins to a stable default so repeated logins hit the same member.
+		return auth.NewFakeWeChatClient(os.Getenv("DEV_FAKE_OPENID"))
 	}
 	log.Info("using real wechat mini-program client", slog.String("appId", cfg.WeChat.MiniAppID))
 	return auth.NewWeChatClient(cfg.WeChat.MiniAppID, cfg.WeChat.MiniAppSecret)
@@ -263,16 +270,19 @@ func buildWeChatClient(cfg *config.Config, log *slog.Logger) auth.WeChatClient {
 // it can fail at startup on misconfiguration (config.Validate requires the pay
 // credentials when USE_FAKE_ADAPTERS=false).
 func buildWeChatPayGateway(cfg *config.Config, log *slog.Logger) (payment.WeChatPayGateway, error) {
-	if cfg.UseFakeAdapters {
+	if !cfg.WeChatPayReal() {
 		return payment.NewFakeWeChatPayGateway(), nil
 	}
 	log.Info("using real wechat pay gateway", slog.String("mchId", cfg.WeChat.PayMchID))
 	return payment.NewWeChatPayClient(cfg.WeChat)
 }
 
-// buildObjectStore returns the real Qiniu store when fakes are disabled.
+// buildObjectStore uses the real Qiniu store whenever Qiniu credentials are
+// configured, independent of USE_FAKE_ADAPTERS — so assets can be real while the
+// offline acquirer/printer stay faked. It falls back to the in-process fake when
+// no credentials are present (CI / offline dev).
 func buildObjectStore(cfg *config.Config, log *slog.Logger) asset.ObjectStore {
-	if cfg.UseFakeAdapters {
+	if cfg.Qiniu.AccessKey == "" || cfg.Qiniu.SecretKey == "" || cfg.Qiniu.Bucket == "" {
 		return asset.NewFakeObjectStore(cfg.Qiniu.Bucket, cfg.Qiniu.PublicDomain)
 	}
 	log.Info("using real qiniu object store", slog.String("bucket", cfg.Qiniu.Bucket))

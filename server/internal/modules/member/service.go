@@ -50,7 +50,7 @@ func (s *Service) GetProfile(ctx context.Context, memberID int64) (MemberView, e
 
 // UpdateProfile applies a partial profile update and returns the fresh view.
 func (s *Service) UpdateProfile(ctx context.Context, memberID int64, req UpdateProfileRequest) (MemberView, error) {
-	if err := s.repo.UpdateProfile(ctx, memberID, ProfileUpdate{Nickname: req.Nickname, AvatarAssetID: req.AssetID}); err != nil {
+	if err := s.repo.UpdateProfile(ctx, memberID, ProfileUpdate{Nickname: req.Nickname, AvatarAssetID: req.AssetID, AvatarURL: req.AvatarURL}); err != nil {
 		return MemberView{}, err
 	}
 	return s.GetProfile(ctx, memberID)
@@ -367,16 +367,34 @@ func (s *Service) CurrentTierView(ctx context.Context, memberID int64) (*Members
 		return nil, err
 	}
 	if m.CurrentTierID == nil {
-		return nil, nil
+		// Unranked: current_tier_id is only written once a member crosses a paid
+		// growth threshold. Every member is at least the base tier (lowest active
+		// level, threshold 0), so "me" still surfaces a VIP level and its banner.
+		return s.baseTierView(ctx)
 	}
 	t, err := s.repo.GetMembershipTier(ctx, *m.CurrentTierID)
 	if err != nil {
 		if ae := apperr.From(err); ae != nil && ae.Code == apperr.CodeNotFound {
-			return nil, nil // dangling reference: treat as unranked
+			return s.baseTierView(ctx) // dangling reference: fall back to base tier
 		}
 		return nil, err
 	}
 	view := s.membershipTierView(ctx, t)
+	return &view, nil
+}
+
+// baseTierView resolves the base VIP tier — the lowest active level (VIP1) — to a
+// view, or nil when no tiers are configured at all. ListMembershipTiers returns
+// active tiers ordered by level ASC, so the first entry is the base tier.
+func (s *Service) baseTierView(ctx context.Context) (*MembershipTierView, error) {
+	tiers, err := s.repo.ListMembershipTiers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(tiers) == 0 {
+		return nil, nil
+	}
+	view := s.membershipTierView(ctx, tiers[0])
 	return &view, nil
 }
 

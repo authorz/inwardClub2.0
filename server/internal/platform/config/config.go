@@ -28,6 +28,13 @@ type Config struct {
 	// offline acquirer so local dev and tests never touch external networks.
 	UseFakeAdapters bool `yaml:"useFakeAdapters"`
 
+	// Per-adapter overrides let a single external service go real while the rest
+	// stay faked (e.g. real WeChat login+pay while the offline acquirer/printer
+	// are still being configured). Empty/false → the adapter follows
+	// UseFakeAdapters. Only WeChat login and pay have overrides today.
+	WeChatLoginUseReal bool `yaml:"wechatLoginUseReal"`
+	WeChatPayUseReal   bool `yaml:"wechatPayUseReal"`
+
 	JWT     JWTConfig     `yaml:"jwt"`
 	WeChat  WeChatConfig  `yaml:"wechat"`
 	Offline OfflineConfig `yaml:"offlineAcquirer"`
@@ -164,7 +171,7 @@ func defaults() *Config {
 	return &Config{
 		AppEnv:          "development",
 		LogLevel:        "info",
-		HTTPAddr:        ":8080",
+		HTTPAddr:        ":8081",
 		UseFakeAdapters: true,
 		Business: BusinessConfig{
 			TZ: "Asia/Shanghai",
@@ -188,6 +195,8 @@ func applyEnv(cfg *Config) {
 	setStr(&cfg.MySQLDSN, "MYSQL_DSN")
 	setStr(&cfg.RedisAddr, "REDIS_ADDR")
 	setBool(&cfg.UseFakeAdapters, "USE_FAKE_ADAPTERS")
+	setBool(&cfg.WeChatLoginUseReal, "WECHAT_LOGIN_USE_REAL")
+	setBool(&cfg.WeChatPayUseReal, "WECHAT_PAY_USE_REAL")
 
 	setStr(&cfg.Business.TZ, "BUSINESS_TZ")
 	setStr(&cfg.Business.NowRFC3339, "BUSINESS_NOW_RFC3339")
@@ -227,6 +236,17 @@ func applyEnv(cfg *Config) {
 	setStr(&cfg.Xpyun.UKey, "XPYUN_UKEY")
 }
 
+// WeChatLoginReal reports whether the real WeChat login client should be used:
+// either fakes are globally off, or the login adapter is explicitly overridden.
+func (c *Config) WeChatLoginReal() bool {
+	return !c.UseFakeAdapters || c.WeChatLoginUseReal
+}
+
+// WeChatPayReal reports whether the real WeChat Pay gateway should be used.
+func (c *Config) WeChatPayReal() bool {
+	return !c.UseFakeAdapters || c.WeChatPayUseReal
+}
+
 // Validate checks that required runtime fields are present. Fake adapters relax
 // external-service requirements so local dev works without real credentials.
 func (c *Config) Validate() error {
@@ -236,15 +256,21 @@ func (c *Config) Validate() error {
 	if c.JWT.SigningKey == "" {
 		return fmt.Errorf("JWT_SIGNING_KEY is required")
 	}
-	if !c.UseFakeAdapters {
-		if c.Qiniu.AccessKey == "" || c.Qiniu.SecretKey == "" || c.Qiniu.Bucket == "" {
-			return fmt.Errorf("qiniu credentials required when USE_FAKE_ADAPTERS=false")
-		}
+	// WeChat login/pay validate independently so one can go real while the
+	// offline acquirer / printer stay faked (they gate on UseFakeAdapters).
+	if c.WeChatLoginReal() {
 		if err := c.WeChat.validateLogin(); err != nil {
 			return err
 		}
+	}
+	if c.WeChatPayReal() {
 		if err := c.WeChat.validatePay(); err != nil {
 			return err
+		}
+	}
+	if !c.UseFakeAdapters {
+		if c.Qiniu.AccessKey == "" || c.Qiniu.SecretKey == "" || c.Qiniu.Bucket == "" {
+			return fmt.Errorf("qiniu credentials required when USE_FAKE_ADAPTERS=false")
 		}
 		if err := c.Offline.validate(); err != nil {
 			return err

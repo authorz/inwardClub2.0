@@ -437,6 +437,78 @@ func (s *Service) ListSuperAdmins(ctx context.Context, f ListFilter) ([]AdminAcc
 	return out, total, nil
 }
 
+// CreateSuperAdmin creates a non-system headquarters administrator.
+func (s *Service) CreateSuperAdmin(ctx context.Context, req AdminAccountCreateRequest) (AdminAccountView, error) {
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		return AdminAccountView{}, apperr.Invalid("admin: username is required")
+	}
+	if req.Password == "" {
+		return AdminAccountView{}, apperr.Invalid("admin: password is required")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return AdminAccountView{}, apperr.Internal(err)
+	}
+	row, err := s.repo.CreateSuperAdmin(ctx, username, string(hash), strings.TrimSpace(req.DisplayName))
+	if err != nil {
+		return AdminAccountView{}, err
+	}
+	return adminAccountView(row), nil
+}
+
+// UpdateSuperAdmin changes the display name and/or password. System
+// administrators may be edited; their system status and username are immutable.
+func (s *Service) UpdateSuperAdmin(ctx context.Context, id int64, req AdminAccountUpdateRequest) (AdminAccountView, error) {
+	if req.DisplayName == nil && req.Password == nil {
+		return AdminAccountView{}, apperr.Invalid("admin: no admin account fields to update")
+	}
+	row, err := s.repo.GetAdminAccountByID(ctx, id)
+	if err != nil {
+		return AdminAccountView{}, err
+	}
+	if row.Role != "super_admin" {
+		return AdminAccountView{}, apperr.NotFound("admin account not found")
+	}
+	var displayName *string
+	if req.DisplayName != nil {
+		value := strings.TrimSpace(*req.DisplayName)
+		displayName = &value
+	}
+	var passwordHash *string
+	if req.Password != nil {
+		if *req.Password == "" {
+			return AdminAccountView{}, apperr.Invalid("admin: password is required")
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return AdminAccountView{}, apperr.Internal(err)
+		}
+		value := string(hash)
+		passwordHash = &value
+	}
+	row, err = s.repo.UpdateSuperAdminByID(ctx, id, displayName, passwordHash)
+	if err != nil {
+		return AdminAccountView{}, err
+	}
+	return adminAccountView(row), nil
+}
+
+// DeleteSuperAdmin permanently removes a non-system headquarters account.
+func (s *Service) DeleteSuperAdmin(ctx context.Context, id int64) error {
+	row, err := s.repo.GetAdminAccountByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if row.Role != "super_admin" {
+		return apperr.NotFound("admin account not found")
+	}
+	if row.IsSystem {
+		return apperr.Forbidden("system administrator cannot be deleted")
+	}
+	return s.repo.DeleteSuperAdminByID(ctx, id)
+}
+
 // DisableAdminAccount disables a super_admin account by id, invalidating any
 // outstanding session. It rejects ids that do not belong to a super_admin
 // account so this endpoint cannot be used to disable a store_admin.
@@ -447,6 +519,9 @@ func (s *Service) DisableAdminAccount(ctx context.Context, id int64) (AdminAccou
 	}
 	if row.Role != "super_admin" {
 		return AdminAccountView{}, apperr.NotFound("admin account not found")
+	}
+	if row.IsSystem {
+		return AdminAccountView{}, apperr.Forbidden("system administrator cannot be disabled")
 	}
 	row, err = s.repo.DisableAdminAccountByID(ctx, id)
 	if err != nil {
@@ -469,36 +544,35 @@ func (s *Service) ListStoreAdmins(ctx context.Context, f ListFilter) ([]AdminAcc
 	return out, total, nil
 }
 
-// CreateStoreAdmin creates a store_admin login account pinned to the
-// requested store, generating a random initial password in the same bcrypt
-// style the auth module verifies against at login.
-func (s *Service) CreateStoreAdmin(ctx context.Context, req StoreAdminCreateRequest) (CashierCredentialView, error) {
+// CreateStoreAdmin creates a store_admin login account pinned to the requested
+// store. The caller supplies the initial password; only its bcrypt hash is
+// persisted or returned from this layer.
+func (s *Service) CreateStoreAdmin(ctx context.Context, req StoreAdminCreateRequest) (AdminAccountView, error) {
 	if req.StoreID <= 0 {
-		return CashierCredentialView{}, apperr.Invalid("admin: storeId is required")
+		return AdminAccountView{}, apperr.Invalid("admin: storeId is required")
 	}
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
-		return CashierCredentialView{}, apperr.Invalid("admin: username is required")
+		return AdminAccountView{}, apperr.Invalid("admin: username is required")
 	}
-	password, err := generatePassword()
-	if err != nil {
-		return CashierCredentialView{}, apperr.Internal(err)
+	if req.Password == "" {
+		return AdminAccountView{}, apperr.Invalid("admin: password is required")
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return CashierCredentialView{}, apperr.Internal(err)
+		return AdminAccountView{}, apperr.Internal(err)
 	}
 	row, err := s.repo.CreateStoreAdmin(ctx, req.StoreID, username, string(hash), strings.TrimSpace(req.DisplayName))
 	if err != nil {
-		return CashierCredentialView{}, err
+		return AdminAccountView{}, err
 	}
-	return CashierCredentialView{AdminAccountView: adminAccountView(row), InitialPassword: password}, nil
+	return adminAccountView(row), nil
 }
 
-// UpdateStoreAdmin applies a partial update (display name and/or a store
-// reassignment) to a store_admin account, regardless of its current store.
+// UpdateStoreAdmin applies a partial update to a store_admin account,
+// regardless of its current store.
 func (s *Service) UpdateStoreAdmin(ctx context.Context, id int64, req StoreAdminUpdateRequest) (AdminAccountView, error) {
-	if req.DisplayName == nil && req.StoreID == nil {
+	if req.DisplayName == nil && req.StoreID == nil && req.Password == nil {
 		return AdminAccountView{}, apperr.Invalid("admin: no store admin fields to update")
 	}
 	var displayName *string
@@ -512,7 +586,19 @@ func (s *Service) UpdateStoreAdmin(ctx context.Context, id int64, req StoreAdmin
 	if req.StoreID != nil && *req.StoreID <= 0 {
 		return AdminAccountView{}, apperr.Invalid("admin: invalid storeId")
 	}
-	row, err := s.repo.UpdateStoreAdminByID(ctx, id, req.StoreID, displayName)
+	var passwordHash *string
+	if req.Password != nil {
+		if *req.Password == "" {
+			return AdminAccountView{}, apperr.Invalid("admin: password is required")
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return AdminAccountView{}, apperr.Internal(err)
+		}
+		value := string(hash)
+		passwordHash = &value
+	}
+	row, err := s.repo.UpdateStoreAdminByID(ctx, id, req.StoreID, displayName, passwordHash)
 	if err != nil {
 		return AdminAccountView{}, err
 	}
@@ -540,7 +626,8 @@ func (s *Service) DisableStoreAdmin(ctx context.Context, id int64) (AdminAccount
 func adminAccountView(r AdminAccount) AdminAccountView {
 	return AdminAccountView{
 		ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Role: r.Role,
-		StoreID: r.StoreID, StoreName: r.StoreName, Status: r.Status, CreatedAt: r.CreatedAt,
+		IsSystem: r.IsSystem, StoreID: r.StoreID, StoreName: r.StoreName,
+		Status: r.Status, CreatedAt: r.CreatedAt,
 	}
 }
 
@@ -559,7 +646,8 @@ func (s *Service) ListStaffAccounts(ctx context.Context, f ListFilter) ([]StaffA
 
 func staffAccountView(r StaffAccount) StaffAccountView {
 	return StaffAccountView{
-		ID: r.ID, Name: r.Name, StoreID: r.StoreID, StoreName: r.StoreName,
+		ID: r.ID, MemberID: r.MemberID, Name: r.Name, Phone: maskPhone(r.Phone),
+		StoreID: r.StoreID, StoreName: r.StoreName,
 		Status: r.Status, CreatedAt: r.CreatedAt,
 	}
 }
@@ -634,15 +722,47 @@ func (s *Service) AdminCreateStaffAccount(ctx context.Context, req AdminStaffAcc
 	if req.StoreID <= 0 {
 		return StaffAccountView{}, apperr.Invalid("admin: storeId is required")
 	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return StaffAccountView{}, apperr.Invalid("admin: name is required")
+	if req.MemberID <= 0 {
+		return StaffAccountView{}, apperr.Invalid("admin: memberId is required")
 	}
-	row, err := s.repo.CreateStaffAccount(ctx, req.StoreID, name)
+	row, err := s.repo.CreateStaffAccount(ctx, req.StoreID, req.MemberID, strings.TrimSpace(req.Name))
 	if err != nil {
 		return StaffAccountView{}, err
 	}
 	return staffAccountView(row), nil
+}
+
+// AdminDeleteStaffAccount removes a staff binding for any store (headquarters).
+// Only the staff role is revoked; the member's mini-program account is untouched.
+func (s *Service) AdminDeleteStaffAccount(ctx context.Context, id int64) error {
+	return s.repo.DeleteStaffAccountByID(ctx, id)
+}
+
+// SearchMembersByPhone fuzzy-matches registered members by phone fragment (tail
+// number supported) so a console can pick one to bind as store staff. Requires
+// at least 3 digits to avoid dumping the whole member table.
+func (s *Service) SearchMembersByPhone(ctx context.Context, phone string) ([]MemberView, error) {
+	phone = strings.TrimSpace(phone)
+	if len(phone) < 3 || len(phone) > 11 {
+		return nil, apperr.Invalid("admin: 请输入 3 至 11 位手机号")
+	}
+	for _, ch := range phone {
+		if ch < '0' || ch > '9' {
+			return nil, apperr.Invalid("admin: 手机号只能包含数字")
+		}
+	}
+	rows, err := s.repo.SearchMembersByPhone(ctx, phone)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MemberView, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, MemberView{
+			ID: m.ID, Nickname: m.Nickname, Phone: maskPhone(m.Phone),
+			PointsBalance: m.PointsBalance, Status: m.Status, CreatedAt: m.CreatedAt,
+		})
+	}
+	return out, nil
 }
 
 // AdminUpdateStaffAccount applies a partial update (name and/or a store
@@ -679,19 +799,23 @@ func (s *Service) AdminDisableStaffAccount(ctx context.Context, id int64) (Staff
 	return staffAccountView(row), nil
 }
 
-// StoreCreateStaffAccount creates a staff_accounts row pinned to the caller's
-// own store. The account is not yet bound to a WeChat identity; that binding
-// happens through the mini-program flow, not the store console.
+// StoreCreateStaffAccount binds an existing active mini-program member to a
+// staff_accounts row pinned to the caller's own store.
 func (s *Service) StoreCreateStaffAccount(ctx context.Context, storeID int64, req StaffAccountCreateRequest) (StaffAccountView, error) {
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return StaffAccountView{}, apperr.Invalid("admin: name is required")
+	if req.MemberID <= 0 {
+		return StaffAccountView{}, apperr.Invalid("admin: memberId is required")
 	}
-	row, err := s.repo.CreateStaffAccount(ctx, storeID, name)
+	row, err := s.repo.CreateStaffAccount(ctx, storeID, req.MemberID, strings.TrimSpace(req.Name))
 	if err != nil {
 		return StaffAccountView{}, err
 	}
 	return staffAccountView(row), nil
+}
+
+// StoreDeleteStaffAccount removes a staff binding scoped to the caller's own
+// store. Only the staff role is revoked; the member account is untouched.
+func (s *Service) StoreDeleteStaffAccount(ctx context.Context, storeID, id int64) error {
+	return s.repo.DeleteStaffAccount(ctx, storeID, id)
 }
 
 // StoreUpdateStaffAccount applies a partial update (name only) to one of the

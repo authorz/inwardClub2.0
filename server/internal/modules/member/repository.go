@@ -100,6 +100,10 @@ func (r *sqlRepository) UpdateProfile(ctx context.Context, id int64, p ProfileUp
 		sets = append(sets, "avatar_asset_id = ?")
 		args = append(args, *p.AvatarAssetID)
 	}
+	if p.AvatarURL != nil {
+		sets = append(sets, "avatar_url = ?")
+		args = append(args, *p.AvatarURL)
+	}
 	if len(sets) == 0 {
 		return nil
 	}

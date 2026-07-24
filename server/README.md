@@ -24,11 +24,10 @@ docker compose -f deploy/docker-compose.dev.yaml up -d
 export MYSQL_DSN='inward:inward@tcp(127.0.0.1:3307)/inwardclub2?parseTime=true&loc=UTC&charset=utf8mb4'
 export REDIS_ADDR='127.0.0.1:6379'
 export JWT_SIGNING_KEY='dev-signing-key'
-export HTTP_ADDR=':8099'            # 8080 可能被 Docker 占用
+export HTTP_ADDR=':8081'
 
-# 3. 迁移 + 开发种子（superadmin / storeadmin，密码 password）
+# 3. 迁移（项目不内置示例业务数据或默认账号）
 go run ./cmd/migrate up
-go run ./cmd/migrate seed
 
 # 4. 运行
 go run ./cmd/api        # HTTP API
