@@ -2,7 +2,7 @@
 
 ## 0. 使用方式
 
-把本文件、`GO_REWRITE_2_0_PLAN.md`、`V1_API_INVENTORY_AND_V2_MAPPING.md`、`QINIU_ASSET_SERVICE_SPEC.md`、`inwardclub.sql` 放入新 Go 项目根目录的 `docs/`。Claude 收到任务后必须先阅读五份文件，然后直接按本文件的里程碑实现和验证；不得重写需求、替换技术栈、在小程序接入支付宝、使用本地文件存储，或修改生产旧库结构。
+把本文件、`GO_REWRITE_2_0_PLAN.md`、`V1_API_INVENTORY_AND_V2_MAPPING.md`、`QINIU_ASSET_SERVICE_SPEC.md`、`inwardclub.sql` 放入新 Go 项目根目录的 `docs/`。Codex 收到任务后必须先阅读五份文件，然后直接按本文件的里程碑实现和验证；不得重写需求、替换技术栈、在小程序接入支付宝、使用本地文件存储，或修改生产旧库结构。
 
 本文件的规定优先于旧 Laravel 代码和旧接口文档；`V1_API_INVENTORY_AND_V2_MAPPING.md` 作为 v1 已暴露能力的覆盖检查表，优先于旧 OpenAPI 注释和历史接口文档。若业务规则在第 13 节列为“待业务确认”，实现者应建立可配置规则和禁用态，不能自行填入猜测值。
 
@@ -897,7 +897,7 @@ goose -dir db/migrations mysql "$MYSQL_DSN" status
 | 存取积分 | 水上/水下公式、带入证据、审核角色、审批流、异常处理 |
 | 聚合收款 | 收单服务商、商户号/门店映射、动态码有效期、支持渠道、退款能力与回调 IP/签名规范；会员手机号绑定是否需要二次确认及可触发的权益规则 |
 
-## 14. Claude 工作协议
+## 14. Codex 工作协议
 
 1. 先创建空项目、基础设施、migration 和 OpenAPI，不实现临时 mock 业务来替代正式表。
 2. 按 M0 -> M6 顺序，一个里程碑完成测试、OpenAPI、migration、日志和审计后再进入下一个。
@@ -908,7 +908,7 @@ goose -dir db/migrations mysql "$MYSQL_DSN" status
 
 ## 15. 首次执行任务
 
-Claude 的第一轮工作必须完成 M0 的以下产物，而不是直接写订单或后台页面：
+Codex 的第一轮工作必须完成 M0 的以下产物，而不是直接写订单或后台页面：
 
 1. 初始化 Go module、目录、配置加载、slog、request ID、错误响应和健康检查。
 2. 用 Docker Compose 启动 MySQL 与 Redis；加入 goose 和最小 `0001_identity`、`0002_store`、`0003_assets` migration。

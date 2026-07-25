@@ -64,4 +64,4 @@ go run ./cmd/reconcile --target-dsn "$MYSQL_DSN" --report ./tmp/reconciliation.j
 - `docs/diagnostics.md` — 错误事件流 as-built 说明（error_events 持久化、保留与查询语义）
 - `docs/wechat-auth.md` — 微信登录 + 手机号解析 as-built 使用说明（真实客户端 + fake 切换）
 
-开发任务由 Claude 执行；Codex 负责拆任务、验收和合并标准。
+开发任务由 Codex 全权执行；确有独立并行价值时，由 Codex 调用自身的多 Agent 能力并负责整合与验收。
