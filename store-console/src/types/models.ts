@@ -265,7 +265,11 @@ export interface Cashier extends AuditFields {
 
 export interface StaffAccount extends AuditFields {
   id: number | string
+  /** 绑定的小程序会员 id */
+  memberId?: number | string
   name: string
+  /** 会员手机号（打码） */
+  phone?: string
   storeId?: number | string
   storeName?: string
   status: ActiveStatus

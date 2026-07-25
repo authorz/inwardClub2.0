@@ -40,7 +40,7 @@ Page({
   },
 
   bindInviter() {
-    if (this.data.me.boundInviter) return;
+    if (this.data.me.inviterBound) return;
     wx.showModal({
       title: '绑定邀请人',
       editable: true,
@@ -52,7 +52,7 @@ Page({
             .bindInvitation({ code: r.content })
             .then(() => {
               ui.success('绑定成功');
-              this.setData({ 'me.boundInviter': r.content });
+              this.setData({ 'me.inviterBound': true });
             })
             .catch((err) => ui.error((err && err.message) || '绑定失败'));
         }

@@ -56,17 +56,17 @@ export const MENU: MenuNode[] = [
   },
   {
     key: 'catalog',
-    label: '商品与分类',
+    label: '商品管理',
     children: [
       {
         key: 'categories',
-        label: '全局分类',
+        label: '商品分类',
         path: '/catalog/categories',
         permission: PERMISSIONS.CATALOG_READ,
       },
       {
         key: 'items',
-        label: '全局商品',
+        label: '商品管理',
         path: '/catalog/items',
         permission: PERMISSIONS.CATALOG_READ,
       },
@@ -86,13 +86,13 @@ export const MENU: MenuNode[] = [
   },
   {
     key: 'banners',
-    label: 'Banner 管理',
+    label: '广告管理',
     path: '/banners',
     permission: PERMISSIONS.BANNER_READ,
   },
   {
     key: 'recharge-products',
-    label: '充值产品',
+    label: '快捷充值',
     path: '/recharge-products',
     permission: PERMISSIONS.RECHARGE_READ,
   },
@@ -104,6 +104,12 @@ export const MENU: MenuNode[] = [
         key: 'membership-tiers',
         label: 'VIP 等级',
         path: '/rules/membership-tiers',
+        permission: PERMISSIONS.RULE_READ,
+      },
+      {
+        key: 'sign-in-rule',
+        label: '签到规则',
+        path: '/rules/sign-in',
         permission: PERMISSIONS.RULE_READ,
       },
       {

@@ -160,7 +160,34 @@ func decodeChannels(raw []byte) []string {
 	if err := json.Unmarshal(raw, &ch); err != nil {
 		return []string{}
 	}
-	return ch
+	normalized, _ := normalizePayChannels(ch)
+	return normalized
+}
+
+func normalizePayChannels(channels []string) ([]string, error) {
+	normalized := make([]string, 0, len(channels))
+	seen := make(map[string]struct{}, len(channels))
+	var invalid string
+	for _, channel := range channels {
+		if channel == "balance" {
+			channel = "coin"
+		}
+		if channel != "wechat" && channel != "coin" {
+			if invalid == "" {
+				invalid = channel
+			}
+			continue
+		}
+		if _, ok := seen[channel]; ok {
+			continue
+		}
+		seen[channel] = struct{}{}
+		normalized = append(normalized, channel)
+	}
+	if invalid != "" {
+		return normalized, apperr.Invalid("catalog: unsupported pay channel " + invalid)
+	}
+	return normalized, nil
 }
 
 // Service provides catalog read operations.

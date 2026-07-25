@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -26,6 +27,8 @@ type fakeRepo struct {
 	lastPasswordHash string
 
 	members map[int64]Member
+
+	activities []Activity
 }
 
 func (f *fakeRepo) ListStores(_ context.Context, flt ListFilter) ([]StoreSummary, int64, error) {
@@ -45,6 +48,9 @@ func (f *fakeRepo) ListCouponTemplates(_ context.Context, flt ListFilter) ([]Cou
 }
 func (f *fakeRepo) ListActivities(_ context.Context, flt ListFilter) ([]Activity, int64, error) {
 	f.lastFilter = flt
+	if f.activities != nil {
+		return f.activities, int64(len(f.activities)), nil
+	}
 	return []Activity{{ID: 30, Name: "Spring"}}, 1, nil
 }
 func (f *fakeRepo) ListOrders(_ context.Context, flt ListFilter) ([]Order, int64, error) {
@@ -57,7 +63,13 @@ func (f *fakeRepo) ListOrders(_ context.Context, flt ListFilter) ([]Order, int64
 }
 func (f *fakeRepo) ListMembers(_ context.Context, flt ListFilter) ([]Member, int64, error) {
 	f.lastFilter = flt
-	return []Member{{ID: 50, Nickname: "Sam"}}, 1, nil
+	return []Member{{
+		ID: 50, Nickname: "Sam", Phone: "13800001234",
+		AvatarURL: "https://cdn.test/avatar.webp", Gender: "male",
+		PointsBalance: 1200, CoinsBalance: 588,
+		VIPTierName: "白银会员", VIPLevel: 2,
+		Status: StatusActive,
+	}}, 1, nil
 }
 func (f *fakeRepo) GetMember(_ context.Context, storeID, memberID int64) (Member, error) {
 	if f.err != nil {
@@ -170,6 +182,12 @@ func (f *fakeRepo) ListStoreAdmins(_ context.Context, flt ListFilter) ([]AdminAc
 	}
 	storeID := int64(42)
 	return []AdminAccount{{ID: 94, Username: "store_admin1", DisplayName: "Store Admin One", Role: "store_admin", StoreID: &storeID}}, 1, nil
+}
+
+type fakeActivityAssetResolver struct{}
+
+func (fakeActivityAssetResolver) PublicURLByID(_ context.Context, _ int64) (string, error) {
+	return "https://cdn.test/activity-cover.webp", nil
 }
 func (f *fakeRepo) GetAdminAccountByID(_ context.Context, id int64) (AdminAccount, error) {
 	if f.err != nil {
@@ -534,6 +552,34 @@ func TestListStoresMapsAndPassesTotal(t *testing.T) {
 	}
 }
 
+func TestListActivitiesIncludesCoverAndAuditTimes(t *testing.T) {
+	assetID := int64(88)
+	createdAt := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(2 * time.Hour)
+	repo := &fakeRepo{activities: []Activity{{
+		ID: 30, Name: "Spring", AssetID: &assetID,
+		CreatedAt: createdAt, UpdatedAt: updatedAt,
+	}}}
+	svc := NewService(repo, fakeStores{}, nil, fakeActivityAssetResolver{})
+
+	rows, total, err := svc.ListActivities(context.Background(), ListFilter{})
+	if err != nil {
+		t.Fatalf("list activities: %v", err)
+	}
+	if total != 1 || len(rows) != 1 {
+		t.Fatalf("unexpected page: total=%d rows=%d", total, len(rows))
+	}
+	if rows[0].AssetID == nil || *rows[0].AssetID != assetID {
+		t.Fatalf("unexpected asset id: %+v", rows[0].AssetID)
+	}
+	if rows[0].ImageURL != "https://cdn.test/activity-cover.webp" {
+		t.Fatalf("unexpected image url: %q", rows[0].ImageURL)
+	}
+	if !rows[0].CreatedAt.Equal(createdAt) || !rows[0].UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("unexpected audit times: created=%v updated=%v", rows[0].CreatedAt, rows[0].UpdatedAt)
+	}
+}
+
 func TestListPropagatesError(t *testing.T) {
 	sentinel := apperr.Internal(errors.New("boom"))
 	svc := NewService(&fakeRepo{err: sentinel}, fakeStores{}, nil)
@@ -581,6 +627,40 @@ func TestListOrdersMapsOrderCenterReadModel(t *testing.T) {
 	// memberPhone is exposed raw for HQ; memberPhoneMasked hides the middle digits.
 	if v.MemberPhone != "13800001234" || v.MemberPhoneMasked != "138****1234" || v.MemberNickname != "Sam" {
 		t.Fatalf("unexpected member fields: %+v", v)
+	}
+}
+
+func TestListMembersMapsProfileWalletAndVIPFields(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	rows, total, err := svc.ListMembers(context.Background(), ListFilter{
+		Keyword:   "  Sam  ",
+		SortBy:    "coinsBalance",
+		SortOrder: "ASC",
+	})
+	if err != nil {
+		t.Fatalf("ListMembers: %v", err)
+	}
+	if total != 1 || len(rows) != 1 {
+		t.Fatalf("unexpected page: total=%d rows=%+v", total, rows)
+	}
+	got := rows[0]
+	if got.AvatarURL == "" || got.Gender != "male" || got.PointsBalance != 1200 ||
+		got.CoinsBalance != 588 || got.VIPTierName != "白银会员" || got.VIPLevel != 2 {
+		t.Fatalf("unexpected member view: %+v", got)
+	}
+	if repo.lastFilter.Keyword != "Sam" || repo.lastFilter.SortBy != "coinsBalance" ||
+		repo.lastFilter.SortOrder != "asc" {
+		t.Fatalf("unexpected normalized filter: %+v", repo.lastFilter)
+	}
+}
+
+func TestListMembersRejectsUnknownSort(t *testing.T) {
+	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
+	_, _, err := svc.ListMembers(context.Background(), ListFilter{SortBy: "phone"})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid sort error, got %v", err)
 	}
 }
 

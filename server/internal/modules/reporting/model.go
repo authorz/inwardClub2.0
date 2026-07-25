@@ -1,6 +1,5 @@
-// Package reporting owns the console analytics read models. Phase-1 exposes the
-// admin overview dashboard; per-store and time-series reports are layered on
-// later against the same OverviewFilter scope model.
+// Package reporting owns the console analytics read models for dashboard and
+// list-style reports across admin and store scopes.
 package reporting
 
 import (
@@ -19,12 +18,39 @@ type OverviewFilter struct {
 
 // Overview holds the headline counters shown on the console dashboard.
 type Overview struct {
-	StoreCount      int64
-	MemberCount     int64
-	OrderCount      int64
-	GrossSalesCent  int64
-	CouponsIssued   int64
-	CouponsRedeemed int64
+	StoreCount               int64
+	MemberCount              int64
+	OrderCount               int64
+	GrossSalesCent           int64
+	TodayOrderCount          int64
+	TodayGrossSalesCent      int64
+	TodayNewMemberCount      int64
+	ActivityRevenueCent      int64
+	TodayActivityRevenueCent int64
+	CouponsIssued            int64
+	CouponsRedeemed          int64
+	WechatRevenue            OverviewBreakdown
+	CoinConsumption          OverviewBreakdown
+	Trend                    []OverviewTrendPoint
+}
+
+// OverviewBreakdown splits one payment asset by business type and today.
+type OverviewBreakdown struct {
+	Total         int64
+	Today         int64
+	Recharge      int64
+	Food          int64
+	Activity      int64
+	TodayRecharge int64
+	TodayFood     int64
+	TodayActivity int64
+}
+
+// OverviewTrendPoint is one local calendar day in the dashboard trend.
+type OverviewTrendPoint struct {
+	Date              time.Time
+	WechatRevenueCent int64
+	OrderCount        int64
 }
 
 // ReportFilter scopes a list-style report query. A nil StoreID aggregates across

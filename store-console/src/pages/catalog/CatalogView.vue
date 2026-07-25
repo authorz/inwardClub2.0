@@ -34,8 +34,8 @@ const list = useAsyncList<CatalogItem>((params) => catalogService.items(params),
 })
 const action = useAsyncAction()
 
-// 商品可选支付方式（点餐/积分商城）：微信、金币、余额。
-const ITEM_PAY_CHANNELS: PayChannel[] = ['wechat', 'coin', 'balance']
+// 商品可选支付方式（点餐/积分商城）：微信、金币。
+const ITEM_PAY_CHANNELS: PayChannel[] = ['wechat', 'coin']
 
 const editShow = ref(false)
 const editForm = reactive<{
@@ -51,7 +51,11 @@ function openEdit(row: CatalogItem) {
   editForm.name = row.name
   editForm.priceYuan = centToYuan(row.priceCent)
   editForm.stockQuantity = row.stockQuantity
-  editForm.payChannels = [...row.payChannels]
+  editForm.payChannels = row.payChannels.map((channel) =>
+    (channel as string) === 'balance' ? 'coin' : channel,
+  ).filter((channel, index, channels) =>
+    ITEM_PAY_CHANNELS.includes(channel) && channels.indexOf(channel) === index,
+  )
   editShow.value = true
 }
 

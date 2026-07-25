@@ -26,6 +26,15 @@ type fakePointsRepo struct {
 	lastIdemKey    string
 }
 
+func (r *fakePointsRepo) GetSignInStatus(_ context.Context, _ int64) (SignInStatus, error) {
+	return SignInStatus{
+		Date:             "2026-07-25",
+		RewardPoints:     100,
+		NextRewardPoints: 200,
+		DailyRewards:     []int64{100, 200, 300},
+	}, nil
+}
+
 func (r *fakePointsRepo) RecordSignIn(_ context.Context, _ int64, idemKey string) (SignInResult, error) {
 	r.signInCalls++
 	r.lastIdemKey = idemKey
@@ -45,6 +54,17 @@ func (r *fakePointsRepo) WithdrawPoints(_ context.Context, _, _, amount int64, i
 }
 
 func codeOf(err error) apperr.Code { return apperr.From(err).Code }
+
+func TestSignInStatusReachesRepository(t *testing.T) {
+	svc := NewPointsService(&fakePointsRepo{})
+	got, err := svc.SignInStatus(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if got.Date != "2026-07-25" || got.RewardPoints != 100 || len(got.DailyRewards) != 3 {
+		t.Fatalf("unexpected status: %+v", got)
+	}
+}
 
 func TestSignInRequiresIdemKey(t *testing.T) {
 	repo := &fakePointsRepo{}

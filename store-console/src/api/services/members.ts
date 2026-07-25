@@ -19,6 +19,10 @@ export const memberService = {
   list(params?: PageQuery) {
     return getPaged<Member>(API_PATHS.members.list, params)
   },
+  /** 按手机号片段查询可绑定会员，支持尾号搜索。 */
+  lookupByPhone(phone: string) {
+    return get<Member[]>(`${API_PATHS.members.lookup}?phone=${encodeURIComponent(phone)}`)
+  },
   detail(id: string | number) {
     return get<Member>(API_PATHS.members.detail(id))
   },

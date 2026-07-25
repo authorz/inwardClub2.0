@@ -33,6 +33,23 @@ export const RESOURCE_STATUS_OPTIONS: OptionItem[] = [
   { label: '已归档', value: RESOURCE_STATUS.ARCHIVED, tone: 'default' },
 ]
 
+/** 门店营业状态（后端取值 active/inactive，不同于通用启用/禁用） */
+export const STORE_STATUS_OPTIONS: OptionItem[] = [
+  { label: '营业中', value: 'active', tone: 'success' },
+  { label: '休息中', value: 'inactive', tone: 'default' },
+]
+
+/** Banner 展示状态（后端仅在 active 时向小程序返回）。 */
+export const BANNER_STATUS_OPTIONS: OptionItem[] = [
+  { label: '显示', value: 'active', tone: 'success' },
+  { label: '不显示', value: 'inactive', tone: 'default' },
+]
+
+/** 门店状态值 → 中文标签；未知值原样返回。 */
+export function storeStatusLabel(status?: string): string {
+  return STORE_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status ?? ''
+}
+
 /** 资源归属范围：全局模板 vs 门店自有 */
 export const SCOPE_TYPE = {
   GLOBAL: 'global',
@@ -45,24 +62,16 @@ export const SCOPE_TYPE_OPTIONS: OptionItem[] = [
   { label: '门店', value: SCOPE_TYPE.STORE, tone: 'default' },
 ]
 
-/** 支付渠道（小程序不出现支付宝；支付宝仅存在于门店线下聚合收款） */
+/** 用户支付方式：仅支持微信和金币。 */
 export const PAY_CHANNEL = {
   WECHAT: 'wechat',
   COIN: 'coin',
-  BALANCE: 'balance',
-  ALIPAY_OFFLINE: 'alipay_offline',
-  CASH: 'cash',
-  CARD: 'card',
 } as const
 export type PayChannel = (typeof PAY_CHANNEL)[keyof typeof PAY_CHANNEL]
 
 export const PAY_CHANNEL_OPTIONS: OptionItem[] = [
   { label: '微信', value: PAY_CHANNEL.WECHAT, tone: 'success' },
   { label: '金币', value: PAY_CHANNEL.COIN, tone: 'warning' },
-  { label: '余额', value: PAY_CHANNEL.BALANCE, tone: 'info' },
-  { label: '支付宝(线下)', value: PAY_CHANNEL.ALIPAY_OFFLINE, tone: 'default' },
-  { label: '现金(线下)', value: PAY_CHANNEL.CASH, tone: 'default' },
-  { label: '刷卡(线下)', value: PAY_CHANNEL.CARD, tone: 'default' },
 ]
 
 /** 订单类型 */

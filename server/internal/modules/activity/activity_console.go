@@ -637,6 +637,11 @@ func (s *ConsoleService) GetActivity(ctx context.Context, scope ConsoleScope, id
 
 // CreateActivity creates an activity within scope.
 func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope, in ActivityInput) (ConsoleActivityView, error) {
+	payChannels, err := normalizePayChannels(in.PayChannels)
+	if err != nil {
+		return ConsoleActivityView{}, err
+	}
+	in.PayChannels = payChannels
 	a, err := s.repo.CreateActivity(ctx, scope, in)
 	if err != nil {
 		return ConsoleActivityView{}, err
@@ -646,6 +651,11 @@ func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope,
 
 // UpdateActivity updates an activity within scope.
 func (s *ConsoleService) UpdateActivity(ctx context.Context, scope ConsoleScope, id int64, in ActivityInput) (ConsoleActivityView, error) {
+	payChannels, err := normalizePayChannels(in.PayChannels)
+	if err != nil {
+		return ConsoleActivityView{}, err
+	}
+	in.PayChannels = payChannels
 	a, err := s.repo.UpdateActivity(ctx, scope, id, in)
 	if err != nil {
 		return ConsoleActivityView{}, err
@@ -755,6 +765,11 @@ func (s *ConsoleService) CreateTicketType(ctx context.Context, scope ConsoleScop
 	if _, err := s.repo.GetActivity(ctx, scope, activityID); err != nil {
 		return TicketTypeView{}, err
 	}
+	payChannels, err := normalizePayChannels(in.PayChannels)
+	if err != nil {
+		return TicketTypeView{}, err
+	}
+	in.PayChannels = payChannels
 	t, err := s.repo.CreateTicketType(ctx, activityID, in)
 	if err != nil {
 		return TicketTypeView{}, err
@@ -767,6 +782,11 @@ func (s *ConsoleService) UpdateTicketType(ctx context.Context, scope ConsoleScop
 	if _, err := s.repo.GetActivity(ctx, scope, activityID); err != nil {
 		return TicketTypeView{}, err
 	}
+	payChannels, err := normalizePayChannels(in.PayChannels)
+	if err != nil {
+		return TicketTypeView{}, err
+	}
+	in.PayChannels = payChannels
 	t, err := s.repo.UpdateTicketType(ctx, activityID, ticketTypeID, in)
 	if err != nil {
 		return TicketTypeView{}, err

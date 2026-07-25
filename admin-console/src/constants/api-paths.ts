@@ -56,6 +56,7 @@ export const API_PATHS = {
     create: '/admin/staff-accounts',
     update: (id: string) => `/admin/staff-accounts/${id}`,
     disable: (id: string) => `/admin/staff-accounts/${id}/disable`,
+    removeBinding: (id: string) => `/admin/staff-accounts/${id}/binding`,
   },
 
   catalog: {
@@ -140,6 +141,7 @@ export const API_PATHS = {
 
   members: {
     list: '/admin/members',
+    lookup: '/admin/member-lookup',
     detail: (id: string) => `/admin/members/${id}`,
     update: (id: string) => `/admin/members/${id}`,
     walletAdjustments: (id: string) => `/admin/members/${id}/wallet-adjustments`,

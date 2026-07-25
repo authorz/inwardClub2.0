@@ -9,11 +9,9 @@
  *  - parse the `{ data, meta } | { error: { code, message, details } }` envelope
  *  - single-flight refresh-token on 401, then retry once
  *  - surface a normalized ApiError to callers
- *  - transparently serve fixtures when ENV.useMock is on
  */
 const ENV = require('../config/env');
 const auth = require('./auth');
-const mock = require('../services/mock');
 
 class ApiError extends Error {
   constructor(code, message, details, httpStatus) {
@@ -69,6 +67,44 @@ function rawRequest(method, path, options) {
   });
 }
 
+// uploadFile wraps wx.uploadFile with the same base URL, bearer injection and
+// `{data,meta}|{error}` envelope parsing as rawRequest. Used for multipart file
+// uploads (e.g. registration avatar), which wx.request cannot do.
+function uploadFile(path, filePath, formData, options) {
+  const opts = options || {};
+  const header = {};
+  const token = auth.getAccessToken();
+  if (token && !opts.noAuth) header.Authorization = 'Bearer ' + token;
+
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: ENV.apiBaseUrl + path,
+      filePath,
+      name: opts.name || 'file',
+      formData: formData || {},
+      header,
+      timeout: ENV.requestTimeout,
+      success: (res) => {
+        let body = {};
+        try {
+          body = JSON.parse(res.data || '{}');
+        } catch (e) {
+          /* non-JSON body -> treat as error below */
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve({ data: body.data, meta: body.meta });
+          return;
+        }
+        const err = body.error || {};
+        reject(new ApiError(err.code, err.message, err.details, res.statusCode));
+      },
+      fail: (err) => {
+        reject(new ApiError('NETWORK_ERROR', (err && err.errMsg) || '网络异常', null, 0));
+      },
+    });
+  });
+}
+
 function doRefresh() {
   if (refreshing) return refreshing;
   const refreshToken = auth.getRefreshToken();
@@ -92,10 +128,6 @@ function doRefresh() {
 
 async function request(method, path, options) {
   const opts = options || {};
-
-  if (ENV.useMock) {
-    return mock.handle(method, path, opts);
-  }
 
   try {
     return await rawRequest(method, path, opts);
@@ -130,6 +162,7 @@ function failExpired(err) {
 module.exports = {
   ApiError,
   request,
+  uploadFile,
   get: (path, opts) => request('GET', path, opts),
   post: (path, data, opts) => request('POST', path, Object.assign({ data }, opts)),
   patch: (path, data, opts) => request('PATCH', path, Object.assign({ data }, opts)),

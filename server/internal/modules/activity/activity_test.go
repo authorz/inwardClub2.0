@@ -56,9 +56,13 @@ func newPublicTestService() (*Service, *publicMemRepo) {
 
 func TestGetAttachesSellableTicketTypes(t *testing.T) {
 	svc, repo := newPublicTestService()
-	repo.activities = []Activity{{ID: 5, ScopeType: "global", Title: "Show", Status: "published"}}
+	lat, lng := 31.2, 121.5
+	repo.activities = []Activity{{
+		ID: 5, ScopeType: "store", StoreName: "南滨公园店", StoreAddress: "滨江路 1 号",
+		StoreLatitude: &lat, StoreLongitude: &lng, Title: "Show", Status: "published",
+	}}
 	repo.ticketTypes[5] = []TicketType{
-		{ID: 20, ActivityID: 5, Name: "VIP", PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, PayChannels: []string{"wechat"}},
+		{ID: 20, ActivityID: 5, Name: "VIP", PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, PayChannels: []string{"wechat"}, MaxTicketsPerOrder: 4},
 		{ID: 21, ActivityID: 5, Name: "Free", PriceCent: 0, StockQuantity: 0, SoldQuantity: 3, PayChannels: []string{}},
 	}
 
@@ -70,8 +74,12 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 		t.Fatalf("expected 2 ticket types, got %d", len(view.TicketTypes))
 	}
 	// Limited tier: remaining = stock - sold.
-	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 {
+	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 {
 		t.Fatalf("unexpected limited ticket view: %+v", got)
+	}
+	if view.ScopeType != "store" || view.StoreName != "南滨公园店" || view.Address != "滨江路 1 号" ||
+		view.Latitude == nil || *view.Latitude != lat || view.Longitude == nil || *view.Longitude != lng {
+		t.Fatalf("activity store details were not preserved: %+v", view)
 	}
 	// Uncapped tier (stock_quantity 0): -1 sentinel regardless of sold count.
 	if got := view.TicketTypes[1]; got.ID != 21 || got.Stock != -1 {

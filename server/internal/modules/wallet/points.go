@@ -29,9 +29,20 @@ const (
 
 // SignInResult is returned after a daily sign-in.
 type SignInResult struct {
-	Date         string `json:"date"`
-	PointsEarned int64  `json:"pointsEarned"`
-	StreakDays   int    `json:"streakDays"`
+	Date          string `json:"date"`
+	PointsEarned  int64  `json:"pointsEarned"`
+	StreakDays    int    `json:"streakDays"`
+	AlreadySigned bool   `json:"alreadySigned"`
+}
+
+// SignInStatus describes today's sign-in state and reward preview.
+type SignInStatus struct {
+	Date             string  `json:"date"`
+	SignedToday      bool    `json:"signedToday"`
+	StreakDays       int     `json:"streakDays"`
+	RewardPoints     int64   `json:"rewardPoints"`
+	NextRewardPoints int64   `json:"nextRewardPoints"`
+	DailyRewards     []int64 `json:"dailyRewards"`
 }
 
 // PointsTxnResult is returned after a points save or withdrawal request is
@@ -59,6 +70,7 @@ type PointsAmountRequest struct {
 // idempotency key is threaded through so the implementation can claim it via the
 // unique key on the request row.
 type PointsRepository interface {
+	GetSignInStatus(ctx context.Context, memberID int64) (SignInStatus, error)
 	RecordSignIn(ctx context.Context, memberID int64, idemKey string) (SignInResult, error)
 	SavePoints(ctx context.Context, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error)
 	WithdrawPoints(ctx context.Context, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error)
@@ -71,6 +83,11 @@ type PointsService struct {
 
 // NewPointsService builds the points service.
 func NewPointsService(repo PointsRepository) *PointsService { return &PointsService{repo: repo} }
+
+// SignInStatus returns today's state without mutating the wallet.
+func (s *PointsService) SignInStatus(ctx context.Context, memberID int64) (SignInStatus, error) {
+	return s.repo.GetSignInStatus(ctx, memberID)
+}
 
 // SignIn records the member's daily sign-in. Idempotency is enforced per member
 // per day by the repository; the header is required so a retried request cannot

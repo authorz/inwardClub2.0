@@ -60,7 +60,7 @@ Page({
     });
     api.getWallet().then((res) => {
       const coins = (res.data && res.data.coins) || 0; // 1 金币 = 1 分
-      // 余额不足以支付整单，或余额为 0，则金币不可选
+      // 金币不足以支付整单，或可用金币为 0，则金币不可选
       this.setData({
         coinBalance: coins,
         coinDisabled: coins <= 0 || coins < this.totalCent,

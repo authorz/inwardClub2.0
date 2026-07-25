@@ -12,4 +12,14 @@
 .pf__avatar-img { width: 100%; height: 100%; }
 .pf__avatar-ph { width: 100%; height: 100%; background: linear-gradient(160deg, #444, #111); }
 .pf__note { display: block; margin: 24rpx 12rpx; font-size: 24rpx; color: var(--ic-text-3); }
-.pf__save { margin-top: 40rpx; }
+.pf__save { display: flex; width: 100%; margin-top: 40rpx; box-sizing: border-box; }
+.pf__save-btn {
+  flex: 1;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}

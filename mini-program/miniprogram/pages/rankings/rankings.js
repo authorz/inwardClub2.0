@@ -25,17 +25,11 @@ Page({
 
   load() {
     this.setData({ loading: true });
-    // Server GET /mini/rankings takes ?period and returns an ARRAY of
-    // RankingEntryView {rank,nickname,score,avatarUrl}. The mock returns an
-    // object {myRank,myScore,top[],updatedText}; tolerate both. Aggregate fields
-    // (myRank/myScore/updatedText) are mock-only and degrade to hidden/empty.
+    // Server GET /mini/rankings takes ?period and returns RankingEntryView[].
     api
       .getRankings({ period: this.data.scope })
       .then((res) => {
-        const raw = res.data;
-        const isArray = Array.isArray(raw);
-        const d = isArray ? {} : raw || {};
-        const rows = isArray ? raw : d.top || [];
+        const rows = Array.isArray(res.data) ? res.data : [];
         const top = rows.map((r) => {
           const name = r.name != null ? r.name : r.nickname;
           return {
@@ -47,7 +41,7 @@ Page({
             top3: r.rank <= 3,
           };
         });
-        this.setData({ loading: false, board: { myRank: d.myRank, myScore: d.myScore, top, updatedText: d.updatedText } });
+        this.setData({ loading: false, board: { top } });
       })
       .catch(() => this.setData({ loading: false }));
   },

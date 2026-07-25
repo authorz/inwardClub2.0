@@ -5,7 +5,7 @@
  * 门店范围来自 token scope，页面不出现门店选择器。
  */
 import { onMounted, reactive, ref } from 'vue'
-import { NButton, NDivider, NForm, NFormItem, NInput, NSpin, NSwitch } from 'naive-ui'
+import { NButton, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpin, NSwitch } from 'naive-ui'
 import { profileService, type StoreProfile } from '@/api/services/profile'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { ApiError } from '@/api/error'
@@ -26,6 +26,8 @@ const form = reactive<Partial<StoreProfile>>({
   address: '',
   phone: '',
   businessHours: '',
+  latitude: null,
+  longitude: null,
   status: 'open',
   logoUrl: '',
 })
@@ -81,6 +83,8 @@ function saveProfile() {
         address: form.address,
         phone: form.phone,
         businessHours: form.businessHours,
+        latitude: form.latitude ?? null,
+        longitude: form.longitude ?? null,
       }),
     { successMessage: '门店资料已保存', onSuccess: () => load() },
   )
@@ -153,6 +157,28 @@ onMounted(() => {
             <NInput
               v-model:value="form.businessHours"
               placeholder="如：10:00 - 22:00"
+            />
+          </NFormItem>
+          <NFormItem label="纬度 latitude">
+            <NInputNumber
+              v-model:value="form.latitude"
+              :show-button="false"
+              :precision="6"
+              :min="-90"
+              :max="90"
+              placeholder="如：31.230416（小程序据此算距离/导航）"
+              style="width: 100%"
+            />
+          </NFormItem>
+          <NFormItem label="经度 longitude">
+            <NInputNumber
+              v-model:value="form.longitude"
+              :show-button="false"
+              :precision="6"
+              :min="-180"
+              :max="180"
+              placeholder="如：121.473701（小程序据此算距离/导航）"
+              style="width: 100%"
             />
           </NFormItem>
 

@@ -3,8 +3,9 @@
  * 会员列表 + 人工调账（高风险）。
  * 人工调账涉及钱包，必须选择资产类型、填写原因、二次确认，携带幂等键并写入审计。
  */
-import { h, reactive, ref } from 'vue'
+import { computed, h, reactive, ref } from 'vue'
 import {
+  NAvatar,
   NDescriptions,
   NDescriptionsItem,
   NForm,
@@ -14,7 +15,9 @@ import {
   NSelect,
   NSpace,
   NSpin,
+  NTag,
 } from 'naive-ui'
+import type { DataTableSortState, DataTableSortOrder } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
@@ -28,17 +31,69 @@ import { http } from '@/api/http'
 import { API_PATHS } from '@/constants/api-paths'
 import { formatDateTime, maskPhone } from '@/utils/format'
 import type { Member, MemberDetail } from '@/api/models'
-import type { FilterField } from '@/components/ui-types'
+import type { ListQuery } from '@/api/types'
+import type { FilterField, TableColumnList } from '@/components/ui-types'
 import { toastError } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
+type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
+const sortBy = ref<MemberSortField | ''>('')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+const balanceFormatter = new Intl.NumberFormat('zh-CN')
 
-const fields: FilterField[] = [{ key: 'keyword', label: '昵称 / 手机号', type: 'input' }]
+const fields: FilterField[] = [
+  {
+    key: 'keyword',
+    label: '昵称 / 手机号',
+    type: 'input',
+    placeholder: '支持昵称、手机号模糊搜索',
+    width: 280,
+  },
+]
 
-const columns = [
+const columns = computed<TableColumnList<Member>>(() => [
+  textColumn<Member>('ID', 'id', { width: 80 }),
+  renderColumn<Member>(
+    '头像',
+    'avatarUrl',
+    (row) => {
+      const fallback = () => row.nickname?.trim().slice(0, 1) || String(row.id).slice(-1)
+      return h(
+        NAvatar,
+        { size: 32, round: true, src: row.avatarUrl || undefined, objectFit: 'cover' },
+        row.avatarUrl ? { fallback } : { default: fallback },
+      )
+    },
+    64,
+  ),
   textColumn<Member>('昵称', 'nickname'),
   renderColumn<Member>('手机号', 'phone', (row) => maskPhone(row.phone), 140),
-  textColumn<Member>('积分', 'pointsBalance', { width: 100 }),
+  renderColumn<Member>('性别', 'gender', (row) => genderLabel(row.gender), 80),
+  textColumn<Member>('积分余额', 'pointsBalance', {
+    width: 120,
+    sorter: true,
+    sortOrder: columnSortOrder('pointsBalance'),
+    render: (row) => balanceFormatter.format(row.pointsBalance ?? 0),
+  }),
+  textColumn<Member>('金币余额', 'coinsBalance', {
+    width: 120,
+    sorter: true,
+    sortOrder: columnSortOrder('coinsBalance'),
+    render: (row) => balanceFormatter.format(row.coinsBalance ?? 0),
+  }),
+  textColumn<Member>('VIP 等级', 'vipLevel', {
+    width: 150,
+    sorter: true,
+    sortOrder: columnSortOrder('vipLevel'),
+    render: (row) =>
+      row.vipLevel
+        ? h(
+            NTag,
+            { size: 'small', bordered: false },
+            { default: () => `VIP${row.vipLevel} · ${row.vipTierName || '会员'}` },
+          )
+        : '—',
+  }),
   statusColumn<Member>('状态', 'status', RESOURCE_STATUS_OPTIONS, 100),
   dateTimeColumn<Member>('注册时间', 'createdAt'),
   actionsColumn<Member>(
@@ -61,7 +116,45 @@ const columns = [
       ]),
     180,
   ),
-]
+])
+
+function columnSortOrder(field: MemberSortField): DataTableSortOrder {
+  if (sortBy.value !== field) return false
+  return sortOrder.value === 'asc' ? 'ascend' : 'descend'
+}
+
+function genderLabel(gender: string | undefined): string {
+  return (
+    {
+      male: '男',
+      female: '女',
+      other: '其他',
+    }[gender ?? ''] ?? '未知'
+  )
+}
+
+function fetchMembers(query: ListQuery) {
+  return memberService.list({
+    ...query,
+    ...(sortBy.value ? { sortBy: sortBy.value, sortOrder: sortOrder.value } : {}),
+  })
+}
+
+function handleSorter(sorter: DataTableSortState | DataTableSortState[] | null): void {
+  const current = Array.isArray(sorter) ? sorter[0] : sorter
+  const field = current?.columnKey
+  if (
+    !current?.order ||
+    (field !== 'pointsBalance' && field !== 'coinsBalance' && field !== 'vipLevel')
+  ) {
+    sortBy.value = ''
+    sortOrder.value = 'desc'
+  } else {
+    sortBy.value = field
+    sortOrder.value = current.order === 'ascend' ? 'asc' : 'desc'
+  }
+  void listRef.value?.reload()
+}
 
 // —— 会员详情（只读） ——
 const detailDrawerShow = ref(false)
@@ -154,7 +247,8 @@ async function submitAdjust(): Promise<void> {
       :breadcrumb="['用户 / 会员', '会员列表']"
       :fields="fields"
       :columns="columns"
-      :fetcher="memberService.list"
+      :fetcher="fetchMembers"
+      @update:sorter="handleSorter"
     />
     <FormDrawer
       v-model:show="drawerShow"

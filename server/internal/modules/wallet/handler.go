@@ -55,6 +55,17 @@ func (h *Handler) Ledger(c *gin.Context) {
 	httpx.List(c, entries, httpx.MetaFor(page, total))
 }
 
+// SignInStatus handles GET /mini/sign-ins/status.
+func (h *Handler) SignInStatus(c *gin.Context) {
+	memberID := authn.MustFromContext(c).SubjectID()
+	res, err := h.points.SignInStatus(c.Request.Context(), memberID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, res)
+}
+
 // SignIn handles POST /mini/sign-ins.
 func (h *Handler) SignIn(c *gin.Context) {
 	memberID := authn.MustFromContext(c).SubjectID()

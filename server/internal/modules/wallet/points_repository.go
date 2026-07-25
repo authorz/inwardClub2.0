@@ -29,6 +29,49 @@ func NewPointsRepository(db *platdb.DB, clock Clock) PointsRepository {
 	return &sqlPointsRepository{db: db, clock: clock}
 }
 
+// GetSignInStatus returns the member's effective streak and today's configured
+// reward without writing a sign-in record.
+func (r *sqlPointsRepository) GetSignInStatus(ctx context.Context, memberID int64) (SignInStatus, error) {
+	ladder := r.signInLadder(ctx)
+	today := r.clock.Now()
+	status := SignInStatus{
+		Date:         today.Format("2006-01-02"),
+		RewardPoints: pointsForStreak(ladder, 1),
+		DailyRewards: append([]int64(nil), ladder...),
+	}
+
+	var prevDate time.Time
+	var prevStreak int
+	var prevPoints int64
+	const q = `SELECT sign_date, streak_days, points_awarded FROM sign_in_records
+		WHERE member_id = ? ORDER BY sign_date DESC LIMIT 1`
+	switch err := r.db.QueryRowContext(ctx, q, memberID).Scan(&prevDate, &prevStreak, &prevPoints); {
+	case errors.Is(err, sql.ErrNoRows):
+		status.NextRewardPoints = pointsForStreak(ladder, 2)
+		return status, nil
+	case err != nil:
+		return SignInStatus{}, apperr.Internal(err)
+	}
+
+	if sameDate(prevDate, today) {
+		status.SignedToday = true
+		status.StreakDays = prevStreak
+		status.RewardPoints = prevPoints
+		status.NextRewardPoints = pointsForStreak(ladder, prevStreak+1)
+		return status, nil
+	}
+
+	if daysBetween(prevDate, today) == 1 {
+		status.StreakDays = prevStreak
+		status.RewardPoints = pointsForStreak(ladder, prevStreak+1)
+		status.NextRewardPoints = pointsForStreak(ladder, prevStreak+2)
+		return status, nil
+	}
+
+	status.NextRewardPoints = pointsForStreak(ladder, 2)
+	return status, nil
+}
+
 // RecordSignIn records the member's sign-in for today, computes the streak-based
 // reward and credits it to the points wallet in the same transaction. A second
 // sign-in on the same calendar day awards nothing and returns the existing
@@ -58,7 +101,7 @@ func (r *sqlPointsRepository) RecordSignIn(ctx context.Context, memberID int64, 
 
 		// Already signed in today: idempotent no-op, return the existing award.
 		if hasPrev && sameDate(prevDate, today) {
-			res = SignInResult{Date: dateStr, PointsEarned: prevPoints, StreakDays: prevStreak}
+			res = SignInResult{Date: dateStr, PointsEarned: prevPoints, StreakDays: prevStreak, AlreadySigned: true}
 			return nil
 		}
 

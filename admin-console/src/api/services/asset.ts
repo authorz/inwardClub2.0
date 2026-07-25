@@ -22,6 +22,7 @@ export interface UploadCredential {
 
 /** 直传成功后的结果：objectKey 用于写入业务字段（path），publicUrl 仅用于预览 */
 export interface UploadedAsset {
+  assetId: number
   objectKey: string
   publicUrl: string
 }
@@ -60,6 +61,6 @@ export const assetService = {
       throw new Error(`图片上传失败（${res.status}）`)
     }
 
-    return { objectKey: cred.objectKey, publicUrl: resolvePublicUrl(cred.objectKey) }
+    return { assetId: cred.assetId, objectKey: cred.objectKey, publicUrl: resolvePublicUrl(cred.objectKey) }
   },
 }

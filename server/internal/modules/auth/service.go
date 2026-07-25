@@ -124,7 +124,18 @@ func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (
 	// dropped response), log them in rather than failing.
 	member, err := s.members.GetByOpenID(ctx, openID)
 	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
-		id, cerr := s.createMember(ctx, openID, avatarURL, nickname, gender, phone)
+		var invitedByMemberID *int64
+		inviterCode := strings.TrimSpace(req.InviterCode)
+		if inviterCode != "" {
+			inviterID, found, findErr := s.members.FindIDByInviteCode(ctx, inviterCode)
+			if findErr != nil {
+				return LoginResponse{}, findErr
+			}
+			if found {
+				invitedByMemberID = &inviterID
+			}
+		}
+		id, cerr := s.createMember(ctx, openID, avatarURL, nickname, gender, phone, invitedByMemberID)
 		if cerr != nil {
 			return LoginResponse{}, cerr
 		}
@@ -223,19 +234,20 @@ func (s *Service) issueStaffSession(member Member, staff Staff, isNew bool) (Log
 // numeric invite code. Uniqueness is enforced by the members.invite_code UNIQUE
 // constraint; a duplicate-key collision retries with a new code (a handful of
 // attempts is ample given the 1e6 code space and small membership).
-func (s *Service) createMember(ctx context.Context, openID, avatarURL, nickname, gender, phone string) (int64, error) {
+func (s *Service) createMember(ctx context.Context, openID, avatarURL, nickname, gender, phone string, invitedByMemberID *int64) (int64, error) {
 	if nickname == "" {
 		nickname = "会员"
 	}
 	const maxAttempts = 8
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		id, err := s.members.Create(ctx, Member{
-			WeChatOpenID: openID,
-			AvatarURL:    avatarURL,
-			Nickname:     nickname,
-			Gender:       gender,
-			Phone:        phone,
-			InviteCode:   newInviteCode(),
+			WeChatOpenID:      openID,
+			AvatarURL:         avatarURL,
+			Nickname:          nickname,
+			Gender:            gender,
+			Phone:             phone,
+			InviteCode:        newInviteCode(),
+			InvitedByMemberID: invitedByMemberID,
 		})
 		if err == nil {
 			return id, nil
@@ -426,7 +438,16 @@ func subjectForRole(role string) authn.SubjectType {
 }
 
 func memberProfile(m Member) MemberProfile {
-	return MemberProfile{ID: m.ID, Nickname: m.Nickname, AvatarURL: m.AvatarURL, MemberNo: formatMemberNo(m.ID), Phone: m.Phone, InviteCode: m.InviteCode, Status: m.Status}
+	return MemberProfile{
+		ID:           m.ID,
+		Nickname:     m.Nickname,
+		AvatarURL:    m.AvatarURL,
+		MemberNo:     formatMemberNo(m.ID),
+		Phone:        m.Phone,
+		InviteCode:   m.InviteCode,
+		InviterBound: m.InvitedByMemberID != nil,
+		Status:       m.Status,
+	}
 }
 
 // formatMemberNo derives a stable, display-only membership card number from the

@@ -14,6 +14,7 @@ import (
 type MemberRepository interface {
 	GetByOpenID(ctx context.Context, openID string) (Member, error)
 	GetByID(ctx context.Context, id int64) (Member, error)
+	FindIDByInviteCode(ctx context.Context, inviteCode string) (int64, bool, error)
 	Create(ctx context.Context, m Member) (int64, error)
 	BumpTokenVersion(ctx context.Context, id int64) error
 }
@@ -46,12 +47,12 @@ func NewAccountRepository(db *platdb.DB) AccountRepository { return &sqlAccountR
 func NewStaffRepository(db *platdb.DB) StaffRepository { return &sqlStaffRepository{db: db} }
 
 const memberColumns = `id, COALESCE(wechat_openid,''), nickname, COALESCE(avatar_url,''), COALESCE(gender,''), COALESCE(phone,''),
-	COALESCE(invite_code,''), status, token_version, created_at, updated_at`
+	COALESCE(invite_code,''), invited_by_member_id, status, token_version, created_at, updated_at`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	err := row.Scan(&m.ID, &m.WeChatOpenID, &m.Nickname, &m.AvatarURL, &m.Gender, &m.Phone,
-		&m.InviteCode, &m.Status, &m.TokenVersion, &m.CreatedAt, &m.UpdatedAt)
+		&m.InviteCode, &m.InvitedByMemberID, &m.Status, &m.TokenVersion, &m.CreatedAt, &m.UpdatedAt)
 	return m, err
 }
 
@@ -79,12 +80,25 @@ func (r *sqlMemberRepository) GetByID(ctx context.Context, id int64) (Member, er
 	return m, nil
 }
 
+func (r *sqlMemberRepository) FindIDByInviteCode(ctx context.Context, inviteCode string) (int64, bool, error) {
+	const q = `SELECT id FROM members WHERE invite_code = ?`
+	var id int64
+	err := r.db.QueryRowContext(ctx, q, inviteCode).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, apperr.Internal(err)
+	}
+	return id, true, nil
+}
+
 func (r *sqlMemberRepository) Create(ctx context.Context, m Member) (int64, error) {
 	const q = `INSERT INTO members
-		(wechat_openid, nickname, avatar_url, gender, phone, invite_code, status, token_version, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+		(wechat_openid, nickname, avatar_url, gender, phone, invite_code, invited_by_member_id, status, token_version, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
 	now := time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), nullable(m.InviteCode), StatusActive, now, now)
+	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), nullable(m.InviteCode), m.InvitedByMemberID, StatusActive, now, now)
 	if err != nil {
 		return 0, apperr.Internal(err)
 	}

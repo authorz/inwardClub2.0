@@ -1,0 +1,66 @@
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:elif="{{loadError}}" class="ap__empty">
+  <ic-empty text="{{loadError}}" />
+</view>
+
+<view wx:elif="{{activity}}" class="ap">
+  <view class="ap__summary">
+    <image wx:if="{{activity.imageUrl}}" class="ap__cover" src="{{activity.imageUrl}}" mode="aspectFill" />
+    <view class="ap__summary-main">
+      <text class="ap__title">{{activity.title}}</text>
+      <text wx:if="{{activity.dateText}}" class="ap__meta">{{activity.dateText}}</text>
+      <text wx:if="{{activity.storeName}}" class="ap__meta">{{activity.storeName}}</text>
+    </view>
+  </view>
+
+  <view class="ap__section">
+    <text class="ap__section-title">选择票种</text>
+    <view wx:if="{{tickets.length}}" class="ap__tickets">
+      <view
+        class="ap__ticket {{ticketId === item.id ? 'is-active' : ''}}"
+        wx:for="{{tickets}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onPickTicket"
+      >
+        <view class="ap__radio"><view wx:if="{{ticketId === item.id}}" class="ap__radio-on"></view></view>
+        <view class="ap__ticket-main">
+          <view class="ap__ticket-line">
+            <text class="ap__ticket-name">{{item.name}}</text>
+            <text class="ap__ticket-price">¥{{item.priceText}}</text>
+          </view>
+          <text class="ap__ticket-stock">{{item.stockText}} · {{item.limitText}}</text>
+        </view>
+        <view wx:if="{{ticketId === item.id}}" class="ap__qty" catchtap="noop">
+          <text class="ap__qty-label">购买数量</text>
+          <ic-stepper value="{{qty}}" min="{{1}}" max="{{ticket.maxQuantity}}" size="sm" bind:change="onQty" />
+        </view>
+      </view>
+    </view>
+    <view wx:else class="ap__no-ticket">暂无可售门票</view>
+  </view>
+
+  <view wx:if="{{ticket}}" class="ap__section">
+    <text class="ap__section-title">支付方式</text>
+    <ic-pay-methods methods="{{payMethods}}" value="{{payMethod}}" layout="list" bind:change="onPay" />
+  </view>
+
+  <view wx:if="{{ticket}}" class="ap__section ap__amount">
+    <text class="ap__amount-label">订单金额</text>
+    <text class="ap__amount-value">¥{{totalText}}</text>
+  </view>
+
+  <view class="ap__bar">
+    <view class="ap__bar-total">
+      <text class="ap__bar-label">合计</text>
+      <text class="ap__bar-amount">¥{{totalText}}</text>
+    </view>
+    <button
+      class="ic-btn ic-btn-primary ap__submit {{ticket ? '' : 'ic-disabled'}}"
+      disabled="{{!ticket}}"
+      loading="{{submitting}}"
+      bindtap="confirmPurchase"
+    >确认支付</button>
+  </view>
+</view>

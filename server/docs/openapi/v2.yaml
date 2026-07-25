@@ -146,7 +146,12 @@ components:
         (GET /api/v2/mini/activities/{activityID}); the list reads omit it.
       properties:
         id: { type: integer, format: int64 }
+        scopeType: { type: string, enum: [global, store] }
         storeId: { type: integer, format: int64 }
+        storeName: { type: string }
+        address: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
         title: { type: string }
         description: { type: string }
         content: { type: string }
@@ -154,6 +159,7 @@ components:
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        purchaseLimit: { type: integer, description: 'Per-member purchase limit; 0 means unlimited' }
         status: { type: string }
         ticketTypes: { type: array, items: { $ref: '#/components/schemas/PublicTicketTypeView' } }
     PublicTicketTypeView:
@@ -169,6 +175,7 @@ components:
           description: Remaining sellable quantity; -1 signals an uncapped ticket type.
         saleEndAt: { type: string, format: date-time }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        maxTicketsPerOrder: { type: integer }
     WalletAccount:
       type: object
       properties:
@@ -310,7 +317,12 @@ components:
         id: { type: integer, format: int64 }
         nickname: { type: string }
         phone: { type: string }
+        avatarUrl: { type: string }
+        gender: { type: string, enum: [male, female, other] }
         pointsBalance: { type: integer, format: int64 }
+        coinsBalance: { type: integer, format: int64 }
+        vipTierName: { type: string }
+        vipLevel: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
     MemberDetailView:
@@ -437,32 +449,26 @@ components:
       type: object
       properties:
         id: { type: integer, format: int64 }
-        name: { type: string }
-        amount: { type: integer, format: int64 }
-        bonusAmount: { type: integer, format: int64 }
-        growthAmount: { type: integer, format: int64, description: 'growth_value granted on top-up (0 = none); accrued by recharge settlement' }
-        assetType: { type: string }
+        amountCent: { type: integer, format: int64, description: 'Actual WeChat payment amount in cents' }
+        coinAmount: { type: integer, format: int64, description: 'Total coins credited after successful payment' }
+        pointsAmount: { type: integer, format: int64, description: 'Points credited after successful payment' }
         sortOrder: { type: integer }
         status: { type: string }
     RechargeProductCreateRequest:
       type: object
-      required: [name, amount]
+      required: [amountCent, coinAmount]
       properties:
-        name: { type: string }
-        amount: { type: integer, format: int64 }
-        bonusAmount: { type: integer, format: int64 }
-        growthAmount: { type: integer, format: int64, description: 'growth_value granted on top-up (0 = none)' }
-        assetType: { type: string }
+        amountCent: { type: integer, format: int64, description: 'Actual WeChat payment amount in cents' }
+        coinAmount: { type: integer, format: int64, description: 'Total coins credited after successful payment' }
+        pointsAmount: { type: integer, format: int64, description: 'Points credited after successful payment; defaults to 0' }
         sortOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     RechargeProductUpdateRequest:
       type: object
       properties:
-        name: { type: string }
-        amount: { type: integer, format: int64 }
-        bonusAmount: { type: integer, format: int64 }
-        growthAmount: { type: integer, format: int64 }
-        assetType: { type: string }
+        amountCent: { type: integer, format: int64 }
+        coinAmount: { type: integer, format: int64 }
+        pointsAmount: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
     RankingEntryView:
@@ -483,6 +489,20 @@ components:
         date: { type: string, format: date, description: 'Business-day calendar date (YYYY-MM-DD)' }
         pointsEarned: { type: integer, format: int64 }
         streakDays: { type: integer, description: 'Consecutive-day streak that produced the award' }
+        alreadySigned: { type: boolean, description: 'True when today was already recorded and no points were credited again' }
+    SignInStatus:
+      type: object
+      description: Current daily sign-in state and configured reward preview.
+      properties:
+        date: { type: string, format: date, description: 'Current business-day calendar date (YYYY-MM-DD)' }
+        signedToday: { type: boolean }
+        streakDays: { type: integer, description: 'Current consecutive-day streak; 0 after a break before signing in again' }
+        rewardPoints: { type: integer, format: int64, description: 'Today award when signed, otherwise the award available by signing in now' }
+        nextRewardPoints: { type: integer, format: int64, description: 'Reward for the next consecutive day' }
+        dailyRewards:
+          type: array
+          description: 'Global consecutive-day reward ladder; the final value applies to that day and every later day'
+          items: { type: integer, format: int64 }
     PointsAmountRequest:
       type: object
       required: [amount]
@@ -715,9 +735,37 @@ components:
         storeCount: { type: integer, format: int64 }
         memberCount: { type: integer, format: int64 }
         orderCount: { type: integer, format: int64 }
-        grossSalesCent: { type: integer, format: int64 }
+        grossSalesCent: { type: integer, format: int64, description: 'Gross amount of all successfully paid orders, retained for report compatibility.' }
+        todayOrderCount: { type: integer, format: int64 }
+        todayGrossSalesCent: { type: integer, format: int64 }
+        todayNewMemberCount: { type: integer, format: int64 }
+        activityRevenueCent: { type: integer, format: int64 }
+        todayActivityRevenueCent: { type: integer, format: int64 }
         couponsIssued: { type: integer, format: int64 }
         couponsRedeemed: { type: integer, format: int64 }
+        wechatRevenue: { $ref: '#/components/schemas/ReportOverviewBreakdown' }
+        coinConsumption: { $ref: '#/components/schemas/ReportOverviewBreakdown' }
+        trend:
+          type: array
+          description: 'Seven local calendar days in ascending order (Asia/Shanghai), including zero-value days.'
+          items: { $ref: '#/components/schemas/ReportOverviewTrendPoint' }
+    ReportOverviewBreakdown:
+      type: object
+      properties:
+        total: { type: integer, format: int64 }
+        today: { type: integer, format: int64 }
+        recharge: { type: integer, format: int64 }
+        food: { type: integer, format: int64 }
+        activity: { type: integer, format: int64 }
+        todayRecharge: { type: integer, format: int64 }
+        todayFood: { type: integer, format: int64 }
+        todayActivity: { type: integer, format: int64 }
+    ReportOverviewTrendPoint:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        wechatRevenueCent: { type: integer, format: int64 }
+        orderCount: { type: integer, format: int64 }
     RevenueReportRow:
       type: object
       description: One day's revenue rollup (gross counts paid orders only).
@@ -817,7 +865,7 @@ components:
         itemType: { type: string, enum: [food, coupon, redeemable, physical] }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
-        payChannels: { type: array, items: { type: string }, description: 'e.g. wechat, coin, points' }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -849,7 +897,7 @@ components:
         itemType: { type: string, enum: [food, coupon, redeemable, physical], default: food, description: Internal order type; the console-facing product type is categoryId }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
-        payChannels: { type: array, items: { type: string } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -888,7 +936,7 @@ components:
         imageUrl: { type: string, format: uri }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         purchaseLimitPerMember: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
@@ -902,10 +950,13 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         type: { type: string }
+        assetId: { type: integer, format: int64 }
+        imageUrl: { type: string, format: uri }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
         status: { type: string }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     ActivityInput:
       type: object
       required: [title]
@@ -920,7 +971,7 @@ components:
         assetId: { type: integer, format: int64 }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         purchaseLimitPerMember: { type: integer }
         status: { type: string, description: 'Defaults to "draft" when omitted' }
     ActivitySessionView:
@@ -956,7 +1007,7 @@ components:
         soldQuantity: { type: integer, format: int64 }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         maxTicketsPerOrder: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
@@ -971,7 +1022,7 @@ components:
         stockQuantity: { type: integer, format: int64 }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         maxTicketsPerOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     # ---- mini coupon views ----
@@ -1215,11 +1266,12 @@ paths:
         state, and a duplicate notify for an already-paid order succeeds without
         re-applying state. A verification failure returns 401 so WeChat retries.
         For a member-bound recharge order the settlement also grants the top-up
-        entitlement in the same transaction: it credits (amount + bonusAmount)
-        coins, accrues the product's growthAmount into the growth_value wallet,
-        and advances the member's VIP tier for the new growth balance
-        (upgrade-only). Each entitlement carries its own idem key, so replays
-        never double-credit.
+        entitlement in the same transaction: a configured quick-recharge tier
+        credits its coinAmount and pointsAmount, while a custom amount credits
+        one coin per paid yuan. The settlement also accrues the internal
+        growth-value grant and advances the member's VIP tier for the new growth
+        balance (upgrade-only). Each entitlement carries its own idem key, so
+        replays never double-credit.
       responses:
         '200': { description: settled (or idempotent no-op) }
         '400': { $ref: '#/components/responses/Error' }
@@ -1481,6 +1533,21 @@ paths:
         - { $ref: '#/components/parameters/PageSize' }
       responses:
         '200': { description: ledger page }
+  /api/v2/mini/sign-ins/status:
+    get:
+      tags: [mini]
+      security: [{ bearerAuth: [] }]
+      summary: Get today's sign-in state and reward preview
+      responses:
+        '200':
+          description: current sign-in state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SignInStatus' }
+        '401': { $ref: '#/components/responses/Error' }
   /api/v2/mini/sign-ins:
     post:
       tags: [mini]
@@ -2058,6 +2125,29 @@ paths:
                 type: object
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
+        '400': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/members:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: List members with wallet balances and current VIP tier
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: keyword, in: query, schema: { type: string }, description: Fuzzy match by nickname or phone number }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: sortBy, in: query, schema: { type: string, enum: [pointsBalance, coinsBalance, vipLevel] } }
+        - { name: sortOrder, in: query, schema: { type: string, enum: [asc, desc] } }
+      responses:
+        '200':
+          description: paginated member list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
         '400': { $ref: '#/components/responses/Error' }
   /api/v2/admin/members/{memberID}:
     get:

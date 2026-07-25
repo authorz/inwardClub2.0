@@ -41,7 +41,7 @@ export interface ListQuery {
 export interface AuditableEntity {
   id: string
   scopeType?: string
-  storeId?: string | null
+  storeId?: string | number | null
   status?: string
   createdAt?: string
   updatedAt?: string

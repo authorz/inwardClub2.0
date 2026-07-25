@@ -14,6 +14,7 @@
  * The staff store is fixed by the server and must never be switched here.
  */
 const api = require('../services/api');
+const auth = require('./auth');
 
 const STORAGE_KEY = 'ic_current_store'; // holds ONLY manual picks
 
@@ -46,6 +47,7 @@ function set(store) {
 }
 
 function getId() {
+  if (auth.isStaff()) return auth.getStoreId();
   const s = get();
   return s && s.id;
 }
@@ -53,6 +55,7 @@ function getId() {
 // switchStore records a store the member explicitly picked — persisted, so it
 // wins over the nearest default until they switch again.
 function switchStore(store) {
+  if (auth.isStaff()) return current;
   return set(store);
 }
 
@@ -62,6 +65,23 @@ function switchStore(store) {
 // The nearest auto-pick is kept in memory only, so it is re-resolved on the next
 // app launch. Single-flighted so concurrent callers share one resolve.
 function ensureStore() {
+  if (auth.isStaff()) {
+    const storeId = auth.getStoreId();
+    if (!storeId) return Promise.resolve(null);
+    if (current && String(current.id) === String(storeId)) return Promise.resolve(current);
+    if (ensuring) return ensuring;
+    ensuring = api
+      .getStore(storeId)
+      .then((res) => {
+        current = res.data || null;
+        return current;
+      })
+      .catch(() => null)
+      .finally(() => {
+        ensuring = null;
+      });
+    return ensuring;
+  }
   if (current) return Promise.resolve(current);
   const manual = readManual();
   if (manual && manual.id) {
@@ -84,6 +104,14 @@ function ensureStore() {
 // nearest-first when a user location is available (for both the default resolve
 // and the store-select list). Never rejects — returns [] on failure.
 function listNearby() {
+  if (auth.isStaff()) {
+    const storeId = auth.getStoreId();
+    if (!storeId) return Promise.resolve([]);
+    return api
+      .getStore(storeId)
+      .then((res) => (res.data ? [res.data] : []))
+      .catch(() => []);
+  }
   return currentLocation().then((loc) => {
     const params = loc ? { lat: loc.latitude, lng: loc.longitude, pageSize: 50 } : { pageSize: 50 };
     return api

@@ -1,4 +1,4 @@
-<page-meta page-style="{{showLoginSheet ? 'overflow: hidden;' : ''}}"></page-meta>
+<page-meta page-style="{{(showLoginSheet || showSignInSheet) ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="ic-page ic-page--tab home">
   <!-- Custom navigation: white brand bar aligned to the WeChat capsule -->
   <view class="home__nav" style="padding-top: {{navStatusBar}}px;">
@@ -8,7 +8,7 @@
   </view>
 
   <!-- Banner: real store banner image, else a restrained lounge placeholder -->
-  <view class="home__banner">
+  <view class="home__banner" bindtap="onBannerTap">
     <image wx:if="{{banner.imageUrl}}" class="home__banner-img" src="{{banner.imageUrl}}" mode="aspectFill" />
     <view wx:else class="home__banner-ph">
       <text class="home__banner-title">INWARD CLUB</text>
@@ -16,8 +16,14 @@
     </view>
   </view>
 
-  <!-- Member card, overlapping the banner's lower edge -->
-  <view class="home__card ic-card">
+  <!-- Member card, overlapping the banner's lower edge. After login the member's
+       VIP tier banner fills the card as its background (with a scrim so the light
+       identity text stays readable); guests keep the dark gradient. -->
+  <view class="home__card ic-card {{loggedIn && me.tierBannerUrl ? 'home__card--vip' : ''}}">
+    <block wx:if="{{loggedIn && me.tierBannerUrl}}">
+      <image class="home__card-bg" src="{{me.tierBannerUrl}}" mode="widthFix" />
+      <view class="home__card-scrim"></view>
+    </block>
     <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">
       <view class="home__avatar {{loggedIn ? '' : 'home__avatar--guest'}}">
         <image wx:if="{{loggedIn && me.avatarUrl}}" class="home__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
@@ -33,7 +39,6 @@
             <text class="home__vip-mark">◆</text>
             <text class="home__vip-name ic-ellipsis">{{me.tierName}}</text>
           </view>
-          <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
         </view>
       </view>
 
@@ -48,11 +53,7 @@
 
       <text wx:if="{{loggedIn}}" class="home__spade">♠</text>
     </view>
-  </view>
-
-  <!-- Member VIP banner: shown after login when the current tier has a banner -->
-  <view wx:if="{{loggedIn && me.tierBannerUrl}}" class="home__vip-banner">
-    <image class="home__vip-banner-img" src="{{me.tierBannerUrl}}" mode="aspectFill" />
+    <text wx:if="{{loggedIn && me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
   </view>
 
   <!-- Recent store -->
@@ -104,6 +105,67 @@
     <text class="home__empty-acts-text">暂无活动</text>
   </view>
 
+  <view
+    class="home__sign-in {{signInStatus.signedToday ? 'home__sign-in--done' : ''}} {{signInSubmitting ? 'home__sign-in--loading' : ''}}"
+    aria-label="{{signInStatus.signedToday ? '查看今日签到状态' : '查看签到规则'}}"
+    aria-role="button"
+    hover-class="home__sign-in--hover"
+    bindtap="onSignIn"
+  >
+    <view class="ic-ic ic-ic-calendar ic-ic--sm home__sign-in-icon"></view>
+    <text wx:if="{{signInStatus.signedToday}}" class="home__sign-in-badge">✓</text>
+    <view wx:if="{{!signInStatus.signedToday && !signInSubmitting}}" class="home__sign-in-dot"></view>
+  </view>
+
+  <view wx:if="{{showSignInSheet}}" class="home__sign-dialog">
+    <view class="home__sign-dialog-panel">
+      <view class="home__sign-dialog-head">
+        <view class="home__sign-dialog-title">
+          <view class="ic-ic ic-ic-calendar ic-ic--sm"></view>
+          <text>签到得积分</text>
+        </view>
+        <view
+          class="home__sign-dialog-close"
+          aria-label="关闭签到弹窗"
+          aria-role="button"
+          hover-class="home__sign-dialog-close--hover"
+          bindtap="closeSignInSheet"
+        >×</view>
+      </view>
+
+      <view wx:if="{{signInStatus.dailyRewards.length}}" class="home__sign-rules">
+        <view
+          class="home__sign-rule {{signInStatus.streakDays >= index + 1 ? 'home__sign-rule--earned' : ''}} {{!signInStatus.signedToday && signInStatus.streakDays === index ? 'home__sign-rule--current' : ''}}"
+          wx:for="{{signInStatus.dailyRewards}}"
+          wx:key="index"
+        >
+          <text class="home__sign-rule-day">{{index === signInStatus.dailyRewards.length - 1 ? ('第' + (index + 1) + '天及以上') : ('第' + (index + 1) + '天')}}</text>
+          <text class="home__sign-rule-points">+{{item}}</text>
+          <text class="home__sign-rule-unit">积分</text>
+        </view>
+      </view>
+      <text wx:else class="home__sign-dialog-loading">规则加载中…</text>
+
+      <text class="home__sign-dialog-note">连续签到可获得更多积分，断签后从第 1 天重新计算</text>
+      <button
+        class="home__sign-dialog-button {{signInStatus.signedToday ? 'home__sign-dialog-button--done' : ''}}"
+        loading="{{signInSubmitting}}"
+        disabled="{{signInSubmitting || signInStatus.signedToday}}"
+        bindtap="confirmSignIn"
+      >{{signInStatus.signedToday ? '今日已签到' : '签到'}}</button>
+    </view>
+  </view>
+
+  <view wx:if="{{showSignInReward}}" class="home__reward">
+    <view class="home__reward-halo"></view>
+    <view class="home__reward-panel">
+      <view class="home__reward-check">✓</view>
+      <text class="home__reward-title">签到成功</text>
+      <text class="home__reward-points">+{{signInReward}} 积分</text>
+      <text class="home__reward-streak">已连续签到 {{signInStreak}} 天</text>
+    </view>
+  </view>
+
   <ic-bottom-sheet show="{{showLoginSheet}}" title="{{loginMode === 'register' ? '注册会员' : '绑定手机号'}}" max-height="86vh" bind:close="closeLoginSheet">
     <view class="login">
       <text class="login__hint">{{loginMode === 'register' ? '请完善以下资料完成注册' : '根据网络安全法规定，需绑定手机号后使用'}}</text>
@@ -119,14 +181,15 @@
 
       <view wx:if="{{loginMode === 'register'}}" class="login__row">
         <text class="login__label">昵称<text class="login__req">*</text></text>
-        <input class="login__input" type="nickname" placeholder="点击填写昵称" placeholder-class="login__input-ph" value="{{loginForm.nickName}}" bindinput="onLoginNickname" />
+        <input class="login__input" type="nickname" value="{{loginForm.nickName}}" placeholder="点击填写昵称" placeholder-class="login__input-ph" bindinput="onLoginNickname" bindblur="onLoginNickname" />
       </view>
 
-      <!-- both modes: phone (required) -->
+      <!-- both modes: phone (required). Authorize -> backend decrypt -> masked, read-only. -->
       <view class="login__row">
         <text class="login__label">手机<text class="login__req">*</text></text>
         <view class="login__control login__control--phone">
-          <button class="login__pill {{loginForm.phoneAuthed ? 'login__pill--done' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="onGetLoginPhoneNumber"><text class="login__pill-text">{{loginForm.phoneAuthed ? '已获取' : '获取手机号'}}</text></button>
+          <text wx:if="{{loginForm.phoneBound}}" class="login__phone-val">{{loginForm.phoneMasked}}</text>
+          <button wx:else class="login__pill" loading="{{loginForm.phoneBinding}}" open-type="getPhoneNumber" bindgetphonenumber="onGetLoginPhoneNumber"><text class="login__pill-text">获取手机号</text></button>
         </view>
       </view>
 

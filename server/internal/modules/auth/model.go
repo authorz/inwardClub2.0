@@ -4,17 +4,18 @@ import "time"
 
 // Member is a mini-program member identity.
 type Member struct {
-	ID           int64
-	WeChatOpenID string
-	Nickname     string
-	AvatarURL    string
-	Gender       string
-	Phone        string
-	InviteCode   string
-	Status       string
-	TokenVersion int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                int64
+	WeChatOpenID      string
+	Nickname          string
+	AvatarURL         string
+	Gender            string
+	Phone             string
+	InviteCode        string
+	InvitedByMemberID *int64
+	Status            string
+	TokenVersion      int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // Account is a back-office account (admin console or store console).

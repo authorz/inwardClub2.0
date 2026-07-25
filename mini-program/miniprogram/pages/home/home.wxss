@@ -47,17 +47,27 @@
 .mine__menu-ico { width: 56rpx; height: 56rpx; }
 
 /* ---- recharge sheet ---- */
-/* 三列自适应：6 档位换行完整展示 */
-.rc__tiles { display: flex; flex-wrap: wrap; gap: 18rpx; margin: 20rpx 0 8rpx; }
+/* 三列档位：保持快速比较的紧凑结构，通过留白区分金额与赠送权益 */
+.rc__tiles { display: flex; flex-wrap: wrap; gap: 14rpx; margin: 22rpx 0 12rpx; }
 .rc__tile {
-  position: relative; width: calc((100% - 36rpx) / 3); box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: center; gap: 8rpx;
-  padding: 26rpx 8rpx; border: 2rpx solid var(--ic-line-strong); border-radius: 18rpx; background: #fff;
+  position: relative;
+  width: calc((100% - 28rpx) / 3);
+  min-height: 176rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24rpx 8rpx 22rpx;
+  border: 1rpx solid var(--ic-line);
+  border-radius: 16rpx;
+  background: #fff;
 }
-.rc__tile.is-active { border-color: #111; }
-.rc__price { font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
-.rc__coins { font-size: 22rpx; color: var(--ic-text-3); }
-.rc__check { position: absolute; top: -2rpx; right: -2rpx; width: 40rpx; height: 40rpx; border-radius: 0 16rpx 0 16rpx; background: #111; display: flex; align-items: center; justify-content: center; }
+.rc__tile.is-active { border: 2rpx solid var(--ic-black); }
+.rc__price { font-size: 34rpx; font-weight: 700; line-height: 1.15; color: var(--ic-black); }
+.rc__coins { margin-top: 14rpx; font-size: 24rpx; line-height: 1.25; color: var(--ic-text-2); white-space: nowrap; }
+.rc__points { margin-top: 8rpx; font-size: 22rpx; line-height: 1.25; color: var(--ic-text-3); white-space: nowrap; }
+.rc__check { position: absolute; top: -2rpx; right: -2rpx; width: 36rpx; height: 36rpx; border-radius: 0 14rpx 0 14rpx; background: #111; display: flex; align-items: center; justify-content: center; }
 .rc__check .ic-ic { color: #fff; }
 /* 自定义金额行 */
 .rc__custom { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 4rpx 0 8rpx; padding: 22rpx 24rpx; border: 2rpx solid var(--ic-line-strong); border-radius: 18rpx; background: #fff; }

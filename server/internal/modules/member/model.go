@@ -33,6 +33,7 @@ type Invitee struct {
 	MemberID      int64
 	Nickname      string
 	AvatarAssetID *int64
+	AvatarURL     string
 	JoinedAt      time.Time
 }
 
@@ -75,27 +76,22 @@ type MembershipTierUpdate struct {
 	Status      *string
 }
 
-// RechargeProduct is a quick-recharge coin package. GrowthAmount is the
-// growth_value granted on top-up (0 = none); it is applied by the recharge
-// settlement path alongside the coins bonus.
+// RechargeProduct is a quick-recharge tier. Payment amount is stored in cents;
+// credited coins and points are independent integer quantities.
 type RechargeProduct struct {
 	ID           int64
-	Name         string
-	Amount       int64
-	BonusAmount  int64
-	GrowthAmount int64
-	AssetType    string
+	AmountCent   int64
+	CoinAmount   int64
+	PointsAmount int64
 	SortOrder    int
 	Status       string
 }
 
 // RechargeProductCreate is the input to creating a new recharge package.
 type RechargeProductCreate struct {
-	Name         string
-	Amount       int64
-	BonusAmount  int64
-	GrowthAmount int64
-	AssetType    string
+	AmountCent   int64
+	CoinAmount   int64
+	PointsAmount int64
 	SortOrder    int
 	Status       string
 }
@@ -103,11 +99,9 @@ type RechargeProductCreate struct {
 // RechargeProductUpdate is a partial update to a recharge package; a nil field
 // is left unchanged.
 type RechargeProductUpdate struct {
-	Name         *string
-	Amount       *int64
-	BonusAmount  *int64
-	GrowthAmount *int64
-	AssetType    *string
+	AmountCent   *int64
+	CoinAmount   *int64
+	PointsAmount *int64
 	SortOrder    *int
 	Status       *string
 }

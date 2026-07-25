@@ -1,20 +1,22 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
 <view class="ic-page ic-page--tab rsv">
-  <!-- store + time selectors -->
-  <view class="rsv__field" hover-class="rsv__field--hover" bindtap="switchStore">
-    <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
-    <text class="rsv__field-text ic-ellipsis">{{store.name || '选择门店'}}</text>
-    <view class="rsv__caret"></view>
-  </view>
-
-  <picker mode="selector" range="{{timeOptions}}" bindchange="onPickTime">
-    <view class="rsv__field">
-      <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
-      <text class="rsv__field-text">{{timeText}}</text>
+  <!-- compact store + time selectors -->
+  <view class="rsv__filters">
+    <view class="rsv__filter rsv__filter--store" hover-class="rsv__field--hover" bindtap="switchStore">
+      <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
+      <text class="rsv__filter-text ic-ellipsis">{{store.name || '选择门店'}}</text>
       <view class="rsv__caret"></view>
     </view>
-  </picker>
+    <view class="rsv__filter-divider"></view>
+    <picker class="rsv__time-picker" mode="selector" range="{{timeOptions}}" bindchange="onPickTime">
+      <view class="rsv__filter">
+        <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
+        <text class="rsv__filter-text ic-ellipsis">{{timeText}}</text>
+        <view class="rsv__caret"></view>
+      </view>
+    </picker>
+  </view>
 
   <!-- legend -->
   <view class="rsv__legend">
@@ -26,6 +28,10 @@
 
   <view class="rsv__sec">
     <text class="ic-h2">可预约桌台</text>
+    <view class="rsv__mine-link" hover-class="rsv__field--hover" bindtap="goMyReservations">
+      <text>我的预约</text>
+      <view class="ic-arrow"></view>
+    </view>
   </view>
 
   <ic-loading wx:if="{{loading}}" />
@@ -79,13 +85,8 @@
     </view>
   </block>
 
-  <view class="rsv__actions">
+  <view class="rsv__waitbar">
     <button class="ic-btn ic-btn-primary ic-btn-block rsv__waitbtn" bindtap="onWaitlist">排队等候</button>
-    <view class="rsv__mine ic-card" hover-class="rsv__field--hover" bindtap="goMyReservations">
-      <view class="ic-ic ic-ic-calendar ic-ic--sm"></view>
-      <text class="rsv__mine-text">我的预约</text>
-      <view class="ic-arrow"></view>
-    </view>
   </view>
 </view>
 

@@ -16,10 +16,12 @@ import (
 // a single store (store console, derived from the JWT scope). Status and Keyword
 // are optional refinements.
 type ListFilter struct {
-	Page    httpx.Page
-	StoreID *int64
-	Status  string
-	Keyword string
+	Page      httpx.Page
+	StoreID   *int64
+	Status    string
+	Keyword   string
+	SortBy    string
+	SortOrder string
 	// MemberID and AssetType additionally narrow the wallet ledger console read.
 	MemberID  *int64
 	AssetType string
@@ -210,7 +212,7 @@ func (r *sqlRepository) ListActivities(ctx context.Context, f ListFilter) ([]Act
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, title, start_at, end_at, status, created_at
+	q := `SELECT id, scope_type, store_id, title, asset_id, start_at, end_at, status, created_at, updated_at
 		FROM activities WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -221,7 +223,10 @@ func (r *sqlRepository) ListActivities(ctx context.Context, f ListFilter) ([]Act
 	out := make([]Activity, 0)
 	for rows.Next() {
 		var a Activity
-		if err := rows.Scan(&a.ID, &a.ScopeType, &a.StoreID, &a.Name, &a.StartAt, &a.EndAt, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&a.ID, &a.ScopeType, &a.StoreID, &a.Name, &a.AssetID, &a.StartAt,
+			&a.EndAt, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -333,7 +338,12 @@ func (r *sqlRepository) ListRefunds(ctx context.Context, f ListFilter) ([]Refund
 func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member, int64, error) {
 	// members are not store-scoped in the schema; a store scope selects members
 	// who have at least one business order at that store.
-	where, args := filterClauses(f, "", "m.status", "m.nickname")
+	where, args := filterClauses(f, "", "m.status", "")
+	if f.Keyword != "" {
+		keyword := "%" + f.Keyword + "%"
+		where += " AND (m.nickname LIKE ? OR m.phone LIKE ?)"
+		args = append(args, keyword, keyword)
+	}
 	if f.StoreID != nil {
 		where += " AND EXISTS (SELECT 1 FROM business_orders bo WHERE bo.member_id = m.id AND bo.store_id = ?)"
 		args = append(args, *f.StoreID)
@@ -342,10 +352,34 @@ func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members m WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT m.id, m.nickname, COALESCE(m.phone,''),
-			COALESCE((SELECT wa.available_amount FROM wallet_accounts wa WHERE wa.member_id = m.id AND wa.asset_type = 'points'), 0),
+	orderColumn := "m.created_at"
+	switch f.SortBy {
+	case "pointsBalance":
+		orderColumn = "points_balance"
+	case "coinsBalance":
+		orderColumn = "coins_balance"
+	case "vipLevel":
+		orderColumn = "vip_level"
+	}
+	orderDirection := "DESC"
+	if strings.EqualFold(f.SortOrder, "asc") {
+		orderDirection = "ASC"
+	}
+	q := `SELECT m.id, m.nickname, COALESCE(m.phone,''), COALESCE(m.avatar_url,''), COALESCE(m.gender,''),
+			COALESCE(points.available_amount, 0) AS points_balance,
+			COALESCE(coins.available_amount, 0) AS coins_balance,
+			COALESCE(current_tier.name, base_tier.name, '') AS vip_tier_name,
+			COALESCE(current_tier.level, base_tier.level, 0) AS vip_level,
 			m.status, m.created_at
-		FROM members m WHERE ` + where + ` ORDER BY m.id DESC LIMIT ? OFFSET ?`
+		FROM members m
+		LEFT JOIN wallet_accounts points ON points.member_id = m.id AND points.asset_type = 'points'
+		LEFT JOIN wallet_accounts coins ON coins.member_id = m.id AND coins.asset_type = 'coins'
+		LEFT JOIN membership_tiers current_tier ON current_tier.id = m.current_tier_id
+		LEFT JOIN (
+			SELECT name, level FROM membership_tiers
+			WHERE status = 'active' ORDER BY level ASC, id ASC LIMIT 1
+		) base_tier ON 1 = 1
+		WHERE ` + where + ` ORDER BY ` + orderColumn + ` ` + orderDirection + `, m.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -355,7 +389,19 @@ func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member
 	out := make([]Member, 0)
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.Nickname, &m.Phone, &m.PointsBalance, &m.Status, &m.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&m.ID,
+			&m.Nickname,
+			&m.Phone,
+			&m.AvatarURL,
+			&m.Gender,
+			&m.PointsBalance,
+			&m.CoinsBalance,
+			&m.VIPTierName,
+			&m.VIPLevel,
+			&m.Status,
+			&m.CreatedAt,
+		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, m)

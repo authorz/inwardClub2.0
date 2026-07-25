@@ -19,9 +19,8 @@ Page({
         const r = res.data || {};
         this.setData({
           loading: false,
-          // server reservation status enum is booked|arrived|cancelled|expired;
-          // 'active' is kept so the mock fixture stays cancellable.
-          canCancel: r.status === 'booked' || r.status === 'active',
+          // server reservation status enum is booked|arrived|cancelled|expired.
+          canCancel: r.status === 'booked',
           rsv: {
             id: r.id,
             tableName: r.tableName,

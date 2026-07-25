@@ -1,6 +1,6 @@
 // Local cache for the profile the user picks in the login sheet. The token is
 // persisted by auth, but the chosen avatar/nickname/gender are not — and
-// mock/backend getMe may return an empty avatarUrl — so we keep a local copy to
+// getMe may return an empty avatarUrl — so we keep a local copy to
 // restore them after a refresh / re-entry. Shared by home 与 我的 页.
 const PROFILE_KEY = 'ic_member_profile_v1';
 

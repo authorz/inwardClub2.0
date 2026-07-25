@@ -4,12 +4,39 @@ import "time"
 
 // OverviewView is the dashboard overview payload returned to the console.
 type OverviewView struct {
-	StoreCount      int64 `json:"storeCount"`
-	MemberCount     int64 `json:"memberCount"`
-	OrderCount      int64 `json:"orderCount"`
-	GrossSalesCent  int64 `json:"grossSalesCent"`
-	CouponsIssued   int64 `json:"couponsIssued"`
-	CouponsRedeemed int64 `json:"couponsRedeemed"`
+	StoreCount               int64                    `json:"storeCount"`
+	MemberCount              int64                    `json:"memberCount"`
+	OrderCount               int64                    `json:"orderCount"`
+	GrossSalesCent           int64                    `json:"grossSalesCent"`
+	TodayOrderCount          int64                    `json:"todayOrderCount"`
+	TodayGrossSalesCent      int64                    `json:"todayGrossSalesCent"`
+	TodayNewMemberCount      int64                    `json:"todayNewMemberCount"`
+	ActivityRevenueCent      int64                    `json:"activityRevenueCent"`
+	TodayActivityRevenueCent int64                    `json:"todayActivityRevenueCent"`
+	CouponsIssued            int64                    `json:"couponsIssued"`
+	CouponsRedeemed          int64                    `json:"couponsRedeemed"`
+	WechatRevenue            OverviewBreakdownView    `json:"wechatRevenue"`
+	CoinConsumption          OverviewBreakdownView    `json:"coinConsumption"`
+	Trend                    []OverviewTrendPointView `json:"trend"`
+}
+
+// OverviewBreakdownView is a dashboard payment breakdown.
+type OverviewBreakdownView struct {
+	Total         int64 `json:"total"`
+	Today         int64 `json:"today"`
+	Recharge      int64 `json:"recharge"`
+	Food          int64 `json:"food"`
+	Activity      int64 `json:"activity"`
+	TodayRecharge int64 `json:"todayRecharge"`
+	TodayFood     int64 `json:"todayFood"`
+	TodayActivity int64 `json:"todayActivity"`
+}
+
+// OverviewTrendPointView is one local calendar day in the dashboard trend.
+type OverviewTrendPointView struct {
+	Date              string `json:"date"`
+	WechatRevenueCent int64  `json:"wechatRevenueCent"`
+	OrderCount        int64  `json:"orderCount"`
 }
 
 // RevenueView is one day's revenue rollup.

@@ -52,10 +52,13 @@ type ActivityView struct {
 	StoreID   *int64     `json:"storeId,omitempty"`
 	Name      string     `json:"name"`
 	Type      string     `json:"type"`
+	AssetID   *int64     `json:"assetId,omitempty"`
+	ImageURL  string     `json:"imageUrl,omitempty"`
 	StartAt   *time.Time `json:"startAt,omitempty"`
 	EndAt     *time.Time `json:"endAt,omitempty"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // OrderView is the console list representation of an order (the unified
@@ -89,7 +92,12 @@ type MemberView struct {
 	ID            int64     `json:"id"`
 	Nickname      string    `json:"nickname,omitempty"`
 	Phone         string    `json:"phone,omitempty"`
+	AvatarURL     string    `json:"avatarUrl,omitempty"`
+	Gender        string    `json:"gender,omitempty"`
 	PointsBalance int64     `json:"pointsBalance"`
+	CoinsBalance  int64     `json:"coinsBalance"`
+	VIPTierName   string    `json:"vipTierName,omitempty"`
+	VIPLevel      int       `json:"vipLevel"`
 	Status        string    `json:"status"`
 	CreatedAt     time.Time `json:"createdAt"`
 }

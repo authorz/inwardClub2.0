@@ -188,7 +188,8 @@ Page({
           id: p.id,
           priceYuan: String(Math.round(p.priceCent / 100)),
           amountCent: p.priceCent,
-          totalCoins: (p.coins || 0) + (p.bonusCoins || 0),
+          totalCoins: p.coins || 0,
+          pointsAmount: p.points || 0,
         }));
         const first = products[0];
         this.setData({

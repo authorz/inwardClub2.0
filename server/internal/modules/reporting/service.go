@@ -16,14 +16,43 @@ func (s *Service) GetOverview(ctx context.Context, f OverviewFilter) (OverviewVi
 	if err != nil {
 		return OverviewView{}, err
 	}
+	trend := make([]OverviewTrendPointView, 0, len(o.Trend))
+	for _, point := range o.Trend {
+		trend = append(trend, OverviewTrendPointView{
+			Date:              point.Date.Format("2006-01-02"),
+			WechatRevenueCent: point.WechatRevenueCent,
+			OrderCount:        point.OrderCount,
+		})
+	}
 	return OverviewView{
-		StoreCount:      o.StoreCount,
-		MemberCount:     o.MemberCount,
-		OrderCount:      o.OrderCount,
-		GrossSalesCent:  o.GrossSalesCent,
-		CouponsIssued:   o.CouponsIssued,
-		CouponsRedeemed: o.CouponsRedeemed,
+		StoreCount:               o.StoreCount,
+		MemberCount:              o.MemberCount,
+		OrderCount:               o.OrderCount,
+		GrossSalesCent:           o.GrossSalesCent,
+		TodayOrderCount:          o.TodayOrderCount,
+		TodayGrossSalesCent:      o.TodayGrossSalesCent,
+		TodayNewMemberCount:      o.TodayNewMemberCount,
+		ActivityRevenueCent:      o.ActivityRevenueCent,
+		TodayActivityRevenueCent: o.TodayActivityRevenueCent,
+		CouponsIssued:            o.CouponsIssued,
+		CouponsRedeemed:          o.CouponsRedeemed,
+		WechatRevenue:            overviewBreakdownView(o.WechatRevenue),
+		CoinConsumption:          overviewBreakdownView(o.CoinConsumption),
+		Trend:                    trend,
 	}, nil
+}
+
+func overviewBreakdownView(b OverviewBreakdown) OverviewBreakdownView {
+	return OverviewBreakdownView{
+		Total:         b.Total,
+		Today:         b.Today,
+		Recharge:      b.Recharge,
+		Food:          b.Food,
+		Activity:      b.Activity,
+		TodayRecharge: b.TodayRecharge,
+		TodayFood:     b.TodayFood,
+		TodayActivity: b.TodayActivity,
+	}
 }
 
 // GetRevenue returns the daily revenue rollup for the given scope.

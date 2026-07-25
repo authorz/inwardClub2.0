@@ -187,11 +187,9 @@ func (r *fakeRepo) CreateRechargeProduct(_ context.Context, p RechargeProductCre
 	}
 	product := RechargeProduct{
 		ID:           int64(len(r.products) + 1),
-		Name:         p.Name,
-		Amount:       p.Amount,
-		BonusAmount:  p.BonusAmount,
-		GrowthAmount: p.GrowthAmount,
-		AssetType:    p.AssetType,
+		AmountCent:   p.AmountCent,
+		CoinAmount:   p.CoinAmount,
+		PointsAmount: p.PointsAmount,
 		SortOrder:    p.SortOrder,
 		Status:       status,
 	}
@@ -204,20 +202,14 @@ func (r *fakeRepo) UpdateRechargeProduct(_ context.Context, id int64, u Recharge
 		if r.products[i].ID != id {
 			continue
 		}
-		if u.Name != nil {
-			r.products[i].Name = *u.Name
+		if u.AmountCent != nil {
+			r.products[i].AmountCent = *u.AmountCent
 		}
-		if u.Amount != nil {
-			r.products[i].Amount = *u.Amount
+		if u.CoinAmount != nil {
+			r.products[i].CoinAmount = *u.CoinAmount
 		}
-		if u.BonusAmount != nil {
-			r.products[i].BonusAmount = *u.BonusAmount
-		}
-		if u.GrowthAmount != nil {
-			r.products[i].GrowthAmount = *u.GrowthAmount
-		}
-		if u.AssetType != nil {
-			r.products[i].AssetType = *u.AssetType
+		if u.PointsAmount != nil {
+			r.products[i].PointsAmount = *u.PointsAmount
 		}
 		if u.SortOrder != nil {
 			r.products[i].SortOrder = *u.SortOrder
@@ -324,8 +316,11 @@ func TestBindInvitationRules(t *testing.T) {
 
 func TestListInvitationsMapsView(t *testing.T) {
 	repo := newFakeRepo()
-	avatar := int64(9)
-	repo.invitees[1] = []Invitee{{MemberID: 2, Nickname: "b", AvatarAssetID: &avatar}}
+	repo.invitees[1] = []Invitee{{
+		MemberID:  2,
+		Nickname:  "b",
+		AvatarURL: "https://cdn.test/avatar.png",
+	}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	views, total, err := svc.ListInvitations(context.Background(), 1, httpx.Page{Page: 1, PageSize: 20})
@@ -335,7 +330,7 @@ func TestListInvitationsMapsView(t *testing.T) {
 	if total != 1 || len(views) != 1 {
 		t.Fatalf("expected 1 invitation, got %d/%d", total, len(views))
 	}
-	if views[0].AvatarURL == "" || views[0].JoinedAt == "" {
+	if views[0].AvatarURL != "https://cdn.test/avatar.png" || views[0].JoinedAt == "" {
 		t.Fatalf("expected avatar and joinedAt populated: %+v", views[0])
 	}
 }
@@ -620,8 +615,8 @@ func TestDisableMembershipTier(t *testing.T) {
 func TestAdminListRechargeProductsIncludesDisabled(t *testing.T) {
 	repo := newFakeRepo()
 	repo.products = []RechargeProduct{
-		{ID: 1, Name: "Starter", Amount: 100, Status: StatusActive},
-		{ID: 2, Name: "Retired", Amount: 200, Status: StatusDisabled},
+		{ID: 1, AmountCent: 1000, CoinAmount: 10, Status: StatusActive},
+		{ID: 2, AmountCent: 2000, CoinAmount: 20, Status: StatusDisabled},
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -645,7 +640,7 @@ func TestAdminGetRechargeProductNotFound(t *testing.T) {
 
 func TestAdminGetRechargeProductReturnsDisabled(t *testing.T) {
 	repo := newFakeRepo()
-	repo.products = []RechargeProduct{{ID: 1, Name: "Retired", Amount: 100, Status: StatusDisabled}}
+	repo.products = []RechargeProduct{{ID: 1, AmountCent: 1000, CoinAmount: 10, Status: StatusDisabled}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	view, err := svc.AdminGetRechargeProduct(context.Background(), 1)
@@ -657,64 +652,63 @@ func TestAdminGetRechargeProductReturnsDisabled(t *testing.T) {
 	}
 }
 
-func TestCreateRechargeProductRequiresNameAndAmount(t *testing.T) {
+func TestCreateRechargeProductRequiresAmountAndCoins(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	if _, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{}); codeOf(err) != apperr.CodeInvalidArgument {
-		t.Fatalf("expected INVALID_ARGUMENT for missing name, got %v", err)
+		t.Fatalf("expected INVALID_ARGUMENT for missing amount, got %v", err)
 	}
-	if _, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{Name: "Pack", Amount: 0}); codeOf(err) != apperr.CodeInvalidArgument {
+	if _, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{AmountCent: 50000}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for missing coins, got %v", err)
+	}
+	if _, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{AmountCent: 0, CoinAmount: 588}); codeOf(err) != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for non-positive amount, got %v", err)
 	}
 }
 
-func TestCreateRechargeProductDefaultsStatusAndAssetType(t *testing.T) {
+func TestCreateRechargeProductDefaultsStatus(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	view, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{Name: "Starter", Amount: 100})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if view.Status != StatusActive || view.AssetType != "coin" || view.Name != "Starter" || view.ID == 0 {
-		t.Fatalf("unexpected created product: %+v", view)
-	}
-}
-
-func TestRechargeProductGrowthAmountRoundTrips(t *testing.T) {
-	repo := newFakeRepo()
-	svc := NewService(repo, fakeAssets{}, nil)
-
-	// growthAmount is the config source the recharge settlement reads to accrue
-	// growth_value; it must survive create and partial update unchanged.
-	created, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{
-		Name: "Growth Pack", Amount: 5000, BonusAmount: 500, GrowthAmount: 5000,
+	view, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{
+		AmountCent: 50000, CoinAmount: 588, PointsAmount: 10000,
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if created.GrowthAmount != 5000 {
-		t.Fatalf("created growthAmount = %d, want 5000", created.GrowthAmount)
+	if view.Status != StatusActive || view.AmountCent != 50000 || view.CoinAmount != 588 || view.PointsAmount != 10000 || view.ID == 0 {
+		t.Fatalf("unexpected created product: %+v", view)
+	}
+}
+
+func TestRechargeProductAmountsRoundTrip(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, fakeAssets{}, nil)
+
+	created, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{
+		AmountCent: 50000, CoinAmount: 588, PointsAmount: 10000,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.CoinAmount != 588 || created.PointsAmount != 10000 {
+		t.Fatalf("unexpected created amounts: %+v", created)
 	}
 
-	growth := int64(8000)
-	updated, err := svc.UpdateRechargeProduct(context.Background(), created.ID, RechargeProductUpdateRequest{GrowthAmount: &growth})
+	coins := int64(688)
+	updated, err := svc.UpdateRechargeProduct(context.Background(), created.ID, RechargeProductUpdateRequest{CoinAmount: &coins})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if updated.GrowthAmount != 8000 {
-		t.Fatalf("updated growthAmount = %d, want 8000", updated.GrowthAmount)
-	}
-	// The coins bonus must be untouched by a growth-only update.
-	if updated.BonusAmount != 500 {
-		t.Fatalf("bonusAmount changed unexpectedly: %d, want 500", updated.BonusAmount)
+	if updated.CoinAmount != 688 || updated.PointsAmount != 10000 {
+		t.Fatalf("unexpected updated amounts: %+v", updated)
 	}
 }
 
 func TestUpdateRechargeProductRequiresAField(t *testing.T) {
 	repo := newFakeRepo()
-	repo.products = []RechargeProduct{{ID: 1, Name: "Starter", Amount: 100, Status: StatusActive}}
+	repo.products = []RechargeProduct{{ID: 1, AmountCent: 1000, CoinAmount: 10, Status: StatusActive}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{}); codeOf(err) != apperr.CodeInvalidArgument {
@@ -724,16 +718,19 @@ func TestUpdateRechargeProductRequiresAField(t *testing.T) {
 
 func TestUpdateRechargeProductRejectsInvalidValues(t *testing.T) {
 	repo := newFakeRepo()
-	repo.products = []RechargeProduct{{ID: 1, Name: "Starter", Amount: 100, Status: StatusActive}}
+	repo.products = []RechargeProduct{{ID: 1, AmountCent: 1000, CoinAmount: 10, Status: StatusActive}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	empty := ""
-	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{Name: &empty}); codeOf(err) != apperr.CodeInvalidArgument {
-		t.Fatalf("expected INVALID_ARGUMENT for empty name, got %v", err)
-	}
 	zero := int64(0)
-	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{Amount: &zero}); codeOf(err) != apperr.CodeInvalidArgument {
+	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{AmountCent: &zero}); codeOf(err) != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for non-positive amount, got %v", err)
+	}
+	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{CoinAmount: &zero}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for non-positive coins, got %v", err)
+	}
+	negative := int64(-1)
+	if _, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{PointsAmount: &negative}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for negative points, got %v", err)
 	}
 }
 
@@ -741,31 +738,31 @@ func TestUpdateRechargeProductNotFound(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	name := "Starter"
-	if _, err := svc.UpdateRechargeProduct(context.Background(), 99, RechargeProductUpdateRequest{Name: &name}); codeOf(err) != apperr.CodeNotFound {
+	coins := int64(588)
+	if _, err := svc.UpdateRechargeProduct(context.Background(), 99, RechargeProductUpdateRequest{CoinAmount: &coins}); codeOf(err) != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND, got %v", err)
 	}
 }
 
 func TestUpdateRechargeProductAppliesFields(t *testing.T) {
 	repo := newFakeRepo()
-	repo.products = []RechargeProduct{{ID: 1, Name: "Starter", Amount: 100, Status: StatusActive}}
+	repo.products = []RechargeProduct{{ID: 1, AmountCent: 50000, CoinAmount: 588, Status: StatusActive}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	name := "Starter Plus"
-	amount := int64(200)
-	view, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{Name: &name, Amount: &amount})
+	amount := int64(60000)
+	points := int64(12000)
+	view, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{AmountCent: &amount, PointsAmount: &points})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if view.Name != "Starter Plus" || view.Amount != 200 {
+	if view.AmountCent != 60000 || view.CoinAmount != 588 || view.PointsAmount != 12000 {
 		t.Fatalf("unexpected updated product: %+v", view)
 	}
 }
 
 func TestDisableRechargeProduct(t *testing.T) {
 	repo := newFakeRepo()
-	repo.products = []RechargeProduct{{ID: 1, Name: "Starter", Amount: 100, Status: StatusActive}}
+	repo.products = []RechargeProduct{{ID: 1, AmountCent: 1000, CoinAmount: 10, Status: StatusActive}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	view, err := svc.DisableRechargeProduct(context.Background(), 1)
@@ -780,7 +777,7 @@ func TestDisableRechargeProduct(t *testing.T) {
 func TestListRechargeProductsMapsView(t *testing.T) {
 	repo := newFakeRepo()
 	repo.products = []RechargeProduct{
-		{ID: 1, Name: "Starter", Amount: 100, BonusAmount: 10, AssetType: "coin", SortOrder: 1, Status: StatusActive},
+		{ID: 1, AmountCent: 50000, CoinAmount: 588, PointsAmount: 10000, SortOrder: 1, Status: StatusActive},
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -792,7 +789,7 @@ func TestListRechargeProductsMapsView(t *testing.T) {
 		t.Fatalf("expected 1 product, got %d", len(views))
 	}
 	got := views[0]
-	if got.ID != 1 || got.Name != "Starter" || got.Amount != 100 || got.BonusAmount != 10 || got.AssetType != "coin" || got.SortOrder != 1 {
+	if got.ID != 1 || got.AmountCent != 50000 || got.CoinAmount != 588 || got.PointsAmount != 10000 || got.SortOrder != 1 {
 		t.Fatalf("unexpected recharge product view: %+v", got)
 	}
 }

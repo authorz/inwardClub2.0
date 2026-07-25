@@ -61,8 +61,8 @@ function dateTime(input, opts) {
   const isYesterday = d.toDateString() === yst.toDateString();
   const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   if (opts && opts.timeOnly) return hm;
-  if (sameDay) return `今天 ${hm}`;
-  if (isYesterday) return `昨天 ${hm}`;
+  if ((!opts || opts.relative !== false) && sameDay) return `今天 ${hm}`;
+  if ((!opts || opts.relative !== false) && isYesterday) return `昨天 ${hm}`;
   return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${hm}`;
 }
 
@@ -104,6 +104,7 @@ module.exports = {
   codeGroups,
   dateTime,
   dateOnly,
+  dotDay,
   dateRange,
   distance,
 };

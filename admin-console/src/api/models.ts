@@ -26,6 +26,9 @@ export interface Store extends AuditableEntity {
   phone?: string
   address?: string
   businessHours?: string
+  /** GPS 坐标：小程序据此计算门店距离并支持"导航前往"，缺失则两者都不可用 */
+  latitude?: number | null
+  longitude?: number | null
   logoAssetId?: string
 }
 
@@ -36,36 +39,52 @@ export interface AccountEntity extends AuditableEntity {
   /** 员工账号（staff_accounts）用；只有姓名 */
   name?: string
   role?: string
+  /** 系统管理员不可删除或禁用，但可编辑姓名和密码 */
+  isSystem?: boolean
+  /** 员工账号：绑定的小程序会员 id 与手机号（打码） */
+  memberId?: number
+  phone?: string
   /** 绑定门店名称（门店管理员 / 员工列表） */
   storeName?: string | null
-  /** 门店管理员创建时一次性返回的初始密码；列表等其它场景不含此字段 */
-  initialPassword?: string
 }
 
 export interface CatalogCategory extends AuditableEntity {
   name: string
+  storeName?: string
   parentId?: string | null
   sortOrder?: number
-  assetId?: string
+  assetId?: string | number
 }
 
 export interface CatalogItem extends AuditableEntity {
   name: string
   itemType: string
+  description?: string
+  storeName?: string
+  categoryName?: string
+  imageUrl?: string
   priceCent?: number
   stockQuantity?: number
   payChannels?: string[]
-  assetId?: string
-  categoryId?: string
+  assetId?: string | number
+  categoryId?: string | number
+  pointsReward?: number
+  sortOrder?: number
 }
 
 export interface Activity extends AuditableEntity {
-  // server admin.ActivityView 用 name（非 title）。
-  name: string
+  /** 列表接口使用 name，详情/写接口使用 title。 */
+  name?: string
+  title?: string
   type?: string
+  description?: string
+  content?: string
+  assetId?: string | number | null
+  imageUrl?: string
   startAt?: string
   endAt?: string
-  coverAssetId?: string
+  payChannels?: string[]
+  purchaseLimitPerMember?: number
 }
 
 export interface CouponTemplate extends AuditableEntity {
@@ -79,20 +98,19 @@ export interface CouponTemplate extends AuditableEntity {
 
 export interface Banner extends AuditableEntity {
   title: string
-  assetId?: string
-  linkType?: string
-  linkTarget?: string
+  assetId?: string | number | null
+  imageUrl?: string
+  linkUrl?: string
   sortOrder?: number
 }
 
 export interface RechargeProduct extends AuditableEntity {
-  name: string
-  /** 充值面额（整数分，展示时转元） */
-  amount: number
-  /** 赠送数量（金币 / 积分个数，非金额） */
-  bonusAmount?: number
-  /** 赠送资产类型：coin / point */
-  assetType?: string
+  /** 实际支付金额（整数分） */
+  amountCent: number
+  /** 支付成功后到账的金币总数 */
+  coinAmount: number
+  /** 支付成功后赠送的积分数 */
+  pointsAmount: number
   sortOrder?: number
 }
 
@@ -161,7 +179,12 @@ export interface Member {
   id: string
   nickname?: string
   phone?: string
+  avatarUrl?: string
+  gender?: string
   pointsBalance?: number
+  coinsBalance?: number
+  vipTierName?: string
+  vipLevel?: number
   status: string
   createdAt: string
 }
@@ -231,11 +254,10 @@ export interface PaymentChannelSetting {
   enabled: boolean
 }
 
-/** 门店运营配置的业务字段。服务端将其整体存为不透明 JSON blob，schema 由前端约定。 */
+/** 门店运营配置的业务字段。服务端将其整体存为不透明 JSON blob，schema 由前端约定。
+ *  注：自动接单、桌位预订为平台默认能力（常开、不可关闭），不作为可配置项。 */
 export interface StoreSettingsData {
   businessHoursNote?: string
-  autoAcceptOrders: boolean
-  tableReservationEnabled: boolean
 }
 
 /** 门店运营配置接口返回：settings 为不透明配置对象，updatedAt 为服务端更新时间。 */
@@ -245,13 +267,38 @@ export interface StoreSettings {
 }
 
 /** 报表：经营总览（/admin/reports/overview） */
+export interface ReportOverviewBreakdown {
+  total: number
+  today: number
+  recharge: number
+  food: number
+  activity: number
+  todayRecharge: number
+  todayFood: number
+  todayActivity: number
+}
+
+export interface ReportOverviewTrendPoint {
+  date: string
+  wechatRevenueCent: number
+  orderCount: number
+}
+
 export interface ReportOverview {
   storeCount: number
   memberCount: number
   orderCount: number
   grossSalesCent: number
+  todayOrderCount: number
+  todayGrossSalesCent: number
+  todayNewMemberCount: number
+  activityRevenueCent: number
+  todayActivityRevenueCent: number
   couponsIssued: number
   couponsRedeemed: number
+  wechatRevenue: ReportOverviewBreakdown
+  coinConsumption: ReportOverviewBreakdown
+  trend: ReportOverviewTrendPoint[]
 }
 
 /** 报表：收款趋势（/admin/reports/revenue） */

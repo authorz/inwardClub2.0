@@ -11,6 +11,9 @@ export interface StoreProfile extends StoreScope {
   address?: string
   phone?: string
   businessHours?: string
+  /** GPS 坐标：小程序据此计算门店距离并支持「导航前往」，缺失则两者都不可用 */
+  latitude?: number | null
+  longitude?: number | null
   logoAssetId?: number | null
 }
 

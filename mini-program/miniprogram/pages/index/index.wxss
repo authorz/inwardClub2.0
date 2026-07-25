@@ -19,8 +19,19 @@
 
 /* ---- member card ---- */
 .home__card { position: relative; box-sizing: border-box; min-height: 360rpx; margin: -72rpx 24rpx 0; padding: 84rpx 36rpx 88rpx; background: linear-gradient(150deg, #322d28 0%, #1b1a1e 58%, #101014 100%); box-shadow: 0 16rpx 44rpx rgba(0, 0, 0, 0.22); }
+/* With a banner, pin the card to the poster's 16:9 ratio (fixed width 702rpx =
+   750 - 2*24 margin → 395rpx tall) so the full poster fills it edge-to-edge with
+   no crop and no gaps. */
+.home__card--vip { height: 395rpx; min-height: 0; }
+/* logged-in: the VIP tier banner fills the card behind the identity content; the
+   scrim keeps the light text readable over any banner. Both sit below .home__card-top. */
+/* Stretch the banner to the full card via insets only — NOT height:100%, which
+   fails to resolve against the card's min-height (no explicit height) in WeChat
+   and leaves the dark card gradient showing top/bottom as "black edges". */
+.home__card-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: block; z-index: 0; width: 100%;}
+.home__card-scrim { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; background: linear-gradient(90deg, rgba(12, 11, 13, 0.55) 0%, rgba(12, 11, 13, 0.28) 42%, rgba(12, 11, 13, 0) 66%); }
 /* logged-in: avatar centered on the identity group's midline (Hello / name / tier·no) */
-.home__card-top { display: flex; align-items: center; }
+.home__card-top { position: relative; z-index: 1; display: flex; align-items: center; }
 /* guest state: keep logo vertically centered with the welcome/login row */
 .home__card-top--guest { align-items: center; }
 .home__avatar {
@@ -45,7 +56,11 @@
 .home__vip { display: inline-flex; align-items: center; gap: 10rpx; min-width: 0; max-width: 380rpx; padding: 8rpx 20rpx; border-radius: 28rpx; background: linear-gradient(120deg, rgba(226, 196, 147, 0.34) 0%, rgba(201, 168, 106, 0.16) 100%); box-shadow: inset 0 0 0 1rpx rgba(226, 196, 147, 0.5); }
 .home__vip-mark { flex: none; font-size: 20rpx; line-height: 1; color: #e2c493; }
 .home__vip-name { min-width: 0; font-size: 24rpx; font-weight: 600; letter-spacing: 1rpx; color: #f7f1e6; }
-.home__no { font-size: 24rpx; color: rgba(244, 239, 230, 0.6); }
+.home__no {
+  position: absolute; right: 36rpx; bottom: 28rpx; z-index: 1;
+  font-size: 24rpx; color: rgba(244, 239, 230, 0.66); white-space: nowrap;
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.55);
+}
 /* guest login pill — kept small and inside the identity block */
 /* light/contrasting pill so it stays visible on the dark member card (never black-on-black) */
 .home__login {
@@ -96,6 +111,256 @@
   color: var(--ic-text-3);
 }
 
+/* ---- daily sign-in ---- */
+.home__sign-in {
+  position: fixed;
+  right: 20rpx;
+  top: 50%;
+  z-index: 45;
+  width: 72rpx;
+  height: 72rpx;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ic-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.16);
+}
+.home__sign-in-icon {
+  color: currentColor;
+  transform: scale(0.92);
+}
+.home__sign-in-dot {
+  position: absolute;
+  top: 7rpx;
+  right: 7rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  box-shadow: 0 0 0 3rpx var(--ic-white);
+}
+.home__sign-in-badge {
+  position: absolute;
+  top: 4rpx;
+  right: 4rpx;
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 15rpx;
+  font-weight: 600;
+  line-height: 22rpx;
+  text-align: center;
+  box-shadow: 0 0 0 3rpx var(--ic-white);
+}
+.home__sign-in--loading { opacity: 0.62; }
+.home__sign-in--hover { transform: translateY(-50%) scale(0.94); }
+
+.home__sign-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  box-sizing: border-box;
+  padding: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+  animation: home-sign-dialog-backdrop 0.2s ease-out both;
+}
+.home__sign-dialog-panel {
+  width: 100%;
+  max-width: 686rpx;
+  box-sizing: border-box;
+  padding: 28rpx 32rpx 32rpx;
+  border-radius: 24rpx;
+  background: var(--ic-white);
+  color: var(--ic-text);
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.16);
+  animation: home-sign-dialog-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home__sign-dialog-head {
+  height: 76rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx solid var(--ic-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home__sign-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: var(--ic-black);
+}
+.home__sign-dialog-title .ic-ic { color: currentColor; }
+.home__sign-dialog-close {
+  width: 72rpx;
+  height: 72rpx;
+  margin-right: -18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 54rpx;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--ic-text-3);
+}
+.home__sign-dialog-close--hover { opacity: 0.55; }
+.home__sign-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 32rpx;
+}
+.home__sign-rule {
+  width: calc((100% - 24rpx) / 3);
+  height: 136rpx;
+  box-sizing: border-box;
+  border-radius: 14rpx;
+  background: var(--ic-fill-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.home__sign-rule--earned { background: var(--ic-fill); }
+.home__sign-rule--current {
+  background: var(--ic-white);
+  box-shadow: inset 0 0 0 2rpx var(--ic-black);
+}
+.home__sign-rule-day {
+  font-size: 21rpx;
+  line-height: 1.2;
+  color: var(--ic-text-3);
+  white-space: nowrap;
+}
+.home__sign-rule-points {
+  margin-top: 12rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ic-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.home__sign-rule--earned .home__sign-rule-points,
+.home__sign-rule--current .home__sign-rule-points { color: var(--ic-black); }
+.home__sign-rule-unit { margin-top: 6rpx; font-size: 20rpx; line-height: 1; color: var(--ic-text-3); }
+.home__sign-dialog-loading {
+  display: block;
+  padding: 90rpx 0;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--ic-text-3);
+}
+.home__sign-dialog-note {
+  display: block;
+  margin-top: 24rpx;
+  text-align: center;
+  font-size: 21rpx;
+  line-height: 1.5;
+  color: var(--ic-text-3);
+}
+.home__sign-dialog-button {
+  width: 100% !important;
+  height: 88rpx;
+  margin: 28rpx 0 0 !important;
+  padding: 0;
+  border-radius: 8rpx;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 88rpx;
+}
+.home__sign-dialog-button::after { border: none; }
+.home__sign-dialog-button--done {
+  background: var(--ic-fill);
+  color: var(--ic-text-3);
+}
+@keyframes home-sign-dialog-enter {
+  from { opacity: 0; transform: translateY(20rpx) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes home-sign-dialog-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.home__reward {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.16);
+  animation: home-reward-backdrop 1.6s ease-out both;
+}
+.home__reward-panel {
+  position: relative;
+  z-index: 1;
+  width: 300rpx;
+  padding: 38rpx 28rpx 34rpx;
+  box-sizing: border-box;
+  border-radius: 20rpx;
+  background: var(--ic-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 20rpx 50rpx rgba(0, 0, 0, 0.22);
+  animation: home-reward-rise 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home__reward-check {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 38rpx;
+  line-height: 72rpx;
+  text-align: center;
+}
+.home__reward-title { margin-top: 20rpx; font-size: 28rpx; font-weight: 600; color: var(--ic-black); }
+.home__reward-points { margin-top: 4rpx; font-size: 42rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.home__reward-streak { margin-top: 8rpx; font-size: 22rpx; color: var(--ic-text-3); }
+.home__reward-halo {
+  position: absolute;
+  width: 210rpx;
+  height: 210rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: home-reward-halo 0.72s ease-out both;
+}
+@keyframes home-reward-rise {
+  from { opacity: 0; transform: translateY(30rpx) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes home-reward-halo {
+  from { opacity: 0.85; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(2); }
+}
+@keyframes home-reward-backdrop {
+  0% { opacity: 0; }
+  15%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home__sign-dialog,
+  .home__sign-dialog-panel,
+  .home__reward,
+  .home__reward-panel,
+  .home__reward-halo { animation-duration: 0.01ms; }
+}
+
 /* ---- login sheet ---- */
 .login { display: flex; flex-direction: column; padding-bottom: 20rpx; }
 .login__hint { text-align: center; font-size: 24rpx; color: var(--ic-text-3); margin: -4rpx 0 24rpx; }
@@ -144,6 +409,8 @@ button.login__pill { margin-left: auto !important; margin-right: 0 !important; }
 .login__pill::after { border: none; }
 .login__pill-text { display: block; width: 100%; line-height: 72rpx; text-align: center; }
 .login__pill--done { background: var(--ic-fill); color: var(--ic-text-2); }
+/* 已绑定手机号：只读打码展示（不可编辑） */
+.login__phone-val { font-size: 30rpx; color: #999999; letter-spacing: 1rpx; font-variant-numeric: tabular-nums; }
 
 /* gender radio group (男/女) on one row — real, visible native radio dots, pinned right */
 .login__gender { flex: 1; display: flex; align-items: center; justify-content: flex-end; height: 88rpx; gap: 48rpx; }

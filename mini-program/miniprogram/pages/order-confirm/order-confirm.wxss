@@ -1,11 +1,26 @@
-.oc { min-height: 100vh; background: var(--ic-bg); padding: 24rpx 24rpx calc(160rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.oc { min-height: 100vh; background: var(--ic-white); padding: 0 32rpx calc(152rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .oc-empty { padding-top: 120rpx; }
 
-.oc__card { margin-bottom: 24rpx; padding: 8rpx 32rpx; }
-.oc__goods, .oc__pay, .oc__sum { padding: 30rpx 32rpx; }
+/* compact order context */
+.oc__context {
+  min-height: 96rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  border-bottom: 1rpx solid var(--ic-line);
+}
+.oc__context-unit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10rpx; }
+.oc__context-unit--store { flex: 0 1 44%; }
+.oc__context-label { flex: none; font-size: 22rpx; color: var(--ic-text-3); }
+.oc__context-value { min-width: 0; font-size: 26rpx; font-weight: 600; color: var(--ic-text-2); }
+.oc__context-value--muted { font-weight: 400; color: var(--ic-text-3); }
+.oc__context-divider { width: 1rpx; height: 32rpx; flex: none; background: var(--ic-line); }
+.oc__context .ic-arrow { flex: none; margin-left: 0; }
+
+.oc__section { padding: 32rpx 0; border-bottom: 1rpx solid var(--ic-line); }
 
 /* goods */
-.oc__goods-title, .oc__pay-title { display: block; margin-bottom: 20rpx; }
+.oc__goods-title, .oc__pay-title { display: block; margin-bottom: 16rpx; }
 .oc__item { display: flex; align-items: center; gap: 20rpx; padding: 18rpx 0; }
 .oc__item-thumb { width: 96rpx; height: 96rpx; border-radius: 12rpx; overflow: hidden; flex: none; background: var(--ic-fill); }
 .oc__item-pic { width: 100%; height: 100%; }
@@ -38,9 +53,18 @@
 /* fixed bar */
 .oc__bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-  display: flex; align-items: center; justify-content: space-between; gap: 24rpx;
-  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 24rpx;
+  padding: 14rpx 32rpx calc(14rpx + env(safe-area-inset-bottom));
   background: var(--ic-white); border-top: 1rpx solid var(--ic-line);
 }
-.oc__bar-amt { font-size: 44rpx; font-weight: 700; color: var(--ic-black); padding-left: 12rpx; font-variant-numeric: tabular-nums; }
-.oc__bar-btn { width: 340rpx; }
+.oc__bar-amt { font-size: 40rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.oc__bar-btn {
+  width: 252rpx !important;
+  min-width: 252rpx;
+  max-width: 252rpx;
+  height: 76rpx;
+  margin: 0 0 0 auto !important;
+  padding: 0 28rpx;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+}

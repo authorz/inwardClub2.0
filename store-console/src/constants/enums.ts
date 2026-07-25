@@ -43,18 +43,15 @@ export const ORDER_TYPE: Record<OrderType, EnumOption<OrderType>> = {
 }
 
 /* ------------------------------------------------------------------ */
-/* 支付渠道（门店后台收单可用微信/支付宝/金币；小程序端不在此处理）    */
+/* 支付渠道（用户支付仅微信/金币；支付宝只用于线下聚合收款）          */
 /* ------------------------------------------------------------------ */
 
-export type PayChannel = 'wechat' | 'alipay' | 'coin' | 'balance' | 'cash' | 'card'
+export type PayChannel = 'wechat' | 'alipay' | 'coin'
 
 export const PAY_CHANNEL: Record<PayChannel, EnumOption<PayChannel>> = {
   wechat: { value: 'wechat', label: '微信', tone: 'success' },
   alipay: { value: 'alipay', label: '支付宝', tone: 'info' },
   coin: { value: 'coin', label: '金币', tone: 'warning' },
-  balance: { value: 'balance', label: '余额', tone: 'warning' },
-  cash: { value: 'cash', label: '现金', tone: 'default' },
-  card: { value: 'card', label: '刷卡', tone: 'default' },
 }
 
 /** 线下聚合收款允许的渠道（门店收单能力）。 */

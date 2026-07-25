@@ -88,11 +88,9 @@ type MembershipTierUpdateRequest struct {
 // RechargeProductView is the public recharge package representation.
 type RechargeProductView struct {
 	ID           int64  `json:"id"`
-	Name         string `json:"name"`
-	Amount       int64  `json:"amount"`
-	BonusAmount  int64  `json:"bonusAmount"`
-	GrowthAmount int64  `json:"growthAmount"`
-	AssetType    string `json:"assetType"`
+	AmountCent   int64  `json:"amountCent"`
+	CoinAmount   int64  `json:"coinAmount"`
+	PointsAmount int64  `json:"pointsAmount"`
 	SortOrder    int    `json:"sortOrder"`
 	Status       string `json:"status"`
 }
@@ -100,11 +98,9 @@ type RechargeProductView struct {
 // RechargeProductCreateRequest is the POST /admin/recharge-products body.
 // Status defaults to "active" when omitted.
 type RechargeProductCreateRequest struct {
-	Name         string `json:"name" binding:"required"`
-	Amount       int64  `json:"amount" binding:"required"`
-	BonusAmount  int64  `json:"bonusAmount,omitempty"`
-	GrowthAmount int64  `json:"growthAmount,omitempty"`
-	AssetType    string `json:"assetType,omitempty"`
+	AmountCent   int64  `json:"amountCent" binding:"required"`
+	CoinAmount   int64  `json:"coinAmount" binding:"required"`
+	PointsAmount int64  `json:"pointsAmount,omitempty"`
 	SortOrder    int    `json:"sortOrder,omitempty"`
 	Status       string `json:"status,omitempty"`
 }
@@ -112,11 +108,9 @@ type RechargeProductCreateRequest struct {
 // RechargeProductUpdateRequest is the PATCH /admin/recharge-products/:productID
 // body. Omitted fields are left unchanged.
 type RechargeProductUpdateRequest struct {
-	Name         *string `json:"name,omitempty"`
-	Amount       *int64  `json:"amount,omitempty"`
-	BonusAmount  *int64  `json:"bonusAmount,omitempty"`
-	GrowthAmount *int64  `json:"growthAmount,omitempty"`
-	AssetType    *string `json:"assetType,omitempty"`
+	AmountCent   *int64  `json:"amountCent,omitempty"`
+	CoinAmount   *int64  `json:"coinAmount,omitempty"`
+	PointsAmount *int64  `json:"pointsAmount,omitempty"`
 	SortOrder    *int    `json:"sortOrder,omitempty"`
 	Status       *string `json:"status,omitempty"`
 }

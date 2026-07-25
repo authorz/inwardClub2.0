@@ -18,16 +18,19 @@ const props = withDefaults(
     purpose: string
     /** 已绑定的对象路径 objectKey（v-model:path） */
     path?: string | null
+    /** 使用 assets 外键的业务表通过 v-model:asset-id 接收上传后的资产 ID。 */
+    assetId?: string | number | null
     /** 编辑态已有图片的展示地址（服务端返回 bannerUrl，仅预览） */
     previewUrl?: string | null
     width?: number
     height?: number
   }>(),
-  { path: null, previewUrl: null, width: 160, height: 80 },
+  { path: null, assetId: null, previewUrl: null, width: 160, height: 80 },
 )
 
 const emit = defineEmits<{
   'update:path': [value: string | null]
+  'update:assetId': [value: string | null]
 }>()
 
 const uploading = ref(false)
@@ -48,6 +51,7 @@ async function customRequest({
   try {
     const result = await assetService.uploadImage(props.purpose, raw)
     emit('update:path', result.objectKey)
+    emit('update:assetId', String(result.assetId))
     uploadedUrl.value = result.publicUrl
     onFinish()
   } catch (e) {
@@ -76,7 +80,7 @@ async function customRequest({
       accept="image/png,image/jpeg,image/webp"
     >
       <NButton :loading="uploading">
-        {{ path ? '重新上传' : '上传图片' }}
+        {{ path || assetId ? '重新上传' : '上传图片' }}
       </NButton>
     </NUpload>
   </NSpace>

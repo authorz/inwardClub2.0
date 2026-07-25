@@ -17,6 +17,7 @@ type WeChatRegisterRequest struct {
 	AvatarURL      string `json:"avatarUrl" binding:"required"`
 	Nickname       string `json:"nickname" binding:"required"`
 	Gender         string `json:"gender" binding:"required"`
+	InviterCode    string `json:"inviterCode,omitempty"`
 }
 
 // PasswordLoginRequest is the back-office login body.
@@ -50,14 +51,15 @@ type LoginResponse struct {
 // current VIP level (and its banner URL) so the home page can render the tier
 // banner after login; it is nil when the member is not yet ranked.
 type MemberProfile struct {
-	ID         int64          `json:"id"`
-	Nickname   string         `json:"nickname"`
-	AvatarURL  string         `json:"avatarUrl,omitempty"`
-	MemberNo   string         `json:"memberNo,omitempty"`
-	Phone      string         `json:"phone,omitempty"`
-	InviteCode string         `json:"inviteCode,omitempty"`
-	Status     string         `json:"status"`
-	VipTier    *MemberVIPTier `json:"vipTier,omitempty"`
+	ID           int64          `json:"id"`
+	Nickname     string         `json:"nickname"`
+	AvatarURL    string         `json:"avatarUrl,omitempty"`
+	MemberNo     string         `json:"memberNo,omitempty"`
+	Phone        string         `json:"phone,omitempty"`
+	InviteCode   string         `json:"inviteCode,omitempty"`
+	InviterBound bool           `json:"inviterBound"`
+	Status       string         `json:"status"`
+	VipTier      *MemberVIPTier `json:"vipTier,omitempty"`
 }
 
 // MemberVIPTier is the member's current VIP level as surfaced on "me". It mirrors

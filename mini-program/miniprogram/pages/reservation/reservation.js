@@ -70,8 +70,7 @@ Page({
     this.setData({ loading: true });
     // Tables (TableView {id,name,capacity,status}) carry no seats; seats come
     // from a separate endpoint (SeatView {id,tableId?,name,status}). Group the
-    // real seats under their table; if none come back (mock returns []), fall
-    // back to any seats embedded on the table (the mock shape).
+    // real seats under their table.
     Promise.all([api.getTables(storeId), api.getSeats(storeId)])
       .then(([tRes, sRes]) => {
         const byTable = {};
@@ -89,35 +88,26 @@ Page({
       .catch(() => this.setData({ loading: false }));
   },
 
-  /** attach display fields + avatar/gender for a single seat.
-   *  Tolerates both the mock shape ({no,state,user}) and the real SeatView
-   *  ({id,name,status}); real seats carry no occupant info, so a taken seat
-   *  simply shows as reserved without an avatar. */
+  /** Attach display fields for a real SeatView {id,name,status}. */
   decorateSeat(s, i) {
-    const state = s.state != null ? s.state : s.status === 'available' ? 'free' : 'reserved';
-    const no = s.no != null ? s.no : s.name;
-    const user = state === 'reserved' ? s.user || null : null;
-    const nickname = user ? user.nickname : '';
+    const state = s.status === 'available' ? 'free' : 'reserved';
     return {
-      no,
+      no: s.name,
       seatId: s.id,
       state,
       label: SEAT_STATE_LABEL[state] || '',
       style: SEAT_POS[i] || '',
-      avatarUrl: user ? user.avatarUrl || '' : '',
-      nickname,
-      initial: nickname ? nickname.trim().charAt(0).toUpperCase() : '',
-      gender: user ? user.gender || '' : '',
-      genderIcon: user && user.gender
-        ? '/assets/icons/gender-' + user.gender + '.svg'
-        : '',
+      avatarUrl: '',
+      nickname: '',
+      initial: '',
+      gender: '',
+      genderIcon: '',
     };
   },
 
   /** attach display fields + ring positions to a table */
   decorate(t, realSeats) {
-    const rawSeats = realSeats && realSeats.length ? realSeats : t.seats || [];
-    const seats = rawSeats.map((s, i) => this.decorateSeat(s, i));
+    const seats = (realSeats || []).map((s, i) => this.decorateSeat(s, i));
     const cap = t.capacity || seats.length;
     const free = seats.filter((s) => s.state === 'free').length;
     return {

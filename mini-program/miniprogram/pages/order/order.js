@@ -21,8 +21,10 @@ Page({
     store: null,
     tableText: '',
     groups: [], // [{ id, name, items: [{...item, qty, priceText, soldOut }] }]
+    items: [],
+    itemsLoading: false,
     activeCat: '',
-    intoView: '',
+    activeCatName: '',
     cartCount: 0,
     totalText: '0.00',
     selectedCoupon: null,
@@ -36,6 +38,9 @@ Page({
 
   onLoad() {
     this.qty = {}; // itemId -> qty
+    this._catalogRequestId = 0;
+    this._itemRequestId = 0;
+    this._catalogStoreId = '';
     this.measureNav();
     this.load();
   },
@@ -46,10 +51,7 @@ Page({
     }
     this.syncSelectedCoupon();
     const s = storeCtx.get();
-    if (s && this.data.store && s.id !== this.data.store.id) {
-      this.setData({ store: s });
-      this.loadCatalog(s.id);
-    }
+    if (s) this.useStore(s);
   },
 
   syncSelectedCoupon() {
@@ -89,10 +91,27 @@ Page({
     // (persisted pick, else nearest) before loading its catalog.
     this.loadStores();
     storeCtx.ensureStore().then((store) => {
-      this.setData({ store });
-      if (store) this.loadCatalog(store.id);
+      if (store) this.useStore(store);
       else this.setData({ loading: false });
     });
+  },
+
+  useStore(store, force) {
+    const storeId = String(store.id);
+    const changed = !this.data.store || String(this.data.store.id) !== storeId;
+    if (changed || force) {
+      this.qty = {};
+      this.totalCent = 0;
+      this.setData({
+        store,
+        cartCount: 0,
+        totalText: '0.00',
+      });
+    } else {
+      this.setData({ store });
+    }
+    if (force) this._catalogStoreId = '';
+    if (this._catalogStoreId !== storeId) this.loadCatalog(store.id);
   },
 
   loadStores() {
@@ -103,27 +122,61 @@ Page({
   },
 
   loadCatalog(storeId) {
-    this.setData({ loading: true });
-    Promise.all([api.getCategories(storeId), api.getItems(storeId)])
-      .then(([catRes, itemRes]) => {
-        const cats = catRes.data || [];
-        const items = itemRes.data || [];
-        const groups = cats
-          .map((c) => ({
-            id: c.id,
-            name: c.name,
-            items: items
-              .filter((it) => it.categoryId === c.id)
-              .map((it) => this.decorateItem(it)),
-          }))
-          .filter((g) => g.items.length);
+    const requestId = ++this._catalogRequestId;
+    this._catalogStoreId = String(storeId);
+    this.setData({
+      loading: true,
+      itemsLoading: false,
+      groups: [],
+      items: [],
+      activeCat: '',
+      activeCatName: '',
+    });
+    api
+      .getCategories(storeId)
+      .then((catRes) => {
+        if (requestId !== this._catalogRequestId) return;
+        const groups = (catRes.data || []).map((category) => ({
+          id: category.id,
+          name: category.name,
+          items: [],
+        }));
+        const first = groups[0] || null;
         this.setData({
           groups,
-          activeCat: groups.length ? groups[0].id : '',
+          activeCat: first ? first.id : '',
+          activeCatName: first ? first.name : '',
           loading: false,
         });
+        if (first) return this.loadCategoryItems(storeId, first.id, requestId);
       })
-      .catch(() => this.setData({ loading: false }));
+      .catch(() => {
+        if (requestId === this._catalogRequestId) this.setData({ loading: false });
+      });
+  },
+
+  loadCategoryItems(storeId, categoryId, catalogRequestId) {
+    const requestId = ++this._itemRequestId;
+    this.setData({ itemsLoading: true, items: [] });
+    return api
+      .getItems(storeId, { categoryId, pageSize: 100 })
+      .then((itemRes) => {
+        if (
+          catalogRequestId !== this._catalogRequestId ||
+          requestId !== this._itemRequestId ||
+          String(this.data.activeCat) !== String(categoryId)
+        ) {
+          return;
+        }
+        const items = (itemRes.data || []).map((item) => this.decorateItem(item));
+        const groups = this.data.groups.map((group) =>
+          String(group.id) === String(categoryId) ? Object.assign({}, group, { items }) : group
+        );
+        this.setData({ groups, items, itemsLoading: false });
+      })
+      .catch(() => {
+        if (requestId === this._itemRequestId) this.setData({ itemsLoading: false, items: [] });
+      });
   },
 
   decorateItem(it) {
@@ -146,7 +199,11 @@ Page({
 
   onPickCat(e) {
     const id = e.currentTarget.dataset.id;
-    this.setData({ activeCat: id, intoView: 'cat-' + id });
+    if (String(id) === String(this.data.activeCat)) return;
+    const category = this.data.groups.find((group) => String(group.id) === String(id));
+    if (!category || !this.data.store) return;
+    this.setData({ activeCat: category.id, activeCatName: category.name });
+    this.loadCategoryItems(this.data.store.id, category.id, this._catalogRequestId);
   },
 
   onQtyChange(e) {
@@ -163,7 +220,10 @@ Page({
         break;
       }
     }
-    this.setData({ groups });
+    const items = this.data.items;
+    const activeItem = items.find((item) => item.id === id);
+    if (activeItem) activeItem.qty = qty;
+    this.setData({ groups, items });
     this.recalc();
   },
 
@@ -184,29 +244,28 @@ Page({
 
   openStoreSheet() {
     if (this.data.stores.length) {
-      this.setData({ showStoreSheet: true });
+      this.setStoreSheetVisible(true);
       return;
     }
-    this.loadStores().then(() => this.setData({ showStoreSheet: true }));
+    this.loadStores().then(() => this.setStoreSheetVisible(true));
   },
 
   closeStoreSheet() {
-    this.setData({ showStoreSheet: false });
+    this.setStoreSheetVisible(false);
+  },
+
+  setStoreSheetVisible(show) {
+    this.setData({ showStoreSheet: show });
+    const toggleTabBar = show ? wx.hideTabBar : wx.showTabBar;
+    if (typeof toggleTabBar === 'function') toggleTabBar({ animation: false });
   },
 
   onSelectStore(e) {
     const store = this.data.stores.find((s) => s.id === e.currentTarget.dataset.id);
     if (!store) return;
     storeCtx.set(store);
-    this.qty = {};
-    this.totalCent = 0;
-    this.setData({
-      store,
-      showStoreSheet: false,
-      cartCount: 0,
-      totalText: '0.00',
-    });
-    this.loadCatalog(store.id);
+    this.setStoreSheetVisible(false);
+    this.useStore(store, true);
   },
 
   onCheckout() {

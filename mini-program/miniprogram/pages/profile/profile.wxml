@@ -34,14 +34,14 @@
 
     <view class="pf__row pf__row--last" hover-class="pf__row--hover" bindtap="bindInviter">
       <text class="pf__label">绑定邀请人</text>
-      <text class="pf__value">{{me.boundInviter || '未绑定'}}</text>
-      <view wx:if="{{!me.boundInviter}}" class="ic-arrow"></view>
+      <text class="pf__value">{{me.inviterBound ? '已绑定' : '未绑定'}}</text>
+      <view wx:if="{{!me.inviterBound}}" class="ic-arrow"></view>
     </view>
   </view>
 
   <text class="pf__note">资料仅用于会员权益和订单通知</text>
 
   <view class="pf__save">
-    <button class="ic-btn ic-btn-primary ic-btn-block" loading="{{saving}}" bindtap="save">保存</button>
+    <button class="ic-btn ic-btn-primary ic-btn-block pf__save-btn" loading="{{saving}}" bindtap="save">保存</button>
   </view>
 </view>

@@ -647,6 +647,10 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	if in.AssetID == nil || *in.AssetID <= 0 {
 		return apperr.Invalid("catalog: assetId is required")
 	}
+	payChannels, err := normalizePayChannels(in.PayChannels)
+	if err != nil {
+		return err
+	}
 	if _, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID); err != nil {
 		if apperr.From(err).Code == apperr.CodeNotFound {
 			return apperr.Invalid("catalog: category must belong to the selected store")
@@ -655,6 +659,7 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	}
 	in.StoreID = storeID
 	in.Name = strings.TrimSpace(in.Name)
+	in.PayChannels = payChannels
 	if in.ItemType == "" {
 		in.ItemType = ItemTypeFood
 	}

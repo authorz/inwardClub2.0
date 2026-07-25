@@ -32,6 +32,11 @@ type WalletProvider interface {
 	AdjustBalanceForAdmin(ctx context.Context, memberID int64, req wallet.AdjustmentRequest, idemKey string) (wallet.Account, error)
 }
 
+// AssetResolver resolves an asset id to a public URL for console list images.
+type AssetResolver interface {
+	PublicURLByID(ctx context.Context, id int64) (string, error)
+}
+
 // Service provides the headquarters/store console read operations. Each list
 // method maps a repository page onto the console view and returns the total for
 // pagination meta.
@@ -39,11 +44,21 @@ type Service struct {
 	repo    Repository
 	stores  StoreProfileProvider
 	wallets WalletProvider
+	assets  AssetResolver
 }
 
 // NewService builds the console read service.
-func NewService(repo Repository, stores StoreProfileProvider, wallets WalletProvider) *Service {
-	return &Service{repo: repo, stores: stores, wallets: wallets}
+func NewService(
+	repo Repository,
+	stores StoreProfileProvider,
+	wallets WalletProvider,
+	assets ...AssetResolver,
+) *Service {
+	var resolver AssetResolver
+	if len(assets) > 0 {
+		resolver = assets[0]
+	}
+	return &Service{repo: repo, stores: stores, wallets: wallets, assets: resolver}
 }
 
 // ListStores returns a page of store summaries.
@@ -104,11 +119,15 @@ func (s *Service) ListActivities(ctx context.Context, f ListFilter) ([]ActivityV
 	}
 	out := make([]ActivityView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ActivityView{
+		view := ActivityView{
 			ID: r.ID, ScopeType: r.ScopeType, StoreID: r.StoreID, Name: r.Name,
-			Type: r.Type, StartAt: r.StartAt, EndAt: r.EndAt, Status: r.Status,
-			CreatedAt: r.CreatedAt,
-		})
+			Type: r.Type, AssetID: r.AssetID, StartAt: r.StartAt, EndAt: r.EndAt,
+			Status: r.Status, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		}
+		if s.assets != nil && r.AssetID != nil {
+			view.ImageURL, _ = s.assets.PublicURLByID(ctx, *r.AssetID)
+		}
+		out = append(out, view)
 	}
 	return out, total, nil
 }
@@ -145,6 +164,19 @@ func maskPhone(phone string) string {
 
 // ListMembers returns a page of members.
 func (s *Service) ListMembers(ctx context.Context, f ListFilter) ([]MemberView, int64, error) {
+	f.Keyword = strings.TrimSpace(f.Keyword)
+	f.SortBy = strings.TrimSpace(f.SortBy)
+	f.SortOrder = strings.ToLower(strings.TrimSpace(f.SortOrder))
+	switch f.SortBy {
+	case "", "pointsBalance", "coinsBalance", "vipLevel":
+	default:
+		return nil, 0, apperr.Invalid("admin: invalid member sortBy")
+	}
+	switch f.SortOrder {
+	case "", "asc", "desc":
+	default:
+		return nil, 0, apperr.Invalid("admin: invalid member sortOrder")
+	}
 	rows, total, err := s.repo.ListMembers(ctx, f)
 	if err != nil {
 		return nil, 0, err
@@ -153,7 +185,10 @@ func (s *Service) ListMembers(ctx context.Context, f ListFilter) ([]MemberView, 
 	for _, r := range rows {
 		out = append(out, MemberView{
 			ID: r.ID, Nickname: r.Nickname, Phone: r.Phone,
-			PointsBalance: r.PointsBalance, Status: r.Status, CreatedAt: r.CreatedAt,
+			AvatarURL: r.AvatarURL, Gender: r.Gender,
+			PointsBalance: r.PointsBalance, CoinsBalance: r.CoinsBalance,
+			VIPTierName: r.VIPTierName, VIPLevel: r.VIPLevel,
+			Status: r.Status, CreatedAt: r.CreatedAt,
 		})
 	}
 	return out, total, nil

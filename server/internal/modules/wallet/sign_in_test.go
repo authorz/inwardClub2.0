@@ -34,6 +34,15 @@ func TestPointsForStreakLadder(t *testing.T) {
 	}
 }
 
+func TestPointsForStreakUsesLastRewardForLaterDays(t *testing.T) {
+	ladder := []int64{100, 200, 300, 400, 500, 800}
+	for _, streak := range []int{6, 7, 30} {
+		if got := pointsForStreak(ladder, streak); got != 800 {
+			t.Fatalf("streak %d: got %d, want 800", streak, got)
+		}
+	}
+}
+
 // TestSignInStreakWeek walks seven consecutive days ending on today (2026-07-17)
 // and checks the streak/points grow 1..7 → 100..700, then day 8 (2026-07-18)
 // stays at 700.

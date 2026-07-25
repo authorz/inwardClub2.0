@@ -6,7 +6,7 @@
 const http = require('../utils/request');
 
 const m = (p) => '/mini' + p; // member scope
-const s = (p) => '/store' + p; // staff / store scope
+const s = (p) => '/mini/staff' + p; // mini staff, store scope from staff token
 
 function qs(params) {
   if (!params) return '';
@@ -100,15 +100,17 @@ function normalizeCoupon(c) {
   });
 }
 
-// GET /mini/recharge-products returns RechargeProductView {amount(cents face
-// value),bonusAmount,...} (member/dto.go) — coins credited = amount+bonusAmount,
-// there is no priceCent/coins. Page reads priceCent/coins/bonusCoins.
+// Keep the page model stable while the API exposes explicit payment, coin and
+// point quantities. The fallback only supports servers that predate amountCent.
 function normalizeRechargeProduct(p) {
   if (!p) return p;
+  const priceCent = p.amountCent != null ? p.amountCent : (p.priceCent != null ? p.priceCent : p.amount);
+  const legacyBonus = p.bonusAmount || 0;
+  const legacyCoins = Math.floor((p.amount || 0) / 100) + (p.assetType === 'coin' ? legacyBonus : 0);
   return Object.assign({}, p, {
-    priceCent: p.priceCent != null ? p.priceCent : p.amount,
-    coins: p.coins != null ? p.coins : p.amount,
-    bonusCoins: p.bonusCoins != null ? p.bonusCoins : p.bonusAmount,
+    priceCent,
+    coins: p.coinAmount != null ? p.coinAmount : (p.coins != null ? p.coins : legacyCoins),
+    points: p.pointsAmount != null ? p.pointsAmount : (p.assetType === 'point' ? legacyBonus : 0),
   });
 }
 
@@ -153,7 +155,7 @@ function normalizeActivityOrder(o) {
 // unranked. The home / profile cards render the member's VIP level, so this
 // single seam maps vipTier's short label + banner onto the flat tier shape the
 // pages read (tierShort/tierName/tierBannerUrl). It still falls back to the
-// legacy flat tierCode/tierName or nested tier{code,name} (mock path), then VIP1
+// legacy flat tierCode/tierName or nested tier{code,name}, then VIP1
 // when tier-less. Member copy shows only the short label, so tierName is set to
 // the short label too (never the full admin name like "VIP1 普通会员"). The raw
 // vipTier object passes straight through for any page that needs it. An empty
@@ -199,9 +201,7 @@ function normalizeRechargeOrder(o) {
 // coupon/dto.go) expect payMethod/quantity/remark/entitlementId and items as
 // {itemId,quantity}. Translate here — the single seam — so pages stay UI-shaped
 // and the write succeeds on the real API. These are pure renames of data the
-// page already supplied (no invented fields). The original keys are kept too so
-// the mock (services/mock.js), which reads the page shape, is unaffected; the Go
-// binder ignores the extra keys.
+// page already supplied (no invented fields). The Go binder ignores extra keys.
 function foodOrderBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
@@ -240,7 +240,7 @@ function couponRedemptionBody(data) {
 // Reservation create: the page collects {storeId,tableId,tableName,seatNo,
 // seatId,timeText}; server CreateReservationRequest (reservation/dto.go) wants
 // {storeId,tableId?,seatId?,partySize,reservedAt(RFC3339),remark}. Map here,
-// additively (mock still reads its old tableName/seatNo keys). partySize and
+// additively. partySize and
 // reservedAt are best-effort: the UI collects neither a party size nor a real
 // datetime, so partySize defaults to 1 and reservedAt is derived from the picked
 // time-slot text (falling back to now).
@@ -284,21 +284,39 @@ function activityTone(id) {
 // (enrolling/upcoming/ended/soldout) — the list page even filters on
 // `status === 'enrolling'`. Map the vocabulary here like normalizeCoupon does.
 const ACTIVITY_STATUS_MAP = { published: 'enrolling' };
-function activityTimeText(a) {
-  if (a.timeText) return a.timeText;
-  if (!a.startAt) return '';
-  const d = new Date(a.startAt);
+function activityMoment(input) {
+  if (!input) return '';
+  const d = new Date(input);
   if (isNaN(d.getTime())) return '';
   const p2 = (n) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}-${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+function activityTimeText(a) {
+  if (a.timeText) return a.timeText;
+  const start = activityMoment(a.startAt);
+  const end = activityMoment(a.endAt);
+  if (start && end) return `${start} 至 ${end}`;
+  return start || end;
+}
+function activityStatus(a) {
+  if (a.status !== 'published') return ACTIVITY_STATUS_MAP[a.status] || a.status;
+  const now = Date.now();
+  const start = a.startAt ? new Date(a.startAt).getTime() : NaN;
+  const end = a.endAt ? new Date(a.endAt).getTime() : NaN;
+  if (!isNaN(end) && end < now) return 'ended';
+  if (!isNaN(start) && start > now) return 'upcoming';
+  const tickets = a.ticketTypes || [];
+  if (tickets.length && tickets.every((ticket) => Number(ticket.stock) === 0)) return 'soldout';
+  return 'enrolling';
 }
 function normalizeActivity(a) {
   if (!a) return a;
   return Object.assign({}, a, {
     tone: a.tone || activityTone(a.id),
     timeText: activityTimeText(a),
+    storeName: a.storeName || (a.scopeType === 'global' || a.storeId == null ? '全部门店' : ''),
     detailHtml: a.detailHtml || a.content || '',
-    status: ACTIVITY_STATUS_MAP[a.status] || a.status,
+    status: activityStatus(a),
   });
 }
 
@@ -326,6 +344,16 @@ function benefitItems(benefitsStr) {
 const api = {
   /* ---------- auth ---------- */
   wechatLogin: (data) => http.post(m('/auth/wechat/login'), data, { noAuth: true }),
+  // First-time registration: authorized by the register ticket from wechatLogin,
+  // NOT a session. This is what creates the member row.
+  register: (data) => http.post(m('/auth/wechat/register'), data, { noAuth: true }),
+  // Get masked phone number during registration (no auth required).
+  getPhoneMask: (data) => http.post(m('/auth/wechat/phone-mask'), data, { noAuth: true }),
+  // Upload the chosen avatar during registration (authorized by the register
+  // ticket, not a session). Returns { avatarUrl } — the public https URL to
+  // submit to register.
+  uploadRegisterAvatar: (filePath, registerTicket) =>
+    http.uploadFile(m('/auth/wechat/register-avatar'), filePath, { registerTicket }, { noAuth: true, name: 'file' }),
   logout: () => http.post(m('/auth/logout')),
 
   /* ---------- stores / home ---------- */
@@ -367,11 +395,20 @@ const api = {
   getWallet: () => http.get(m('/wallet')).then((res) => ({ data: normalizeWallet(res.data), meta: res.meta })),
   getWalletLedger: (params) =>
     http.get(m('/wallet/ledger') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeLedgerEntry), meta: res.meta })),
+  getSignInStatus: () => http.get(m('/sign-ins/status')),
+  signIn: () => http.post(m('/sign-ins'), {}, { idempotent: true }),
   getCoupons: (params) =>
     http.get(m('/coupons') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeCoupon), meta: res.meta })),
   getTickets: (params) => http.get(m('/tickets') + qs(params)),
   getInvitations: () => http.get(m('/invitations')),
-  bindInvitation: (data) => http.post(m('/invitations/bind'), data, { idempotent: true }),
+  bindInvitation: (data) => {
+    const d = data || {};
+    return http.post(
+      m('/invitations/bind'),
+      { inviteCode: (d.inviteCode || d.code || '').trim() },
+      { idempotent: true }
+    );
+  },
 
   // 存取积分 (fixed to current store; reviewed by staff)
   createPointSaving: (data, key) =>
@@ -431,7 +468,7 @@ const api = {
 
   /* ---------- staff (store scope, single bound store) ---------- */
   staff: {
-    home: () => http.get(s('/staff/home')),
+    home: () => http.get(s('/home')),
     getPointSavings: (params) => http.get(s('/point-savings') + qs(params)),
     getPointSaving: (id) => http.get(s(`/point-savings/${id}`)),
     reviewPointSaving: (id, data, key) =>

@@ -14,11 +14,9 @@ Page({
       .getActivityOrder(options.id)
       .then((res) => {
         const d = res.data || {};
-        // Mock uses an order status of 'pending_verify'; on the real API the
-        // verify code lives on a paid/active ticket (api.js surfaces it as
-        // d.verifyCode), so also show it when such a ticket exists.
+        // The verify code is available when the order contains an active ticket.
         const hasUsableTicket = Array.isArray(d.tickets) && d.tickets.some((t) => t.status === 'active');
-        const showCode = d.status === 'pending_verify' || hasUsableTicket;
+        const showCode = hasUsableTicket;
         this.setData({
           loading: false,
           showCode,

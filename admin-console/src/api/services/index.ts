@@ -59,9 +59,14 @@ export const adminAccountService = createResource<AccountEntity>({
 export const storeAdminAccountService = createResource<AccountEntity>({
   base: API_PATHS.storeAdminAccounts.list,
 })
-export const staffAccountService = createResource<AccountEntity>({
+const staffAccountResource = createResource<AccountEntity>({
   base: API_PATHS.staffAccounts.list,
 })
+export const staffAccountService = {
+  ...staffAccountResource,
+  remove: (id: string) =>
+    http.delete<void>(API_PATHS.staffAccounts.removeBinding(id), { idempotent: true }),
+}
 
 // 服务端 catalog/activity/coupon-template 的更新为 PUT（整体覆盖），非 PATCH。
 export const categoryService = createResource<CatalogCategory>({

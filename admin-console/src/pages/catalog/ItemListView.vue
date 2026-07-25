@@ -1,51 +1,97 @@
 <script setup lang="ts">
 /**
- * 全局商品。列表 + 发布/下架（可发布资源）。
- * 商品创建/规格/投放门店等复杂表单待服务端接口就绪后补充。
+ * 总后台商品管理：商品归属门店，并从同一门店的商品分类中选择分类。
+ * 商品图片通过统一资产服务上传，列表直接展示服务端解析后的图片地址。
  */
-import { h, ref } from 'vue'
-import { NSpace } from 'naive-ui'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NText } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
-import type { ResourceListInstance } from '@/components/ui-types'
+import type { FilterField, ResourceListInstance } from '@/components/ui-types'
+import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
+import AssetImage from '@/components/AssetImage.vue'
+import AssetUpload from '@/components/AssetUpload.vue'
 import {
   actionsColumn,
   dateTimeColumn,
   moneyColumn,
+  renderColumn,
   statusColumn,
   textColumn,
 } from '@/utils/columns'
 import {
-  ITEM_TYPE_OPTIONS,
+  PAY_CHANNEL_OPTIONS,
   RESOURCE_STATUS,
   RESOURCE_STATUS_OPTIONS,
-  SCOPE_TYPE_OPTIONS,
+  type OptionItem,
 } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
-import { catalogItemService } from '@/api/services'
+import { catalogItemService, categoryService, storeService } from '@/api/services'
 import { usePublishableActions } from '@/composables/usePublishableActions'
-import type { CatalogItem } from '@/api/models'
-import type { FilterField } from '@/components/ui-types'
+import type { CatalogCategory, CatalogItem } from '@/api/models'
+import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
-// 无独立 publish 接口：发布=整体 PUT 改写 status。小程序端商品读取以 status='published' 为门槛。
+const stores = ref<OptionItem[]>([])
+const categories = ref<CatalogCategory[]>([])
+const uploadKey = ref(0)
+
+const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
+  [RESOURCE_STATUS.DRAFT, RESOURCE_STATUS.PUBLISHED].includes(
+    value as typeof RESOURCE_STATUS.DRAFT | typeof RESOURCE_STATUS.PUBLISHED,
+  ),
+)
+const onlinePayChannelOptions = PAY_CHANNEL_OPTIONS
+const categoryFilterOptions = computed<OptionItem[]>(() =>
+  categories.value.map((category) => ({
+    label: category.storeName ? `${category.storeName} / ${category.name}` : category.name,
+    value: String(category.id),
+  })),
+)
+
+const fields = computed<FilterField[]>(() => [
+  { key: 'storeId', label: '所属门店', type: 'select', options: stores.value, width: 200 },
+  {
+    key: 'keyword',
+    label: '商品名称',
+    type: 'input',
+    placeholder: '支持名称模糊搜索',
+    width: 220,
+  },
+  {
+    key: 'categoryId',
+    label: '商品分类',
+    type: 'select',
+    options: categoryFilterOptions.value,
+    width: 220,
+  },
+  { key: 'status', label: '状态', type: 'select', options: itemStatusOptions },
+])
+
 const { publish, unpublish } = usePublishableActions(
   catalogItemService,
   { publishedStatus: RESOURCE_STATUS.PUBLISHED, unpublishedStatus: RESOURCE_STATUS.DRAFT },
   () => listRef.value?.reload(),
 )
 
-const fields: FilterField[] = [
-  { key: 'keyword', label: '商品名称', type: 'input' },
-  { key: 'itemType', label: '商品类型', type: 'select', options: ITEM_TYPE_OPTIONS },
-  { key: 'scopeType', label: '范围', type: 'select', options: SCOPE_TYPE_OPTIONS },
-  { key: 'status', label: '状态', type: 'select', options: RESOURCE_STATUS_OPTIONS },
-]
-
 const columns = [
-  textColumn<CatalogItem>('商品名称', 'name'),
-  statusColumn<CatalogItem>('类型', 'itemType', ITEM_TYPE_OPTIONS, 100),
-  statusColumn<CatalogItem>('范围', 'scopeType', SCOPE_TYPE_OPTIONS, 90),
+  renderColumn<CatalogItem>(
+    '商品图片',
+    'imageUrl',
+    (row) => h(AssetImage, { src: row.imageUrl, width: 64, height: 44 }),
+    92,
+  ),
+  textColumn<CatalogItem>('商品名称', 'name', { width: 180 }),
+  textColumn<CatalogItem>('商品分类', 'categoryName', { width: 150 }),
+  renderColumn<CatalogItem>(
+    '所属门店',
+    'storeName',
+    (row) =>
+      row.storeName
+        ? row.storeName
+        : h(NText, { type: 'error', depth: 1 }, () => '未绑定（需修复）'),
+    170,
+  ),
   moneyColumn<CatalogItem>('价格', 'priceCent'),
   textColumn<CatalogItem>('库存', 'stockQuantity', { width: 90 }),
   statusColumn<CatalogItem>('状态', 'status', RESOURCE_STATUS_OPTIONS),
@@ -53,6 +99,11 @@ const columns = [
   actionsColumn<CatalogItem>(
     (row) =>
       h(NSpace, {}, () => [
+        h(
+          PermissionButton,
+          { permission: PERMISSIONS.CATALOG_GLOBAL_WRITE, onClick: () => openEdit(row) },
+          () => '编辑',
+        ),
         row.status === RESOURCE_STATUS.PUBLISHED
           ? h(
               PermissionButton,
@@ -73,19 +124,290 @@ const columns = [
               () => '发布',
             ),
       ]),
-    120,
+    180,
   ),
 ]
+
+interface ItemForm {
+  storeId: string | null
+  categoryId: string | null
+  name: string
+  description: string
+  assetId: string | null
+  imageUrl: string
+  itemType: string
+  priceYuan: number
+  stockQuantity: number
+  payChannels: string[]
+  sortOrder: number
+  status: string
+}
+
+const drawerShow = ref(false)
+const submitting = ref(false)
+const editingId = ref<string | null>(null)
+const form = reactive<ItemForm>({
+  storeId: null,
+  categoryId: null,
+  name: '',
+  description: '',
+  assetId: null,
+  imageUrl: '',
+  itemType: 'food',
+  priceYuan: 0,
+  stockQuantity: 0,
+  payChannels: ['wechat'],
+  sortOrder: 0,
+  status: RESOURCE_STATUS.DRAFT,
+})
+
+const formCategoryOptions = computed<OptionItem[]>(() =>
+  categories.value
+    .filter((category) => String(category.storeId ?? '') === String(form.storeId ?? ''))
+    .map((category) => ({ label: category.name, value: String(category.id) })),
+)
+
+async function loadReferences(): Promise<void> {
+  try {
+    const [storeResult, categoryResult] = await Promise.all([
+      storeService.list({ page: 1, pageSize: 100 }),
+      categoryService.list({ page: 1, pageSize: 100 }),
+    ])
+    stores.value = storeResult.items.map((store) => ({
+      label: store.name,
+      value: String(store.id),
+    }))
+    categories.value = categoryResult.items
+  } catch (e) {
+    toastError((e as { message?: string }).message ?? '商品基础数据加载失败')
+  }
+}
+
+function resetForm(): void {
+  form.storeId = null
+  form.categoryId = null
+  form.name = ''
+  form.description = ''
+  form.assetId = null
+  form.imageUrl = ''
+  form.itemType = 'food'
+  form.priceYuan = 0
+  form.stockQuantity = 0
+  form.payChannels = ['wechat']
+  form.sortOrder = 0
+  form.status = RESOURCE_STATUS.DRAFT
+  uploadKey.value += 1
+}
+
+function openCreate(): void {
+  editingId.value = null
+  resetForm()
+  drawerShow.value = true
+}
+
+function openEdit(row: CatalogItem): void {
+  editingId.value = row.id
+  resetForm()
+  form.storeId = row.storeId == null ? null : String(row.storeId)
+  form.categoryId = row.categoryId == null ? null : String(row.categoryId)
+  form.name = row.name
+  form.description = row.description ?? ''
+  form.assetId = row.assetId == null ? null : String(row.assetId)
+  form.imageUrl = row.imageUrl ?? ''
+  form.itemType = row.itemType || 'food'
+  form.priceYuan = (row.priceCent ?? 0) / 100
+  form.stockQuantity = row.stockQuantity ?? 0
+  form.payChannels = row.payChannels?.length ? [...row.payChannels] : ['wechat']
+  form.sortOrder = row.sortOrder ?? 0
+  form.status = row.status ?? RESOURCE_STATUS.DRAFT
+  drawerShow.value = true
+}
+
+watch(
+  () => form.storeId,
+  (storeId, previousStoreId) => {
+    if (previousStoreId == null || storeId === previousStoreId || !form.categoryId) return
+    const selected = categories.value.find(
+      (category) => String(category.id) === String(form.categoryId),
+    )
+    if (String(selected?.storeId ?? '') !== String(storeId ?? '')) form.categoryId = null
+  },
+)
+
+async function submit(): Promise<void> {
+  if (!form.storeId) return toastError('请选择所属门店')
+  if (!form.categoryId) return toastError('请选择商品分类')
+  if (!form.name.trim()) return toastError('请填写商品名称')
+  if (!form.assetId) return toastError('请上传商品图片')
+  if (!form.payChannels.length) return toastError('请选择至少一种支付方式')
+
+  const payload: Partial<CatalogItem> = {
+    storeId: Number(form.storeId),
+    categoryId: Number(form.categoryId),
+    name: form.name.trim(),
+    description: form.description.trim(),
+    assetId: Number(form.assetId),
+    itemType: form.itemType || 'food',
+    priceCent: Math.round(form.priceYuan * 100),
+    stockQuantity: form.stockQuantity,
+    payChannels: form.payChannels,
+    pointsReward: 0,
+    sortOrder: form.sortOrder,
+    status: form.status,
+  }
+  submitting.value = true
+  try {
+    if (editingId.value) await catalogItemService.update(editingId.value, payload)
+    else await catalogItemService.create(payload)
+    toastSuccess('已保存')
+    drawerShow.value = false
+    await Promise.all([listRef.value?.reload(), loadReferences()])
+  } catch (e) {
+    toastError((e as { message?: string }).message ?? '保存失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const toolbarActions = [
+  {
+    key: 'create',
+    label: '新增商品',
+    type: 'primary' as const,
+    permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
+    onClick: openCreate,
+  },
+]
+
+onMounted(loadReferences)
 </script>
 
 <template>
-  <ResourceListView
-    ref="listRef"
-    title="全局商品"
-    description="全局商品模板、投放与全局上下架；跨店写操作写入审计"
-    :breadcrumb="['商品与分类', '全局商品']"
-    :fields="fields"
-    :columns="columns"
-    :fetcher="catalogItemService.list"
-  />
+  <div>
+    <ResourceListView
+      ref="listRef"
+      title="商品管理"
+      description="按门店维护商品、分类、图片、价格与库存"
+      :breadcrumb="['商品管理', '商品管理']"
+      :fields="fields"
+      :columns="columns"
+      :fetcher="catalogItemService.list"
+      :toolbar-actions="toolbarActions"
+      empty-text="暂无商品，请先创建门店商品分类"
+    />
+
+    <FormDrawer
+      v-model:show="drawerShow"
+      :title="editingId ? '编辑商品' : '新增商品'"
+      :submitting="submitting"
+      @submit="submit"
+    >
+      <NForm label-placement="top">
+        <NFormItem
+          label="所属门店"
+          required
+        >
+          <NSelect
+            v-model:value="form.storeId"
+            :options="stores"
+            placeholder="请选择门店"
+            filterable
+          />
+        </NFormItem>
+        <NFormItem
+          label="商品分类"
+          required
+        >
+          <NSelect
+            v-model:value="form.categoryId"
+            :options="formCategoryOptions.map(({ label, value }) => ({ label, value }))"
+            :disabled="!form.storeId"
+            :placeholder="form.storeId ? '请选择该门店下的分类' : '请先选择门店'"
+            filterable
+          />
+        </NFormItem>
+        <NFormItem
+          label="商品名称"
+          required
+        >
+          <NInput
+            v-model:value="form.name"
+            placeholder="请输入商品名称"
+          />
+        </NFormItem>
+        <NFormItem label="商品描述">
+          <NInput
+            v-model:value="form.description"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+            placeholder="请输入商品描述"
+          />
+        </NFormItem>
+        <NFormItem
+          label="商品图片"
+          required
+        >
+          <AssetUpload
+            :key="uploadKey"
+            v-model:asset-id="form.assetId"
+            purpose="product"
+            :preview-url="form.imageUrl || null"
+            :width="176"
+            :height="112"
+          />
+        </NFormItem>
+        <NFormItem
+          label="价格（元）"
+          required
+        >
+          <NInputNumber
+            v-model:value="form.priceYuan"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          label="库存"
+          required
+        >
+          <NInputNumber
+            v-model:value="form.stockQuantity"
+            :min="0"
+            :precision="0"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          label="支付方式"
+          required
+        >
+          <NSelect
+            v-model:value="form.payChannels"
+            multiple
+            :options="onlinePayChannelOptions.map(({ label, value }) => ({ label, value }))"
+            placeholder="请选择支付方式"
+          />
+        </NFormItem>
+        <NFormItem label="排序">
+          <NInputNumber
+            v-model:value="form.sortOrder"
+            :min="0"
+            :precision="0"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          label="状态"
+          required
+        >
+          <NSelect
+            v-model:value="form.status"
+            :options="itemStatusOptions.map(({ label, value }) => ({ label, value }))"
+            placeholder="请选择状态"
+          />
+        </NFormItem>
+      </NForm>
+    </FormDrawer>
+  </div>
 </template>

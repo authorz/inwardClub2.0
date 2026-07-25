@@ -19,7 +19,7 @@ InwardClub 2.0 总后台独立站点，只服务总部 / 总管理角色。
 ```bash
 cd admin-console
 pnpm install
-pnpm dev        # http://localhost:5182
+pnpm dev        # http://localhost:5180
 ```
 
 其它脚本：
@@ -37,7 +37,7 @@ pnpm preview     # 预览 dist
 | 变量 | 说明 | 默认（dev） |
 | --- | --- | --- |
 | `VITE_APP_ID` | 应用标识（错误监控 / 埋点区分） | `inwardclub-admin-console` |
-| `VITE_API_BASE_URL` | API 根地址，必须指向 `/api/v2` 网关 | `http://localhost:8080/api/v2` |
+| `VITE_API_BASE_URL` | API 根地址，必须指向 `/api/v2` 网关 | `http://localhost:8081/api/v2` |
 | `VITE_AUTH_AUDIENCE` | token audience，固定 `admin` | `admin` |
 | `VITE_ASSET_PUBLIC_DOMAIN` | 资产公共访问域名（可选，展示 assetId 图片） | 空 |
 
@@ -57,7 +57,7 @@ pnpm preview     # 预览 dist
 | `pnpm lint` | ✅ exit 0（0 error / 0 warning，`--max-warnings 0`） |
 | `pnpm typecheck` | ✅ exit 0（vue-tsc 无错误） |
 | `pnpm build` | ✅ exit 0（vite 产物输出到 `dist/`） |
-| `pnpm dev` | ✅ 启动成功，`http://localhost:5182/` 返回 HTTP 200 |
+| `pnpm dev` | ✅ 启动成功，`http://localhost:5180/` 返回 HTTP 200 |
 
 ---
 
@@ -76,7 +76,7 @@ pnpm preview     # 预览 dist
 | 活动 | 全局活动 | `pages/activities/ActivityListView.vue` | 列表 + 发布/下架 |
 | 券 | 券模板 | `pages/coupons/CouponTemplateListView.vue` | 列表 + 发布/下架 |
 | 运营 | Banner 管理 | `pages/banners/BannerListView.vue` | 列表 + 新增/编辑/删除 |
-| 运营 | 充值产品 | `pages/recharge/RechargeProductListView.vue` | 列表 + 新增/编辑/禁用（元→分） |
+| 运营 | 快捷充值 | `pages/recharge/RechargeProductListView.vue` | 列表 + 新增/编辑/禁用（支付金额、到账金币、赠送积分） |
 | 规则 | VIP 等级 | `pages/rules/MembershipTierListView.vue` | 列表 + 新增/编辑 |
 | 规则 | 规则中心 | `pages/rules/RuleDefinitionListView.vue` | 列表 + 发布/禁用（高风险） |
 | 订单 | 订单中心 | `pages/orders/OrderListView.vue` | 统一订单只读列表 |
@@ -110,7 +110,7 @@ pnpm preview     # 预览 dist
 | `/activities` | 全局活动 | `admin.activity.read` |
 | `/coupons` | 券模板 | `admin.coupon.read` |
 | `/banners` | Banner 管理 | `admin.banner.read` |
-| `/recharge-products` | 充值产品 | `admin.recharge.read` |
+| `/recharge-products` | 快捷充值 | `admin.recharge.read` |
 | `/rules/membership-tiers` | VIP 等级 | `admin.rule.read` |
 | `/rules/definitions` | 规则中心 | `admin.rule.read` |
 | `/orders` | 订单中心 | `admin.order.read` |
@@ -140,7 +140,7 @@ pnpm preview     # 预览 dist
 - 统一解包响应信封 `{ data, meta }`；列表返回 `{ items, meta }`。
 - 所有接口路径集中在 `constants/api-paths.ts`（单一事实来源），覆盖规格中全部 `/api/v2/admin/*` 端点。
 
-高风险操作强制携带 `Idempotency-Key`：退款审批、人工调账、发券、规则发布、商品/活动发布下架、充值产品写、支付配置写。
+高风险操作强制携带 `Idempotency-Key`：退款审批、人工调账、发券、规则发布、商品/活动发布下架、快捷充值写、支付配置写。
 
 ---
 
@@ -252,7 +252,7 @@ pnpm preview     # 预览 dist
 - 活动（含 sessions/ticket-types/publish/assign-stores/generate-share-assets）/ 券模板（含 publish/assign-stores/applicable-items/grant/void）。
 - 订单只读 / 支付单 / 支付流水 / 退款单 / `POST /admin/refunds`（退款审批，需幂等）。
 - 会员 / `POST /admin/members/{id}/wallet-adjustments`（人工调账，需幂等 + 原因）/ 钱包账本。
-- Banner / 充值产品 / VIP 等级 / 规则定义（含 publish/disable）。
+- Banner / 快捷充值 / VIP 等级 / 规则定义（含 publish/disable）。
 - 报表 `/admin/reports/*`、审计 `/admin/audit-logs`、登录日志、错误事件、支付渠道配置读写。
 
 ## 十、修改文件列表

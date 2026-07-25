@@ -142,7 +142,7 @@ func (r *sqlRepository) ListInvitees(ctx context.Context, inviterID int64, limit
 		`SELECT COUNT(*) FROM members WHERE invited_by_member_id = ?`, inviterID).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT id, nickname, avatar_asset_id, created_at
+	const q = `SELECT id, nickname, avatar_asset_id, COALESCE(avatar_url,''), created_at
 		FROM members WHERE invited_by_member_id = ?
 		ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, q, inviterID, limit, offset)
@@ -153,7 +153,7 @@ func (r *sqlRepository) ListInvitees(ctx context.Context, inviterID int64, limit
 	var out []Invitee
 	for rows.Next() {
 		var iv Invitee
-		if err := rows.Scan(&iv.MemberID, &iv.Nickname, &iv.AvatarAssetID, &iv.JoinedAt); err != nil {
+		if err := rows.Scan(&iv.MemberID, &iv.Nickname, &iv.AvatarAssetID, &iv.AvatarURL, &iv.JoinedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, iv)
@@ -319,7 +319,7 @@ func (r *sqlRepository) UpdateMembershipTier(ctx context.Context, id int64, u Me
 }
 
 func (r *sqlRepository) ListRechargeProducts(ctx context.Context) ([]RechargeProduct, error) {
-	const q = `SELECT id, name, amount, bonus_amount, growth_amount, asset_type, sort_order, status
+	const q = `SELECT id, amount_cent, coin_amount, points_amount, sort_order, status
 		FROM recharge_products WHERE status = ? ORDER BY sort_order ASC, id ASC`
 	rows, err := r.db.QueryContext(ctx, q, StatusActive)
 	if err != nil {
@@ -329,7 +329,7 @@ func (r *sqlRepository) ListRechargeProducts(ctx context.Context) ([]RechargePro
 	var out []RechargeProduct
 	for rows.Next() {
 		var p RechargeProduct
-		if err := rows.Scan(&p.ID, &p.Name, &p.Amount, &p.BonusAmount, &p.GrowthAmount, &p.AssetType, &p.SortOrder, &p.Status); err != nil {
+		if err := rows.Scan(&p.ID, &p.AmountCent, &p.CoinAmount, &p.PointsAmount, &p.SortOrder, &p.Status); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, p)
@@ -376,11 +376,11 @@ func (r *sqlRepository) GetRechargeProduct(ctx context.Context, id int64) (Recha
 	return p, nil
 }
 
-const rechargeProductColumns = `id, name, amount, bonus_amount, growth_amount, asset_type, sort_order, status`
+const rechargeProductColumns = `id, amount_cent, coin_amount, points_amount, sort_order, status`
 
 func scanRechargeProduct(row interface{ Scan(...any) error }) (RechargeProduct, error) {
 	var p RechargeProduct
-	err := row.Scan(&p.ID, &p.Name, &p.Amount, &p.BonusAmount, &p.GrowthAmount, &p.AssetType, &p.SortOrder, &p.Status)
+	err := row.Scan(&p.ID, &p.AmountCent, &p.CoinAmount, &p.PointsAmount, &p.SortOrder, &p.Status)
 	return p, err
 }
 
@@ -390,9 +390,9 @@ func (r *sqlRepository) CreateRechargeProduct(ctx context.Context, p RechargePro
 		status = StatusActive
 	}
 	const q = `INSERT INTO recharge_products
-		(name, amount, bonus_amount, growth_amount, asset_type, sort_order, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, p.Name, p.Amount, p.BonusAmount, p.GrowthAmount, p.AssetType, p.SortOrder, status)
+		(amount_cent, coin_amount, points_amount, sort_order, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, NOW(), NOW())`
+	res, err := r.db.ExecContext(ctx, q, p.AmountCent, p.CoinAmount, p.PointsAmount, p.SortOrder, status)
 	if err != nil {
 		return RechargeProduct{}, apperr.Internal(err)
 	}
@@ -405,27 +405,19 @@ func (r *sqlRepository) CreateRechargeProduct(ctx context.Context, p RechargePro
 }
 
 func (r *sqlRepository) UpdateRechargeProduct(ctx context.Context, id int64, u RechargeProductUpdate) (RechargeProduct, error) {
-	set := make([]string, 0, 7)
+	set := make([]string, 0, 5)
 	var args []any
-	if u.Name != nil {
-		set = append(set, "name = ?")
-		args = append(args, *u.Name)
+	if u.AmountCent != nil {
+		set = append(set, "amount_cent = ?")
+		args = append(args, *u.AmountCent)
 	}
-	if u.Amount != nil {
-		set = append(set, "amount = ?")
-		args = append(args, *u.Amount)
+	if u.CoinAmount != nil {
+		set = append(set, "coin_amount = ?")
+		args = append(args, *u.CoinAmount)
 	}
-	if u.BonusAmount != nil {
-		set = append(set, "bonus_amount = ?")
-		args = append(args, *u.BonusAmount)
-	}
-	if u.GrowthAmount != nil {
-		set = append(set, "growth_amount = ?")
-		args = append(args, *u.GrowthAmount)
-	}
-	if u.AssetType != nil {
-		set = append(set, "asset_type = ?")
-		args = append(args, *u.AssetType)
+	if u.PointsAmount != nil {
+		set = append(set, "points_amount = ?")
+		args = append(args, *u.PointsAmount)
 	}
 	if u.SortOrder != nil {
 		set = append(set, "sort_order = ?")

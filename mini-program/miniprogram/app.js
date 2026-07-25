@@ -1,19 +1,33 @@
 const auth = require('./utils/auth');
 const api = require('./services/api');
 const ui = require('./utils/ui');
+const invitation = require('./utils/invitation');
 
 App({
   globalData: {
     systemInfo: null,
   },
 
-  onLaunch() {
+  onLaunch(options) {
+    this.syncPendingInvitation(options);
     try {
       this.globalData.systemInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     } catch (e) {}
     // No silent/auto login here on purpose: WeChat requires wx.getUserProfile to
     // be triggered by an explicit user tap, so login is started from a page
     // (see loginWithWechat) — never on launch.
+  },
+
+  onShow(options) {
+    this.syncPendingInvitation(options);
+  },
+
+  syncPendingInvitation(options) {
+    if (auth.isLoggedIn()) {
+      invitation.clear();
+      return;
+    }
+    invitation.capture((options && options.query) || {});
   },
 
   /**
@@ -45,11 +59,8 @@ App({
                 })
                 .then((r) => {
                   const d = r.data || {};
-                  // Mini login returns { token: TokenPair, profile } — read the
-                  // nested pair. `|| d` tolerates a flat legacy/mock shape.
-                  // Note: the backend response carries no subjectType/storeId
-                  // (staff/store hint); those stay undefined on the real API.
-                  const tk = d.token || d;
+                  // Mini login returns the token plus its member/staff identity.
+                  const tk = d.token || {};
                   auth.save({
                     accessToken: tk.accessToken,
                     refreshToken: tk.refreshToken,

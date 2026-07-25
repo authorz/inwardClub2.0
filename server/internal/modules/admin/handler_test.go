@@ -57,6 +57,43 @@ func TestAdminLookupMemberRejectsWildcard(t *testing.T) {
 	}
 }
 
+func TestMembersPassesSearchAndSortAndReturnsExpandedFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/members", h.Members)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/members?keyword=Sam&sortBy=coinsBalance&sortOrder=asc",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.Keyword != "Sam" || repo.lastFilter.SortBy != "coinsBalance" ||
+		repo.lastFilter.SortOrder != "asc" {
+		t.Fatalf("unexpected filter: %+v", repo.lastFilter)
+	}
+	body := rec.Body.String()
+	for _, field := range []string{
+		`"avatarUrl":"https://cdn.test/avatar.webp"`,
+		`"gender":"male"`,
+		`"pointsBalance":1200`,
+		`"coinsBalance":588`,
+		`"vipTierName":"白银会员"`,
+		`"vipLevel":2`,
+	} {
+		if !strings.Contains(body, field) {
+			t.Fatalf("expected %s in response: %s", field, body)
+		}
+	}
+}
+
 // TestStaffAccountsHandlerReturnsStaffAccounts guards against the console
 // endpoint GET /admin/staff-accounts regressing to admin_accounts data: the
 // fakeRepo returns distinguishable rows for ListAdminAccounts ("hq_admin")

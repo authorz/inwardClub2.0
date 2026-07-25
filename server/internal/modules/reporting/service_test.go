@@ -3,6 +3,7 @@ package reporting
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 type fakeRepo struct {
@@ -67,14 +68,32 @@ func (f *fakeRepo) Stores(_ context.Context, flt ReportFilter) ([]StoreStat, int
 }
 
 func TestGetOverviewMaps(t *testing.T) {
-	repo := &fakeRepo{out: Overview{StoreCount: 5, MemberCount: 120, OrderCount: 40, GrossSalesCent: 99900, CouponsIssued: 30, CouponsRedeemed: 12}}
+	repo := &fakeRepo{out: Overview{
+		StoreCount:          5,
+		MemberCount:         120,
+		OrderCount:          40,
+		GrossSalesCent:      99900,
+		TodayOrderCount:     8,
+		TodayNewMemberCount: 3,
+		CouponsIssued:       30,
+		CouponsRedeemed:     12,
+		WechatRevenue: OverviewBreakdown{
+			Total: 99900, Today: 12000, Recharge: 50000, Food: 30000, Activity: 19900,
+		},
+		CoinConsumption: OverviewBreakdown{Total: 8800, Today: 500},
+		Trend: []OverviewTrendPoint{{
+			Date: time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC), WechatRevenueCent: 12000, OrderCount: 8,
+		}},
+	}}
 	svc := NewService(repo)
 
 	v, err := svc.GetOverview(context.Background(), OverviewFilter{})
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}
-	if v.StoreCount != 5 || v.GrossSalesCent != 99900 || v.CouponsRedeemed != 12 {
+	if v.StoreCount != 5 || v.GrossSalesCent != 99900 || v.CouponsRedeemed != 12 ||
+		v.TodayOrderCount != 8 || v.WechatRevenue.Activity != 19900 ||
+		v.CoinConsumption.Total != 8800 || len(v.Trend) != 1 || v.Trend[0].Date != "2026-07-24" {
 		t.Fatalf("unexpected mapping: %+v", v)
 	}
 }

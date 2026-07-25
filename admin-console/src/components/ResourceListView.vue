@@ -21,6 +21,7 @@ import FilterBar from './FilterBar.vue'
 import DataTable from './DataTable.vue'
 import PermissionButton from './PermissionButton.vue'
 import type { FilterField, TableColumnList, ToolbarAction } from './ui-types'
+import type { DataTableSortState } from 'naive-ui'
 import { useDataTable } from '@/composables/useDataTable'
 import type { ListQuery, ListResult } from '@/api/types'
 
@@ -35,6 +36,10 @@ const props = defineProps<{
   initialFilters?: Record<string, unknown>
   rowKey?: (row: T) => string
   emptyText?: string
+}>()
+
+const emit = defineEmits<{
+  'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
 }>()
 
 const {
@@ -105,6 +110,7 @@ defineExpose({ reload })
       :empty-text="emptyText"
       @update:page="handlePageChange"
       @update:page-size="handlePageSizeChange"
+      @update:sorter="(sorter) => emit('update:sorter', sorter)"
     />
 
     <slot :reload="reload" />

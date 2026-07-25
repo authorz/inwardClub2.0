@@ -55,7 +55,7 @@
 | --- | --- | --- |
 | 微信支付回调结算 | `payment.settlementSQLRepository.SettleWeChat` | 微信支付的餐饮 / 活动订单（门店绑定） |
 | 线下聚合收款结算 | `payment.settlementSQLRepository.SettleOffline` | 门店柜台线下收款（始终门店绑定） |
-| 余额（coin）支付结算 | `order.sqlRepository.SettleByCoin` | 余额支付的餐饮 / 活动订单（门店绑定） |
+| 金币（coin）支付结算 | `order.sqlRepository.SettleByCoin` | 金币支付的餐饮 / 活动订单（门店绑定） |
 
 - **打印规则**：`WriteReceipt` 先查 `printer_devices` 里该门店首个 `active` 设备，取其
   `device_sn`。**只有门店绑定且门店有在用打印机时**才写事件——因此充值订单（无门店）永不打印，

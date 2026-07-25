@@ -9,7 +9,7 @@
  */
 import { computed } from 'vue'
 import { NDataTable, NEmpty } from 'naive-ui'
-import type { DataTableColumns, PaginationProps } from 'naive-ui'
+import type { DataTableColumns, DataTableSortState, PaginationProps } from 'naive-ui'
 import type { TableColumnList } from './ui-types'
 
 const props = withDefaults(
@@ -35,6 +35,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:page': [page: number]
   'update:pageSize': [size: number]
+  'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
 }>()
 
 type AnyRow = Record<string, unknown>
@@ -70,6 +71,7 @@ const pagination = computed<PaginationProps>(() => ({
       size="small"
       @update:page="(p) => emit('update:page', p)"
       @update:page-size="(s) => emit('update:pageSize', s)"
+      @update:sorter="(sorter) => emit('update:sorter', sorter)"
     >
       <template #empty>
         <NEmpty :description="emptyText" />

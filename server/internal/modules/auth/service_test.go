@@ -35,6 +35,14 @@ func (r *memMemberRepo) GetByID(_ context.Context, id int64) (Member, error) {
 	}
 	return m, nil
 }
+func (r *memMemberRepo) FindIDByInviteCode(_ context.Context, inviteCode string) (int64, bool, error) {
+	for id, member := range r.byID {
+		if member.InviteCode == inviteCode {
+			return id, true, nil
+		}
+	}
+	return 0, false, nil
+}
 func (r *memMemberRepo) Create(_ context.Context, m Member) (int64, error) {
 	r.seq++
 	m.ID = r.seq
@@ -163,6 +171,19 @@ func TestMemberProfileOmitsVipTierWhenUnranked(t *testing.T) {
 	}
 }
 
+func TestMemberProfileIncludesInviterBindingState(t *testing.T) {
+	inviterID := int64(9)
+	profile := memberProfile(Member{ID: 1, InvitedByMemberID: &inviterID})
+	if !profile.InviterBound {
+		t.Fatal("expected inviterBound for a member with an inviter")
+	}
+
+	profile = memberProfile(Member{ID: 2})
+	if profile.InviterBound {
+		t.Fatal("expected inviterBound false for a member without an inviter")
+	}
+}
+
 func TestMiniLoginDefersCreationUntilRegister(t *testing.T) {
 	svc, members, _ := newTestService()
 	ctx := context.Background()
@@ -208,6 +229,43 @@ func TestMiniLoginDefersCreationUntilRegister(t *testing.T) {
 	}
 	if len(members.byID) != 1 {
 		t.Fatalf("same openID must reuse member, got %d", len(members.byID))
+	}
+}
+
+func TestMiniRegisterBindsInviterFromInviteCode(t *testing.T) {
+	svc, members, _ := newTestService()
+	ctx := context.Background()
+	inviterID, err := members.Create(ctx, Member{
+		WeChatOpenID: "inviter-openid",
+		Nickname:     "邀请人",
+		InviteCode:   "123456",
+	})
+	if err != nil {
+		t.Fatalf("create inviter: %v", err)
+	}
+
+	first, err := svc.MiniLogin(ctx, "invitee-code")
+	if err != nil {
+		t.Fatalf("first login: %v", err)
+	}
+	_, phoneTicket, err := svc.GetPhoneMask(ctx, first.RegisterTicket, "phone-code")
+	if err != nil {
+		t.Fatalf("phone mask: %v", err)
+	}
+	if _, err := svc.MiniRegister(ctx, WeChatRegisterRequest{
+		RegisterTicket: phoneTicket,
+		AvatarURL:      "https://example.com/invitee.jpg",
+		Nickname:       "被邀请人",
+		Gender:         "female",
+		InviterCode:    "123456",
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	inviteeID := members.byOpen[defaultFakeOpenID]
+	invitee := members.byID[inviteeID]
+	if invitee.InvitedByMemberID == nil || *invitee.InvitedByMemberID != inviterID {
+		t.Fatalf("expected inviter %d, got %+v", inviterID, invitee.InvitedByMemberID)
 	}
 }
 

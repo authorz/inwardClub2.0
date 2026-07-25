@@ -57,10 +57,12 @@ type Activity struct {
 	StoreID   *int64
 	Name      string
 	Type      string
+	AssetID   *int64
 	StartAt   *time.Time
 	EndAt     *time.Time
 	Status    string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Order is the console read model for an order. It carries the joined store and
@@ -88,7 +90,12 @@ type Member struct {
 	ID            int64
 	Nickname      string
 	Phone         string
+	AvatarURL     string
+	Gender        string
 	PointsBalance int64
+	CoinsBalance  int64
+	VIPTierName   string
+	VIPLevel      int
 	Status        string
 	CreatedAt     time.Time
 }

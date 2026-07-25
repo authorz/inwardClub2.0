@@ -119,6 +119,7 @@ export const API_PATHS = {
 
   members: {
     list: '/store/members',
+    lookup: '/store/member-lookup',
     detail: (id: string | number) => `/store/members/${id}`,
     walletAdjustments: (id: string | number) => `/store/members/${id}/wallet-adjustments`,
     walletLedger: '/store/wallet-ledger',
@@ -132,6 +133,7 @@ export const API_PATHS = {
     staffAccounts: '/store/staff-accounts',
     staffAccount: (id: string | number) => `/store/staff-accounts/${id}`,
     staffDisable: (id: string | number) => `/store/staff-accounts/${id}/disable`,
+    staffBinding: (id: string | number) => `/store/staff-accounts/${id}/binding`,
   },
 
   banners: {

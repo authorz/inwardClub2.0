@@ -16,29 +16,36 @@ import (
 
 // Activity is an activity/event template or store instance.
 type Activity struct {
-	ID            int64
-	ScopeType     string
-	StoreID       *int64
-	StoreName     string
-	Title         string
-	Description   string
-	Content       string
-	AssetID       *int64
-	StartAt       *time.Time
-	EndAt         *time.Time
-	PayChannels   []string
-	PurchaseLimit int
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID             int64
+	ScopeType      string
+	StoreID        *int64
+	StoreName      string
+	StoreAddress   string
+	StoreLatitude  *float64
+	StoreLongitude *float64
+	Title          string
+	Description    string
+	Content        string
+	AssetID        *int64
+	StartAt        *time.Time
+	EndAt          *time.Time
+	PayChannels    []string
+	PurchaseLimit  int
+	Status         string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // ActivityView is the public representation. TicketTypes is populated only on
 // the detail read (Get); the list read leaves it nil to avoid a per-row lookup.
 type ActivityView struct {
 	ID            int64                  `json:"id"`
+	ScopeType     string                 `json:"scopeType"`
 	StoreID       *int64                 `json:"storeId,omitempty"`
 	StoreName     string                 `json:"storeName,omitempty"`
+	Address       string                 `json:"address,omitempty"`
+	Latitude      *float64               `json:"latitude,omitempty"`
+	Longitude     *float64               `json:"longitude,omitempty"`
 	Title         string                 `json:"title"`
 	Description   string                 `json:"description,omitempty"`
 	Content       string                 `json:"content,omitempty"`
@@ -57,12 +64,13 @@ type ActivityView struct {
 // timestamps or scope. Stock is the remaining sellable quantity; -1 signals an
 // uncapped ticket type (stock_quantity 0).
 type PublicTicketTypeView struct {
-	ID          int64      `json:"id"`
-	Name        string     `json:"name"`
-	PriceCent   int64      `json:"priceCent"`
-	Stock       int64      `json:"stock"`
-	SaleEndAt   *time.Time `json:"saleEndAt,omitempty"`
-	PayChannels []string   `json:"payChannels"`
+	ID                 int64      `json:"id"`
+	Name               string     `json:"name"`
+	PriceCent          int64      `json:"priceCent"`
+	Stock              int64      `json:"stock"`
+	SaleEndAt          *time.Time `json:"saleEndAt,omitempty"`
+	PayChannels        []string   `json:"payChannels"`
+	MaxTicketsPerOrder int        `json:"maxTicketsPerOrder,omitempty"`
 }
 
 // AssetResolver resolves an asset id to a public URL.
@@ -86,7 +94,8 @@ func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 // activityColumns is alias-qualified because reads LEFT JOIN stores to surface
 // the owning store's name (the mini activity list/detail render storeName).
-const activityColumns = `a.id, a.scope_type, a.store_id, COALESCE(s.name,''), a.title, COALESCE(a.description,''),
+const activityColumns = `a.id, a.scope_type, a.store_id, COALESCE(s.name,''), COALESCE(s.address,''),
+	s.latitude, s.longitude, a.title, COALESCE(a.description,''),
 	COALESCE(a.content,''), a.asset_id, a.start_at, a.end_at, a.pay_channels, a.purchase_limit_per_member, a.status`
 
 const activityFrom = ` FROM activities a LEFT JOIN stores s ON s.id = a.store_id `
@@ -94,8 +103,9 @@ const activityFrom = ` FROM activities a LEFT JOIN stores s ON s.id = a.store_id
 func scanActivity(row interface{ Scan(...any) error }) (Activity, error) {
 	var a Activity
 	var payChannels []byte
-	err := row.Scan(&a.ID, &a.ScopeType, &a.StoreID, &a.StoreName, &a.Title, &a.Description,
-		&a.Content, &a.AssetID, &a.StartAt, &a.EndAt, &payChannels, &a.PurchaseLimit, &a.Status)
+	err := row.Scan(&a.ID, &a.ScopeType, &a.StoreID, &a.StoreName, &a.StoreAddress,
+		&a.StoreLatitude, &a.StoreLongitude, &a.Title, &a.Description, &a.Content, &a.AssetID,
+		&a.StartAt, &a.EndAt, &payChannels, &a.PurchaseLimit, &a.Status)
 	if err != nil {
 		return Activity{}, err
 	}
@@ -175,7 +185,34 @@ func decodeChannels(raw []byte) []string {
 	if err := json.Unmarshal(raw, &ch); err != nil {
 		return []string{}
 	}
-	return ch
+	normalized, _ := normalizePayChannels(ch)
+	return normalized
+}
+
+func normalizePayChannels(channels []string) ([]string, error) {
+	normalized := make([]string, 0, len(channels))
+	seen := make(map[string]struct{}, len(channels))
+	var invalid string
+	for _, channel := range channels {
+		if channel == "balance" {
+			channel = "coin"
+		}
+		if channel != "wechat" && channel != "coin" {
+			if invalid == "" {
+				invalid = channel
+			}
+			continue
+		}
+		if _, ok := seen[channel]; ok {
+			continue
+		}
+		seen[channel] = struct{}{}
+		normalized = append(normalized, channel)
+	}
+	if invalid != "" {
+		return normalized, apperr.Invalid("activity: unsupported pay channel " + invalid)
+	}
+	return normalized, nil
 }
 
 // Service provides activity read operations.
@@ -224,8 +261,10 @@ func (s *Service) Get(ctx context.Context, id int64) (ActivityView, error) {
 func publicTicketTypeView(t TicketType) PublicTicketTypeView {
 	return PublicTicketTypeView{
 		ID: t.ID, Name: t.Name, PriceCent: t.PriceCent,
-		Stock:     remainingStock(t.StockQuantity, t.SoldQuantity),
-		SaleEndAt: t.SaleEndAt, PayChannels: t.PayChannels,
+		Stock:              remainingStock(t.StockQuantity, t.SoldQuantity),
+		SaleEndAt:          t.SaleEndAt,
+		PayChannels:        t.PayChannels,
+		MaxTicketsPerOrder: t.MaxTicketsPerOrder,
 	}
 }
 
@@ -244,8 +283,10 @@ func remainingStock(stockQty, soldQty int64) int64 {
 
 func (s *Service) view(ctx context.Context, a Activity) ActivityView {
 	v := ActivityView{
-		ID: a.ID, StoreID: a.StoreID, StoreName: a.StoreName, Title: a.Title, Description: a.Description,
-		Content: a.Content, StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
+		ID: a.ID, ScopeType: a.ScopeType, StoreID: a.StoreID, StoreName: a.StoreName,
+		Address: a.StoreAddress, Latitude: a.StoreLatitude, Longitude: a.StoreLongitude,
+		Title: a.Title, Description: a.Description, Content: a.Content,
+		StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
 		PurchaseLimit: a.PurchaseLimit, Status: a.Status,
 	}
 	if a.AssetID != nil {

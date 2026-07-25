@@ -11,17 +11,17 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5183,
+    port: 5181,
     host: true,
     // 本地开发：将 /api/v2/* 代理到本地后端，避免跨域 CORS 预检失败。
     proxy: {
       '/api/v2': {
-        target: 'http://127.0.0.1:18140',
+        target: 'http://127.0.0.1:8081',
         changeOrigin: true,
       },
     },
   },
   preview: {
-    port: 5183,
+    port: 5181,
   },
 })

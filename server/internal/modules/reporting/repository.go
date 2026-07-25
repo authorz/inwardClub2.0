@@ -60,11 +60,19 @@ func scopeDate(f ReportFilter, storeCol, dateCol string) (string, []any) {
 // only paid orders; members are not store-scoped, so under a store scope the
 // member count is the distinct set of members who ordered at that store.
 func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overview, error) {
-	scope := ""
-	var scopeArgs []any
+	const dashboardDays = 7
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Now().In(shanghai)
+	todayLocal := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, shanghai)
+	todayStart := todayLocal.UTC()
+	tomorrowStart := todayLocal.AddDate(0, 0, 1).UTC()
+	trendStart := todayLocal.AddDate(0, 0, -(dashboardDays - 1)).UTC()
+
+	orderScope := ""
+	var orderScopeArgs []any
 	if f.StoreID != nil {
-		scope = " AND store_id = ?"
-		scopeArgs = []any{*f.StoreID}
+		orderScope = " AND bo.store_id = ?"
+		orderScopeArgs = []any{*f.StoreID}
 	}
 	var o Overview
 
@@ -76,29 +84,134 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 
 	if f.StoreID != nil {
 		if err := r.db.QueryRowContext(ctx,
-			`SELECT COUNT(DISTINCT member_id) FROM business_orders WHERE member_id IS NOT NULL AND store_id = ?`,
-			*f.StoreID).Scan(&o.MemberCount); err != nil {
+			`SELECT COUNT(DISTINCT bo.member_id),
+				COUNT(DISTINCT CASE WHEN m.created_at >= ? AND m.created_at < ? THEN m.id END)
+			FROM business_orders bo JOIN members m ON m.id = bo.member_id
+			WHERE bo.store_id = ?`,
+			todayStart, tomorrowStart, *f.StoreID).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
 			return Overview{}, apperr.Internal(err)
 		}
-	} else if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members`).Scan(&o.MemberCount); err != nil {
+	} else {
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*),
+				COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
+			FROM members`,
+			todayStart, tomorrowStart).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
+			return Overview{}, apperr.Internal(err)
+		}
+	}
+
+	paymentArgs := append([]any{todayStart, tomorrowStart}, orderScopeArgs...)
+	const paymentTotals = `SELECT
+			COUNT(*),
+			COALESCE(SUM(CASE WHEN po.paid_at >= bounds.today_start AND po.paid_at < bounds.tomorrow_start THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(po.amount_cent), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND po.paid_at >= bounds.today_start AND po.paid_at < bounds.tomorrow_start THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'recharge' THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'food' THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'activity' THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'recharge' AND po.paid_at >= bounds.today_start AND po.paid_at < bounds.tomorrow_start THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'food' AND po.paid_at >= bounds.today_start AND po.paid_at < bounds.tomorrow_start THEN po.amount_cent ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' AND bo.order_type = 'activity' AND po.paid_at >= bounds.today_start AND po.paid_at < bounds.tomorrow_start THEN po.amount_cent ELSE 0 END), 0)
+		FROM payment_orders po
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		CROSS JOIN (SELECT ? AS today_start, ? AS tomorrow_start) bounds
+		WHERE po.status = 'paid'`
+	if err := r.db.QueryRowContext(ctx, paymentTotals+orderScope, paymentArgs...).Scan(
+		&o.OrderCount,
+		&o.TodayOrderCount,
+		&o.GrossSalesCent,
+		&o.WechatRevenue.Total,
+		&o.WechatRevenue.Today,
+		&o.WechatRevenue.Recharge,
+		&o.WechatRevenue.Food,
+		&o.WechatRevenue.Activity,
+		&o.WechatRevenue.TodayRecharge,
+		&o.WechatRevenue.TodayFood,
+		&o.WechatRevenue.TodayActivity,
+	); err != nil {
+		return Overview{}, apperr.Internal(err)
+	}
+	o.TodayGrossSalesCent = o.WechatRevenue.Today
+	o.ActivityRevenueCent = o.WechatRevenue.Activity
+	o.TodayActivityRevenueCent = o.WechatRevenue.TodayActivity
+
+	coinArgs := append([]any{todayStart, tomorrowStart}, orderScopeArgs...)
+	const coinTotals = `SELECT
+			COALESCE(SUM(w.amount), 0),
+			COALESCE(SUM(CASE WHEN w.created_at >= bounds.today_start AND w.created_at < bounds.tomorrow_start THEN w.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN bo.order_type = 'food' THEN w.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN bo.order_type = 'activity' THEN w.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN bo.order_type = 'food' AND w.created_at >= bounds.today_start AND w.created_at < bounds.tomorrow_start THEN w.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN bo.order_type = 'activity' AND w.created_at >= bounds.today_start AND w.created_at < bounds.tomorrow_start THEN w.amount ELSE 0 END), 0)
+		FROM wallet_ledger_entries w
+		JOIN payment_orders po ON po.id = w.source_id
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		CROSS JOIN (SELECT ? AS today_start, ? AS tomorrow_start) bounds
+		WHERE w.asset_type = 'coins' AND w.direction = 'debit'
+			AND w.reason = 'order_payment' AND w.source_type = 'payment_order'`
+	if err := r.db.QueryRowContext(ctx, coinTotals+orderScope, coinArgs...).Scan(
+		&o.CoinConsumption.Total,
+		&o.CoinConsumption.Today,
+		&o.CoinConsumption.Food,
+		&o.CoinConsumption.Activity,
+		&o.CoinConsumption.TodayFood,
+		&o.CoinConsumption.TodayActivity,
+	); err != nil {
 		return Overview{}, apperr.Internal(err)
 	}
 
+	trendIndex := make(map[string]int, dashboardDays)
+	for day := 0; day < dashboardDays; day++ {
+		date := todayLocal.AddDate(0, 0, day-(dashboardDays-1))
+		key := date.Format("2006-01-02")
+		trendIndex[key] = len(o.Trend)
+		o.Trend = append(o.Trend, OverviewTrendPoint{Date: date})
+	}
+
+	trendPaymentArgs := append([]any{trendStart, tomorrowStart}, orderScopeArgs...)
+	const paymentTrend = `SELECT
+			DATE(CONVERT_TZ(po.paid_at, '+00:00', '+08:00')) AS report_date,
+			COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' THEN po.amount_cent ELSE 0 END), 0),
+			COUNT(*)
+		FROM payment_orders po
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		WHERE po.status = 'paid' AND po.paid_at >= ? AND po.paid_at < ?`
+	rows, err := r.db.QueryContext(ctx, paymentTrend+orderScope+` GROUP BY report_date ORDER BY report_date`, trendPaymentArgs...)
+	if err != nil {
+		return Overview{}, apperr.Internal(err)
+	}
+	for rows.Next() {
+		var date time.Time
+		var revenue, orders int64
+		if err := rows.Scan(&date, &revenue, &orders); err != nil {
+			rows.Close()
+			return Overview{}, apperr.Internal(err)
+		}
+		if index, ok := trendIndex[date.Format("2006-01-02")]; ok {
+			o.Trend[index].WechatRevenueCent = revenue
+			o.Trend[index].OrderCount = orders
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return Overview{}, apperr.Internal(err)
+	}
+	rows.Close()
+
+	couponScope := ""
+	var couponScopeArgs []any
+	if f.StoreID != nil {
+		couponScope = " AND store_id = ?"
+		couponScopeArgs = []any{*f.StoreID}
+	}
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM business_orders WHERE 1 = 1`+scope, scopeArgs...).Scan(&o.OrderCount); err != nil {
+		`SELECT COUNT(*) FROM coupon_entitlements WHERE 1 = 1`+couponScope, couponScopeArgs...).Scan(&o.CouponsIssued); err != nil {
 		return Overview{}, apperr.Internal(err)
 	}
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COALESCE(SUM(total_amount_cent), 0) FROM business_orders WHERE payment_status = 'paid'`+scope,
-		scopeArgs...).Scan(&o.GrossSalesCent); err != nil {
-		return Overview{}, apperr.Internal(err)
-	}
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM coupon_entitlements WHERE 1 = 1`+scope, scopeArgs...).Scan(&o.CouponsIssued); err != nil {
-		return Overview{}, apperr.Internal(err)
-	}
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM coupon_redemptions WHERE 1 = 1`+scope, scopeArgs...).Scan(&o.CouponsRedeemed); err != nil {
+		`SELECT COUNT(*) FROM coupon_redemptions WHERE 1 = 1`+couponScope, couponScopeArgs...).Scan(&o.CouponsRedeemed); err != nil {
 		return Overview{}, apperr.Internal(err)
 	}
 	return o, nil

@@ -4,8 +4,16 @@
   <view class="iv__code-card">
     <text class="iv__code-label">我的邀请码</text>
     <view class="iv__code-row">
-      <text class="iv__code">{{info.inviteCode}}</text>
-      <view class="iv__copy" bindtap="copyCode"><view class="ic-ic ic-ic-copy ic-ic--sm"></view><text>复制</text></view>
+      <view class="iv__code-main">
+        <text class="iv__code">{{info.inviteCode}}</text>
+        <view class="iv__copy" bindtap="copyCode" aria-role="button" aria-label="复制邀请码">
+          <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+        </view>
+      </view>
+      <view class="iv__invited">
+        <text class="iv__invited-num">{{info.invited}}</text>
+        <text class="iv__invited-label">已邀请</text>
+      </view>
     </view>
     <button class="ic-btn ic-btn-primary ic-btn-block iv__share" open-type="share">
       <view class="ic-ic ic-ic-share ic-ic--sm iv__share-ico"></view>
@@ -23,21 +31,43 @@
     </view>
   </view>
 
-  <view class="iv__stats ic-card">
-    <view class="iv__stat"><text class="iv__stat-num">{{info.invited}}</text><text class="iv__stat-label">已邀请</text></view>
-    <view class="iv__stat-div"></view>
-    <view class="iv__stat"><text class="iv__stat-num">{{info.effective}}</text><text class="iv__stat-label">已生效</text></view>
-    <view class="iv__stat-div"></view>
-    <view class="iv__stat"><text class="iv__stat-num">{{info.pending}}</text><text class="iv__stat-label">待结算</text></view>
+  <view wx:if="{{!info.inviterBound}}" class="iv__bind ic-card">
+    <view class="iv__bind-copy">
+      <text class="iv__bind-title">绑定邀请码</text>
+      <text class="iv__bind-desc">填写邀请人的邀请码，绑定后不可更改</text>
+    </view>
+    <view class="iv__bind-row">
+      <input
+        class="iv__bind-input"
+        value="{{bindCode}}"
+        maxlength="32"
+        placeholder="请输入邀请码"
+        placeholder-class="iv__bind-placeholder"
+        confirm-type="done"
+        bindinput="onBindCodeInput"
+        bindconfirm="bindInvitation"
+      />
+      <button
+        class="ic-btn ic-btn-primary iv__bind-btn {{binding || !bindCode ? 'ic-disabled' : ''}}"
+        loading="{{binding}}"
+        disabled="{{binding || !bindCode}}"
+        bindtap="bindInvitation"
+      >绑定</button>
+    </view>
   </view>
 
   <view class="iv__records">
     <text class="ic-h2 iv__records-title">邀请记录</text>
     <view class="iv__record ic-card" wx:if="{{info.records.length}}">
       <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">
-        <text class="iv__record-name">{{item.name}}</text>
-        <text class="iv__record-status {{item.effective ? 'is-ok' : ''}}">{{item.statusLabel}}</text>
-        <text class="iv__record-date">{{item.date}}</text>
+        <view class="iv__record-avatar">
+          <image wx:if="{{item.avatarUrl}}" class="iv__record-avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
+          <text wx:else class="iv__record-avatar-text">{{item.avatarText}}</text>
+        </view>
+        <view class="iv__record-main">
+          <text class="iv__record-name">{{item.name}}</text>
+          <text class="iv__record-date">{{item.registeredAt}}</text>
+        </view>
       </view>
     </view>
     <ic-empty wx:else text="暂无邀请记录" compact="{{true}}" />

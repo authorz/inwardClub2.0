@@ -137,25 +137,23 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 const (
 	// coinsAsset is the wallet_accounts.asset_type recharge top-ups credit into.
 	coinsAsset = "coins"
-	// rechargeSourceType tags the recharge credit on the wallet ledger; combined
-	// with the payment order id it forms the idempotency key.
-	rechargeSourceType = "recharge_order"
+	// rechargeSourceType tags quick-recharge wallet credits in the ledger.
+	rechargeSourceType       = "recharge_order"
+	rechargeCoinsIdemPrefix  = "recharge_order"
+	rechargePointsIdemPrefix = "recharge_points"
 )
 
 // creditRechargeBenefit grants the top-up entitlement for a settled recharge
 // order inside the settlement transaction. It matches business_orders.total_amount_cent
-// against recharge_products.amount to resolve the bonus and growth grant, then:
-//   - credits (amount + bonus_amount) into the member's coins wallet (unchanged);
+// against recharge_products.amount_cent to resolve the configured grant, then:
+//   - credits coin_amount into the member's coins wallet;
+//   - credits points_amount into the member's points wallet;
 //   - accrues growth_amount into the member's growth_value wallet;
 //   - advances the member's VIP tier for the new growth balance (upgrade-only).
 //
-// Each entitlement is anchored on its own ledger idem_key (recharge_order:<paymentID>
-// for coins, recharge_growth:<paymentID> for growth) so a duplicate settlement
-// never double-credits, and all of it commits atomically with the paid order.
-//
-// The bonus and growth amounts are admin-configured per product (never hard-coded,
-// per spec §1) and default to zero, so a product without a growth value preserves
-// the prior coins-only behaviour exactly.
+// Each entitlement is anchored on its own ledger idem_key so a duplicate
+// settlement never double-credits, and all of it commits atomically with the
+// paid order. A custom amount without a configured tier credits ¥1 as 1 coin.
 //
 // TODO(recharge-benefit): tier downgrade, expiry, monthly benefits and growth from
 // non-recharge channels (offline collection post-process, 低消/消费) stay pending the
@@ -167,31 +165,50 @@ func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessI
 		return nil
 	}
 
-	// Resolve the bonus and growth grant from the matching recharge product. When
-	// no product row matches the paid amount (e.g. a custom top-up), only the paid
-	// amount is credited with a zero bonus and zero growth.
-	var bonus, growth int64
-	const selProduct = `SELECT bonus_amount, growth_amount FROM recharge_products
-		WHERE amount = ? AND status = 'active' ORDER BY id ASC LIMIT 1`
-	switch err := tx.QueryRowContext(ctx, selProduct, amount).Scan(&bonus, &growth); {
+	// Resolve configured grants from the matching quick-recharge tier. Custom
+	// amounts retain the ¥1 = 1 coin rule and grant no points or growth value.
+	coins, points, growth := customRechargeCoinAmount(amount), int64(0), int64(0)
+	const selProduct = `SELECT coin_amount, points_amount, growth_amount FROM recharge_products
+		WHERE amount_cent = ? AND status = 'active' ORDER BY id ASC LIMIT 1`
+	switch err := tx.QueryRowContext(ctx, selProduct, amount).Scan(&coins, &points, &growth); {
 	case errors.Is(err, sql.ErrNoRows):
-		bonus, growth = 0, 0
 	case err != nil:
 		return apperr.Internal(err)
 	}
 
-	credit := amount + bonus
-	idemKey := fmt.Sprintf("%s:%d", rechargeSourceType, paymentID)
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, coinsAsset, coins, rechargeCoinsIdemPrefix, now); err != nil {
+		return err
+	}
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset, points, rechargePointsIdemPrefix, now); err != nil {
+		return err
+	}
 
+	// Growth accrual and the VIP tier upgrade ride the same settlement
+	// transaction as the wallet credits, so they can never diverge from them.
+	growthBalance, err := creditGrowthValue(ctx, tx, paymentID, businessID, memberID.Int64, growth, now)
+	if err != nil {
+		return err
+	}
+	return applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now)
+}
+
+func customRechargeCoinAmount(amountCent int64) int64 {
+	return amountCent / 100
+}
+
+func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID, memberID int64, asset string, grant int64, idemPrefix string, now time.Time) error {
+	if grant <= 0 {
+		return nil
+	}
 	var accountID, available int64
 	const selAcct = `SELECT id, available_amount FROM wallet_accounts
 		WHERE member_id = ? AND asset_type = ? FOR UPDATE`
-	switch err := tx.QueryRowContext(ctx, selAcct, memberID.Int64, coinsAsset).Scan(&accountID, &available); {
+	switch err := tx.QueryRowContext(ctx, selAcct, memberID, asset).Scan(&accountID, &available); {
 	case errors.Is(err, sql.ErrNoRows):
 		const insAcct = `INSERT INTO wallet_accounts
 			(member_id, asset_type, available_amount, held_amount, version, created_at, updated_at)
 			VALUES (?, ?, 0, 0, 0, ?, ?)`
-		res, err := tx.ExecContext(ctx, insAcct, memberID.Int64, coinsAsset, now, now)
+		res, err := tx.ExecContext(ctx, insAcct, memberID, asset, now, now)
 		if err != nil {
 			return apperr.Internal(err)
 		}
@@ -203,13 +220,13 @@ func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessI
 		return apperr.Internal(err)
 	}
 
-	newBalance := available + credit
+	newBalance := available + grant
+	idemKey := fmt.Sprintf("%s:%d", idemPrefix, paymentID)
 	const insLedger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
 		VALUES (?, ?, ?, 'credit', ?, ?, 'recharge', ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID.Int64, coinsAsset, credit, newBalance, rechargeSourceType, businessID, idemKey, now); err != nil {
+	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, asset, grant, newBalance, rechargeSourceType, businessID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {
-			// A prior settlement already granted this recharge; idempotent no-op.
 			return nil
 		}
 		return apperr.Internal(err)
@@ -220,16 +237,7 @@ func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessI
 	if _, err := tx.ExecContext(ctx, updateAcct, newBalance, now, accountID); err != nil {
 		return apperr.Internal(err)
 	}
-
-	// Growth accrual and the VIP tier upgrade ride the same settlement
-	// transaction as the coins credit, so they can never diverge from it: growth
-	// is credited under its own idem key and the tier is then re-resolved from the
-	// resulting authoritative growth balance.
-	growthBalance, err := creditGrowthValue(ctx, tx, paymentID, businessID, memberID.Int64, growth, now)
-	if err != nil {
-		return err
-	}
-	return applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now)
+	return nil
 }
 
 // creditGrowthValue accrues the recharge growth grant into the member's

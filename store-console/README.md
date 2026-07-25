@@ -24,7 +24,7 @@ pnpm install      # 安装依赖（首次会执行 esbuild/vue-demi 构建脚本
 pnpm lint         # eslint . --max-warnings 0
 pnpm typecheck    # vue-tsc --noEmit
 pnpm build        # vue-tsc --noEmit && vite build
-pnpm dev          # vite，默认端口 5183
+pnpm dev          # vite，默认端口 5181
 ```
 
 > 关于 `pnpm install`：pnpm 10+ 默认忽略依赖的安装脚本。本项目已在 `pnpm-workspace.yaml`
@@ -39,7 +39,7 @@ pnpm dev          # vite，默认端口 5183
 | `pnpm lint` | ✅ 0 error / 0 warning |
 | `pnpm typecheck` | ✅ 通过（vue-tsc 无错误） |
 | `pnpm build` | ✅ 通过，产物输出至 `dist/` |
-| `pnpm dev` | ✅ 通过，`http://localhost:5183/` 返回 200 |
+| `pnpm dev` | ✅ 通过，`http://localhost:5181/` 返回 200 |
 
 环境变量（`.env.development` / `.env.production` 已就绪）：
 

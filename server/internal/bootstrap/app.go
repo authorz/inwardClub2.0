@@ -134,7 +134,9 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	reservationSvc := reservation.NewService(reservation.NewRepository(database))
 	couponSvc := coupon.NewService(coupon.NewRepository(database))
 	orderSvc := order.NewService(order.NewRepository(database), wechatPay, memberOpenIDAdapter{authMembers}, assetSvc)
-	adminSvc := admin.NewService(admin.NewRepository(database), storeProfileAdapter{storeSvc}, walletSvc)
+	adminSvc := admin.NewService(
+		admin.NewRepository(database), storeProfileAdapter{storeSvc}, walletSvc, assetSvc,
+	)
 	reportingSvc := reporting.NewService(reporting.NewRepository(database))
 
 	// Console CRUD services (admin + store) sharing the module repositories.

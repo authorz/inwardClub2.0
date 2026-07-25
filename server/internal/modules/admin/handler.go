@@ -27,9 +27,11 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 // store endpoints pin it from the JWT scope.
 func parseFilter(c *gin.Context) ListFilter {
 	return ListFilter{
-		Page:    httpx.ParsePage(c),
-		Status:  c.Query("status"),
-		Keyword: c.Query("keyword"),
+		Page:      httpx.ParsePage(c),
+		Status:    c.Query("status"),
+		Keyword:   c.Query("keyword"),
+		SortBy:    c.Query("sortBy"),
+		SortOrder: c.Query("sortOrder"),
 	}
 }
 

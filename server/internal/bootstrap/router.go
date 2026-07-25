@@ -76,6 +76,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 	p.GET("/wallet", a.walletHandler.Get)
 	p.GET("/wallet/ledger", a.walletHandler.Ledger)
+	p.GET("/sign-ins/status", a.walletHandler.SignInStatus)
 	p.GET("/invitations", a.memberHandler.ListInvitations)
 	p.GET("/coupons", a.couponHandler.List)
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)

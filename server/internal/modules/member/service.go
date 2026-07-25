@@ -80,10 +80,14 @@ func (s *Service) ListInvitations(ctx context.Context, memberID int64, page http
 	}
 	views := make([]InvitationView, 0, len(invitees))
 	for _, iv := range invitees {
+		avatarURL := iv.AvatarURL
+		if avatarURL == "" {
+			avatarURL = s.assetURL(ctx, iv.AvatarAssetID)
+		}
 		views = append(views, InvitationView{
 			MemberID:  iv.MemberID,
 			Nickname:  iv.Nickname,
-			AvatarURL: s.assetURL(ctx, iv.AvatarAssetID),
+			AvatarURL: avatarURL,
 			JoinedAt:  iv.JoinedAt.UTC().Format(time.RFC3339),
 		})
 	}
@@ -226,22 +230,19 @@ func (s *Service) AdminGetRechargeProduct(ctx context.Context, productID int64) 
 
 // CreateRechargeProduct creates a new recharge package.
 func (s *Service) CreateRechargeProduct(ctx context.Context, req RechargeProductCreateRequest) (RechargeProductView, error) {
-	if req.Name == "" {
-		return RechargeProductView{}, apperr.Invalid("member: name is required")
+	if req.AmountCent <= 0 {
+		return RechargeProductView{}, apperr.Invalid("member: amountCent must be positive")
 	}
-	if req.Amount <= 0 {
-		return RechargeProductView{}, apperr.Invalid("member: amount must be positive")
+	if req.CoinAmount <= 0 {
+		return RechargeProductView{}, apperr.Invalid("member: coinAmount must be positive")
 	}
-	assetType := req.AssetType
-	if assetType == "" {
-		assetType = "coin"
+	if req.PointsAmount < 0 {
+		return RechargeProductView{}, apperr.Invalid("member: pointsAmount cannot be negative")
 	}
 	p, err := s.repo.CreateRechargeProduct(ctx, RechargeProductCreate{
-		Name:         req.Name,
-		Amount:       req.Amount,
-		BonusAmount:  req.BonusAmount,
-		GrowthAmount: req.GrowthAmount,
-		AssetType:    assetType,
+		AmountCent:   req.AmountCent,
+		CoinAmount:   req.CoinAmount,
+		PointsAmount: req.PointsAmount,
 		SortOrder:    req.SortOrder,
 		Status:       req.Status,
 	})
@@ -254,22 +255,23 @@ func (s *Service) CreateRechargeProduct(ctx context.Context, req RechargeProduct
 // UpdateRechargeProduct applies a partial update to a recharge package.
 func (s *Service) UpdateRechargeProduct(ctx context.Context, productID int64, req RechargeProductUpdateRequest) (RechargeProductView, error) {
 	u := RechargeProductUpdate{
-		Name:         req.Name,
-		Amount:       req.Amount,
-		BonusAmount:  req.BonusAmount,
-		GrowthAmount: req.GrowthAmount,
-		AssetType:    req.AssetType,
+		AmountCent:   req.AmountCent,
+		CoinAmount:   req.CoinAmount,
+		PointsAmount: req.PointsAmount,
 		SortOrder:    req.SortOrder,
 		Status:       req.Status,
 	}
-	if u.Name == nil && u.Amount == nil && u.BonusAmount == nil && u.GrowthAmount == nil && u.AssetType == nil && u.SortOrder == nil && u.Status == nil {
+	if u.AmountCent == nil && u.CoinAmount == nil && u.PointsAmount == nil && u.SortOrder == nil && u.Status == nil {
 		return RechargeProductView{}, apperr.Invalid("member: no recharge product fields to update")
 	}
-	if u.Name != nil && *u.Name == "" {
-		return RechargeProductView{}, apperr.Invalid("member: name is required")
+	if u.AmountCent != nil && *u.AmountCent <= 0 {
+		return RechargeProductView{}, apperr.Invalid("member: amountCent must be positive")
 	}
-	if u.Amount != nil && *u.Amount <= 0 {
-		return RechargeProductView{}, apperr.Invalid("member: amount must be positive")
+	if u.CoinAmount != nil && *u.CoinAmount <= 0 {
+		return RechargeProductView{}, apperr.Invalid("member: coinAmount must be positive")
+	}
+	if u.PointsAmount != nil && *u.PointsAmount < 0 {
+		return RechargeProductView{}, apperr.Invalid("member: pointsAmount cannot be negative")
 	}
 	p, err := s.repo.UpdateRechargeProduct(ctx, productID, u)
 	if err != nil {
@@ -401,11 +403,9 @@ func (s *Service) baseTierView(ctx context.Context) (*MembershipTierView, error)
 func rechargeProductView(p RechargeProduct) RechargeProductView {
 	return RechargeProductView{
 		ID:           p.ID,
-		Name:         p.Name,
-		Amount:       p.Amount,
-		BonusAmount:  p.BonusAmount,
-		GrowthAmount: p.GrowthAmount,
-		AssetType:    p.AssetType,
+		AmountCent:   p.AmountCent,
+		CoinAmount:   p.CoinAmount,
+		PointsAmount: p.PointsAmount,
 		SortOrder:    p.SortOrder,
 		Status:       p.Status,
 	}

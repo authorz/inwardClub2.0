@@ -1,24 +1,36 @@
-/* bottom padding keeps last content clear of the custom tabbar */
-.rsv { padding: 24rpx; padding-bottom: calc(180rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+/* bottom padding keeps the last table clear of the floating action + custom tabbar */
+.rsv { padding: 0 24rpx; padding-bottom: calc(236rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 
 /* ---- selectors ---- */
-.rsv__field {
-  display: flex; align-items: center; gap: 16rpx;
-  height: 96rpx; padding: 0 28rpx; margin-bottom: 20rpx;
-  background: var(--ic-white); border-radius: 18rpx;
+.rsv__filters {
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  margin: 0 -24rpx;
+  padding: 0 24rpx;
+  background: var(--ic-white);
+  border-bottom: 1rpx solid var(--ic-line);
+  box-sizing: border-box;
 }
 .rsv__field--hover { opacity: 0.7; }
-/* location icon — same box as clock/person icons (ic-ic--sm = 36rpx) */
+.rsv__filter { height: 88rpx; display: flex; align-items: center; gap: 12rpx; min-width: 0; }
+.rsv__filter--store { flex: 1.05; }
+.rsv__time-picker { flex: 1; min-width: 0; }
+.rsv__filter-divider { width: 1rpx; height: 32rpx; margin: 0 22rpx; flex: none; background: var(--ic-line); }
+.rsv__filter-text { flex: 1; min-width: 0; font-size: 26rpx; color: var(--ic-text-2); }
+/* location icon — same box as clock/person icons */
 .rsv__ic { width: 36rpx; height: 36rpx; flex: none; display: block; }
-.rsv__field-text { flex: 1; min-width: 0; font-size: 30rpx; color: var(--ic-black); }
-.rsv__caret { width: 16rpx; height: 16rpx; border-right: 3rpx solid var(--ic-text-3); border-bottom: 3rpx solid var(--ic-text-3); transform: rotate(45deg); margin-top: -6rpx; }
+.rsv__filter .rsv__ic, .rsv__filter .ic-ic { width: 32rpx; height: 32rpx; color: var(--ic-text-3); }
+.rsv__caret { width: 12rpx; height: 12rpx; flex: none; border-right: 2rpx solid var(--ic-text-3); border-bottom: 2rpx solid var(--ic-text-3); transform: rotate(45deg); margin: -6rpx 4rpx 0 0; }
 
 /* ---- legend ---- */
-.rsv__legend { display: flex; gap: 44rpx; padding: 8rpx 12rpx 4rpx; }
+.rsv__legend { display: flex; gap: 44rpx; padding: 24rpx 12rpx 4rpx; }
 .rsv__legend-item { display: flex; align-items: center; gap: 12rpx; }
 .rsv__legend-text { font-size: 24rpx; color: var(--ic-text-2); }
 
-.rsv__sec { padding: 32rpx 8rpx 20rpx; }
+.rsv__sec { min-height: 88rpx; padding: 16rpx 8rpx 8rpx; display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }
+.rsv__mine-link { min-height: 88rpx; display: flex; align-items: center; gap: 10rpx; font-size: 24rpx; color: var(--ic-text-3); }
+.rsv__mine-link .ic-arrow { margin-left: 0; width: 12rpx; height: 12rpx; border-width: 2rpx; }
 
 /* ---- table card ---- */
 .rsv__table { margin-bottom: 24rpx; padding: 28rpx; }
@@ -78,9 +90,14 @@
 .rseat--selected .rseat__circle { background: #111; color: #fff; box-shadow: 0 0 0 6rpx rgba(0, 0, 0, 0.12); }
 .rseat--selected .rseat__label { color: var(--ic-black); font-weight: 600; }
 
-/* ---- bottom actions ---- */
-.rsv__actions { margin-top: 12rpx; }
-/* full-width waitlist button; override WeChat button default side margins */
+/* ---- floating waitlist action ---- */
+.rsv__waitbar {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: calc(120rpx + env(safe-area-inset-bottom));
+  z-index: 40;
+}
 .rsv__waitbtn {
   width: 100% !important;
   margin-left: 0 !important;
@@ -89,10 +106,9 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 96rpx;
+  height: 84rpx;
+  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.14);
 }
-.rsv__mine { display: flex; align-items: center; gap: 16rpx; height: 96rpx; padding: 0 28rpx; margin-top: 20rpx; }
-.rsv__mine-text { flex: 1; font-size: 30rpx; color: var(--ic-black); }
 
 /* ---- confirm sheet body ---- */
 .rsvc__row { display: flex; align-items: center; gap: 18rpx; padding: 20rpx 4rpx; }

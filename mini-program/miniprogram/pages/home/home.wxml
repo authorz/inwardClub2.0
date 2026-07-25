@@ -97,6 +97,7 @@
     >
       <text class="rc__price">¥{{item.priceYuan}}</text>
       <text class="rc__coins">得 {{item.totalCoins}} 金币</text>
+      <text wx:if="{{item.pointsAmount > 0}}" class="rc__points">赠 {{item.pointsAmount}} 积分</text>
       <view wx:if="{{productId === item.id}}" class="rc__check"><view class="ic-ic ic-ic-check ic-ic--sm"></view></view>
     </view>
   </view>

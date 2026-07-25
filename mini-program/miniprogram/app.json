@@ -8,6 +8,7 @@
     "pages/store-detail/store-detail",
     "pages/activity-list/activity-list",
     "pages/activity-detail/activity-detail",
+    "pages/activity-purchase/activity-purchase",
     "pages/order-confirm/order-confirm",
     "pages/pay-result/pay-result",
     "pages/reservation-list/reservation-list",

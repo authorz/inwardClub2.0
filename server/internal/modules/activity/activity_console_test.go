@@ -180,8 +180,21 @@ func TestEncodeChannels(t *testing.T) {
 	if got := string(encodeChannels(nil)); got != "[]" {
 		t.Fatalf("nil channels: expected [], got %q", got)
 	}
-	if got := string(encodeChannels([]string{"wechat", "alipay"})); got != `["wechat","alipay"]` {
+	if got := string(encodeChannels([]string{"wechat", "coin"})); got != `["wechat","coin"]` {
 		t.Fatalf("unexpected encoding: %q", got)
+	}
+}
+
+func TestNormalizePayChannels(t *testing.T) {
+	got, err := normalizePayChannels([]string{"wechat", "balance", "coin"})
+	if err != nil {
+		t.Fatalf("normalize legacy balance: %v", err)
+	}
+	if len(got) != 2 || got[0] != "wechat" || got[1] != "coin" {
+		t.Fatalf("unexpected normalized channels: %#v", got)
+	}
+	if _, err := normalizePayChannels([]string{"wechat", "alipay"}); err == nil {
+		t.Fatal("unsupported channel should be rejected")
 	}
 }
 

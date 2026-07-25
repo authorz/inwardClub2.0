@@ -16,9 +16,10 @@ export REDIS_ADDR='127.0.0.1:6379'
 export JWT_SIGNING_KEY='dev-signing-key'
 export HTTP_ADDR=':8099'
 go run ./cmd/migrate up
-go run ./cmd/migrate seed     # 种子账号: superadmin / storeadmin，密码 password
 go run ./cmd/api
 ```
+
+接口验收前，应在隔离的测试环境中准备测试账号和业务数据；项目不内置默认账号或示例数据。
 
 `USE_FAKE_ADAPTERS=true`（默认）：微信登录/支付、七牛、打印机、线下聚合收单全部走 fake，
 无需外网依赖。
@@ -62,9 +63,9 @@ go test -race ./...
 2. **三端登录**（验证 audience 隔离）
    - `POST /api/v2/mini/auth/wechat/login` `{code}`（fake adapter 任意 code）→ 返回
      `token.accessToken/refreshToken` + `profile`。
-   - `POST /api/v2/admin/auth/login` `{username:"superadmin", password:"password"}` → 200；
+   - 使用测试环境的总后台账号调用 `POST /api/v2/admin/auth/login` → 200；
      用同一 token 调用 `POST /api/v2/store/auth/*` 应被拒绝（audience 不匹配）。
-   - `POST /api/v2/store/auth/login` `{username:"storeadmin", password:"password"}` → 200，
+   - 使用测试环境的门店账号调用 `POST /api/v2/store/auth/login` → 200，
      token 携带 store scope。
 3. **鉴权 `/me`**
    `GET /api/v2/mini/me`、`/api/v2/admin/auth/me`、`/api/v2/store/auth/me` 各带对应 token
@@ -76,7 +77,7 @@ go test -race ./...
    `POST /api/v2/mini/assets/upload-credentials`（带 mini token）→ 返回七牛上传凭证；
    同理验证 admin/store 端点各自的 scope。
 6. **小程序公开读**
-   `GET /mini/stores` → 列表非空（种子数据）；`GET /mini/stores/{id}`、`/banners`、
+   `GET /mini/stores` → 返回测试环境的真实数据；`GET /mini/stores/{id}`、`/banners`、
    `/catalog/categories`、`/catalog/items`、`/mini/activities` → 200，字段与 `v2.yaml`
    schema 一致。
 7. **钱包只读+账本只追加**
@@ -116,7 +117,7 @@ go test -race ./...
 ## 7. 冒烟测试记录（2026-07-18）
 
 针对本地已运行的 `go run ./cmd/api` 实例（`127.0.0.1:18110`）执行只读+代表性写操作冒烟测试，
-使用种子账号 `superadmin` / `storeadmin`（密码均为 `password`）。
+使用测试环境单独准备的总后台与门店账号。
 
 **通过：**
 

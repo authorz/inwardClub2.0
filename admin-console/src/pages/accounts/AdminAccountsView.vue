@@ -8,7 +8,7 @@ import { API_PATHS } from '@/constants/api-paths'
 <template>
   <AccountListView
     title="总后台账号"
-    description="总部管理员账号，独立于门店账号体系（仅支持禁用）"
+    description="总部管理员账号；系统管理员不可删除或禁用"
     variant="super"
     :service="adminAccountService"
     :disable-path="API_PATHS.adminAccounts.disable"

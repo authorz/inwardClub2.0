@@ -6,21 +6,22 @@
  */
 import { h, reactive, ref } from 'vue'
 import {
+  NButton,
   NDescriptions,
   NDescriptionsItem,
   NForm,
   NFormItem,
   NInput,
+  NInputNumber,
   NSpace,
   NSpin,
-  NSwitch,
 } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import { actionsColumn, dateTimeColumn, statusColumn, textColumn } from '@/utils/columns'
-import { RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
+import { STORE_STATUS_OPTIONS, storeStatusLabel } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { storeService, storeSettingsService } from '@/api/services'
 import type { Store, StoreSettingsData } from '@/api/models'
@@ -31,13 +32,13 @@ const listRef = ref<ResourceListInstance | null>(null)
 
 const fields: FilterField[] = [
   { key: 'keyword', label: '门店名称', type: 'input', placeholder: '搜索门店名称 / 电话' },
-  { key: 'status', label: '状态', type: 'select', options: RESOURCE_STATUS_OPTIONS },
+  { key: 'status', label: '状态', type: 'select', options: STORE_STATUS_OPTIONS },
 ]
 
 const columns = [
   textColumn<Store>('门店名称', 'name'),
   textColumn<Store>('联系电话', 'phone', { width: 140 }),
-  statusColumn<Store>('营业状态', 'status', RESOURCE_STATUS_OPTIONS),
+  statusColumn<Store>('营业状态', 'status', STORE_STATUS_OPTIONS),
   dateTimeColumn<Store>('创建时间', 'createdAt'),
   actionsColumn<Store>((row) =>
     h(NSpace, {}, () => [
@@ -63,12 +64,19 @@ const form = reactive<Partial<Store>>({
   name: '',
   phone: '',
   address: '',
+  businessHours: '',
+  latitude: null,
+  longitude: null,
 })
 
 function resetForm(): void {
   form.name = ''
   form.phone = ''
   form.address = ''
+  form.businessHours = ''
+  form.latitude = null
+  form.longitude = null
+  coordPaste.value = ''
 }
 
 function openCreate(): void {
@@ -82,7 +90,35 @@ function openEdit(row: Store): void {
   form.name = row.name
   form.phone = row.phone
   form.address = row.address
+  form.businessHours = row.businessHours ?? ''
+  form.latitude = row.latitude ?? null
+  form.longitude = row.longitude ?? null
+  coordPaste.value = ''
   drawerShow.value = true
+}
+
+// —— 坐标拾取 ——
+// 微信小程序 wx.getLocation/openLocation 用 GCJ-02，故坐标必须是 GCJ-02：
+// 用腾讯（或高德）坐标拾取器，切勿用百度（BD-09 会偏移数百米）。
+const coordPaste = ref('')
+
+function openCoordPicker(): void {
+  window.open('https://lbs.qq.com/getPoint/', '_blank')
+}
+
+// 接受拾取器复制的「纬度,经度」（腾讯输出该顺序），拆分回填经纬度输入框。
+function applyPastedCoord(v: string): void {
+  const nums = v
+    .split(/[,，\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number)
+    .filter((n) => Number.isFinite(n))
+  if (nums.length >= 2) {
+    form.latitude = nums[0]
+    form.longitude = nums[1]
+    coordPaste.value = ''
+  }
 }
 
 async function submit(): Promise<void> {
@@ -120,8 +156,6 @@ const settingsStoreId = ref<string | null>(null)
 const detail = ref<Store | null>(null)
 const settingsForm = reactive<StoreSettingsData>({
   businessHoursNote: '',
-  autoAcceptOrders: false,
-  tableReservationEnabled: false,
 })
 
 async function openSettings(row: Store): Promise<void> {
@@ -135,7 +169,9 @@ async function openSettings(row: Store): Promise<void> {
       storeSettingsService.get(row.id),
     ])
     detail.value = detailData
-    Object.assign(settingsForm, settingsData.settings ?? {})
+    // 只回填仍保留的字段；旧 blob 里遗留的开关键(自动接单/桌位预订)不再读取，
+    // 下次保存即被整体覆盖清除。
+    settingsForm.businessHoursNote = settingsData.settings?.businessHoursNote ?? ''
   } catch (e) {
     toastError((e as { message?: string }).message ?? '加载门店详情/设置失败')
     settingsDrawerShow.value = false
@@ -148,7 +184,9 @@ async function submitSettings(): Promise<void> {
   if (!settingsStoreId.value) return
   settingsSaving.value = true
   try {
-    await storeSettingsService.update(settingsStoreId.value, { ...settingsForm })
+    await storeSettingsService.update(settingsStoreId.value, {
+      businessHoursNote: settingsForm.businessHoursNote,
+    })
     toastSuccess('门店设置已更新')
     settingsDrawerShow.value = false
   } catch (e) {
@@ -185,6 +223,7 @@ const toolbarActions = [
     <FormDrawer
       v-model:show="drawerShow"
       :title="editingId ? '编辑门店' : '新增门店'"
+      :width="860"
       :submitting="submitting"
       high-risk
       @submit="submit"
@@ -199,12 +238,26 @@ const toolbarActions = [
             placeholder="请输入门店名称"
           />
         </NFormItem>
-        <NFormItem label="联系电话">
-          <NInput
-            v-model:value="form.phone"
-            placeholder="请输入联系电话"
-          />
-        </NFormItem>
+        <div class="form-row">
+          <NFormItem
+            label="联系电话"
+            class="form-row__item"
+          >
+            <NInput
+              v-model:value="form.phone"
+              placeholder="请输入联系电话"
+            />
+          </NFormItem>
+          <NFormItem
+            label="营业时间"
+            class="form-row__item"
+          >
+            <NInput
+              v-model:value="form.businessHours"
+              placeholder="如：10:00 - 22:00"
+            />
+          </NFormItem>
+        </div>
         <NFormItem
           label="地址"
           required
@@ -212,18 +265,58 @@ const toolbarActions = [
           <NInput
             v-model:value="form.address"
             type="textarea"
+            :autosize="{ minRows: 1, maxRows: 2 }"
             placeholder="请输入门店地址"
           />
         </NFormItem>
+        <NFormItem label="经纬度（GPS · GCJ-02）">
+          <div class="coord">
+            <div class="coord__row">
+              <NInputNumber
+                v-model:value="form.latitude"
+                :show-button="false"
+                :precision="6"
+                :min="-90"
+                :max="90"
+                placeholder="纬度 latitude 如 31.230416"
+                style="flex: 1"
+              />
+              <NInputNumber
+                v-model:value="form.longitude"
+                :show-button="false"
+                :precision="6"
+                :min="-180"
+                :max="180"
+                placeholder="经度 longitude 如 121.473701"
+                style="flex: 1"
+              />
+            </div>
+            <div class="coord__row">
+              <NButton
+                secondary
+                @click="openCoordPicker"
+              >
+                打开腾讯地图拾取坐标
+              </NButton>
+              <NInput
+                v-model:value="coordPaste"
+                placeholder="粘贴「纬度,经度」自动填入"
+                style="flex: 1"
+                @change="applyPastedCoord"
+              />
+            </div>
+          </div>
+        </NFormItem>
       </NForm>
       <p class="form-note">
-        Logo 等资产字段仅接受 assetId，接入资产服务后补充。
+        坐标用于小程序「距离计算」与「导航前往」。请用<strong>腾讯 / 高德</strong>坐标拾取器（GCJ-02，与微信一致），<strong>勿用百度</strong>（坐标系不同，会偏移数百米）。在拾取器里搜门店地址 → 点地图 → 复制「纬度,经度」粘贴到上方即可。
       </p>
     </FormDrawer>
 
     <FormDrawer
       v-model:show="settingsDrawerShow"
       title="门店详情 / 设置"
+      :width="860"
       :submitting="settingsSaving"
       high-risk
       submit-text="保存设置"
@@ -249,7 +342,7 @@ const toolbarActions = [
             {{ detail.businessHours }}
           </NDescriptionsItem>
           <NDescriptionsItem label="营业状态">
-            {{ detail.status }}
+            {{ storeStatusLabel(detail.status) }}
           </NDescriptionsItem>
         </NDescriptions>
 
@@ -263,12 +356,6 @@ const toolbarActions = [
               placeholder="请输入营业时间备注"
             />
           </NFormItem>
-          <NFormItem label="自动接单">
-            <NSwitch v-model:value="settingsForm.autoAcceptOrders" />
-          </NFormItem>
-          <NFormItem label="启用桌位预订">
-            <NSwitch v-model:value="settingsForm.tableReservationEnabled" />
-          </NFormItem>
         </NForm>
       </NSpin>
     </FormDrawer>
@@ -280,5 +367,23 @@ const toolbarActions = [
   margin-top: var(--ic-space-md);
   font-size: var(--ic-font-xs);
   color: var(--ic-color-text-tertiary);
+}
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+.form-row__item {
+  flex: 1;
+}
+.coord {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.coord__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 </style>

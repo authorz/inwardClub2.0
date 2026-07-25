@@ -91,7 +91,7 @@ internal/modules/
 
 ```dotenv
 APP_ENV=development
-HTTP_ADDR=:8080
+HTTP_ADDR=:8081
 MYSQL_DSN=
 REDIS_ADDR=
 JWT_SIGNING_KEY=

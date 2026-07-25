@@ -3,7 +3,7 @@
  * 停用、重置密码为高风险写操作，带 Idempotency-Key。
  */
 
-import { getPaged, patch, post } from '../request'
+import { del, getPaged, patch, post } from '../request'
 import { API_PATHS } from '@/constants/apiPaths'
 import type { PageQuery } from '@/types/api'
 import type { Cashier, StaffAccount } from '@/types/models'
@@ -19,8 +19,15 @@ export interface CashierUpdatePayload {
   displayName: string
 }
 
-/** 新增/编辑员工账号：服务端仅接受姓名。 */
-export interface StaffAccountPayload {
+/** 新增员工：员工须先在小程序注册，按会员 id 绑定（memberId 由手机号查询得到）。
+ *  name 为员工显示名（创建表单填写，默认取会员昵称，可改）。 */
+export interface StaffAccountCreatePayload {
+  memberId: number | string
+  name?: string
+}
+
+/** 编辑员工：仅显示名可改。 */
+export interface StaffAccountUpdatePayload {
   name: string
 }
 
@@ -47,13 +54,17 @@ export const staffAccountService = {
   list(params?: PageQuery) {
     return getPaged<StaffAccount>(API_PATHS.staff.staffAccounts, params)
   },
-  create(body: StaffAccountPayload) {
+  create(body: StaffAccountCreatePayload) {
     return post<StaffAccount>(API_PATHS.staff.staffAccounts, body, { idempotent: true })
   },
-  update(id: string | number, body: StaffAccountPayload) {
+  update(id: string | number, body: StaffAccountUpdatePayload) {
     return patch<StaffAccount>(API_PATHS.staff.staffAccount(id), body, { idempotent: true })
   },
   disable(id: string | number) {
     return post<StaffAccount>(API_PATHS.staff.staffDisable(id), undefined, { idempotent: true })
+  },
+  /** 删除员工：仅移除员工/管理权限绑定，不删除其小程序会员账号。 */
+  remove(id: string | number) {
+    return del<void>(API_PATHS.staff.staffBinding(id), { idempotent: true })
   },
 }
