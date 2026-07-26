@@ -3,6 +3,7 @@ package reservation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,10 +66,15 @@ func (r *memRepo) ListMemberReservations(_ context.Context, memberID int64, limi
 	return all[offset:end], total, nil
 }
 
-func (r *memRepo) ListStoreReservations(_ context.Context, storeID int64, limit, offset int) ([]Reservation, int64, error) {
+func (r *memRepo) ListStoreReservations(_ context.Context, storeID int64, filter StoreReservationFilter, limit, offset int) ([]Reservation, int64, error) {
+	matches := func(value, query string) bool {
+		return query == "" || strings.Contains(strings.ToLower(value), strings.ToLower(query))
+	}
 	var all []Reservation
 	for _, res := range r.reservations {
-		if res.StoreID == storeID && res.Status == StatusBooked {
+		if res.StoreID == storeID && res.Status == StatusBooked &&
+			matches(res.TableNo, filter.TableNo) && matches(res.SeatNo, filter.SeatNo) &&
+			matches(res.MemberNickname, filter.MemberNickname) && matches(res.MemberPhone, filter.MemberPhone) {
 			all = append(all, res)
 		}
 	}
@@ -135,11 +141,24 @@ func (r *memRepo) GetReservation(_ context.Context, id int64) (Reservation, erro
 	return Reservation{}, apperr.NotFound("reservation not found")
 }
 
-func (r *memRepo) CancelReservation(_ context.Context, id, memberID int64, _ time.Time) error {
+func (r *memRepo) CancelReservation(_ context.Context, id, memberID int64, dailyStart time.Time) error {
 	for i := range r.reservations {
 		res := r.reservations[i]
 		if res.ID == id && res.MemberID == memberID && res.Status == StatusBooked {
 			r.reservations = append(r.reservations[:i], r.reservations[i+1:]...)
+			delete(r.dailyClaims, fmt.Sprintf("%d/%s", memberID, dailyStart.UTC().Format(time.RFC3339)))
+			return nil
+		}
+	}
+	return apperr.Conflict("reservation cannot be cancelled")
+}
+
+func (r *memRepo) CancelStoreReservation(_ context.Context, id, storeID int64, dailyStart time.Time) error {
+	for i := range r.reservations {
+		res := r.reservations[i]
+		if res.ID == id && res.StoreID == storeID && res.Status == StatusBooked {
+			r.reservations = append(r.reservations[:i], r.reservations[i+1:]...)
+			delete(r.dailyClaims, fmt.Sprintf("%d/%s", res.MemberID, dailyStart.UTC().Format(time.RFC3339)))
 			return nil
 		}
 	}
@@ -168,7 +187,7 @@ func (r *memRepo) ArriveReservation(_ context.Context, reservationID, storeID in
 
 func newTestService() (*Service, *memRepo) {
 	repo := &memRepo{dailyClaims: make(map[string]bool)}
-	svc := NewService(repo, fakeAssetResolver{}, time.UTC)
+	svc := NewService(repo, fakeAssetResolver{}, nil, time.UTC)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
 }
@@ -205,6 +224,54 @@ func TestListTablesIncludesCustomLayoutURL(t *testing.T) {
 	}
 }
 
+type fakeTableBackgroundSettings struct{ url string }
+
+func (f fakeTableBackgroundSettings) TableDefaultBackgroundURL(context.Context) (string, error) {
+	return f.url, nil
+}
+
+func TestListTablesFallsBackToGlobalBackgroundURL(t *testing.T) {
+	repo := &memRepo{dailyClaims: make(map[string]bool)}
+	repo.tables = []Table{{
+		ID: 1, StoreID: 8, Name: "A1", Capacity: 9, Status: AvailabilityAvailable,
+	}}
+	svc := NewService(
+		repo, fakeAssetResolver{},
+		fakeTableBackgroundSettings{url: "https://cdn.example.com/default-table.png"},
+		time.UTC,
+	)
+
+	views, err := svc.ListTables(context.Background(), 8)
+	if err != nil {
+		t.Fatalf("list tables: %v", err)
+	}
+	if got := views[0].LayoutURL; got != "https://cdn.example.com/default-table.png" {
+		t.Fatalf("layout URL = %q, want global default", got)
+	}
+}
+
+func TestListTablesCustomBackgroundOverridesGlobalDefault(t *testing.T) {
+	repo := &memRepo{dailyClaims: make(map[string]bool)}
+	layoutAssetID := int64(23)
+	repo.tables = []Table{{
+		ID: 1, StoreID: 8, Name: "A1", Capacity: 9,
+		LayoutAssetID: &layoutAssetID, Status: AvailabilityAvailable,
+	}}
+	svc := NewService(
+		repo, fakeAssetResolver{},
+		fakeTableBackgroundSettings{url: "https://cdn.example.com/default-table.png"},
+		time.UTC,
+	)
+
+	views, err := svc.ListTables(context.Background(), 8)
+	if err != nil {
+		t.Fatalf("list tables: %v", err)
+	}
+	if got := views[0].LayoutURL; got != "https://cdn.example.com/assets/23" {
+		t.Fatalf("layout URL = %q, want custom table background", got)
+	}
+}
+
 func TestListSeatsIncludesReservedMemberProfile(t *testing.T) {
 	svc, repo := newTestService()
 	tableID := int64(3)
@@ -230,11 +297,14 @@ func TestListSeatsIncludesReservedMemberProfile(t *testing.T) {
 }
 
 func validCreateReq() CreateReservationRequest {
+	tableID := int64(1)
+	seatID := int64(1)
 	return CreateReservationRequest{
-		StoreID:    1,
-		PartySize:  2,
-		ReservedAt: time.Date(2026, 7, 18, 19, 0, 0, 0, time.UTC),
-		Remark:     "window seat",
+		StoreID:   1,
+		TableID:   &tableID,
+		SeatID:    &seatID,
+		PartySize: 2,
+		Remark:    "window seat",
 	}
 }
 
@@ -252,6 +322,9 @@ func TestCreateReservationBooks(t *testing.T) {
 	}
 	if len(repo.reservations) != 1 || repo.reservations[0].MemberID != 42 {
 		t.Fatalf("reservation not persisted for member")
+	}
+	if !repo.reservations[0].ReservedAt.Equal(svc.now().UTC()) {
+		t.Fatalf("reserved_at must mirror server creation time, got %s", repo.reservations[0].ReservedAt)
 	}
 }
 
@@ -271,15 +344,13 @@ func TestCreateReservationRejectsOccupiedSeat(t *testing.T) {
 	}
 }
 
-func TestCreateReservationReturnsDailyLimitBeforePastTime(t *testing.T) {
+func TestCreateReservationReturnsDailyLimit(t *testing.T) {
 	svc, _ := newTestService()
 	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); err != nil {
 		t.Fatalf("first reservation: %v", err)
 	}
 
-	second := validCreateReq()
-	second.ReservedAt = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	_, err := svc.CreateReservation(context.Background(), 42, second)
+	_, err := svc.CreateReservation(context.Background(), 42, validCreateReq())
 	appErr := apperr.From(err)
 	if appErr.Code != apperr.CodeConflict || appErr.Message != "你今天已经预约座位了" {
 		t.Fatalf("unexpected daily limit error: code=%s message=%q", appErr.Code, appErr.Message)
@@ -289,10 +360,13 @@ func TestCreateReservationReturnsDailyLimitBeforePastTime(t *testing.T) {
 func TestCreateReservationValidation(t *testing.T) {
 	svc, _ := newTestService()
 	cases := map[string]CreateReservationRequest{
-		"missing store": {PartySize: 2, ReservedAt: time.Date(2026, 7, 18, 19, 0, 0, 0, time.UTC)},
-		"zero party":    {StoreID: 1, ReservedAt: time.Date(2026, 7, 18, 19, 0, 0, 0, time.UTC)},
-		"missing time":  {StoreID: 1, PartySize: 2},
-		"past reserved": {StoreID: 1, PartySize: 2, ReservedAt: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
+		"missing store": {PartySize: 2},
+		"zero party":    {StoreID: 1},
+		"missing table": {StoreID: 1, PartySize: 1},
+		"missing seat": func() CreateReservationRequest {
+			tableID := int64(1)
+			return CreateReservationRequest{StoreID: 1, TableID: &tableID, PartySize: 1}
+		}(),
 	}
 	for name, req := range cases {
 		if _, err := svc.CreateReservation(context.Background(), 1, req); apperr.From(err).Code != apperr.CodeInvalidArgument {
@@ -324,8 +398,8 @@ func TestCancelReservation(t *testing.T) {
 	if _, err := svc.GetReservation(context.Background(), 42, view.ID); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("cancelled reservation must be deleted, got %v", err)
 	}
-	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); apperr.From(err).Code != apperr.CodeConflict {
-		t.Fatalf("daily limit must remain after cancellation, got %v", err)
+	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); err != nil {
+		t.Fatalf("member should be able to reserve again after cancellation, got %v", err)
 	}
 	// Second cancel must conflict (already cancelled).
 	if err := svc.CancelReservation(context.Background(), 42, view.ID); apperr.From(err).Code != apperr.CodeConflict {
@@ -362,12 +436,23 @@ func TestStoreReservationScope(t *testing.T) {
 	}
 
 	// A store sees only its own bookings, regardless of the owning member.
-	views, total, err := svc.ListStoreReservations(context.Background(), 1, httpx.Page{Page: 1, PageSize: 20})
+	views, total, err := svc.ListStoreReservations(context.Background(), 1, StoreReservationFilter{}, httpx.Page{Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if total != 2 || len(views) != 2 {
 		t.Fatalf("expected 2 reservations for store 1, got %d", total)
+	}
+
+	repo.reservations[0].TableNo = "A-01"
+	repo.reservations[0].SeatNo = "09"
+	repo.reservations[0].MemberNickname = "测试会员"
+	repo.reservations[0].MemberPhone = "19123450770"
+	filtered, filteredTotal, err := svc.ListStoreReservations(context.Background(), 1, StoreReservationFilter{
+		TableNo: "-0", SeatNo: "9", MemberNickname: "试会", MemberPhone: "3450",
+	}, httpx.Page{Page: 1, PageSize: 20})
+	if err != nil || filteredTotal != 1 || len(filtered) != 1 || filtered[0].ID != own.ID {
+		t.Fatalf("fuzzy filters did not match the expected reservation: total=%d views=%+v err=%v", filteredTotal, filtered, err)
 	}
 
 	// Detail is scoped to the store: own booking visible, another store's hidden.
@@ -376,6 +461,32 @@ func TestStoreReservationScope(t *testing.T) {
 	}
 	if _, err := svc.GetStoreReservation(context.Background(), 1, other.ID); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for another store's booking, got %v", err)
+	}
+
+	if err := svc.CancelStoreReservation(context.Background(), 2, own.ID); apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("another store must not cancel the booking, got %v", err)
+	}
+	if err := svc.CancelStoreReservation(context.Background(), 1, own.ID); err != nil {
+		t.Fatalf("store cancel own booking: %v", err)
+	}
+	if _, err := svc.GetStoreReservation(context.Background(), 1, own.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("store-cancelled booking must be deleted, got %v", err)
+	}
+}
+
+func TestStoreReservationListResolvesMemberAvatarAsset(t *testing.T) {
+	svc, repo := newTestService()
+	assetID := int64(88)
+	repo.reservations = []Reservation{{
+		ID: 1, MemberID: 42, StoreID: 1, Status: StatusBooked,
+		MemberAvatarAssetID: &assetID,
+	}}
+	views, _, err := svc.ListStoreReservations(context.Background(), 1, StoreReservationFilter{}, httpx.Page{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(views) != 1 || views[0].MemberAvatarURL != "https://cdn.example.com/assets/88" {
+		t.Fatalf("unexpected resolved avatar: %+v", views)
 	}
 }
 

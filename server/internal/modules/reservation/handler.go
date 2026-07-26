@@ -2,6 +2,7 @@ package reservation
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -133,7 +134,13 @@ func (h *Handler) StoreList(c *gin.Context) {
 		return
 	}
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListStoreReservations(c.Request.Context(), storeID, page)
+	filter := StoreReservationFilter{
+		TableNo:        strings.TrimSpace(c.Query("tableNo")),
+		SeatNo:         strings.TrimSpace(c.Query("seatNo")),
+		MemberNickname: strings.TrimSpace(c.Query("memberNickname")),
+		MemberPhone:    strings.TrimSpace(c.Query("memberPhone")),
+	}
+	views, total, err := h.svc.ListStoreReservations(c.Request.Context(), storeID, filter, page)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -159,6 +166,25 @@ func (h *Handler) StoreGet(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, view)
+}
+
+// StoreCancel handles POST /store/reservations/{reservationID}/cancel and
+// immediately releases the occupied seat within the acting store's scope.
+func (h *Handler) StoreCancel(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "reservationID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.CancelStoreReservation(c.Request.Context(), storeID, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
 }
 
 // Arrive handles POST /store/reservations/{reservationID}/arrive. The store

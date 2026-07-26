@@ -43,12 +43,19 @@ type ReservationView struct {
 
 // CreateReservationRequest is the mini-program booking payload.
 type CreateReservationRequest struct {
-	StoreID    int64     `json:"storeId"`
-	TableID    *int64    `json:"tableId"`
-	SeatID     *int64    `json:"seatId"`
-	PartySize  int       `json:"partySize"`
-	ReservedAt time.Time `json:"reservedAt"`
-	Remark     string    `json:"remark"`
+	StoreID   int64  `json:"storeId"`
+	TableID   *int64 `json:"tableId"`
+	SeatID    *int64 `json:"seatId"`
+	PartySize int    `json:"partySize"`
+	Remark    string `json:"remark"`
+}
+
+// StoreReservationFilter contains the store-console fuzzy search conditions.
+type StoreReservationFilter struct {
+	TableNo        string
+	SeatNo         string
+	MemberNickname string
+	MemberPhone    string
 }
 
 // WaitlistEntryView is the member-facing waitlist representation.

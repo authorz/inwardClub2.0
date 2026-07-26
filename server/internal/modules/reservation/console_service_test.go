@@ -10,6 +10,7 @@ type consoleRepoStub struct {
 	table        Table
 	seat         Seat
 	createdTable Table
+	updatedTable Table
 	createdSeat  Seat
 }
 
@@ -28,6 +29,7 @@ func (r *consoleRepoStub) CreateAdminTable(_ context.Context, table Table) (Tabl
 	return table, nil
 }
 func (r *consoleRepoStub) UpdateAdminTable(_ context.Context, _ int64, table Table) (Table, error) {
+	r.updatedTable = table
 	return table, nil
 }
 func (r *consoleRepoStub) DeleteAdminTable(context.Context, int64) error { return nil }
@@ -104,6 +106,26 @@ func TestConsoleServiceUpdateTableRejectsCapacityBelowSeatCount(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected capacity conflict")
+	}
+}
+
+func TestConsoleServiceUpdateTableAllowsClearingLayout(t *testing.T) {
+	assetID := int64(36)
+	repo := &consoleRepoStub{
+		storeExists: true,
+		table: Table{
+			ID: 1, StoreID: 7, SeatCount: 2, LayoutAssetID: &assetID,
+		},
+	}
+	view, err := NewConsoleService(repo, nil).UpdateTable(context.Background(), 1, TableWriteRequest{
+		StoreID: 7, Name: "A", Code: "A1", Capacity: 2,
+		LayoutAssetID: nil, Status: AvailabilityAvailable,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.updatedTable.LayoutAssetID != nil || view.LayoutAssetID != nil {
+		t.Fatalf("layout asset was not cleared: updated=%+v view=%+v", repo.updatedTable, view)
 	}
 }
 

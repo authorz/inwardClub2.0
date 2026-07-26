@@ -156,6 +156,8 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.PUT("/payment-channel-settings", a.paymentAdminHandler.UpdatePaymentChannelSettings)
 	p.GET("/point-review-settings", a.pointReviewSettingsHandler.Get)
 	p.PUT("/point-review-settings", a.pointReviewSettingsHandler.Update)
+	p.GET("/global-settings", a.globalSettingsHandler.Get)
+	p.PUT("/global-settings", a.globalSettingsHandler.Update)
 	p.GET("/error-events", a.diagnosticsHandler.ListErrorEvents)
 	p.GET("/refunds", a.adminHandler.Refunds)
 	p.GET("/refund-orders", a.adminHandler.Refunds)
@@ -374,6 +376,7 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	p.GET("/food-orders", a.orderStoreConsoleHandler.List)
 	p.GET("/food-orders/:orderID", a.orderStoreConsoleHandler.Get)
 	idem.POST("/food-orders/:orderID/:action", a.orderStoreConsoleHandler.Action)
+	idem.POST("/reservations/:reservationID/cancel", a.reservationHandler.StoreCancel)
 
 	// Own-store profile update.
 	idem.PATCH("/profile", a.storeConsoleHandler.UpdateOwnProfile)

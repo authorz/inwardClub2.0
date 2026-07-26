@@ -22,6 +22,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/reporting"
 	"github.com/inwardclub/server/internal/modules/reservation"
 	"github.com/inwardclub/server/internal/modules/store"
+	"github.com/inwardclub/server/internal/modules/systemsetting"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/config"
@@ -54,6 +55,7 @@ type App struct {
 	paymentAdminHandler        *payment.AdminHandler
 	activityStoreHandler       *activity.StoreHandler
 	pointReviewSettingsHandler *activity.PointReviewSettingsHandler
+	globalSettingsHandler      *systemsetting.Handler
 
 	memberHandler      *member.Handler
 	reservationHandler *reservation.Handler
@@ -128,6 +130,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	pointReviewSettingsSvc := activity.NewPointReviewSettingsService(
 		activity.NewPointReviewSettingsRepository(database),
 	)
+	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
 
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
 	// WeChat phone code via the WeChat client (fake offline, real once wired).
@@ -143,7 +146,9 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		authSvc,
 		cfg.WeChatPayAmountOverrideCent(),
 	)
-	reservationSvc := reservation.NewService(reservation.NewRepository(database), assetSvc, businessClock.Location())
+	reservationSvc := reservation.NewService(
+		reservation.NewRepository(database), assetSvc, globalSettingsSvc, businessClock.Location(),
+	)
 	couponSvc := coupon.NewService(coupon.NewRepository(database))
 	wechatPayAmountOverrideCent := cfg.WeChatPayAmountOverrideCent()
 	if wechatPayAmountOverrideCent > 0 {
@@ -169,7 +174,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
 	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database), assetSvc)
-	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc)
+	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc, assetSvc)
 
 	// Diagnostics: durable admin error-events feed backed by the error_events
 	// table (db/migrations 00018); the Capture middleware persists 5xx failures.
@@ -194,6 +199,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		paymentAdminHandler:        payment.NewAdminHandler(paymentAdminSvc),
 		activityStoreHandler:       activity.NewStoreHandler(activityStoreSvc),
 		pointReviewSettingsHandler: activity.NewPointReviewSettingsHandler(pointReviewSettingsSvc),
+		globalSettingsHandler:      systemsetting.NewHandler(globalSettingsSvc),
 
 		memberHandler:      member.NewHandler(memberSvc),
 		reservationHandler: reservation.NewHandler(reservationSvc),

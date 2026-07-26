@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	platdb "github.com/inwardclub/server/internal/platform/db"
@@ -19,11 +20,12 @@ type Repository interface {
 
 	// Reservation lifecycle.
 	ListMemberReservations(ctx context.Context, memberID int64, limit, offset int) ([]Reservation, int64, error)
-	ListStoreReservations(ctx context.Context, storeID int64, limit, offset int) ([]Reservation, int64, error)
+	ListStoreReservations(ctx context.Context, storeID int64, filter StoreReservationFilter, limit, offset int) ([]Reservation, int64, error)
 	HasMemberReservation(ctx context.Context, memberID int64, createdFrom, createdBefore time.Time) (bool, error)
 	CreateReservation(ctx context.Context, r Reservation, dailyStart, dailyEnd time.Time) (int64, error)
 	GetReservation(ctx context.Context, id int64) (Reservation, error)
 	CancelReservation(ctx context.Context, id, memberID int64, now time.Time) error
+	CancelStoreReservation(ctx context.Context, id, storeID int64, now time.Time) error
 
 	// Waitlist (mini).
 	CreateWaitlistEntry(ctx context.Context, w WaitlistEntry) (int64, error)
@@ -126,21 +128,40 @@ func (r *sqlRepository) ListMemberReservations(ctx context.Context, memberID int
 	return out, total, rows.Err()
 }
 
-func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64, limit, offset int) ([]Reservation, int64, error) {
-	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE store_id = ? AND status = ?`, storeID, StatusBooked).Scan(&total); err != nil {
-		return nil, 0, apperr.Internal(err)
-	}
-	const q = `SELECT r.id, r.reservation_no, r.store_id, r.member_id, r.table_id, r.seat_id,
-		r.party_size, r.reserved_at, r.status, r.remark, r.created_at, r.updated_at,
-		COALESCE(m.nickname, ''), COALESCE(m.phone, ''), COALESCE(m.avatar_url, ''),
-		COALESCE(NULLIF(t.code, ''), t.name, ''), COALESCE(s.name, '')
-		FROM reservations r
+func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64, filter StoreReservationFilter, limit, offset int) ([]Reservation, int64, error) {
+	joins := ` FROM reservations r
 		LEFT JOIN members m ON m.id = r.member_id
 		LEFT JOIN tables t ON t.id = r.table_id
-		LEFT JOIN seats s ON s.id = r.seat_id
-		WHERE r.store_id = ? AND r.status = ? ORDER BY r.id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, storeID, StatusBooked, limit, offset)
+		LEFT JOIN seats s ON s.id = r.seat_id`
+	where := []string{"r.store_id = ?", "r.status = ?"}
+	args := []any{storeID, StatusBooked}
+	addLike := func(condition, value string, copies int) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		where = append(where, condition)
+		pattern := "%" + value + "%"
+		for range copies {
+			args = append(args, pattern)
+		}
+	}
+	addLike("(t.code LIKE ? OR t.name LIKE ?)", filter.TableNo, 2)
+	addLike("s.name LIKE ?", filter.SeatNo, 1)
+	addLike("m.nickname LIKE ?", filter.MemberNickname, 1)
+	addLike("m.phone LIKE ?", filter.MemberPhone, 1)
+	whereSQL := " WHERE " + strings.Join(where, " AND ")
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*)"+joins+whereSQL, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	q := `SELECT r.id, r.reservation_no, r.store_id, r.member_id, r.table_id, r.seat_id,
+		r.party_size, r.reserved_at, r.status, r.remark, r.created_at, r.updated_at,
+		COALESCE(m.nickname, ''), COALESCE(m.phone, ''), m.avatar_asset_id, COALESCE(m.avatar_url, ''),
+		COALESCE(NULLIF(t.code, ''), t.name, ''), COALESCE(s.name, '')` + joins + whereSQL + ` ORDER BY r.id DESC LIMIT ? OFFSET ?`
+	queryArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := r.db.QueryContext(ctx, q, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -151,7 +172,7 @@ func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64
 		if err := rows.Scan(
 			&res.ID, &res.ReservationNo, &res.StoreID, &res.MemberID, &res.TableID, &res.SeatID,
 			&res.PartySize, &res.ReservedAt, &res.Status, &res.Remark, &res.CreatedAt, &res.UpdatedAt,
-			&res.MemberNickname, &res.MemberPhone, &res.MemberAvatarURL, &res.TableNo, &res.SeatNo,
+			&res.MemberNickname, &res.MemberPhone, &res.MemberAvatarAssetID, &res.MemberAvatarURL, &res.TableNo, &res.SeatNo,
 		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
@@ -305,15 +326,48 @@ func (r *sqlRepository) GetReservation(ctx context.Context, id int64) (Reservati
 	return res, nil
 }
 
-func (r *sqlRepository) CancelReservation(ctx context.Context, id, memberID int64, _ time.Time) error {
-	// The visible reservation is the active seat occupancy record. Cancellation
-	// deletes it; the daily claim remains to preserve the one-booking-per-day rule.
-	const q = `DELETE FROM reservations WHERE id = ? AND member_id = ? AND status = ?`
-	result, err := r.db.ExecContext(ctx, q, id, memberID, StatusBooked)
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	return affectedOrConflict(result, "reservation cannot be cancelled")
+func (r *sqlRepository) CancelReservation(ctx context.Context, id, memberID int64, dailyStart time.Time) error {
+	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		const q = `DELETE FROM reservations WHERE id = ? AND member_id = ? AND status = ?`
+		result, err := tx.ExecContext(ctx, q, id, memberID, StatusBooked)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if err := affectedOrConflict(result, "reservation cannot be cancelled"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM reservation_daily_claims WHERE member_id = ? AND daily_start = ?`,
+			memberID, dailyStart.UTC(),
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
+}
+
+func (r *sqlRepository) CancelStoreReservation(ctx context.Context, id, storeID int64, dailyStart time.Time) error {
+	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var memberID int64
+		if err := tx.QueryRowContext(ctx,
+			`SELECT member_id FROM reservations WHERE id = ? AND store_id = ? AND status = ? FOR UPDATE`,
+			id, storeID, StatusBooked,
+		).Scan(&memberID); errors.Is(err, sql.ErrNoRows) {
+			return apperr.Conflict("reservation cannot be cancelled")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM reservations WHERE id = ?`, id); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM reservation_daily_claims WHERE member_id = ? AND daily_start = ?`,
+			memberID, dailyStart.UTC(),
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
 }
 
 func (r *sqlRepository) CreateWaitlistEntry(ctx context.Context, w WaitlistEntry) (int64, error) {

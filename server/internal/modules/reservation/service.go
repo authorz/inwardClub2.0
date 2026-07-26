@@ -13,18 +13,27 @@ import (
 // Service provides reservation, waitlist and arrival operations for both the
 // mini program (member scope) and the store console (store scope).
 type Service struct {
-	repo     Repository
-	assets   AssetResolver
-	location *time.Location
-	now      func() time.Time
+	repo               Repository
+	assets             AssetResolver
+	backgroundSettings TableBackgroundSettings
+	location           *time.Location
+	now                func() time.Time
+}
+
+// TableBackgroundSettings supplies the headquarters default table background.
+type TableBackgroundSettings interface {
+	TableDefaultBackgroundURL(ctx context.Context) (string, error)
 }
 
 // NewService builds the reservation service.
-func NewService(repo Repository, assets AssetResolver, location *time.Location) *Service {
+func NewService(repo Repository, assets AssetResolver, backgroundSettings TableBackgroundSettings, location *time.Location) *Service {
 	if location == nil {
 		location = time.UTC
 	}
-	return &Service{repo: repo, assets: assets, location: location, now: time.Now}
+	return &Service{
+		repo: repo, assets: assets, backgroundSettings: backgroundSettings,
+		location: location, now: time.Now,
+	}
 }
 
 // ListTables returns the store's tables for the availability view.
@@ -33,11 +42,21 @@ func (s *Service) ListTables(ctx context.Context, storeID int64) ([]TableView, e
 	if err != nil {
 		return nil, err
 	}
+	defaultBackgroundURL := ""
+	if s.backgroundSettings != nil {
+		defaultBackgroundURL, err = s.backgroundSettings.TableDefaultBackgroundURL(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	views := make([]TableView, 0, len(tables))
 	for _, t := range tables {
 		view := tableView(t)
 		if t.LayoutAssetID != nil && s.assets != nil {
 			view.LayoutURL, _ = s.assets.PublicURLByID(ctx, *t.LayoutAssetID)
+		}
+		if view.LayoutURL == "" {
+			view.LayoutURL = defaultBackgroundURL
 		}
 		views = append(views, view)
 	}
@@ -74,21 +93,29 @@ func (s *Service) ListReservations(ctx context.Context, memberID int64, page htt
 	}
 	views := make([]ReservationView, 0, len(items))
 	for _, r := range items {
-		views = append(views, reservationView(r))
+		view := reservationView(r)
+		if view.MemberAvatarURL == "" && r.MemberAvatarAssetID != nil && s.assets != nil {
+			view.MemberAvatarURL, _ = s.assets.PublicURLByID(ctx, *r.MemberAvatarAssetID)
+		}
+		views = append(views, view)
 	}
 	return views, total, nil
 }
 
 // ListStoreReservations returns the acting store's reservations, most recent
 // first (store console). storeID is the store scope pinned from the token.
-func (s *Service) ListStoreReservations(ctx context.Context, storeID int64, page httpx.Page) ([]ReservationView, int64, error) {
-	items, total, err := s.repo.ListStoreReservations(ctx, storeID, page.Limit(), page.Offset())
+func (s *Service) ListStoreReservations(ctx context.Context, storeID int64, filter StoreReservationFilter, page httpx.Page) ([]ReservationView, int64, error) {
+	items, total, err := s.repo.ListStoreReservations(ctx, storeID, filter, page.Limit(), page.Offset())
 	if err != nil {
 		return nil, 0, err
 	}
 	views := make([]ReservationView, 0, len(items))
 	for _, r := range items {
-		views = append(views, reservationView(r))
+		view := reservationView(r)
+		if view.MemberAvatarURL == "" && r.MemberAvatarAssetID != nil && s.assets != nil {
+			view.MemberAvatarURL, _ = s.assets.PublicURLByID(ctx, *r.MemberAvatarAssetID)
+		}
+		views = append(views, view)
 	}
 	return views, total, nil
 }
@@ -101,6 +128,12 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 	if req.PartySize <= 0 {
 		return ReservationView{}, apperr.Invalid("partySize must be positive")
 	}
+	if req.TableID == nil || *req.TableID <= 0 {
+		return ReservationView{}, apperr.Invalid("tableId is required")
+	}
+	if req.SeatID == nil || *req.SeatID <= 0 {
+		return ReservationView{}, apperr.Invalid("seatId is required")
+	}
 	dailyStart, dailyEnd := s.reservationDay()
 	exists, err := s.repo.HasMemberReservation(ctx, memberID, dailyStart, dailyEnd)
 	if err != nil {
@@ -109,13 +142,6 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 	if exists {
 		return ReservationView{}, apperr.Conflict("你今天已经预约座位了")
 	}
-	if req.ReservedAt.IsZero() {
-		return ReservationView{}, apperr.Invalid("reservedAt is required")
-	}
-	if req.ReservedAt.Before(s.now()) {
-		return ReservationView{}, apperr.Invalid("预约时间必须晚于当前时间")
-	}
-
 	now := s.now().UTC()
 	res := Reservation{
 		ReservationNo: s.newReservationNo(now),
@@ -124,11 +150,13 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 		TableID:       req.TableID,
 		SeatID:        req.SeatID,
 		PartySize:     req.PartySize,
-		ReservedAt:    req.ReservedAt.UTC(),
-		Status:        StatusBooked,
-		Remark:        req.Remark,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		// reserved_at is retained for schema/API compatibility. A seat booking has
+		// no member-selected arrival time; it mirrors the server creation time.
+		ReservedAt: now,
+		Status:     StatusBooked,
+		Remark:     req.Remark,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	id, err := s.repo.CreateReservation(ctx, res, dailyStart, dailyEnd)
 	if err != nil {
@@ -173,7 +201,14 @@ func (s *Service) GetStoreReservation(ctx context.Context, storeID, id int64) (R
 
 // CancelReservation cancels a member's still-booked reservation.
 func (s *Service) CancelReservation(ctx context.Context, memberID, id int64) error {
-	return s.repo.CancelReservation(ctx, id, memberID, s.now().UTC())
+	dailyStart, _ := s.reservationDay()
+	return s.repo.CancelReservation(ctx, id, memberID, dailyStart)
+}
+
+// CancelStoreReservation releases an active booking owned by the acting store.
+func (s *Service) CancelStoreReservation(ctx context.Context, storeID, id int64) error {
+	dailyStart, _ := s.reservationDay()
+	return s.repo.CancelStoreReservation(ctx, id, storeID, dailyStart)
 }
 
 // CreateWaitlistEntry queues a walk-in party for the member.

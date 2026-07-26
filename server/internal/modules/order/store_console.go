@@ -26,6 +26,8 @@ type StoreFoodOrderItemView struct {
 	Quantity      int    `json:"quantity"`
 	SubtotalCent  int64  `json:"subtotalCent"`
 	PointsReward  int64  `json:"pointsReward"`
+	AssetID       *int64 `json:"assetId,omitempty"`
+	ImageURL      string `json:"imageUrl,omitempty"`
 }
 
 type StoreFoodOrderView struct {
@@ -233,8 +235,11 @@ func (r *sqlStoreConsoleRepository) loadStoreFoodOrderItems(ctx context.Context,
 		index[orders[i].ID] = i
 		orders[i].Items = []StoreFoodOrderItemView{}
 	}
-	q := `SELECT id, food_order_id, name_snapshot, unit_price_cent, quantity, subtotal_cent, points_reward_snapshot
-		FROM food_order_items WHERE food_order_id IN (` + strings.Join(marks, ",") + `) ORDER BY id ASC`
+	q := `SELECT foi.id, foi.food_order_id, foi.name_snapshot, foi.unit_price_cent, foi.quantity,
+		foi.subtotal_cent, foi.points_reward_snapshot, ci.asset_id
+		FROM food_order_items foi
+		LEFT JOIN catalog_items ci ON ci.id = foi.item_id
+		WHERE foi.food_order_id IN (` + strings.Join(marks, ",") + `) ORDER BY foi.id ASC`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return apperr.Internal(err)
@@ -243,7 +248,8 @@ func (r *sqlStoreConsoleRepository) loadStoreFoodOrderItems(ctx context.Context,
 	for rows.Next() {
 		var foodOrderID int64
 		var line StoreFoodOrderItemView
-		if err := rows.Scan(&line.ID, &foodOrderID, &line.Name, &line.UnitPriceCent, &line.Quantity, &line.SubtotalCent, &line.PointsReward); err != nil {
+		if err := rows.Scan(&line.ID, &foodOrderID, &line.Name, &line.UnitPriceCent, &line.Quantity,
+			&line.SubtotalCent, &line.PointsReward, &line.AssetID); err != nil {
 			return apperr.Internal(err)
 		}
 		i := index[foodOrderID]
@@ -454,10 +460,11 @@ type StoreConsoleService struct {
 	repo      StoreConsoleRepository
 	refunds   FoodOrderRefundService
 	passwords AccountPasswordVerifier
+	assets    AssetResolver
 }
 
-func NewStoreConsoleService(repo StoreConsoleRepository, refunds FoodOrderRefundService, passwords AccountPasswordVerifier) *StoreConsoleService {
-	return &StoreConsoleService{repo: repo, refunds: refunds, passwords: passwords}
+func NewStoreConsoleService(repo StoreConsoleRepository, refunds FoodOrderRefundService, passwords AccountPasswordVerifier, assets AssetResolver) *StoreConsoleService {
+	return &StoreConsoleService{repo: repo, refunds: refunds, passwords: passwords, assets: assets}
 }
 
 func (s *StoreConsoleService) List(ctx context.Context, storeID int64, f StoreFoodOrderFilter) ([]StoreFoodOrderView, int64, error) {
@@ -477,7 +484,18 @@ func (s *StoreConsoleService) List(ctx context.Context, storeID int64, f StoreFo
 }
 
 func (s *StoreConsoleService) Get(ctx context.Context, storeID, id int64) (StoreFoodOrderView, error) {
-	return s.repo.GetStoreFoodOrder(ctx, storeID, id)
+	item, err := s.repo.GetStoreFoodOrder(ctx, storeID, id)
+	if err != nil {
+		return StoreFoodOrderView{}, err
+	}
+	if s.assets != nil {
+		for i := range item.Items {
+			if item.Items[i].AssetID != nil {
+				item.Items[i].ImageURL, _ = s.assets.PublicURLByID(ctx, *item.Items[i].AssetID)
+			}
+		}
+	}
+	return item, nil
 }
 
 func (s *StoreConsoleService) Action(ctx context.Context, storeID, id int64, action, byType string, byID int64, idemKey, password string) (StoreFoodOrderView, error) {
@@ -534,7 +552,7 @@ func (s *StoreConsoleService) Action(ctx context.Context, storeID, id int64, act
 		if err := s.repo.CompleteFoodOrderCancellation(ctx, prepared.ID, refund.ID, now); err != nil {
 			return StoreFoodOrderView{}, err
 		}
-		return s.repo.GetStoreFoodOrder(ctx, storeID, id)
+		return s.Get(ctx, storeID, id)
 	}
 	to, ok := foodTransition(current.Status, action)
 	if !ok {
@@ -550,7 +568,7 @@ func (s *StoreConsoleService) Action(ctx context.Context, storeID, id int64, act
 	if !changed {
 		return StoreFoodOrderView{}, apperr.Conflict("订单状态已变化，请刷新后重试")
 	}
-	return s.repo.GetStoreFoodOrder(ctx, storeID, id)
+	return s.Get(ctx, storeID, id)
 }
 
 func validFoodStatus(status string) bool {

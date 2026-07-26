@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +52,12 @@ func (f storePasswordFake) VerifyAccountPassword(_ context.Context, _ int64, _ s
 	return f.err
 }
 
+type storeAssetFake struct{}
+
+func (storeAssetFake) PublicURLByID(_ context.Context, id int64) (string, error) {
+	return "https://assets.example.com/" + fmt.Sprint(id) + ".jpg", nil
+}
+
 func (r *storeConsoleMemRepo) ListStoreFoodOrders(_ context.Context, storeID int64, _ StoreFoodOrderFilter) ([]StoreFoodOrderView, int64, error) {
 	if storeID != r.storeID {
 		return []StoreFoodOrderView{}, 0, nil
@@ -75,7 +82,7 @@ func (r *storeConsoleMemRepo) TransitionStoreFoodOrder(_ context.Context, storeI
 
 func TestStoreFoodOrderActionIsStoreScoped(t *testing.T) {
 	repo := &storeConsoleMemRepo{storeID: 7, order: StoreFoodOrderView{ID: 3, Status: "preparing", PaymentStatus: "paid"}}
-	svc := NewStoreConsoleService(repo, nil, nil)
+	svc := NewStoreConsoleService(repo, nil, nil, nil)
 
 	if _, err := svc.Action(context.Background(), 8, 3, "ready", "store_admin", 1, "i1", ""); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("foreign-store order must be hidden, got %v", err)
@@ -91,7 +98,7 @@ func TestStoreFoodOrderActionIsStoreScoped(t *testing.T) {
 
 func TestStoreFoodOrderActionValidatesTransitionAndPayment(t *testing.T) {
 	repo := &storeConsoleMemRepo{storeID: 7, order: StoreFoodOrderView{ID: 3, Status: "ready", PaymentStatus: "unpaid"}}
-	svc := NewStoreConsoleService(repo, nil, nil)
+	svc := NewStoreConsoleService(repo, nil, nil, nil)
 
 	if _, err := svc.Action(context.Background(), 7, 3, "complete", "store_admin", 1, "i1", ""); apperr.From(err).Code != apperr.CodeConflict {
 		t.Fatalf("unpaid order must not be completed, got %v", err)
@@ -103,15 +110,31 @@ func TestStoreFoodOrderActionValidatesTransitionAndPayment(t *testing.T) {
 }
 
 func TestStoreFoodOrderListRejectsUnknownStatus(t *testing.T) {
-	svc := NewStoreConsoleService(&storeConsoleMemRepo{}, nil, nil)
+	svc := NewStoreConsoleService(&storeConsoleMemRepo{}, nil, nil, nil)
 	_, _, err := svc.List(context.Background(), 1, StoreFoodOrderFilter{Status: "unknown", Page: httpx.Page{Page: 1, PageSize: 20}})
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected invalid argument, got %v", err)
 	}
 }
 
+func TestStoreFoodOrderDetailResolvesItemImage(t *testing.T) {
+	assetID := int64(36)
+	repo := &storeConsoleMemRepo{
+		storeID: 7,
+		order:   StoreFoodOrderView{ID: 3, Items: []StoreFoodOrderItemView{{ID: 5, AssetID: &assetID}}},
+	}
+	svc := NewStoreConsoleService(repo, nil, nil, storeAssetFake{})
+	got, err := svc.Get(context.Background(), 7, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Items[0].ImageURL != "https://assets.example.com/36.jpg" {
+		t.Fatalf("unexpected item image URL %q", got.Items[0].ImageURL)
+	}
+}
+
 func TestStoreFoodOrderListRejectsInvalidSearchEnumsAndRange(t *testing.T) {
-	svc := NewStoreConsoleService(&storeConsoleMemRepo{}, nil, nil)
+	svc := NewStoreConsoleService(&storeConsoleMemRepo{}, nil, nil, nil)
 	page := httpx.Page{Page: 1, PageSize: 20}
 	for _, filter := range []StoreFoodOrderFilter{
 		{PaymentStatus: "expired", Page: page},
@@ -156,7 +179,7 @@ func TestStoreFoodOrderCancelCompletesRefundAndOrder(t *testing.T) {
 		order:    StoreFoodOrderView{ID: 3, Status: "completed", PaymentStatus: "paid"},
 		prepared: FoodOrderCancellation{ID: 11, FoodOrderID: 3, PaymentOrderID: 55, AmountCent: 500, PointsEarned: 20, PointsRecovered: 20},
 	}
-	svc := NewStoreConsoleService(repo, storeRefundFake{}, storePasswordFake{})
+	svc := NewStoreConsoleService(repo, storeRefundFake{}, storePasswordFake{}, nil)
 	got, err := svc.Action(context.Background(), 7, 3, "cancel", "store_admin", 2, "cancel-1", "")
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +195,7 @@ func TestStoreFoodOrderCancelRollsBackPointsWhenRefundFails(t *testing.T) {
 		order:    StoreFoodOrderView{ID: 3, Status: "completed", PaymentStatus: "paid"},
 		prepared: FoodOrderCancellation{ID: 11, FoodOrderID: 3, PaymentOrderID: 55, AmountCent: 500},
 	}
-	svc := NewStoreConsoleService(repo, storeRefundFake{err: apperr.Internal(context.Canceled)}, storePasswordFake{})
+	svc := NewStoreConsoleService(repo, storeRefundFake{err: apperr.Internal(context.Canceled)}, storePasswordFake{}, nil)
 	if _, err := svc.Action(context.Background(), 7, 3, "cancel", "store_admin", 2, "cancel-2", ""); err == nil {
 		t.Fatal("expected refund error")
 	}
@@ -183,7 +206,7 @@ func TestStoreFoodOrderCancelRollsBackPointsWhenRefundFails(t *testing.T) {
 
 func TestStoreFoodOrderForceCancelRequiresPassword(t *testing.T) {
 	repo := &storeConsoleMemRepo{storeID: 7, order: StoreFoodOrderView{ID: 3, Status: "completed", PaymentStatus: "paid"}}
-	svc := NewStoreConsoleService(repo, storeRefundFake{}, storePasswordFake{err: apperr.Forbidden("管理员登录密码错误")})
+	svc := NewStoreConsoleService(repo, storeRefundFake{}, storePasswordFake{err: apperr.Forbidden("管理员登录密码错误")}, nil)
 	if _, err := svc.Action(context.Background(), 7, 3, "force-cancel", "store_admin", 2, "cancel-3", "bad"); apperr.From(err).Code != apperr.CodePermissionDenied {
 		t.Fatalf("expected password rejection, got %v", err)
 	}
