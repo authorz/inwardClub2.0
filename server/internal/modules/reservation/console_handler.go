@@ -8,11 +8,199 @@ import (
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	"github.com/inwardclub/server/internal/platform/storescope"
 )
 
 // ConsoleHandler exposes headquarters table and seat CRUD.
 type ConsoleHandler struct {
 	svc *ConsoleService
+}
+
+func (h *ConsoleHandler) StoreListTables(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	filter := AdminTableFilter{Status: strings.TrimSpace(c.Query("status")), Keyword: strings.TrimSpace(c.Query("keyword"))}
+	page := httpx.ParsePage(c)
+	items, total, err := h.svc.StoreListTables(c.Request.Context(), storeID, filter, page)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.List(c, items, httpx.MetaFor(page, total))
+}
+
+func (h *ConsoleHandler) StoreGetTable(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "tableID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	item, err := h.svc.StoreGetTable(c.Request.Context(), storeID, id)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, item)
+}
+
+func (h *ConsoleHandler) StoreCreateTable(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	var req TableWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	item, err := h.svc.StoreCreateTable(c.Request.Context(), storeID, req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, item)
+}
+
+func (h *ConsoleHandler) StoreUpdateTable(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "tableID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req TableWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	item, err := h.svc.StoreUpdateTable(c.Request.Context(), storeID, id, req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, item)
+}
+
+func (h *ConsoleHandler) StoreDeleteTable(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "tableID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreDeleteTable(c.Request.Context(), storeID, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
+}
+
+func (h *ConsoleHandler) StoreListSeats(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	tableID, err := optionalPositiveID(c.Query("tableId"), "tableId")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	filter := AdminSeatFilter{TableID: tableID, Status: strings.TrimSpace(c.Query("status")), Keyword: strings.TrimSpace(c.Query("keyword"))}
+	page := httpx.ParsePage(c)
+	items, total, err := h.svc.StoreListSeats(c.Request.Context(), storeID, filter, page)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.List(c, items, httpx.MetaFor(page, total))
+}
+
+func (h *ConsoleHandler) StoreGetSeat(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "seatID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	item, err := h.svc.StoreGetSeat(c.Request.Context(), storeID, id)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, item)
+}
+
+func (h *ConsoleHandler) StoreCreateSeat(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	var req SeatWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	item, err := h.svc.StoreCreateSeat(c.Request.Context(), storeID, req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, item)
+}
+
+func (h *ConsoleHandler) StoreUpdateSeat(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "seatID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req SeatWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	item, err := h.svc.StoreUpdateSeat(c.Request.Context(), storeID, id, req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, item)
+}
+
+func (h *ConsoleHandler) StoreDeleteSeat(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "seatID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreDeleteSeat(c.Request.Context(), storeID, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
 }
 
 func NewConsoleHandler(svc *ConsoleService) *ConsoleHandler {

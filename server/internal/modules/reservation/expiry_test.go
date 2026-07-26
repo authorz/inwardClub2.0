@@ -6,31 +6,33 @@ import (
 	"time"
 )
 
-// ExpireBookings on the in-memory repo mirrors the SQL sweep contract: only
-// still-booked reservations reserved before the cutoff flip to expired.
-func (r *memRepo) ExpireBookings(_ context.Context, reservedBefore, now time.Time) (int64, error) {
+// ExpireBookings on the in-memory repo mirrors the SQL sweep contract: old
+// active rows are deleted rather than retained as an expired display state.
+func (r *memRepo) ExpireBookings(_ context.Context, reservedBefore, _ time.Time) (int64, error) {
 	var n int64
-	for i := range r.reservations {
-		res := &r.reservations[i]
+	kept := r.reservations[:0]
+	for _, res := range r.reservations {
 		if res.Status == StatusBooked && res.SeatID == nil && res.ReservedAt.Before(reservedBefore) {
-			res.Status = StatusExpired
-			res.UpdatedAt = now
 			n++
+			continue
 		}
+		kept = append(kept, res)
 	}
+	r.reservations = kept
 	return n, nil
 }
 
-func (r *memRepo) ClearSeatBookings(_ context.Context, createdBefore, now time.Time) (int64, error) {
+func (r *memRepo) ClearSeatBookings(_ context.Context, createdBefore, _ time.Time) (int64, error) {
 	var n int64
-	for i := range r.reservations {
-		res := &r.reservations[i]
+	kept := r.reservations[:0]
+	for _, res := range r.reservations {
 		if res.Status == StatusBooked && res.SeatID != nil && res.CreatedAt.Before(createdBefore) {
-			res.Status = StatusExpired
-			res.UpdatedAt = now
 			n++
+			continue
 		}
+		kept = append(kept, res)
 	}
+	r.reservations = kept
 	return n, nil
 }
 
@@ -69,8 +71,8 @@ func TestSweepExpiredReleasesNoShowBookings(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("expired count: got %d, want 1", n)
 	}
-	if got := statusByID(repo, 1); got != StatusExpired {
-		t.Fatalf("reservation 1 status: got %q, want expired", got)
+	if got := statusByID(repo, 1); got != "" {
+		t.Fatalf("reservation 1 must be deleted, got status %q", got)
 	}
 	for _, id := range []int64{2, 3} {
 		if got := statusByID(repo, id); got != StatusBooked {

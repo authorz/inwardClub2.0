@@ -29,6 +29,7 @@ type ListFilter struct {
 	MemberPhone    string
 	PaymentStatus  string
 	PayChannel     string
+	OrderType      string
 	RefundID       string
 	OperatedFrom   *time.Time
 	OperatedBefore *time.Time
@@ -267,14 +268,19 @@ func (r *sqlRepository) ListOrders(ctx context.Context, f ListFilter) ([]Order, 
 		where += " AND bo.payment_status = ?"
 		args = append(args, f.PaymentStatus)
 	}
+	if f.OrderType != "" {
+		where += " AND bo.order_type = ?"
+		args = append(args, f.OrderType)
+	}
 	if f.PayChannel != "" {
 		where += ` AND COALESCE((SELECT po.pay_method FROM payment_orders po
 			WHERE po.business_order_id = bo.id ORDER BY po.id DESC LIMIT 1), '') = ?`
 		args = append(args, f.PayChannel)
 	}
 	if f.Keyword != "" {
-		where += " AND bo.business_order_no LIKE ?"
-		args = append(args, "%"+f.Keyword+"%")
+		where += " AND (bo.business_order_no LIKE ? OR m.nickname LIKE ? OR m.phone LIKE ?)"
+		like := "%" + f.Keyword + "%"
+		args = append(args, like, like, like)
 	}
 	if f.MemberNickname != "" {
 		where += " AND m.nickname LIKE ?"
@@ -628,7 +634,7 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			wle.balance_after, 'completed' AS status, wle.reason,
 			wle.source_type, wle.source_id,
 			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
-				food_bo.store_id) AS store_id,
+				food_bo.store_id, point_saving.store_id) AS store_id,
 			COALESCE(payment_bo.business_order_no, recharge_bo.business_order_no,
 				refund_bo.business_order_no, food_bo.business_order_no, '') AS related_order_no,
 			wle.created_at
@@ -643,7 +649,9 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			ON wle.source_type = 'refund_order' AND ro.id = wle.source_id
 		LEFT JOIN business_orders refund_bo ON refund_bo.id = ro.business_order_id
 		LEFT JOIN business_orders food_bo
-			ON wle.source_type = 'food_order' AND food_bo.id = wle.source_id`
+			ON wle.source_type = 'food_order' AND food_bo.id = wle.source_id
+		LEFT JOIN point_savings point_saving
+			ON wle.source_type = 'point_saving' AND point_saving.id = wle.source_id`
 	const pointRequestEntries = `
 		UNION ALL SELECT ps.id, CONCAT('point_saving:', ps.id), ps.member_id, 'points',
 			'credit', ps.points, NULL, ps.status,

@@ -45,10 +45,9 @@ type SignInStatus struct {
 	DailyRewards     []int64 `json:"dailyRewards"`
 }
 
-// PointsTxnResult is returned after a points save or withdrawal request is
-// created. The request is created pending review, so no balance has moved yet:
-// Amount echoes the requested points, BalanceAfter is 0, and RequestID is the id
-// of the created point_savings / point_withdrawals row.
+// PointsTxnResult is returned after a points save or withdrawal record is
+// created. Amount echoes the requested points, BalanceAfter is 0, and RequestID
+// is the id of the created point_savings / point_withdrawals row.
 type PointsTxnResult struct {
 	AssetType    string `json:"assetType"`
 	Amount       int64  `json:"amount"`
@@ -58,9 +57,8 @@ type PointsTxnResult struct {
 }
 
 // PointsAmountRequest is the body for point-savings and point-withdrawals. The
-// amount is a positive count of points; required rejects a zero/missing value
-// and the service rejects anything below pointsMinAmount. StoreID is optional;
-// when set the request is scoped to that store so its console can review it.
+// amount is a positive count of points; required rejects a zero/missing value.
+// StoreID is required and pins the request to the staff review scope.
 type PointsAmountRequest struct {
 	Amount  int64 `json:"amount" binding:"required"`
 	StoreID int64 `json:"storeId,omitempty"`
@@ -109,6 +107,9 @@ func (s *PointsService) SavePoints(ctx context.Context, memberID int64, req Poin
 	if err := validatePointsAmount(req.Amount); err != nil {
 		return PointsTxnResult{}, err
 	}
+	if req.StoreID <= 0 {
+		return PointsTxnResult{}, apperr.Invalid("storeId is required")
+	}
 	return s.repo.SavePoints(ctx, memberID, req.StoreID, req.Amount, idemKey)
 }
 
@@ -121,6 +122,9 @@ func (s *PointsService) WithdrawPoints(ctx context.Context, memberID int64, req 
 	}
 	if err := validatePointsAmount(req.Amount); err != nil {
 		return PointsTxnResult{}, err
+	}
+	if req.StoreID <= 0 {
+		return PointsTxnResult{}, apperr.Invalid("storeId is required")
 	}
 	return s.repo.WithdrawPoints(ctx, memberID, req.StoreID, req.Amount, idemKey)
 }

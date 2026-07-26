@@ -68,9 +68,15 @@ func (r *sqlRepository) ListFoodOrders(ctx context.Context, memberID int64, limi
 		`SELECT COUNT(*) FROM food_orders WHERE member_id = ?`, memberID).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT id, business_order_id, store_id, member_id, table_id, total_amount_cent,
-		points_earned, fulfillment_status, remark, created_at, updated_at
-		FROM food_orders WHERE member_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
+	const q = `SELECT fo.id, fo.business_order_id, bo.business_order_no, fo.store_id, fo.member_id, fo.table_id, fo.total_amount_cent,
+		fo.points_earned, bo.payment_status, COALESCE(po.pay_method, ''),
+		COALESCE((SELECT pt.amount_cent FROM payment_transactions pt WHERE pt.payment_order_id = po.id AND pt.status = 'success' ORDER BY pt.id DESC LIMIT 1), 0),
+		COALESCE((SELECT SUM(ro.amount_cent) FROM refund_orders ro WHERE ro.payment_order_id = po.id AND ro.status = 'succeeded'), 0),
+		COALESCE(s.name, ''), COALESCE(t.name, ''), fo.fulfillment_status, fo.remark, fo.created_at, fo.updated_at
+		FROM food_orders fo JOIN business_orders bo ON bo.id = fo.business_order_id
+		LEFT JOIN payment_orders po ON po.business_order_id = bo.id
+		LEFT JOIN stores s ON s.id = fo.store_id LEFT JOIN tables t ON t.id = fo.table_id
+		WHERE fo.member_id = ? ORDER BY fo.id DESC LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, q, memberID, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -88,9 +94,15 @@ func (r *sqlRepository) ListFoodOrders(ctx context.Context, memberID int64, limi
 }
 
 func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrder, []FoodOrderItem, error) {
-	const q = `SELECT id, business_order_id, store_id, member_id, table_id, total_amount_cent,
-		points_earned, fulfillment_status, remark, created_at, updated_at
-		FROM food_orders WHERE id = ? AND member_id = ?`
+	const q = `SELECT fo.id, fo.business_order_id, bo.business_order_no, fo.store_id, fo.member_id, fo.table_id, fo.total_amount_cent,
+		fo.points_earned, bo.payment_status, COALESCE(po.pay_method, ''),
+		COALESCE((SELECT pt.amount_cent FROM payment_transactions pt WHERE pt.payment_order_id = po.id AND pt.status = 'success' ORDER BY pt.id DESC LIMIT 1), 0),
+		COALESCE((SELECT SUM(ro.amount_cent) FROM refund_orders ro WHERE ro.payment_order_id = po.id AND ro.status = 'succeeded'), 0),
+		COALESCE(s.name, ''), COALESCE(t.name, ''), fo.fulfillment_status, fo.remark, fo.created_at, fo.updated_at
+		FROM food_orders fo JOIN business_orders bo ON bo.id = fo.business_order_id
+		LEFT JOIN payment_orders po ON po.business_order_id = bo.id
+		LEFT JOIN stores s ON s.id = fo.store_id LEFT JOIN tables t ON t.id = fo.table_id
+		WHERE fo.id = ? AND fo.member_id = ?`
 	o, err := scanFoodOrder(r.db.QueryRowContext(ctx, q, id, memberID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -236,8 +248,9 @@ type scanner interface {
 
 func scanFoodOrder(s scanner) (FoodOrder, error) {
 	var o FoodOrder
-	err := s.Scan(&o.ID, &o.BusinessOrderID, &o.StoreID, &o.MemberID, &o.TableID,
-		&o.TotalAmountCent, &o.PointsEarned, &o.FulfillmentStatus, &o.Remark, &o.CreatedAt, &o.UpdatedAt)
+	err := s.Scan(&o.ID, &o.BusinessOrderID, &o.BusinessOrderNo, &o.StoreID, &o.MemberID, &o.TableID,
+		&o.TotalAmountCent, &o.PointsEarned, &o.PaymentStatus, &o.PayMethod, &o.PaidAmountCent,
+		&o.RefundAmountCent, &o.StoreName, &o.TableName, &o.FulfillmentStatus, &o.Remark, &o.CreatedAt, &o.UpdatedAt)
 	return o, err
 }
 

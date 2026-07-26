@@ -24,16 +24,21 @@ type SeatView struct {
 
 // ReservationView is the member-facing reservation representation.
 type ReservationView struct {
-	ID            int64     `json:"id"`
-	ReservationNo string    `json:"reservationNo"`
-	StoreID       int64     `json:"storeId"`
-	TableID       *int64    `json:"tableId,omitempty"`
-	SeatID        *int64    `json:"seatId,omitempty"`
-	PartySize     int       `json:"partySize"`
-	ReservedAt    time.Time `json:"reservedAt"`
-	Status        string    `json:"status"`
-	Remark        string    `json:"remark,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID              int64     `json:"id"`
+	ReservationNo   string    `json:"reservationNo"`
+	StoreID         int64     `json:"storeId"`
+	TableID         *int64    `json:"tableId,omitempty"`
+	SeatID          *int64    `json:"seatId,omitempty"`
+	PartySize       int       `json:"partySize"`
+	ReservedAt      time.Time `json:"reservedAt"`
+	Status          string    `json:"status"`
+	Remark          string    `json:"remark,omitempty"`
+	MemberNickname  string    `json:"memberNickname,omitempty"`
+	MemberPhone     string    `json:"memberPhone,omitempty"`
+	MemberAvatarURL string    `json:"memberAvatarUrl,omitempty"`
+	TableNo         string    `json:"tableNo,omitempty"`
+	SeatNo          string    `json:"seatNo,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 // CreateReservationRequest is the mini-program booking payload.
@@ -74,16 +79,21 @@ func seatView(s Seat) SeatView {
 
 func reservationView(r Reservation) ReservationView {
 	return ReservationView{
-		ID:            r.ID,
-		ReservationNo: r.ReservationNo,
-		StoreID:       r.StoreID,
-		TableID:       r.TableID,
-		SeatID:        r.SeatID,
-		PartySize:     r.PartySize,
-		ReservedAt:    r.ReservedAt,
-		Status:        r.Status,
-		Remark:        r.Remark,
-		CreatedAt:     r.CreatedAt,
+		ID:              r.ID,
+		ReservationNo:   r.ReservationNo,
+		StoreID:         r.StoreID,
+		TableID:         r.TableID,
+		SeatID:          r.SeatID,
+		PartySize:       r.PartySize,
+		ReservedAt:      r.ReservedAt,
+		Status:          r.Status,
+		Remark:          r.Remark,
+		MemberNickname:  r.MemberNickname,
+		MemberPhone:     r.MemberPhone,
+		MemberAvatarURL: r.MemberAvatarURL,
+		TableNo:         r.TableNo,
+		SeatNo:          r.SeatNo,
+		CreatedAt:       r.CreatedAt,
 	}
 }
 

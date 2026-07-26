@@ -124,3 +124,32 @@ func TestConsoleServiceCreateSeatRequiresTable(t *testing.T) {
 		t.Fatalf("unexpected seat: %+v", repo.createdSeat)
 	}
 }
+
+func TestConsoleServiceStoreScopeRejectsOtherStore(t *testing.T) {
+	repo := &consoleRepoStub{
+		storeExists: true,
+		table:       Table{ID: 1, StoreID: 8, Name: "其他门店桌子"},
+		seat:        Seat{ID: 2, StoreID: 8, Name: "其他门店座位"},
+	}
+	svc := NewConsoleService(repo, nil)
+	if _, err := svc.StoreGetTable(context.Background(), 7, 1); err == nil {
+		t.Fatal("expected cross-store table to be hidden")
+	}
+	if _, err := svc.StoreGetSeat(context.Background(), 7, 2); err == nil {
+		t.Fatal("expected cross-store seat to be hidden")
+	}
+}
+
+func TestConsoleServiceStoreCreatePinsStore(t *testing.T) {
+	repo := &consoleRepoStub{storeExists: true}
+	svc := NewConsoleService(repo, nil)
+	_, err := svc.StoreCreateTable(context.Background(), 7, TableWriteRequest{
+		StoreID: 99, Name: "本店桌子", Code: "T1", Capacity: 2, Status: AvailabilityAvailable,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.createdTable.StoreID != 7 {
+		t.Fatalf("store id = %d, want 7", repo.createdTable.StoreID)
+	}
+}

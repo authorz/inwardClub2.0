@@ -56,6 +56,7 @@ type UploadCredential struct {
 	ObjectKey    string    `json:"objectKey"`
 	UploadToken  string    `json:"uploadToken"`
 	UploadURL    string    `json:"uploadUrl"`
+	PublicURL    string    `json:"publicUrl"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 	MaxSizeBytes int64     `json:"maxSizeBytes"`
 }

@@ -98,6 +98,7 @@ func (h *Handler) Orders(c *gin.Context) {
 	f.MemberPhone = c.Query("memberPhone")
 	f.PaymentStatus = c.Query("paymentStatus")
 	f.PayChannel = c.Query("payChannel")
+	f.OrderType = c.Query("orderType")
 	if raw := c.Query("storeId"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
@@ -715,6 +716,12 @@ func (h *Handler) StoreOrders(c *gin.Context) {
 		return
 	}
 	f := scopedFilter(parseFilter(c), scope)
+	f.Status = c.Query("orderStatus")
+	f.MemberNickname = c.Query("memberNickname")
+	f.MemberPhone = c.Query("memberPhone")
+	f.PaymentStatus = c.Query("paymentStatus")
+	f.PayChannel = c.Query("payChannel")
+	f.OrderType = c.Query("orderType")
 	views, total, err := h.svc.ListOrders(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)

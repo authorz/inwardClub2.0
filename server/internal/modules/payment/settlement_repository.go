@@ -95,7 +95,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		if status != paymentPending {
 			return apperr.Conflict("payment order is not payable")
 		}
-		if err := insertTxn(ctx, tx, paymentID, wechatProvider, wechatProvider, n.OutTradeNo, n.TransactionID, amount, now); err != nil {
+		if err := insertTxn(ctx, tx, paymentID, wechatProvider, wechatProvider, n.OutTradeNo, n.TransactionID, n.AmountCent, now); err != nil {
 			return err
 		}
 		if err := markOrderPaid(ctx, tx, paymentID, businessID, now); err != nil {
@@ -103,14 +103,14 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		}
 		if orderType == "food" {
 			if _, err := tx.ExecContext(ctx,
-				`UPDATE food_orders SET fulfillment_status = 'preparing', updated_at = ?
+				`UPDATE food_orders SET fulfillment_status = 'completed', updated_at = ?
 				 WHERE business_order_id = ?`,
 				now, businessID,
 			); err != nil {
 				return apperr.Internal(err)
 			}
 			if _, err := tx.ExecContext(ctx,
-				`UPDATE business_orders SET order_status = 'preparing', updated_at = ? WHERE id = ?`,
+				`UPDATE business_orders SET order_status = 'completed', updated_at = ? WHERE id = ?`,
 				now, businessID,
 			); err != nil {
 				return apperr.Internal(err)

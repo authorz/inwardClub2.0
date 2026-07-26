@@ -31,10 +31,7 @@ type Repository interface {
 	// Arrival (store console): mark a booking arrived and record who did it.
 	ArriveReservation(ctx context.Context, reservationID, storeID int64, byType string, byID int64, now time.Time) error
 
-	// ExpireBookings transitions still-booked reservations whose reserved time
-	// passed before reservedBefore to expired (the reservation:expire sweep,
-	// spec §11). Guarded by status='booked' so it is idempotent and never races a
-	// concurrent cancel/arrive. Returns the number of reservations expired.
+	// ExpireBookings deletes table-only reservations after their no-show grace.
 	ExpireBookings(ctx context.Context, reservedBefore, now time.Time) (int64, error)
 	ClearSeatBookings(ctx context.Context, createdBefore, now time.Time) (int64, error)
 }
@@ -70,13 +67,13 @@ func (r *sqlRepository) ListSeats(ctx context.Context, storeID int64, activeSinc
 		FROM seats s
 		LEFT JOIN reservations r ON r.id = (
 			SELECT r2.id FROM reservations r2
-			WHERE r2.seat_id = s.id AND r2.status IN (?, ?) AND r2.created_at >= ?
+			WHERE r2.seat_id = s.id AND r2.status = ? AND r2.created_at >= ?
 			ORDER BY r2.created_at DESC, r2.id DESC LIMIT 1
 		)
 		LEFT JOIN members m ON m.id = r.member_id
 		WHERE s.store_id = ? ORDER BY s.id ASC`
 	rows, err := r.db.QueryContext(
-		ctx, q, AvailabilityReserved, StatusBooked, StatusArrived, activeSince.UTC(), storeID,
+		ctx, q, AvailabilityReserved, StatusBooked, activeSince.UTC(), storeID,
 	)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -108,12 +105,12 @@ func scanReservation(row interface{ Scan(...any) error }) (Reservation, error) {
 
 func (r *sqlRepository) ListMemberReservations(ctx context.Context, memberID int64, limit, offset int) ([]Reservation, int64, error) {
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE member_id = ?`, memberID).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE member_id = ? AND status = ?`, memberID, StatusBooked).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	const q = `SELECT ` + reservationColumns + ` FROM reservations
-		WHERE member_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, memberID, limit, offset)
+		WHERE member_id = ? AND status = ? ORDER BY id DESC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, q, memberID, StatusBooked, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -131,20 +128,31 @@ func (r *sqlRepository) ListMemberReservations(ctx context.Context, memberID int
 
 func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64, limit, offset int) ([]Reservation, int64, error) {
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE store_id = ?`, storeID).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE store_id = ? AND status = ?`, storeID, StatusBooked).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT ` + reservationColumns + ` FROM reservations
-		WHERE store_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, storeID, limit, offset)
+	const q = `SELECT r.id, r.reservation_no, r.store_id, r.member_id, r.table_id, r.seat_id,
+		r.party_size, r.reserved_at, r.status, r.remark, r.created_at, r.updated_at,
+		COALESCE(m.nickname, ''), COALESCE(m.phone, ''), COALESCE(m.avatar_url, ''),
+		COALESCE(NULLIF(t.code, ''), t.name, ''), COALESCE(s.name, '')
+		FROM reservations r
+		LEFT JOIN members m ON m.id = r.member_id
+		LEFT JOIN tables t ON t.id = r.table_id
+		LEFT JOIN seats s ON s.id = r.seat_id
+		WHERE r.store_id = ? AND r.status = ? ORDER BY r.id DESC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, q, storeID, StatusBooked, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	defer rows.Close()
 	var out []Reservation
 	for rows.Next() {
-		res, err := scanReservation(rows)
-		if err != nil {
+		var res Reservation
+		if err := rows.Scan(
+			&res.ID, &res.ReservationNo, &res.StoreID, &res.MemberID, &res.TableID, &res.SeatID,
+			&res.PartySize, &res.ReservedAt, &res.Status, &res.Remark, &res.CreatedAt, &res.UpdatedAt,
+			&res.MemberNickname, &res.MemberPhone, &res.MemberAvatarURL, &res.TableNo, &res.SeatNo,
+		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, res)
@@ -160,10 +168,11 @@ func (r *sqlRepository) HasMemberReservation(
 	var exists bool
 	err := r.db.QueryRowContext(ctx,
 		`SELECT EXISTS(
-			SELECT 1 FROM reservations
-			WHERE member_id = ? AND created_at >= ? AND created_at < ?
+			SELECT 1 FROM reservation_daily_claims WHERE member_id = ? AND daily_start = ?
+			UNION ALL
+			SELECT 1 FROM reservations WHERE member_id = ? AND created_at >= ? AND created_at < ?
 		)`,
-		memberID, createdFrom.UTC(), createdBefore.UTC(),
+		memberID, createdFrom.UTC(), memberID, createdFrom.UTC(), createdBefore.UTC(),
 	).Scan(&exists)
 	if err != nil {
 		return false, apperr.Internal(err)
@@ -202,6 +211,15 @@ func (r *sqlRepository) CreateReservation(
 		}
 		if alreadyReserved {
 			return apperr.Conflict("你今天已经预约座位了")
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO reservation_daily_claims (member_id, daily_start, created_at) VALUES (?, ?, ?)`,
+			res.MemberID, dailyStart.UTC(), res.CreatedAt,
+		); err != nil {
+			if platdb.IsDuplicate(err) {
+				return apperr.Conflict("你今天已经预约座位了")
+			}
+			return apperr.Internal(err)
 		}
 
 		if res.SeatID == nil {
@@ -276,8 +294,8 @@ func insertReservation(ctx context.Context, exec reservationExecutor, res Reserv
 }
 
 func (r *sqlRepository) GetReservation(ctx context.Context, id int64) (Reservation, error) {
-	const q = `SELECT ` + reservationColumns + ` FROM reservations WHERE id = ?`
-	res, err := scanReservation(r.db.QueryRowContext(ctx, q, id))
+	const q = `SELECT ` + reservationColumns + ` FROM reservations WHERE id = ? AND status = ?`
+	res, err := scanReservation(r.db.QueryRowContext(ctx, q, id, StatusBooked))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Reservation{}, apperr.NotFound("reservation not found")
 	}
@@ -287,11 +305,11 @@ func (r *sqlRepository) GetReservation(ctx context.Context, id int64) (Reservati
 	return res, nil
 }
 
-func (r *sqlRepository) CancelReservation(ctx context.Context, id, memberID int64, now time.Time) error {
-	// Only the owning member may cancel, and only a still-booked reservation.
-	const q = `UPDATE reservations SET status = ?, updated_at = ?
-		WHERE id = ? AND member_id = ? AND status = ?`
-	result, err := r.db.ExecContext(ctx, q, StatusCancelled, now, id, memberID, StatusBooked)
+func (r *sqlRepository) CancelReservation(ctx context.Context, id, memberID int64, _ time.Time) error {
+	// The visible reservation is the active seat occupancy record. Cancellation
+	// deletes it; the daily claim remains to preserve the one-booking-per-day rule.
+	const q = `DELETE FROM reservations WHERE id = ? AND member_id = ? AND status = ?`
+	result, err := r.db.ExecContext(ctx, q, id, memberID, StatusBooked)
 	if err != nil {
 		return apperr.Internal(err)
 	}
@@ -341,14 +359,10 @@ func (r *sqlRepository) ArriveReservation(ctx context.Context, reservationID, st
 	})
 }
 
-// ExpireBookings runs the set-based reservation:expire sweep. A booking is only
-// ever moved out of 'booked' by a cancel, an arrival or this sweep, so the
-// status='booked' predicate is both the idempotency guard (a re-run touches zero
-// rows) and the concurrency guard against those other transitions.
-func (r *sqlRepository) ExpireBookings(ctx context.Context, reservedBefore, now time.Time) (int64, error) {
-	const q = `UPDATE reservations SET status = ?, updated_at = ?
-		WHERE status = ? AND seat_id IS NULL AND reserved_at < ?`
-	result, err := r.db.ExecContext(ctx, q, StatusExpired, now, StatusBooked, reservedBefore)
+// ExpireBookings removes table-only no-shows; expired is not a visible state.
+func (r *sqlRepository) ExpireBookings(ctx context.Context, reservedBefore, _ time.Time) (int64, error) {
+	const q = `DELETE FROM reservations WHERE status = ? AND seat_id IS NULL AND reserved_at < ?`
+	result, err := r.db.ExecContext(ctx, q, StatusBooked, reservedBefore)
 	if err != nil {
 		return 0, apperr.Internal(err)
 	}
@@ -362,10 +376,9 @@ func (r *sqlRepository) ExpireBookings(ctx context.Context, reservedBefore, now 
 // ClearSeatBookings releases seat reservations created before the latest
 // business-day 04:00 boundary. The cutoff makes startup catch-up safe: bookings
 // created after the boundary remain occupied until the next reset.
-func (r *sqlRepository) ClearSeatBookings(ctx context.Context, createdBefore, now time.Time) (int64, error) {
-	const q = `UPDATE reservations SET status = ?, updated_at = ?
-		WHERE status = ? AND seat_id IS NOT NULL AND created_at < ?`
-	result, err := r.db.ExecContext(ctx, q, StatusExpired, now, StatusBooked, createdBefore)
+func (r *sqlRepository) ClearSeatBookings(ctx context.Context, createdBefore, _ time.Time) (int64, error) {
+	const q = `DELETE FROM reservations WHERE status IN (?, ?) AND seat_id IS NOT NULL AND created_at < ?`
+	result, err := r.db.ExecContext(ctx, q, StatusBooked, StatusArrived, createdBefore)
 	if err != nil {
 		return 0, apperr.Internal(err)
 	}

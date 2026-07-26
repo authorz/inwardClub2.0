@@ -10,11 +10,11 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
-// sqlPointsRepository is the MySQL points write repository. Point savings and
-// withdrawals are member-initiated requests reviewed by the store console: each
-// create inserts a 'pending' row into point_savings / point_withdrawals and
-// claims the idempotency key via the row's unique key, so a retried create
-// returns the existing request instead of duplicating it.
+// sqlPointsRepository is the MySQL points write repository. Point savings are
+// reviewed by the store console; point withdrawals are recorded as approved
+// immediately so they can be used as the later saving-review base. Both claim
+// the idempotency key via the row's unique key, so a retried create returns the
+// existing request instead of duplicating it.
 //
 // The daily sign-in flow (RecordSignIn) awards points immediately: it writes a
 // sign_in_records row and the matching wallet ledger credit in one transaction.
@@ -204,25 +204,30 @@ func creditPoints(ctx context.Context, tx *sql.Tx, memberID, amount int64, reaso
 }
 
 func (r *sqlPointsRepository) SavePoints(ctx context.Context, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error) {
-	return r.createRequest(ctx, "point_savings", memberID, storeID, amount, idemKey)
+	return r.createRequest(ctx, "point_savings", memberID, storeID, amount, "pending", idemKey)
 }
 
 func (r *sqlPointsRepository) WithdrawPoints(ctx context.Context, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error) {
-	return r.createRequest(ctx, "point_withdrawals", memberID, storeID, amount, idemKey)
+	// 1.0 records withdrawals as approved immediately. These approved rows are
+	// the review base for later point-saving requests in the same business window.
+	return r.createRequest(ctx, "point_withdrawals", memberID, storeID, amount, "approved", idemKey)
 }
 
-// createRequest inserts a pending points request. table is a trusted internal
+// createRequest inserts a points request. table and status are trusted internal
 // literal ("point_savings" / "point_withdrawals"), never client input. On a
 // duplicate idempotency key it returns the already-created request.
-func (r *sqlPointsRepository) createRequest(ctx context.Context, table string, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error) {
+func (r *sqlPointsRepository) createRequest(ctx context.Context, table string, memberID, storeID, amount int64, status, idemKey string) (PointsTxnResult, error) {
 	now := time.Now().UTC()
-	var storeArg any
-	if storeID > 0 {
-		storeArg = storeID
+	var storeExists int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM stores WHERE id = ? AND status = 'active'`, storeID).Scan(&storeExists); err != nil {
+		return PointsTxnResult{}, apperr.Internal(err)
+	}
+	if storeExists == 0 {
+		return PointsTxnResult{}, apperr.NotFound("store not found")
 	}
 	q := `INSERT INTO ` + table + ` (store_id, member_id, points, status, idem_key, created_at, updated_at)
-		VALUES (?, ?, ?, 'pending', ?, ?, ?)`
-	res, err := r.db.ExecContext(ctx, q, storeArg, memberID, amount, idemKey, now, now)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
+	res, err := r.db.ExecContext(ctx, q, storeID, memberID, amount, status, idemKey, now, now)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return r.existingRequest(ctx, table, idemKey)
@@ -233,7 +238,7 @@ func (r *sqlPointsRepository) createRequest(ctx context.Context, table string, m
 	if err != nil {
 		return PointsTxnResult{}, apperr.Internal(err)
 	}
-	return PointsTxnResult{AssetType: AssetPoints, Amount: amount, RequestID: id, Status: "pending"}, nil
+	return PointsTxnResult{AssetType: AssetPoints, Amount: amount, RequestID: id, Status: status}, nil
 }
 
 // existingRequest returns the request previously created under idemKey, so a

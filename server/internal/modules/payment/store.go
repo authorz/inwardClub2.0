@@ -476,6 +476,32 @@ func (s *AdminService) UpdateChannelSettings(ctx context.Context, req UpdateChan
 // CreateRefund verifies the administrator and executes a full refund through
 // the payment order's original channel.
 func (s *AdminService) CreateRefund(ctx context.Context, byType string, byID int64, idemKey string, req CreateRefundRequest) (AdminRefundView, error) {
+	return s.createRefund(ctx, byType, byID, idemKey, req, true)
+}
+
+// CreateFoodOrderCancellationRefund executes a full, store-scoped food-order
+// refund. Caller authentication and the optional force-cancel password check are
+// owned by the order service; this method still re-checks the payment order's
+// store and order type before touching money.
+func (s *AdminService) CreateFoodOrderCancellationRefund(
+	ctx context.Context,
+	storeID int64,
+	byType string,
+	byID int64,
+	idemKey string,
+	req CreateRefundRequest,
+) (AdminRefundView, error) {
+	paymentOrder, err := s.repo.GetPaymentOrder(ctx, req.PaymentOrderID, &storeID)
+	if err != nil {
+		return AdminRefundView{}, err
+	}
+	if paymentOrder.OrderType != "food" {
+		return AdminRefundView{}, apperr.Invalid("仅支持取消本店点餐订单")
+	}
+	return s.createRefund(ctx, byType, byID, idemKey, req, false)
+}
+
+func (s *AdminService) createRefund(ctx context.Context, byType string, byID int64, idemKey string, req CreateRefundRequest, verifyPassword bool) (AdminRefundView, error) {
 	if req.PaymentOrderID <= 0 {
 		return AdminRefundView{}, apperr.Invalid("paymentOrderId is required")
 	}
@@ -489,11 +515,13 @@ func (s *AdminService) CreateRefund(ctx context.Context, byType string, byID int
 	if utf8.RuneCountInString(req.Reason) > 255 {
 		return AdminRefundView{}, apperr.Invalid("退款原因不能超过 255 个字符")
 	}
-	if s.passwords == nil {
-		return AdminRefundView{}, apperr.Internal(fmt.Errorf("admin password verifier is not configured"))
-	}
-	if err := s.passwords.VerifyAccountPassword(ctx, byID, req.Password); err != nil {
-		return AdminRefundView{}, err
+	if verifyPassword {
+		if s.passwords == nil {
+			return AdminRefundView{}, apperr.Internal(fmt.Errorf("admin password verifier is not configured"))
+		}
+		if err := s.passwords.VerifyAccountPassword(ctx, byID, req.Password); err != nil {
+			return AdminRefundView{}, err
+		}
 	}
 	now := s.now().UTC()
 	refund, err := s.repo.CreateRefundAdmin(ctx, RefundCreate{

@@ -36,8 +36,8 @@ func TestSeatResetUsesLatestBusinessFourAMBoundary(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("reset count: got %d, want 1", n)
 	}
-	if got := statusByID(repo, 1); got != StatusExpired {
-		t.Fatalf("pre-boundary seat booking: got %q, want expired", got)
+	if got := statusByID(repo, 1); got != "" {
+		t.Fatalf("pre-boundary seat booking must be deleted, got %q", got)
 	}
 	if got := statusByID(repo, 2); got != StatusBooked {
 		t.Fatalf("post-boundary seat booking: got %q, want booked", got)
@@ -70,7 +70,7 @@ func TestSeatResetBeforeFourAMUsesPreviousDayBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seat reset: %v", err)
 	}
-	if n != 1 || statusByID(repo, 1) != StatusExpired || statusByID(repo, 2) != StatusBooked {
+	if n != 1 || statusByID(repo, 1) != "" || statusByID(repo, 2) != StatusBooked {
 		t.Fatalf("unexpected pre-04:00 reset result: count=%d statuses=%q/%q", n, statusByID(repo, 1), statusByID(repo, 2))
 	}
 }

@@ -397,6 +397,27 @@ func TestAdminServiceCreateRefund(t *testing.T) {
 	}
 }
 
+func TestFoodOrderCancellationRefundIsStoreScopedAndSkipsSecondPassword(t *testing.T) {
+	storeID := int64(7)
+	repo := &memStoreRepo{
+		payments:      map[int64]int64{55: storeID},
+		paymentOrders: []PaymentOrder{{ID: 55, StoreID: &storeID, OrderType: "food"}},
+	}
+	svc := newTestAdminService(repo)
+	view, err := svc.CreateFoodOrderCancellationRefund(context.Background(), storeID, "store_admin", 2, "cancel-refund",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "门店取消点餐订单"})
+	if err != nil {
+		t.Fatalf("food cancellation refund: %v", err)
+	}
+	if view.Status != RefundSucceeded {
+		t.Fatalf("unexpected refund: %+v", view)
+	}
+	if _, err := svc.CreateFoodOrderCancellationRefund(context.Background(), 99, "store_admin", 2, "foreign-refund",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "门店取消点餐订单"}); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("foreign store refund must be hidden, got %v", err)
+	}
+}
+
 func TestAdminServiceRefundRequiresValidPassword(t *testing.T) {
 	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
 	svc := newTestAdminService(repo)

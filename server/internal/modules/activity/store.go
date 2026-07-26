@@ -63,18 +63,33 @@ type TicketVerification struct {
 // PointSaving is a member request to convert spend into points, reviewed by the
 // store console. It always belongs to exactly one store.
 type PointSaving struct {
-	ID         int64
-	StoreID    int64
-	MemberID   int64
-	MemberName string
-	Phone      string
-	StoreName  string
-	Points     int64
-	Status     string
-	Remark     string
-	ReviewedBy *int64
-	ReviewedAt *time.Time
-	CreatedAt  time.Time
+	ID                     int64
+	StoreID                int64
+	MemberID               int64
+	MemberName             string
+	Phone                  string
+	StoreName              string
+	Points                 int64
+	BasePoints             int64
+	ExcessPoints           int64
+	AwardedPoints          int64
+	CoinBasePoints         int64
+	AwardedCoins           int64
+	RuleVersion            int64
+	PointsDivisor          int64
+	CoinPointsDivisor      int64
+	BusinessDate           *time.Time
+	BusinessStartAt        *time.Time
+	BusinessEndAt          *time.Time
+	CalculationStartAt     *time.Time
+	CalculationEndAt       *time.Time
+	LastApprovedSavingID   *int64
+	CalculationDescription string
+	Status                 string
+	Remark                 string
+	ReviewedBy             *int64
+	ReviewedAt             *time.Time
+	CreatedAt              time.Time
 }
 
 // Verification is a historical verification record (tickets, coupons, etc.).
@@ -194,7 +209,12 @@ func (r *storeSQLRepository) VerifyTicket(ctx context.Context, storeID int64, co
 // stores (name) for display; COALESCE guards nullable joins and columns.
 const pointSavingSelect = `SELECT ps.id, ps.store_id, ps.member_id,
 	COALESCE(m.nickname,''), COALESCE(m.phone,''), COALESCE(s.name,''),
-	ps.points, ps.status, COALESCE(ps.remark,''), ps.reviewed_by, ps.reviewed_at, ps.created_at
+	ps.points, ps.base_points, ps.excess_points, ps.awarded_points,
+	ps.coin_base_points, ps.awarded_coins, ps.rule_version, ps.points_divisor,
+	ps.coin_points_divisor, ps.business_date, ps.business_start_at, ps.business_end_at,
+	ps.calculation_start_at, ps.calculation_end_at, ps.last_approved_saving_id,
+	COALESCE(ps.calculation_description,''), ps.status, COALESCE(ps.remark,''),
+	ps.reviewed_by, ps.reviewed_at, ps.created_at
 	FROM point_savings ps
 	LEFT JOIN members m ON m.id = ps.member_id
 	LEFT JOIN stores s ON s.id = ps.store_id`
@@ -202,7 +222,12 @@ const pointSavingSelect = `SELECT ps.id, ps.store_id, ps.member_id,
 func scanPointSaving(row interface{ Scan(...any) error }) (PointSaving, error) {
 	var p PointSaving
 	if err := row.Scan(&p.ID, &p.StoreID, &p.MemberID, &p.MemberName, &p.Phone, &p.StoreName,
-		&p.Points, &p.Status, &p.Remark, &p.ReviewedBy, &p.ReviewedAt, &p.CreatedAt); err != nil {
+		&p.Points, &p.BasePoints, &p.ExcessPoints, &p.AwardedPoints,
+		&p.CoinBasePoints, &p.AwardedCoins, &p.RuleVersion, &p.PointsDivisor,
+		&p.CoinPointsDivisor, &p.BusinessDate, &p.BusinessStartAt, &p.BusinessEndAt,
+		&p.CalculationStartAt, &p.CalculationEndAt, &p.LastApprovedSavingID,
+		&p.CalculationDescription, &p.Status, &p.Remark, &p.ReviewedBy,
+		&p.ReviewedAt, &p.CreatedAt); err != nil {
 		return PointSaving{}, err
 	}
 	return p, nil
@@ -240,31 +265,6 @@ func (r *storeSQLRepository) GetPointSaving(ctx context.Context, storeID, reques
 		return PointSaving{}, apperr.Internal(err)
 	}
 	return p, nil
-}
-
-func (r *storeSQLRepository) ReviewPointSaving(ctx context.Context, storeID, requestID int64, decision, remark string, byID int64, now time.Time) (PointSaving, error) {
-	status := PointSavingApproved
-	if decision == ReviewReject {
-		status = PointSavingRejected
-	}
-	const q = `UPDATE point_savings SET status = ?, remark = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
-		WHERE id = ? AND store_id = ? AND status = ?`
-	res, err := r.db.ExecContext(ctx, q, status, remark, byID, now, now, requestID, storeID, PointSavingPending)
-	if err != nil {
-		return PointSaving{}, apperr.Internal(err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return PointSaving{}, apperr.Internal(err)
-	}
-	if affected == 0 {
-		// Distinguish "does not exist for this store" from "already reviewed".
-		if _, err := r.GetPointSaving(ctx, storeID, requestID); err != nil {
-			return PointSaving{}, err
-		}
-		return PointSaving{}, apperr.Conflict("point-saving request is not pending review")
-	}
-	return r.GetPointSaving(ctx, storeID, requestID)
 }
 
 func (r *storeSQLRepository) ListTodayActivities(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error) {

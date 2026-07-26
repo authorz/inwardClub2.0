@@ -18,6 +18,7 @@ type memRepo struct {
 	waitlist     []WaitlistEntry
 	arrivals     int
 	nextID       int64
+	dailyClaims  map[string]bool
 }
 
 type fakeAssetResolver struct{}
@@ -49,7 +50,7 @@ func (r *memRepo) ListSeats(_ context.Context, storeID int64, _ time.Time) ([]Se
 func (r *memRepo) ListMemberReservations(_ context.Context, memberID int64, limit, offset int) ([]Reservation, int64, error) {
 	var all []Reservation
 	for _, res := range r.reservations {
-		if res.MemberID == memberID {
+		if res.MemberID == memberID && res.Status == StatusBooked {
 			all = append(all, res)
 		}
 	}
@@ -67,7 +68,7 @@ func (r *memRepo) ListMemberReservations(_ context.Context, memberID int64, limi
 func (r *memRepo) ListStoreReservations(_ context.Context, storeID int64, limit, offset int) ([]Reservation, int64, error) {
 	var all []Reservation
 	for _, res := range r.reservations {
-		if res.StoreID == storeID {
+		if res.StoreID == storeID && res.Status == StatusBooked {
 			all = append(all, res)
 		}
 	}
@@ -87,6 +88,9 @@ func (r *memRepo) HasMemberReservation(
 	memberID int64,
 	createdFrom, createdBefore time.Time,
 ) (bool, error) {
+	if r.dailyClaims[fmt.Sprintf("%d/%s", memberID, createdFrom.UTC().Format(time.RFC3339))] {
+		return true, nil
+	}
 	for _, res := range r.reservations {
 		if res.MemberID == memberID &&
 			!res.CreatedAt.Before(createdFrom) &&
@@ -112,6 +116,10 @@ func (r *memRepo) CreateReservation(
 			}
 		}
 	}
+	if r.dailyClaims == nil {
+		r.dailyClaims = make(map[string]bool)
+	}
+	r.dailyClaims[fmt.Sprintf("%d/%s", res.MemberID, dailyStart.UTC().Format(time.RFC3339))] = true
 	r.nextID++
 	res.ID = r.nextID
 	r.reservations = append(r.reservations, res)
@@ -127,12 +135,11 @@ func (r *memRepo) GetReservation(_ context.Context, id int64) (Reservation, erro
 	return Reservation{}, apperr.NotFound("reservation not found")
 }
 
-func (r *memRepo) CancelReservation(_ context.Context, id, memberID int64, now time.Time) error {
+func (r *memRepo) CancelReservation(_ context.Context, id, memberID int64, _ time.Time) error {
 	for i := range r.reservations {
-		res := &r.reservations[i]
+		res := r.reservations[i]
 		if res.ID == id && res.MemberID == memberID && res.Status == StatusBooked {
-			res.Status = StatusCancelled
-			res.UpdatedAt = now
+			r.reservations = append(r.reservations[:i], r.reservations[i+1:]...)
 			return nil
 		}
 	}
@@ -160,7 +167,7 @@ func (r *memRepo) ArriveReservation(_ context.Context, reservationID, storeID in
 }
 
 func newTestService() (*Service, *memRepo) {
-	repo := &memRepo{}
+	repo := &memRepo{dailyClaims: make(map[string]bool)}
 	svc := NewService(repo, fakeAssetResolver{}, time.UTC)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
@@ -314,6 +321,12 @@ func TestCancelReservation(t *testing.T) {
 	if err := svc.CancelReservation(context.Background(), 42, view.ID); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
+	if _, err := svc.GetReservation(context.Background(), 42, view.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("cancelled reservation must be deleted, got %v", err)
+	}
+	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("daily limit must remain after cancellation, got %v", err)
+	}
 	// Second cancel must conflict (already cancelled).
 	if err := svc.CancelReservation(context.Background(), 42, view.ID); apperr.From(err).Code != apperr.CodeConflict {
 		t.Fatalf("expected CONFLICT on double cancel, got %v", err)
@@ -332,8 +345,8 @@ func TestListReservations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if total != 2 || len(views) != 2 {
-		t.Fatalf("expected 2 reservations for member 42, got %d", total)
+	if total != 1 || len(views) != 1 {
+		t.Fatalf("expected one active reservation for member 42, got %d", total)
 	}
 }
 
@@ -344,6 +357,7 @@ func TestStoreReservationScope(t *testing.T) {
 	repo.reservations = []Reservation{
 		own,
 		{ID: 2, MemberID: 7, StoreID: 1, Status: StatusBooked},
+		{ID: 4, MemberID: 8, StoreID: 1, Status: StatusExpired},
 		other,
 	}
 

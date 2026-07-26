@@ -87,6 +87,42 @@ func (s *ConsoleService) DeleteTable(ctx context.Context, id int64) error {
 	return s.repo.DeleteAdminTable(ctx, id)
 }
 
+func (s *ConsoleService) StoreListTables(ctx context.Context, storeID int64, filter AdminTableFilter, page httpx.Page) ([]AdminTableView, int64, error) {
+	filter.StoreID = &storeID
+	return s.ListTables(ctx, filter, page)
+}
+
+func (s *ConsoleService) StoreGetTable(ctx context.Context, storeID, id int64) (AdminTableView, error) {
+	view, err := s.GetTable(ctx, id)
+	if err != nil {
+		return AdminTableView{}, err
+	}
+	if view.StoreID != storeID {
+		return AdminTableView{}, apperr.NotFound("table not found")
+	}
+	return view, nil
+}
+
+func (s *ConsoleService) StoreCreateTable(ctx context.Context, storeID int64, req TableWriteRequest) (AdminTableView, error) {
+	req.StoreID = storeID
+	return s.CreateTable(ctx, req)
+}
+
+func (s *ConsoleService) StoreUpdateTable(ctx context.Context, storeID, id int64, req TableWriteRequest) (AdminTableView, error) {
+	if _, err := s.StoreGetTable(ctx, storeID, id); err != nil {
+		return AdminTableView{}, err
+	}
+	req.StoreID = storeID
+	return s.UpdateTable(ctx, id, req)
+}
+
+func (s *ConsoleService) StoreDeleteTable(ctx context.Context, storeID, id int64) error {
+	if _, err := s.StoreGetTable(ctx, storeID, id); err != nil {
+		return err
+	}
+	return s.DeleteTable(ctx, id)
+}
+
 func (s *ConsoleService) validatedTable(ctx context.Context, req TableWriteRequest) (Table, error) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Code = strings.TrimSpace(req.Code)
@@ -189,6 +225,51 @@ func (s *ConsoleService) DeleteSeat(ctx context.Context, id int64) error {
 		return apperr.Invalid("invalid seatID")
 	}
 	return s.repo.DeleteAdminSeat(ctx, id)
+}
+
+func (s *ConsoleService) StoreListSeats(ctx context.Context, storeID int64, filter AdminSeatFilter, page httpx.Page) ([]AdminSeatView, int64, error) {
+	filter.StoreID = &storeID
+	return s.ListSeats(ctx, filter, page)
+}
+
+func (s *ConsoleService) StoreGetSeat(ctx context.Context, storeID, id int64) (AdminSeatView, error) {
+	view, err := s.GetSeat(ctx, id)
+	if err != nil {
+		return AdminSeatView{}, err
+	}
+	if view.StoreID != storeID {
+		return AdminSeatView{}, apperr.NotFound("seat not found")
+	}
+	return view, nil
+}
+
+func (s *ConsoleService) storeTableForSeat(ctx context.Context, storeID, tableID int64) error {
+	_, err := s.StoreGetTable(ctx, storeID, tableID)
+	return err
+}
+
+func (s *ConsoleService) StoreCreateSeat(ctx context.Context, storeID int64, req SeatWriteRequest) (AdminSeatView, error) {
+	if err := s.storeTableForSeat(ctx, storeID, req.TableID); err != nil {
+		return AdminSeatView{}, err
+	}
+	return s.CreateSeat(ctx, req)
+}
+
+func (s *ConsoleService) StoreUpdateSeat(ctx context.Context, storeID, id int64, req SeatWriteRequest) (AdminSeatView, error) {
+	if _, err := s.StoreGetSeat(ctx, storeID, id); err != nil {
+		return AdminSeatView{}, err
+	}
+	if err := s.storeTableForSeat(ctx, storeID, req.TableID); err != nil {
+		return AdminSeatView{}, err
+	}
+	return s.UpdateSeat(ctx, id, req)
+}
+
+func (s *ConsoleService) StoreDeleteSeat(ctx context.Context, storeID, id int64) error {
+	if _, err := s.StoreGetSeat(ctx, storeID, id); err != nil {
+		return err
+	}
+	return s.DeleteSeat(ctx, id)
 }
 
 func validatedSeat(req SeatWriteRequest) (Seat, error) {

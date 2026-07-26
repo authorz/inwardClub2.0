@@ -114,11 +114,24 @@ func TestSavePointsMissingIdemKey(t *testing.T) {
 	}
 }
 
+func TestSavePointsRequiresStore(t *testing.T) {
+	repo := &fakePointsRepo{}
+	svc := NewPointsService(repo)
+	if _, err := svc.SavePoints(
+		context.Background(), 1, PointsAmountRequest{Amount: 100}, testIdemKey,
+	); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+	}
+	if repo.saveAmount != 0 {
+		t.Fatal("repository must not be called without a store")
+	}
+}
+
 func TestSavePointsReachesRepository(t *testing.T) {
 	repo := &fakePointsRepo{}
 	svc := NewPointsService(repo)
 
-	_, err := svc.SavePoints(context.Background(), 1, PointsAmountRequest{Amount: 100}, testIdemKey)
+	_, err := svc.SavePoints(context.Background(), 1, PointsAmountRequest{Amount: 100, StoreID: 7}, testIdemKey)
 	if codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("expected NOT_IMPLEMENTED, got %v", err)
 	}
@@ -143,7 +156,7 @@ func TestWithdrawPointsReachesRepository(t *testing.T) {
 	repo := &fakePointsRepo{}
 	svc := NewPointsService(repo)
 
-	_, err := svc.WithdrawPoints(context.Background(), 1, PointsAmountRequest{Amount: 50}, testIdemKey)
+	_, err := svc.WithdrawPoints(context.Background(), 1, PointsAmountRequest{Amount: 50, StoreID: 7}, testIdemKey)
 	if codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("expected NOT_IMPLEMENTED, got %v", err)
 	}
@@ -184,7 +197,7 @@ func TestHandlerSavePointsRejectsInvalidBody(t *testing.T) {
 func TestHandlerSavePointsBindsAndReachesRepository(t *testing.T) {
 	repo := &fakePointsRepo{}
 	h := NewHandler(nil, NewPointsService(repo))
-	c, rec := newPointsContext(`{"amount":100}`)
+	c, rec := newPointsContext(`{"amount":100,"storeId":7}`)
 
 	h.SavePoints(c)
 

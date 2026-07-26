@@ -41,18 +41,23 @@ type Seat struct {
 
 // Reservation is a member's booking of a table or seat.
 type Reservation struct {
-	ID            int64
-	ReservationNo string
-	StoreID       int64
-	MemberID      int64
-	TableID       *int64
-	SeatID        *int64
-	PartySize     int
-	ReservedAt    time.Time
-	Status        string
-	Remark        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              int64
+	ReservationNo   string
+	StoreID         int64
+	MemberID        int64
+	TableID         *int64
+	SeatID          *int64
+	PartySize       int
+	ReservedAt      time.Time
+	Status          string
+	Remark          string
+	MemberNickname  string
+	MemberPhone     string
+	MemberAvatarURL string
+	TableNo         string
+	SeatNo          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // WaitlistEntry is a walk-in party queued for a table.

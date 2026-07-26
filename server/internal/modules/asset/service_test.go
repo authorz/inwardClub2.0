@@ -111,6 +111,9 @@ func TestCreateUploadCredential_ObjectKeyFormat(t *testing.T) {
 	if !strings.HasSuffix(cred.ObjectKey, ".jpg") {
 		t.Fatalf("object key should end with real extension: %s", cred.ObjectKey)
 	}
+	if want := "https://cdn.test/" + cred.ObjectKey; cred.PublicURL != want {
+		t.Fatalf("public URL = %q, want %q", cred.PublicURL, want)
+	}
 }
 
 func TestCreateUploadCredential_RejectsBadMimeAndSize(t *testing.T) {

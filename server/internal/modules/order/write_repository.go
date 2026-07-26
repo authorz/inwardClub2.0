@@ -153,10 +153,13 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 		food = FoodOrder{
 			ID:                foodID,
 			BusinessOrderID:   businessID,
+			BusinessOrderNo:   in.BusinessOrderNo,
 			StoreID:           in.StoreID,
 			MemberID:          in.MemberID,
 			TableID:           in.TableID,
 			TotalAmountCent:   total,
+			PaymentStatus:     "unpaid",
+			PayMethod:         in.PayMethod,
 			FulfillmentStatus: "pending",
 			Remark:            in.Remark,
 			CreatedAt:         in.Now,
@@ -412,14 +415,14 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 		}
 		if orderType == OrderTypeFood {
 			if _, err := tx.ExecContext(ctx,
-				`UPDATE food_orders SET fulfillment_status = 'preparing', updated_at = ?
+				`UPDATE food_orders SET fulfillment_status = 'completed', updated_at = ?
 				 WHERE business_order_id = ?`,
 				in.Now, businessID,
 			); err != nil {
 				return apperr.Internal(err)
 			}
 			if _, err := tx.ExecContext(ctx,
-				`UPDATE business_orders SET order_status = 'preparing', updated_at = ? WHERE id = ?`,
+				`UPDATE business_orders SET order_status = 'completed', updated_at = ? WHERE id = ?`,
 				in.Now, businessID,
 			); err != nil {
 				return apperr.Internal(err)

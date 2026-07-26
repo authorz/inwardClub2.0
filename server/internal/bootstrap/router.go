@@ -154,6 +154,8 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/payment-orders/:paymentOrderID", a.paymentAdminHandler.GetPaymentOrder)
 	p.GET("/payment-channel-settings", a.paymentAdminHandler.PaymentChannelSettings)
 	p.PUT("/payment-channel-settings", a.paymentAdminHandler.UpdatePaymentChannelSettings)
+	p.GET("/point-review-settings", a.pointReviewSettingsHandler.Get)
+	p.PUT("/point-review-settings", a.pointReviewSettingsHandler.Update)
 	p.GET("/error-events", a.diagnosticsHandler.ListErrorEvents)
 	p.GET("/refunds", a.adminHandler.Refunds)
 	p.GET("/refund-orders", a.adminHandler.Refunds)
@@ -357,7 +359,6 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/point-savings/:requestID/review", a.activityStoreHandler.ReviewPointSaving)
 	idem.POST("/refunds", a.paymentStoreHandler.CreateRefund)
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.StoreCreateWalletAdjustment)
-	idem.POST("/reservations/:reservationID/arrive", a.reservationHandler.Arrive)
 
 	a.registerStoreConsole(p, idem)
 }
@@ -369,6 +370,11 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 // the detail read is added here. Catalog variants use the /catalog/variants/
 // :itemID prefix for the same param-name reason as the admin console.
 func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
+	// Food-order fulfillment (own store only).
+	p.GET("/food-orders", a.orderStoreConsoleHandler.List)
+	p.GET("/food-orders/:orderID", a.orderStoreConsoleHandler.Get)
+	idem.POST("/food-orders/:orderID/:action", a.orderStoreConsoleHandler.Action)
+
 	// Own-store profile update.
 	idem.PATCH("/profile", a.storeConsoleHandler.UpdateOwnProfile)
 	idem.PATCH("/profile/status", a.storeConsoleHandler.UpdateOwnStatus)
@@ -376,6 +382,18 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	// Own-store settings.
 	p.GET("/settings", a.storeConsoleHandler.GetOwnSettings)
 	idem.PUT("/settings", a.storeConsoleHandler.UpdateOwnSettings)
+
+	// Tables and seats (own store only).
+	p.GET("/tables", a.reservationConsoleHandler.StoreListTables)
+	p.GET("/tables/:tableID", a.reservationConsoleHandler.StoreGetTable)
+	idem.POST("/tables", a.reservationConsoleHandler.StoreCreateTable)
+	idem.PATCH("/tables/:tableID", a.reservationConsoleHandler.StoreUpdateTable)
+	idem.DELETE("/tables/:tableID", a.reservationConsoleHandler.StoreDeleteTable)
+	p.GET("/seats", a.reservationConsoleHandler.StoreListSeats)
+	p.GET("/seats/:seatID", a.reservationConsoleHandler.StoreGetSeat)
+	idem.POST("/seats", a.reservationConsoleHandler.StoreCreateSeat)
+	idem.PATCH("/seats/:seatID", a.reservationConsoleHandler.StoreUpdateSeat)
+	idem.DELETE("/seats/:seatID", a.reservationConsoleHandler.StoreDeleteSeat)
 
 	// Banners (own store only).
 	p.GET("/banners", a.bannerConsoleHandler.StoreList)

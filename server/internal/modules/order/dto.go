@@ -40,10 +40,17 @@ type CreateActivityOrderRequest struct {
 type FoodOrderView struct {
 	ID                int64               `json:"id"`
 	BusinessOrderID   int64               `json:"businessOrderId"`
+	OrderNo           string              `json:"orderNo"`
 	StoreID           int64               `json:"storeId"`
 	TableID           *int64              `json:"tableId,omitempty"`
 	TotalAmountCent   int64               `json:"totalAmountCent"`
 	PointsEarned      int64               `json:"pointsEarned"`
+	PaymentStatus     string              `json:"paymentStatus"`
+	PayMethod         string              `json:"payMethod,omitempty"`
+	PaidAmountCent    int64               `json:"paidAmountCent"`
+	RefundAmountCent  int64               `json:"refundAmountCent"`
+	StoreName         string              `json:"storeName,omitempty"`
+	TableName         string              `json:"tableName,omitempty"`
 	FulfillmentStatus string              `json:"fulfillmentStatus"`
 	Remark            string              `json:"remark,omitempty"`
 	Items             []FoodOrderItemView `json:"items,omitempty"`
@@ -51,7 +58,6 @@ type FoodOrderView struct {
 	// continue to pay; they are omitted on list/read responses.
 	PaymentOrderID int64     `json:"paymentOrderId,omitempty"`
 	PaymentOrderNo string    `json:"paymentOrderNo,omitempty"`
-	PayMethod      string    `json:"payMethod,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
 

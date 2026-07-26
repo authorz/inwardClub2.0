@@ -51,11 +51,18 @@ const businessStatusExpired = "expired"
 type FoodOrder struct {
 	ID                int64
 	BusinessOrderID   int64
+	BusinessOrderNo   string
 	StoreID           int64
 	MemberID          int64
 	TableID           *int64
 	TotalAmountCent   int64
 	PointsEarned      int64
+	PaymentStatus     string
+	PayMethod         string
+	PaidAmountCent    int64
+	RefundAmountCent  int64
+	StoreName         string
+	TableName         string
 	FulfillmentStatus string
 	Remark            string
 	CreatedAt         time.Time

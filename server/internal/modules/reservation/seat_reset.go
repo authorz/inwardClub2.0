@@ -24,7 +24,7 @@ func NewSeatResetService(repo Repository, location *time.Location) *SeatResetSer
 	return &SeatResetService{repo: repo, location: location, now: time.Now}
 }
 
-// Sweep releases bookings created before the latest local 04:00 boundary.
+// Sweep deletes bookings created before the latest local 04:00 boundary.
 func (s *SeatResetService) Sweep(ctx context.Context) (int64, error) {
 	now := s.now().In(s.location)
 	cutoff := time.Date(now.Year(), now.Month(), now.Day(), seatResetHour, 0, 0, 0, s.location)

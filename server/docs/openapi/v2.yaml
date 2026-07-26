@@ -93,6 +93,7 @@ components:
         objectKey: { type: string }
         uploadToken: { type: string }
         uploadUrl: { type: string }
+        publicUrl: { type: string }
         expiresAt: { type: string, format: date-time }
         maxSizeBytes: { type: integer, format: int64 }
     StoreView:
@@ -136,6 +137,48 @@ components:
         basePoints: { type: integer, minimum: 0 }
         layoutAssetId: { type: integer, format: int64, nullable: true }
         status: { type: string, enum: [available, paused, full, maintenance] }
+    StoreTableWriteRequest:
+      type: object
+      description: The store is always taken from the authenticated store account.
+      required: [name, code, capacity, basePoints, status]
+      properties:
+        name: { type: string, maxLength: 64 }
+        code: { type: string, maxLength: 64 }
+        capacity: { type: integer, minimum: 1 }
+        basePoints: { type: integer, minimum: 0 }
+        layoutAssetId: { type: integer, format: int64, nullable: true }
+        status: { type: string, enum: [available, paused, full, maintenance] }
+    StoreFoodOrderView:
+      type: object
+      required: [id, businessOrderId, status, paymentStatus, amountCent, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64, description: Food-order ID used by fulfillment actions }
+        businessOrderId: { type: string, description: User-facing business order number }
+        status: { type: string, enum: [pending, confirmed, preparing, ready, completed, cancelled] }
+        paymentStatus: { type: string }
+        payChannel: { type: string }
+        amountCent: { type: integer, format: int64 }
+        paidAmountCent: { type: integer, format: int64, description: Actual settled amount; reflects the 0.01 debug payment when enabled }
+        paymentOrderId: { type: integer, format: int64 }
+        pointsEarned: { type: integer, format: int64 }
+        tableName: { type: string }
+        itemsSummary: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              unitPriceCent: { type: integer, format: int64 }
+              quantity: { type: integer }
+              subtotalCent: { type: integer, format: int64 }
+              pointsReward: { type: integer, format: int64 }
+        memberNickname: { type: string }
+        memberPhone: { type: string }
+        memberAvatarUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     AdminSeatView:
       type: object
       required: [id, storeId, storeName, tableId, tableName, name, status]
@@ -579,10 +622,10 @@ components:
           items: { type: integer, format: int64 }
     PointsAmountRequest:
       type: object
-      required: [amount]
+      required: [amount, storeId]
       properties:
         amount: { type: integer, format: int64, minimum: 1, description: 'Positive number of points' }
-        storeId: { type: integer, format: int64, description: 'Optional store the request is scoped to for review' }
+        storeId: { type: integer, format: int64, minimum: 1, description: 'Store the request is scoped to for staff review' }
     PointsTxnResult:
       type: object
       description: >
@@ -704,10 +747,16 @@ components:
       properties:
         id: { type: integer, format: int64 }
         businessOrderId: { type: integer, format: int64 }
+        orderNo: { type: string }
         storeId: { type: integer, format: int64 }
         tableId: { type: integer, format: int64 }
         totalAmountCent: { type: integer, format: int64 }
         pointsEarned: { type: integer, format: int64 }
+        paymentStatus: { type: string }
+        paidAmountCent: { type: integer, format: int64 }
+        refundAmountCent: { type: integer, format: int64 }
+        storeName: { type: string }
+        tableName: { type: string }
         fulfillmentStatus: { type: string }
         remark: { type: string }
         items:
@@ -1144,10 +1193,13 @@ components:
         scopeType: { type: string, enum: [global, store] }
         storeId: { type: integer, format: int64 }
         name: { type: string }
+        description: { type: string }
         couponType: { type: string, enum: [exchange, discount, cash] }
         valueCent: { type: integer, format: int64 }
+        pointsPrice: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         issuedQuantity: { type: integer, format: int64 }
+        perMemberLimit: { type: integer, format: int64 }
         status: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -1239,8 +1291,13 @@ components:
         seatId: { type: integer, format: int64 }
         partySize: { type: integer }
         reservedAt: { type: string, format: date-time }
-        status: { type: string, enum: [booked, cancelled, expired, arrived] }
+        status: { type: string, enum: [booked] }
         remark: { type: string }
+        memberNickname: { type: string }
+        memberPhoneMasked: { type: string }
+        memberAvatarUrl: { type: string }
+        tableNo: { type: string }
+        seatNo: { type: string }
         createdAt: { type: string, format: date-time }
     CreateReservationRequest:
       type: object
@@ -1311,7 +1368,109 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
 
+    PointReviewSettings:
+      type: object
+      required: [pointsDivisor, coinPointsDivisor, version]
+      properties:
+        pointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Raw points divided by this value for the standard awarded-points calculation' }
+        coinPointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Coin-base points divided by this value; integer result is credited as coins' }
+        version: { type: integer, format: int64 }
+        updatedAt: { type: string, format: date-time }
+    UpdatePointReviewSettingsRequest:
+      type: object
+      required: [pointsDivisor, coinPointsDivisor]
+      properties:
+        pointsDivisor: { type: integer, format: int64, minimum: 1 }
+        coinPointsDivisor: { type: integer, format: int64, minimum: 1 }
+    ReviewPointSavingRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        remark: { type: string, maxLength: 255 }
+    PointSavingReviewResult:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        memberId: { type: integer, format: int64 }
+        points: { type: integer, format: int64, description: 'Original requested points S' }
+        basePoints: { type: integer, format: int64, description: 'Approved withdrawal base B in the frozen business window' }
+        excessPoints: { type: integer, format: int64, description: 'Points above the base E' }
+        awardedPoints: { type: integer, format: int64, description: 'Actual points credited A' }
+        coinBasePoints: { type: integer, format: int64 }
+        awardedCoins: { type: integer, format: int64 }
+        ruleVersion: { type: integer, format: int64 }
+        pointsDivisor: { type: integer, format: int64 }
+        coinPointsDivisor: { type: integer, format: int64 }
+        calculationDescription: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        reviewedBy: { type: integer, format: int64 }
+        reviewedAt: { type: string, format: date-time }
+
 paths:
+  /api/v2/admin/point-review-settings:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Get the global staff point-review ratios
+      responses:
+        '200':
+          description: current settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PointReviewSettings' }
+    put:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update the global staff point-review ratios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePointReviewSettingsRequest' }
+      responses:
+        '200':
+          description: updated settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PointReviewSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v2/mini/staff/point-savings/{requestID}/review:
+    post:
+      tags: [mini]
+      security: [{ bearerAuth: [] }]
+      summary: Approve or reject a point-saving request for the staff member's store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - name: requestID
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewPointSavingRequest' }
+      responses:
+        '200':
+          description: reviewed request and frozen calculation snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PointSavingReviewResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /internal/health:
     get:
       tags: [internal]
@@ -1681,7 +1840,7 @@ paths:
     post:
       tags: [mini]
       security: [{ bearerAuth: [] }]
-      summary: Create a points-withdrawal request (store console reviews)
+      summary: Create an immediately approved points-withdrawal record
       parameters:
         - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:
@@ -1691,7 +1850,7 @@ paths:
             schema: { $ref: '#/components/schemas/PointsAmountRequest' }
       responses:
         '201':
-          description: pending request created
+          description: approved withdrawal record created
           content:
             application/json:
               schema:
@@ -2228,6 +2387,242 @@ paths:
       summary: Delete an unused seat
       parameters:
         - { name: seatID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: seat deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/store/tables:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: List tables belonging to the authenticated store
+      description: The store scope is taken from the access token; a client-supplied storeId is ignored.
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: status, in: query, schema: { type: string, enum: [available, paused, full, maintenance] } }
+        - { name: keyword, in: query, schema: { type: string }, description: Matches table name or code }
+      responses:
+        '200':
+          description: this store's table list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminTableView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Create a table directly under the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StoreTableWriteRequest' }
+      responses:
+        '201':
+          description: table created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTableView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/store/food-orders:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: List food orders belonging to the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: orderStatus, in: query, schema: { type: string, enum: [pending, confirmed, preparing, ready, completed, cancelled] } }
+        - { name: paymentStatus, in: query, schema: { type: string, enum: [unpaid, paid, refunded, partially_refunded] } }
+        - { name: payChannel, in: query, schema: { type: string, enum: [wechat, coin] } }
+        - { name: memberNickname, in: query, schema: { type: string }, description: Fuzzy member nickname filter }
+        - { name: memberPhone, in: query, schema: { type: string }, description: Fuzzy member phone filter }
+        - { name: orderNo, in: query, schema: { type: string }, description: Fuzzy business order number filter }
+        - { name: itemName, in: query, schema: { type: string }, description: Fuzzy food item name filter }
+        - { name: createdFrom, in: query, schema: { type: string, format: date-time } }
+        - { name: createdTo, in: query, schema: { type: string, format: date-time } }
+        - { name: keyword, in: query, schema: { type: string }, description: Matches order number, table, member nickname, member phone or food item }
+      responses:
+        '200':
+          description: this store's food-order list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/StoreFoodOrderView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v2/store/food-orders/{orderID}:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Get a food order belonging to the authenticated store
+      parameters:
+        - { name: orderID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: food-order detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/StoreFoodOrderView' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v2/store/food-orders/{orderID}/{action}:
+    post:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Advance fulfillment or cancel and refund a store food order
+      parameters:
+        - { name: orderID, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: action, in: path, required: true, schema: { type: string, enum: [confirm, prepare, ready, complete, cancel, force-cancel] } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string, description: Required only for force-cancel }
+      responses:
+        '200':
+          description: updated food order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/StoreFoodOrderView' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/store/tables/{tableID}:
+    parameters:
+      - { name: tableID, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Get a table belonging to the authenticated store
+      responses:
+        '200':
+          description: table detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTableView' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Update a table belonging to the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StoreTableWriteRequest' }
+      responses:
+        '200': { description: table updated }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Delete an unused table belonging to the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: table deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/store/seats:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: List seats belonging to the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: tableId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { type: string, enum: [available, paused, full, maintenance] } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: this store's seat list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminSeatView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Create a seat under one of this store's tables
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatWriteRequest' }
+      responses:
+        '201': { description: seat created }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/store/seats/{seatID}:
+    parameters:
+      - { name: seatID, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Get a seat belonging to the authenticated store
+      responses:
+        '200': { description: seat detail }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Update or move a seat within the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatWriteRequest' }
+      responses:
+        '200': { description: seat updated }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: Delete an unused seat belonging to the authenticated store
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
       responses:
         '200': { description: seat deleted }
         '404': { $ref: '#/components/responses/Error' }
@@ -5583,7 +5978,7 @@ paths:
     get:
       tags: [store]
       summary: List this store's reservations
-      description: Results are limited to the acting store (scope from the token).
+      description: Results are limited to active bookings in the acting store (scope from the token). Cancelled and daily-cleared reservations are deleted.
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
@@ -5617,24 +6012,4 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/ReservationView' }
-        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-
-  /api/v2/store/reservations/{reservationID}/arrive:
-    post:
-      tags: [store]
-      summary: Mark a booking arrived (到店核销)
-      description: Transitions a `booked` reservation to `arrived` and records an arrival, atomically, within the acting store's scope. Returns 200 with an empty data object.
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - { in: path, name: reservationID, required: true, schema: { type: integer, format: int64 } }
-        - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }
-      responses:
-        '200':
-          description: Arrived (empty data object)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data: { type: object }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

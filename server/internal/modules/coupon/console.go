@@ -82,17 +82,20 @@ type VerifyRequest struct {
 
 // ConsoleTemplateView is the console representation of a coupon template.
 type ConsoleTemplateView struct {
-	ID          int64     `json:"id"`
-	ScopeType   string    `json:"scopeType"`
-	StoreID     *int64    `json:"storeId,omitempty"`
-	Name        string    `json:"name"`
-	CouponType  string    `json:"couponType"`
-	ValueCent   int64     `json:"valueCent"`
-	StockQty    int64     `json:"stockQuantity"`
-	IssuedQty   int64     `json:"issuedQuantity"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID           int64     `json:"id"`
+	ScopeType    string    `json:"scopeType"`
+	StoreID      *int64    `json:"storeId,omitempty"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description,omitempty"`
+	CouponType   string    `json:"couponType"`
+	ValueCent    int64     `json:"valueCent"`
+	PointsPrice  int64     `json:"pointsPrice"`
+	StockQty     int64     `json:"stockQuantity"`
+	IssuedQty    int64     `json:"issuedQuantity"`
+	PerMemberLim int64     `json:"perMemberLimit"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // ApplicableItemsView is the console representation of a template's
@@ -557,17 +560,20 @@ func (s *ConsoleService) Verify(ctx context.Context, scope ConsoleScope, req Ver
 
 func templateView(t Template) ConsoleTemplateView {
 	return ConsoleTemplateView{
-		ID:         t.ID,
-		ScopeType:  t.ScopeType,
-		StoreID:    t.StoreID,
-		Name:       t.Name,
-		CouponType: t.CouponType,
-		ValueCent:  t.ValueCent,
-		StockQty:   t.StockQty,
-		IssuedQty:  t.IssuedQty,
-		Status:     t.Status,
-		CreatedAt:  t.CreatedAt,
-		UpdatedAt:  t.UpdatedAt,
+		ID:           t.ID,
+		ScopeType:    t.ScopeType,
+		StoreID:      t.StoreID,
+		Name:         t.Name,
+		Description:  t.Description,
+		CouponType:   t.CouponType,
+		ValueCent:    t.ValueCent,
+		PointsPrice:  t.PointsPrice,
+		StockQty:     t.StockQty,
+		IssuedQty:    t.IssuedQty,
+		PerMemberLim: t.PerMemberLim,
+		Status:       t.Status,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
 	}
 }
 

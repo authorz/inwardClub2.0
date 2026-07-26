@@ -80,12 +80,17 @@ func (s *Service) CreateUploadCredential(ctx context.Context, caller Caller, req
 	if err := s.repo.SetObjectKey(ctx, id, objectKey); err != nil {
 		return UploadCredential{}, err
 	}
-	return s.store.CreateUploadCredential(ctx, CreateCredentialInput{
+	credential, err := s.store.CreateUploadCredential(ctx, CreateCredentialInput{
 		AssetID:      id,
 		ObjectKey:    objectKey,
 		MaxSizeBytes: policy.maxSize,
 		Visibility:   visibility,
 	})
+	if err != nil {
+		return UploadCredential{}, err
+	}
+	credential.PublicURL = s.store.PublicURL(objectKey)
+	return credential, nil
 }
 
 // UploadAvatar uploads a registration avatar straight to object storage under an

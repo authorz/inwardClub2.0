@@ -50,9 +50,10 @@ type App struct {
 	walletHandler   *wallet.Handler
 	paymentHandler  *payment.Handler
 
-	paymentStoreHandler  *payment.StoreHandler
-	paymentAdminHandler  *payment.AdminHandler
-	activityStoreHandler *activity.StoreHandler
+	paymentStoreHandler        *payment.StoreHandler
+	paymentAdminHandler        *payment.AdminHandler
+	activityStoreHandler       *activity.StoreHandler
+	pointReviewSettingsHandler *activity.PointReviewSettingsHandler
 
 	memberHandler      *member.Handler
 	reservationHandler *reservation.Handler
@@ -68,6 +69,7 @@ type App struct {
 	couponConsoleHandler      *coupon.ConsoleHandler
 	printerConsoleHandler     *printer.ConsoleHandler
 	reservationConsoleHandler *reservation.ConsoleHandler
+	orderStoreConsoleHandler  *order.StoreConsoleHandler
 
 	diagnosticsSvc     *diagnostics.Service
 	diagnosticsHandler *diagnostics.Handler
@@ -123,6 +125,9 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	paymentRepo := payment.NewStoreRepository(database)
 	paymentStoreSvc := payment.NewStoreService(paymentRepo, offlineAcquirer)
 	activityStoreSvc := activity.NewStoreService(activity.NewStoreRepository(database), assetSvc)
+	pointReviewSettingsSvc := activity.NewPointReviewSettingsService(
+		activity.NewPointReviewSettingsRepository(database),
+	)
 
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
 	// WeChat phone code via the WeChat client (fake offline, real once wired).
@@ -164,6 +169,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
 	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database), assetSvc)
+	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc)
 
 	// Diagnostics: durable admin error-events feed backed by the error_events
 	// table (db/migrations 00018); the Capture middleware persists 5xx failures.
@@ -184,9 +190,10 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		walletHandler:   wallet.NewHandler(walletSvc, walletPointsSvc),
 		paymentHandler:  payment.NewHandler(wechatPay, offlineAcquirer, payment.NewSettlementService(payment.NewSettlementRepository(database))),
 
-		paymentStoreHandler:  payment.NewStoreHandler(paymentStoreSvc),
-		paymentAdminHandler:  payment.NewAdminHandler(paymentAdminSvc),
-		activityStoreHandler: activity.NewStoreHandler(activityStoreSvc),
+		paymentStoreHandler:        payment.NewStoreHandler(paymentStoreSvc),
+		paymentAdminHandler:        payment.NewAdminHandler(paymentAdminSvc),
+		activityStoreHandler:       activity.NewStoreHandler(activityStoreSvc),
+		pointReviewSettingsHandler: activity.NewPointReviewSettingsHandler(pointReviewSettingsSvc),
 
 		memberHandler:      member.NewHandler(memberSvc),
 		reservationHandler: reservation.NewHandler(reservationSvc),
@@ -202,6 +209,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		couponConsoleHandler:      coupon.NewConsoleHandler(couponConsoleSvc),
 		printerConsoleHandler:     printer.NewConsoleHandler(printerConsoleSvc),
 		reservationConsoleHandler: reservation.NewConsoleHandler(reservationConsoleSvc),
+		orderStoreConsoleHandler:  order.NewStoreConsoleHandler(orderStoreConsoleSvc),
 
 		diagnosticsSvc:     diagnosticsSvc,
 		diagnosticsHandler: diagnostics.NewHandler(diagnosticsSvc),
