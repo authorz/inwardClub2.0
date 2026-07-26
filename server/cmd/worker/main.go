@@ -52,16 +52,17 @@ const vipMonthlyBenefitCron = "30 0 * * *"
 
 // Task type names mirror the scheduled jobs in the spec (§11).
 const (
-	TaskPaymentPostProcess  = "payment:post-process"
-	TaskOfflineExpire       = "offline-collection:expire"
-	TaskPrint               = "print:receipt"
-	TaskReservationExpire   = "reservation:expire"
-	TaskActivityOrderExpire = "activity-order:expire"
-	TaskTicketCouponExpire  = "ticket-coupon:expire"
-	TaskVipMonthlyBenefit   = "benefit:vip-monthly"
-	TaskRulePostProcess     = "rule:post-process"
-	TaskAssetPendingCleanup = "asset:pending-cleanup"
-	TaskReportRollup        = "report:rollup"
+	TaskPaymentPostProcess   = "payment:post-process"
+	TaskOfflineExpire        = "offline-collection:expire"
+	TaskPrint                = "print:receipt"
+	TaskReservationExpire    = "reservation:expire"
+	TaskSeatReservationReset = "reservation:seat-reset"
+	TaskActivityOrderExpire  = "activity-order:expire"
+	TaskTicketCouponExpire   = "ticket-coupon:expire"
+	TaskVipMonthlyBenefit    = "benefit:vip-monthly"
+	TaskRulePostProcess      = "rule:post-process"
+	TaskAssetPendingCleanup  = "asset:pending-cleanup"
+	TaskReportRollup         = "report:rollup"
 )
 
 func main() {
@@ -130,7 +131,9 @@ func run() error {
 	// Pure-DB expiry sweeps (spec §11). Each is built from just its repository —
 	// the sweeps only transition DB state and need no adapters. ticket/coupon
 	// covers both member-held vouchers: activity tickets and coupon entitlements.
-	reservationExpiry := reservation.NewExpiryService(reservation.NewRepository(database))
+	reservationRepo := reservation.NewRepository(database)
+	reservationExpiry := reservation.NewExpiryService(reservationRepo)
+	seatReset := reservation.NewSeatResetService(reservationRepo, businessLocation(cfg, log))
 	couponExpiry := coupon.NewExpiryService(coupon.NewRepository(database))
 	orderExpiry := order.NewExpiryService(order.NewRepository(database))
 	collectionExpiry := payment.NewCollectionExpiryService(payment.NewStoreRepository(database))
@@ -168,6 +171,8 @@ func run() error {
 			mux.HandleFunc(task, rollupHandler(log, rollupSvc))
 		case TaskReservationExpire:
 			mux.HandleFunc(task, sweepHandler(log, task, reservationExpiry.SweepExpired))
+		case TaskSeatReservationReset:
+			mux.HandleFunc(task, sweepHandler(log, task, seatReset.Sweep))
 		case TaskActivityOrderExpire:
 			mux.HandleFunc(task, sweepHandler(log, task, orderExpiry.SweepExpiredActivityOrders))
 		case TaskOfflineExpire:
@@ -195,6 +200,9 @@ func run() error {
 	if _, err := scheduler.Register(vipMonthlyBenefitCron, asynq.NewTask(TaskVipMonthlyBenefit, nil)); err != nil {
 		return fmt.Errorf("register benefit:vip-monthly schedule: %w", err)
 	}
+	if _, err := scheduler.Register("0 4 * * *", asynq.NewTask(TaskSeatReservationReset, nil)); err != nil {
+		return fmt.Errorf("register reservation:seat-reset schedule: %w", err)
+	}
 	// Expiry sweeps on their spec §11 cadence: per-minute expiries, hourly
 	// ticket/coupon and asset pending-cleanup. Each sweep is idempotent, so a
 	// missed or doubled tick is safe.
@@ -210,6 +218,9 @@ func run() error {
 
 	if _, err := client.Enqueue(asynq.NewTask(TaskReportRollup, nil)); err != nil {
 		log.Warn("startup report:rollup enqueue skipped", "error", err)
+	}
+	if _, err := client.Enqueue(asynq.NewTask(TaskSeatReservationReset, nil)); err != nil {
+		log.Warn("startup reservation:seat-reset enqueue skipped", "error", err)
 	}
 
 	log.Info("worker starting", "redis", cfg.RedisAddr, "tasks", len(allTasks()))
@@ -229,7 +240,7 @@ func businessLocation(cfg *config.Config, log *slog.Logger) *time.Location {
 
 func allTasks() []string {
 	return []string{
-		TaskPaymentPostProcess, TaskOfflineExpire, TaskPrint, TaskReservationExpire,
+		TaskPaymentPostProcess, TaskOfflineExpire, TaskPrint, TaskReservationExpire, TaskSeatReservationReset,
 		TaskActivityOrderExpire, TaskTicketCouponExpire, TaskVipMonthlyBenefit,
 		TaskRulePostProcess, TaskAssetPendingCleanup, TaskReportRollup,
 	}

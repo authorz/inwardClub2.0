@@ -61,12 +61,13 @@ type App struct {
 	adminHandler       *admin.Handler
 	reportingHandler   *reporting.Handler
 
-	storeConsoleHandler    *store.ConsoleHandler
-	bannerConsoleHandler   *store.BannerConsoleHandler
-	catalogConsoleHandler  *catalog.ConsoleHandler
-	activityConsoleHandler *activity.ConsoleHandler
-	couponConsoleHandler   *coupon.ConsoleHandler
-	printerConsoleHandler  *printer.ConsoleHandler
+	storeConsoleHandler       *store.ConsoleHandler
+	bannerConsoleHandler      *store.BannerConsoleHandler
+	catalogConsoleHandler     *catalog.ConsoleHandler
+	activityConsoleHandler    *activity.ConsoleHandler
+	couponConsoleHandler      *coupon.ConsoleHandler
+	printerConsoleHandler     *printer.ConsoleHandler
+	reservationConsoleHandler *reservation.ConsoleHandler
 
 	diagnosticsSvc     *diagnostics.Service
 	diagnosticsHandler *diagnostics.Handler
@@ -121,7 +122,6 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	walletPointsSvc := wallet.NewPointsService(wallet.NewPointsRepository(database, businessClock))
 	paymentRepo := payment.NewStoreRepository(database)
 	paymentStoreSvc := payment.NewStoreService(paymentRepo, offlineAcquirer)
-	paymentAdminSvc := payment.NewAdminService(paymentRepo)
 	activityStoreSvc := activity.NewStoreService(activity.NewStoreRepository(database), assetSvc)
 
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
@@ -131,9 +131,26 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		tokens, wechatLogin, authMembers, authAccounts,
 		memberTierAdapter{memberSvc}, assetSvc, authStaff,
 	)
-	reservationSvc := reservation.NewService(reservation.NewRepository(database))
+	paymentAdminSvc := payment.NewAdminService(
+		paymentRepo,
+		wechatPay,
+		offlineAcquirer,
+		authSvc,
+		cfg.WeChatPayAmountOverrideCent(),
+	)
+	reservationSvc := reservation.NewService(reservation.NewRepository(database), assetSvc, businessClock.Location())
 	couponSvc := coupon.NewService(coupon.NewRepository(database))
-	orderSvc := order.NewService(order.NewRepository(database), wechatPay, memberOpenIDAdapter{authMembers}, assetSvc)
+	wechatPayAmountOverrideCent := cfg.WeChatPayAmountOverrideCent()
+	if wechatPayAmountOverrideCent > 0 {
+		log.Warn("payment debug mode enabled", "wechatAmountCent", wechatPayAmountOverrideCent)
+	}
+	orderSvc := order.NewService(
+		order.NewRepository(database),
+		wechatPay,
+		memberOpenIDAdapter{authMembers},
+		assetSvc,
+		wechatPayAmountOverrideCent,
+	)
 	adminSvc := admin.NewService(
 		admin.NewRepository(database), storeProfileAdapter{storeSvc}, walletSvc, assetSvc,
 	)
@@ -146,6 +163,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
+	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database), assetSvc)
 
 	// Diagnostics: durable admin error-events feed backed by the error_events
 	// table (db/migrations 00018); the Capture middleware persists 5xx failures.
@@ -177,12 +195,13 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		adminHandler:       admin.NewHandler(adminSvc),
 		reportingHandler:   reporting.NewHandler(reportingSvc),
 
-		storeConsoleHandler:    store.NewConsoleHandler(storeConsoleSvc),
-		bannerConsoleHandler:   store.NewBannerConsoleHandler(bannerConsoleSvc),
-		catalogConsoleHandler:  catalog.NewConsoleHandler(catalogConsoleSvc),
-		activityConsoleHandler: activity.NewConsoleHandler(activityConsoleSvc),
-		couponConsoleHandler:   coupon.NewConsoleHandler(couponConsoleSvc),
-		printerConsoleHandler:  printer.NewConsoleHandler(printerConsoleSvc),
+		storeConsoleHandler:       store.NewConsoleHandler(storeConsoleSvc),
+		bannerConsoleHandler:      store.NewBannerConsoleHandler(bannerConsoleSvc),
+		catalogConsoleHandler:     catalog.NewConsoleHandler(catalogConsoleSvc),
+		activityConsoleHandler:    activity.NewConsoleHandler(activityConsoleSvc),
+		couponConsoleHandler:      coupon.NewConsoleHandler(couponConsoleSvc),
+		printerConsoleHandler:     printer.NewConsoleHandler(printerConsoleSvc),
+		reservationConsoleHandler: reservation.NewConsoleHandler(reservationConsoleSvc),
 
 		diagnosticsSvc:     diagnosticsSvc,
 		diagnosticsHandler: diagnostics.NewHandler(diagnosticsSvc),

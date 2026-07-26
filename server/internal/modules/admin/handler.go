@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -92,6 +93,19 @@ func (h *Handler) Activities(c *gin.Context) {
 // Orders handles GET /admin/orders.
 func (h *Handler) Orders(c *gin.Context) {
 	f := parseFilter(c)
+	f.Status = c.Query("orderStatus")
+	f.MemberNickname = c.Query("memberNickname")
+	f.MemberPhone = c.Query("memberPhone")
+	f.PaymentStatus = c.Query("paymentStatus")
+	f.PayChannel = c.Query("payChannel")
+	if raw := c.Query("storeId"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			httpx.Fail(c, apperr.Invalid("invalid storeId"))
+			return
+		}
+		f.StoreID = &id
+	}
 	views, total, err := h.svc.ListOrders(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -151,13 +165,53 @@ func (h *Handler) CreateWalletAdjustment(c *gin.Context) {
 // handled by the caller: the admin endpoint accepts an optional query param,
 // the store endpoint pins it from the JWT scope instead.
 func parseWalletLedgerFilter(c *gin.Context) (ListFilter, error) {
-	f := ListFilter{Page: httpx.ParsePage(c), AssetType: c.Query("assetType")}
+	f := ListFilter{
+		Page:           httpx.ParsePage(c),
+		LedgerID:       c.Query("id"),
+		AssetType:      c.Query("assetType"),
+		MemberNickname: c.Query("memberNickname"),
+		MemberPhone:    c.Query("memberPhone"),
+		Direction:      c.Query("direction"),
+		SourceType:     c.Query("sourceType"),
+		Status:         c.Query("status"),
+		ReasonKeyword:  c.Query("reason"),
+	}
+	switch f.AssetType {
+	case "", "points", "coins", "cash_balance", "growth_value":
+	default:
+		return ListFilter{}, apperr.Invalid("invalid assetType")
+	}
+	switch f.Direction {
+	case "", "credit", "debit":
+	default:
+		return ListFilter{}, apperr.Invalid("invalid direction")
+	}
+	switch f.Status {
+	case "", "completed", "pending", "approved", "rejected":
+	default:
+		return ListFilter{}, apperr.Invalid("invalid status")
+	}
 	if raw := c.Query("memberId"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
 			return ListFilter{}, apperr.Invalid("invalid memberId")
 		}
 		f.MemberID = &id
+	}
+	if raw := c.Query("createdFrom"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdFrom")
+		}
+		f.CreatedFrom = &parsed
+	}
+	if raw := c.Query("createdTo"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdTo")
+		}
+		before := parsed.Add(24 * time.Hour)
+		f.CreatedBefore = &before
 	}
 	return f, nil
 }
@@ -178,6 +232,7 @@ func (h *Handler) WalletLedger(c *gin.Context) {
 		}
 		f.StoreID = &id
 	}
+	f.IncludePointRequests = true
 	views, total, err := h.svc.ListWalletLedger(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -210,6 +265,13 @@ func (h *Handler) PaymentTransactions(c *gin.Context) {
 // result to a single store.
 func (h *Handler) Refunds(c *gin.Context) {
 	f := parseFilter(c)
+	f.RefundID = c.Query("id")
+	f.MemberNickname = c.Query("memberNickname")
+	f.MemberPhone = c.Query("memberPhone")
+	if f.Status != "" && f.Status != "succeeded" && f.Status != "failed" {
+		httpx.Fail(c, apperr.Invalid("invalid refund status"))
+		return
+	}
 	if raw := c.Query("storeId"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
@@ -217,6 +279,23 @@ func (h *Handler) Refunds(c *gin.Context) {
 			return
 		}
 		f.StoreID = &id
+	}
+	if raw := c.Query("operatedFrom"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			httpx.Fail(c, apperr.Invalid("invalid operatedFrom"))
+			return
+		}
+		f.OperatedFrom = &parsed
+	}
+	if raw := c.Query("operatedTo"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			httpx.Fail(c, apperr.Invalid("invalid operatedTo"))
+			return
+		}
+		before := parsed.Add(24 * time.Hour)
+		f.OperatedBefore = &before
 	}
 	views, total, err := h.svc.ListRefunds(c.Request.Context(), f)
 	if err != nil {

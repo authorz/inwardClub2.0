@@ -407,6 +407,25 @@ func (s *Service) authenticate(ctx context.Context, username, password string) (
 	return account, nil
 }
 
+// VerifyAccountPassword re-authenticates a back-office account before a
+// high-risk action such as issuing a refund.
+func (s *Service) VerifyAccountPassword(ctx context.Context, accountID int64, password string) error {
+	if strings.TrimSpace(password) == "" {
+		return apperr.Invalid("请输入管理员登录密码")
+	}
+	account, err := s.accounts.GetByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if account.Status != StatusActive {
+		return apperr.Forbidden("管理员账号已停用")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)) != nil {
+		return apperr.Forbidden("管理员登录密码错误")
+	}
+	return nil
+}
+
 func (s *Service) issueAccountToken(account Account, audience authn.Audience) (authn.TokenPair, error) {
 	pair, err := s.tokens.Issue(authn.Identity{
 		SubjectID:    account.ID,

@@ -5,11 +5,8 @@ import (
 	"time"
 )
 
-// noShowGrace is how long a booking lingers past its reserved time before the
-// reservation:expire sweep releases it as a no-show. It is intentionally
-// generous so a party that arrives late (and is then marked arrived) is never
-// expired out from under the store; the exact window is a business input
-// (spec §13) and is tuned here rather than in the SQL.
+// noShowGrace applies only to table-only bookings. Seat bookings remain occupied
+// until manual cancellation or the daily 04:00 SeatResetService sweep.
 const noShowGrace = 2 * time.Hour
 
 // ExpiryService runs the reservation:expire scheduled sweep (spec §11). It only

@@ -13,13 +13,18 @@ import (
 // Service provides reservation, waitlist and arrival operations for both the
 // mini program (member scope) and the store console (store scope).
 type Service struct {
-	repo Repository
-	now  func() time.Time
+	repo     Repository
+	assets   AssetResolver
+	location *time.Location
+	now      func() time.Time
 }
 
 // NewService builds the reservation service.
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now}
+func NewService(repo Repository, assets AssetResolver, location *time.Location) *Service {
+	if location == nil {
+		location = time.UTC
+	}
+	return &Service{repo: repo, assets: assets, location: location, now: time.Now}
 }
 
 // ListTables returns the store's tables for the availability view.
@@ -30,14 +35,18 @@ func (s *Service) ListTables(ctx context.Context, storeID int64) ([]TableView, e
 	}
 	views := make([]TableView, 0, len(tables))
 	for _, t := range tables {
-		views = append(views, tableView(t))
+		view := tableView(t)
+		if t.LayoutAssetID != nil && s.assets != nil {
+			view.LayoutURL, _ = s.assets.PublicURLByID(ctx, *t.LayoutAssetID)
+		}
+		views = append(views, view)
 	}
 	return views, nil
 }
 
 // ListSeats returns the store's seats for the availability view.
 func (s *Service) ListSeats(ctx context.Context, storeID int64) ([]SeatView, error) {
-	seats, err := s.repo.ListSeats(ctx, storeID)
+	seats, err := s.repo.ListSeats(ctx, storeID, s.latestSeatReset())
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +55,15 @@ func (s *Service) ListSeats(ctx context.Context, storeID int64) ([]SeatView, err
 		views = append(views, seatView(seat))
 	}
 	return views, nil
+}
+
+func (s *Service) latestSeatReset() time.Time {
+	now := s.now().In(s.location)
+	cutoff := time.Date(now.Year(), now.Month(), now.Day(), seatResetHour, 0, 0, 0, s.location)
+	if now.Before(cutoff) {
+		cutoff = cutoff.AddDate(0, 0, -1)
+	}
+	return cutoff.UTC()
 }
 
 // ListReservations returns the member's reservations, most recent first.
@@ -83,11 +101,19 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 	if req.PartySize <= 0 {
 		return ReservationView{}, apperr.Invalid("partySize must be positive")
 	}
+	dailyStart, dailyEnd := s.reservationDay()
+	exists, err := s.repo.HasMemberReservation(ctx, memberID, dailyStart, dailyEnd)
+	if err != nil {
+		return ReservationView{}, err
+	}
+	if exists {
+		return ReservationView{}, apperr.Conflict("你今天已经预约座位了")
+	}
 	if req.ReservedAt.IsZero() {
 		return ReservationView{}, apperr.Invalid("reservedAt is required")
 	}
 	if req.ReservedAt.Before(s.now()) {
-		return ReservationView{}, apperr.Invalid("reservedAt must be in the future")
+		return ReservationView{}, apperr.Invalid("预约时间必须晚于当前时间")
 	}
 
 	now := s.now().UTC()
@@ -104,12 +130,18 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	id, err := s.repo.CreateReservation(ctx, res)
+	id, err := s.repo.CreateReservation(ctx, res, dailyStart, dailyEnd)
 	if err != nil {
 		return ReservationView{}, err
 	}
 	res.ID = id
 	return reservationView(res), nil
+}
+
+func (s *Service) reservationDay() (time.Time, time.Time) {
+	start := s.latestSeatReset()
+	end := start.In(s.location).AddDate(0, 0, 1)
+	return start, end.UTC()
 }
 
 // GetReservation returns a single reservation owned by the member.

@@ -13,7 +13,7 @@ import (
 )
 
 func TestAdminServiceListChannelSettingsDefaults(t *testing.T) {
-	svc := NewAdminService(&memStoreRepo{})
+	svc := newTestAdminService(&memStoreRepo{})
 	views := svc.ListChannelSettings(context.Background())
 	if len(views) != 2 {
 		t.Fatalf("expected 2 default channels, got %d", len(views))
@@ -27,7 +27,7 @@ func TestAdminServiceListChannelSettingsDefaults(t *testing.T) {
 }
 
 func TestAdminServiceUpdateChannelSettingsRejectsUnknownChannel(t *testing.T) {
-	svc := NewAdminService(&memStoreRepo{})
+	svc := newTestAdminService(&memStoreRepo{})
 	_, err := svc.UpdateChannelSettings(context.Background(), UpdateChannelSettingsRequest{
 		Channels: []ChannelSetting{{Channel: "alipay", Enabled: false}},
 	})
@@ -37,7 +37,7 @@ func TestAdminServiceUpdateChannelSettingsRejectsUnknownChannel(t *testing.T) {
 }
 
 func TestAdminServiceUpdateChannelSettingsDisablesChannel(t *testing.T) {
-	svc := NewAdminService(&memStoreRepo{})
+	svc := newTestAdminService(&memStoreRepo{})
 	views, err := svc.UpdateChannelSettings(context.Background(), UpdateChannelSettingsRequest{
 		Channels: []ChannelSetting{{Channel: "wechat", Enabled: false}},
 	})
@@ -60,7 +60,7 @@ func TestAdminServiceUpdateChannelSettingsDisablesChannel(t *testing.T) {
 
 func TestAdminHandlerPaymentChannelSettingsRoundTrip(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := NewAdminService(&memStoreRepo{})
+	svc := newTestAdminService(&memStoreRepo{})
 	h := NewAdminHandler(svc)
 
 	r := gin.New()

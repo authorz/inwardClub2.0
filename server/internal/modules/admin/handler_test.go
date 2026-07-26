@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -94,6 +95,50 @@ func TestMembersPassesSearchAndSortAndReturnsExpandedFields(t *testing.T) {
 	}
 }
 
+func TestOrdersPassesFuzzySearchAndStoreFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/orders", h.Orders)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/orders?storeId=42&memberNickname=%E5%B0%8F%E6%98%8E&memberPhone=138&keyword=NO-2026&paymentStatus=paid&orderStatus=completed&payChannel=wechat",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.StoreID == nil || *repo.lastFilter.StoreID != 42 ||
+		repo.lastFilter.MemberNickname != "小明" ||
+		repo.lastFilter.MemberPhone != "138" ||
+		repo.lastFilter.Keyword != "NO-2026" ||
+		repo.lastFilter.PaymentStatus != "paid" ||
+		repo.lastFilter.Status != "completed" ||
+		repo.lastFilter.PayChannel != "wechat" {
+		t.Fatalf("unexpected order filters: %+v", repo.lastFilter)
+	}
+}
+
+func TestOrdersRejectsInvalidStoreID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := NewHandler(NewService(&fakeRepo{}, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/orders", h.Orders)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/orders?storeId=bad", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // TestStaffAccountsHandlerReturnsStaffAccounts guards against the console
 // endpoint GET /admin/staff-accounts regressing to admin_accounts data: the
 // fakeRepo returns distinguishable rows for ListAdminAccounts ("hq_admin")
@@ -165,6 +210,55 @@ func TestRefundsHandlerRejectsInvalidStoreID(t *testing.T) {
 	}
 }
 
+func TestRefundsHandlerPassesSearchAndTimeFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/refunds", h.Refunds)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/refunds?id=8&keyword=BO-20&memberNickname=%E5%B0%8F%E6%98%8E&memberPhone=138&storeId=42&status=succeeded&operatedFrom=2026-07-20T00%3A00%3A00Z&operatedTo=2026-07-21T00%3A00%3A00Z",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.RefundID != "8" ||
+		repo.lastFilter.Keyword != "BO-20" ||
+		repo.lastFilter.MemberNickname != "小明" ||
+		repo.lastFilter.MemberPhone != "138" ||
+		repo.lastFilter.StoreID == nil || *repo.lastFilter.StoreID != 42 ||
+		repo.lastFilter.Status != "succeeded" ||
+		repo.lastFilter.OperatedFrom == nil ||
+		repo.lastFilter.OperatedBefore == nil {
+		t.Fatalf("unexpected refund filters: %+v", repo.lastFilter)
+	}
+	wantBefore := time.Date(2026, 7, 22, 0, 0, 0, 0, time.UTC)
+	if !repo.lastFilter.OperatedBefore.Equal(wantBefore) {
+		t.Fatalf("expected inclusive end date before %v, got %v", wantBefore, repo.lastFilter.OperatedBefore)
+	}
+}
+
+func TestRefundsHandlerRejectsNonFinalStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := NewHandler(NewService(&fakeRepo{}, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/refunds", h.Refunds)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/refunds?status=pending", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // TestRefundOrdersAdminAliasReturnsSameData guards GET /admin/refund-orders
 // against drifting from GET /admin/refunds: both must hit the same handler.
 func TestRefundOrdersAdminAliasReturnsSameData(t *testing.T) {
@@ -211,6 +305,7 @@ func TestWalletLedgerHandlerReturnsEntries(t *testing.T) {
 	}
 	if repo.lastFilter.MemberID == nil || *repo.lastFilter.MemberID != 7 ||
 		repo.lastFilter.AssetType != "points" ||
+		!repo.lastFilter.IncludePointRequests ||
 		repo.lastFilter.StoreID == nil || *repo.lastFilter.StoreID != 42 {
 		t.Fatalf("expected filters propagated, got %+v", repo.lastFilter)
 	}
@@ -229,6 +324,57 @@ func TestWalletLedgerHandlerRejectsInvalidMemberID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWalletLedgerHandlerPassesRichSearchFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/wallet-ledger", h.WalletLedger)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/wallet-ledger?id=10&memberNickname=Sam&memberPhone=138&assetType=coins&direction=debit&sourceType=payment&status=completed&reason=order&createdFrom=2026-07-20T00%3A00%3A00Z&createdTo=2026-07-21T00%3A00%3A00Z",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.LedgerID != "10" ||
+		repo.lastFilter.MemberNickname != "Sam" ||
+		repo.lastFilter.MemberPhone != "138" ||
+		repo.lastFilter.AssetType != "coins" ||
+		repo.lastFilter.Direction != "debit" ||
+		repo.lastFilter.SourceType != "payment" ||
+		repo.lastFilter.Status != "completed" ||
+		repo.lastFilter.ReasonKeyword != "order" ||
+		repo.lastFilter.CreatedFrom == nil ||
+		repo.lastFilter.CreatedBefore == nil {
+		t.Fatalf("unexpected wallet filters: %+v", repo.lastFilter)
+	}
+	wantBefore := time.Date(2026, 7, 22, 0, 0, 0, 0, time.UTC)
+	if !repo.lastFilter.CreatedBefore.Equal(wantBefore) {
+		t.Fatalf("expected inclusive end date before %v, got %v", wantBefore, repo.lastFilter.CreatedBefore)
+	}
+}
+
+func TestWalletLedgerHandlerRejectsInvalidStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := NewHandler(NewService(&fakeRepo{}, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/wallet-ledger", h.WalletLedger)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/wallet-ledger?status=unknown", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}

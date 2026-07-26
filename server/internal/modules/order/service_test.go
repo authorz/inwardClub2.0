@@ -124,8 +124,23 @@ func (f fakeAssets) PublicURLByID(_ context.Context, _ int64) (string, error) {
 	return f.url, nil
 }
 
+type amountCapturingWeChatGateway struct {
+	*payment.FakeWeChatPayGateway
+	amountCent int64
+}
+
+func (g *amountCapturingWeChatGateway) CreateJSAPIPrepay(
+	ctx context.Context,
+	outTradeNo string,
+	amountCent int64,
+	openID, description string,
+) (payment.WeChatPrepay, error) {
+	g.amountCent = amountCent
+	return g.FakeWeChatPayGateway.CreateJSAPIPrepay(ctx, outTradeNo, amountCent, openID, description)
+}
+
 func newService(repo Repository) *Service {
-	return NewService(repo, payment.NewFakeWeChatPayGateway(), fakeMembers{openID: "open-123"}, fakeAssets{url: "https://cdn/poster.png"})
+	return NewService(repo, payment.NewFakeWeChatPayGateway(), fakeMembers{openID: "open-123"}, fakeAssets{url: "https://cdn/poster.png"}, 0)
 }
 
 func ptr(v int64) *int64 { return &v }
@@ -240,6 +255,24 @@ func TestCreateFoodOrderValidatesInput(t *testing.T) {
 	}
 }
 
+func TestCreateFoodOrderCombinesDuplicateLines(t *testing.T) {
+	svc := newService(newMemRepo())
+	view, err := svc.CreateFoodOrder(context.Background(), 10, "idem-duplicates", CreateFoodOrderRequest{
+		StoreID:   5,
+		PayMethod: PayMethodWeChat,
+		Items: []FoodLineItem{
+			{ItemID: 7, Quantity: 1},
+			{ItemID: 7, Quantity: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if len(view.Items) != 1 || view.Items[0].Quantity != 3 || view.TotalAmountCent != 3000 {
+		t.Fatalf("duplicate lines were not combined: %+v", view)
+	}
+}
+
 func TestWeChatJSAPIReturnsPrepay(t *testing.T) {
 	repo := newMemRepo()
 	repo.payments[1] = PaymentOrder{ID: 1, PaymentOrderNo: "PO-1", MemberID: ptr(10), AmountCent: 1500, PayMethod: PayMethodWeChat, Status: PaymentStatusPending}
@@ -251,6 +284,26 @@ func TestWeChatJSAPIReturnsPrepay(t *testing.T) {
 	}
 	if resp.PaymentOrderID != 1 || resp.Prepay.PrepayID == "" {
 		t.Fatalf("unexpected prepay response: %+v", resp)
+	}
+}
+
+func TestWeChatJSAPIDebugAmountKeepsBusinessAmount(t *testing.T) {
+	repo := newMemRepo()
+	repo.payments[1] = PaymentOrder{
+		ID: 1, PaymentOrderNo: "PO-DEBUG", MemberID: ptr(10),
+		AmountCent: 50000, PayMethod: PayMethodWeChat, Status: PaymentStatusPending,
+	}
+	gateway := &amountCapturingWeChatGateway{FakeWeChatPayGateway: payment.NewFakeWeChatPayGateway()}
+	svc := NewService(repo, gateway, fakeMembers{openID: "open-123"}, fakeAssets{}, 1)
+
+	if _, err := svc.CreateWeChatJSAPI(context.Background(), 10, 1); err != nil {
+		t.Fatalf("jsapi: %v", err)
+	}
+	if gateway.amountCent != 1 {
+		t.Fatalf("wechat amount = %d, want 1", gateway.amountCent)
+	}
+	if repo.payments[1].AmountCent != 50000 {
+		t.Fatalf("business amount = %d, want 50000", repo.payments[1].AmountCent)
 	}
 }
 

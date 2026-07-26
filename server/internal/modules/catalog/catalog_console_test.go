@@ -365,6 +365,24 @@ func TestConsoleService_CreateItem_AdminRejectsCategoryFromAnotherStore(t *testi
 	}
 }
 
+func TestConsoleService_CreateItem_RejectsNegativePointsReward(t *testing.T) {
+	storeID := int64(3)
+	categoryID := int64(8)
+	assetID := int64(9)
+	repo := &fakeConsoleRepo{categories: []Category{
+		{ID: categoryID, ScopeType: "store", StoreID: &storeID, Name: "Drinks"},
+	}}
+	svc := NewConsoleService(repo)
+
+	_, err := svc.CreateItem(context.Background(), adminScope(), ItemInput{
+		StoreID: &storeID, CategoryID: &categoryID, AssetID: &assetID,
+		Name: "Latte", PointsReward: -1, Status: "draft",
+	})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected negative points reward to be rejected, got %v", err)
+	}
+}
+
 func TestConsoleService_UpdateAndDeleteCategory(t *testing.T) {
 	repo := &fakeConsoleRepo{categories: []Category{{ID: 1, ScopeType: "store", Name: "Old", Status: "active"}}}
 	svc := NewConsoleService(repo)

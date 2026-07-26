@@ -55,6 +55,7 @@ type FoodOrder struct {
 	MemberID          int64
 	TableID           *int64
 	TotalAmountCent   int64
+	PointsEarned      int64
 	FulfillmentStatus string
 	Remark            string
 	CreatedAt         time.Time
@@ -70,6 +71,8 @@ type FoodOrderItem struct {
 	NameSnapshot  string
 	UnitPriceCent int64
 	Quantity      int
+	PayChannels   string
+	PointsReward  int64
 	SubtotalCent  int64
 }
 

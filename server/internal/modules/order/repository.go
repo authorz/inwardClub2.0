@@ -69,7 +69,7 @@ func (r *sqlRepository) ListFoodOrders(ctx context.Context, memberID int64, limi
 		return nil, 0, apperr.Internal(err)
 	}
 	const q = `SELECT id, business_order_id, store_id, member_id, table_id, total_amount_cent,
-		fulfillment_status, remark, created_at, updated_at
+		points_earned, fulfillment_status, remark, created_at, updated_at
 		FROM food_orders WHERE member_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, q, memberID, limit, offset)
 	if err != nil {
@@ -89,7 +89,7 @@ func (r *sqlRepository) ListFoodOrders(ctx context.Context, memberID int64, limi
 
 func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrder, []FoodOrderItem, error) {
 	const q = `SELECT id, business_order_id, store_id, member_id, table_id, total_amount_cent,
-		fulfillment_status, remark, created_at, updated_at
+		points_earned, fulfillment_status, remark, created_at, updated_at
 		FROM food_orders WHERE id = ? AND member_id = ?`
 	o, err := scanFoodOrder(r.db.QueryRowContext(ctx, q, id, memberID))
 	if err != nil {
@@ -99,7 +99,8 @@ func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (F
 		return FoodOrder{}, nil, apperr.Internal(err)
 	}
 	const iq = `SELECT id, food_order_id, item_id, variant_id, name_snapshot, unit_price_cent,
-		quantity, subtotal_cent FROM food_order_items WHERE food_order_id = ? ORDER BY id ASC`
+		quantity, points_reward_snapshot, subtotal_cent
+		FROM food_order_items WHERE food_order_id = ? ORDER BY id ASC`
 	rows, err := r.db.QueryContext(ctx, iq, o.ID)
 	if err != nil {
 		return FoodOrder{}, nil, apperr.Internal(err)
@@ -109,7 +110,7 @@ func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (F
 	for rows.Next() {
 		var it FoodOrderItem
 		if err := rows.Scan(&it.ID, &it.FoodOrderID, &it.ItemID, &it.VariantID, &it.NameSnapshot,
-			&it.UnitPriceCent, &it.Quantity, &it.SubtotalCent); err != nil {
+			&it.UnitPriceCent, &it.Quantity, &it.PointsReward, &it.SubtotalCent); err != nil {
 			return FoodOrder{}, nil, apperr.Internal(err)
 		}
 		items = append(items, it)
@@ -236,7 +237,7 @@ type scanner interface {
 func scanFoodOrder(s scanner) (FoodOrder, error) {
 	var o FoodOrder
 	err := s.Scan(&o.ID, &o.BusinessOrderID, &o.StoreID, &o.MemberID, &o.TableID,
-		&o.TotalAmountCent, &o.FulfillmentStatus, &o.Remark, &o.CreatedAt, &o.UpdatedAt)
+		&o.TotalAmountCent, &o.PointsEarned, &o.FulfillmentStatus, &o.Remark, &o.CreatedAt, &o.UpdatedAt)
 	return o, err
 }
 

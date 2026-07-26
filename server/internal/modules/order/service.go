@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/inwardclub/server/internal/modules/payment"
@@ -22,15 +23,25 @@ type AssetResolver interface {
 
 // Service provides the mini-program order read paths and payment initiation.
 type Service struct {
-	repo    Repository
-	wechat  payment.WeChatPayGateway
-	members MemberDirectory
-	assets  AssetResolver
+	repo                        Repository
+	wechat                      payment.WeChatPayGateway
+	members                     MemberDirectory
+	assets                      AssetResolver
+	wechatPayAmountOverrideCent int64
 }
 
 // NewService builds the order service.
-func NewService(repo Repository, wechat payment.WeChatPayGateway, members MemberDirectory, assets AssetResolver) *Service {
-	return &Service{repo: repo, wechat: wechat, members: members, assets: assets}
+func NewService(
+	repo Repository,
+	wechat payment.WeChatPayGateway,
+	members MemberDirectory,
+	assets AssetResolver,
+	wechatPayAmountOverrideCent int64,
+) *Service {
+	return &Service{
+		repo: repo, wechat: wechat, members: members, assets: assets,
+		wechatPayAmountOverrideCent: wechatPayAmountOverrideCent,
+	}
 }
 
 // ---- Food orders ----
@@ -68,6 +79,10 @@ func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey s
 	if len(req.Items) == 0 {
 		return FoodOrderView{}, apperr.Invalid("at least one item is required")
 	}
+	lines, err := normalizeFoodLines(req.Items)
+	if err != nil {
+		return FoodOrderView{}, err
+	}
 	now := time.Now().UTC()
 	o, items, po, err := s.repo.CreateFoodOrder(ctx, FoodOrderCreate{
 		MemberID:        memberID,
@@ -75,7 +90,7 @@ func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey s
 		TableID:         req.TableID,
 		Remark:          req.Remark,
 		PayMethod:       req.PayMethod,
-		Lines:           req.Items,
+		Lines:           lines,
 		BusinessOrderNo: newNo("BO", now),
 		PaymentOrderNo:  newNo("PO", now),
 		IdemKey:         idemKey,
@@ -89,6 +104,33 @@ func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey s
 	v.PaymentOrderNo = po.PaymentOrderNo
 	v.PayMethod = po.PayMethod
 	return v, nil
+}
+
+// normalizeFoodLines combines duplicate item/variant rows before inventory is
+// checked, preventing repeated lines from bypassing the aggregate stock limit.
+func normalizeFoodLines(lines []FoodLineItem) ([]FoodLineItem, error) {
+	out := make([]FoodLineItem, 0, len(lines))
+	index := make(map[string]int, len(lines))
+	for _, line := range lines {
+		if line.ItemID <= 0 || line.Quantity <= 0 {
+			return nil, apperr.Invalid("itemId and quantity must be positive")
+		}
+		variantID := int64(0)
+		if line.VariantID != nil {
+			if *line.VariantID <= 0 {
+				return nil, apperr.Invalid("variantId must be positive")
+			}
+			variantID = *line.VariantID
+		}
+		key := fmt.Sprintf("%d:%d", line.ItemID, variantID)
+		if i, ok := index[key]; ok {
+			out[i].Quantity += line.Quantity
+			continue
+		}
+		index[key] = len(out)
+		out = append(out, line)
+	}
+	return out, nil
 }
 
 // ---- Recharge orders ----
@@ -217,7 +259,11 @@ func (s *Service) CreateWeChatJSAPI(ctx context.Context, memberID, paymentOrderI
 	if err != nil {
 		return WeChatJSAPIResponse{}, err
 	}
-	prepay, err := s.wechat.CreateJSAPIPrepay(ctx, po.PaymentOrderNo, po.AmountCent, openID, "InwardClub order")
+	payAmountCent := po.AmountCent
+	if s.wechatPayAmountOverrideCent > 0 {
+		payAmountCent = s.wechatPayAmountOverrideCent
+	}
+	prepay, err := s.wechat.CreateJSAPIPrepay(ctx, po.PaymentOrderNo, payAmountCent, openID, "InwardClub order")
 	if err != nil {
 		return WeChatJSAPIResponse{}, apperr.From(err)
 	}
@@ -278,6 +324,7 @@ func foodOrderView(o FoodOrder, items []FoodOrderItem) FoodOrderView {
 		StoreID:           o.StoreID,
 		TableID:           o.TableID,
 		TotalAmountCent:   o.TotalAmountCent,
+		PointsEarned:      o.PointsEarned,
 		FulfillmentStatus: o.FulfillmentStatus,
 		Remark:            o.Remark,
 		CreatedAt:         o.CreatedAt,
@@ -289,6 +336,7 @@ func foodOrderView(o FoodOrder, items []FoodOrderItem) FoodOrderView {
 			Name:          it.NameSnapshot,
 			UnitPriceCent: it.UnitPriceCent,
 			Quantity:      it.Quantity,
+			PointsReward:  it.PointsReward,
 			SubtotalCent:  it.SubtotalCent,
 		})
 	}

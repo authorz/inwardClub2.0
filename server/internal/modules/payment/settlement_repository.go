@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/inwardclub/server/internal/modules/printer"
+	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/outbox"
@@ -100,6 +101,21 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		if err := markOrderPaid(ctx, tx, paymentID, businessID, now); err != nil {
 			return err
 		}
+		if orderType == "food" {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE food_orders SET fulfillment_status = 'preparing', updated_at = ?
+				 WHERE business_order_id = ?`,
+				now, businessID,
+			); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE business_orders SET order_status = 'preparing', updated_at = ? WHERE id = ?`,
+				now, businessID,
+			); err != nil {
+				return apperr.Internal(err)
+			}
+		}
 		if orderType == orderTypeRecharge {
 			if err := creditRechargeBenefit(ctx, tx, paymentID, businessID, memberID, amount, now); err != nil {
 				return err
@@ -115,6 +131,13 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				return apperr.Internal(err)
 			}
 		}
+		if orderType == "food" && memberID.Valid {
+			if _, err := wallet.GrantFoodOrderPoints(
+				ctx, tx, paymentID, businessID, memberID.Int64, now,
+			); err != nil {
+				return err
+			}
+		}
 		// A store-bound settled order (food / store activity) prints a receipt on
 		// the store's printer; a store-less order (recharge) prints nothing. The
 		// event rides this settlement transaction, so it can never fire on a rollback.
@@ -122,6 +145,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			if err := printer.WriteReceipt(ctx, tx, printer.Receipt{
 				StoreID:         storeID.Int64,
 				PaymentOrderID:  paymentID,
+				BusinessOrderID: businessID,
 				BusinessOrderNo: businessNo,
 				OrderType:       orderType,
 				AmountCent:      amount,

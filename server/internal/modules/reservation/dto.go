@@ -4,18 +4,22 @@ import "time"
 
 // TableView is the public table representation.
 type TableView struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Capacity int    `json:"capacity"`
-	Status   string `json:"status"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Capacity  int    `json:"capacity"`
+	LayoutURL string `json:"layoutUrl,omitempty"`
+	Status    string `json:"status"`
 }
 
 // SeatView is the public seat representation.
 type SeatView struct {
-	ID      int64  `json:"id"`
-	TableID *int64 `json:"tableId,omitempty"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
+	ID        int64  `json:"id"`
+	TableID   *int64 `json:"tableId,omitempty"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Nickname  string `json:"nickname,omitempty"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+	Gender    string `json:"gender,omitempty"`
 }
 
 // ReservationView is the member-facing reservation representation.
@@ -62,7 +66,10 @@ func tableView(t Table) TableView {
 }
 
 func seatView(s Seat) SeatView {
-	return SeatView{ID: s.ID, TableID: s.TableID, Name: s.Name, Status: s.Status}
+	return SeatView{
+		ID: s.ID, TableID: s.TableID, Name: s.Name, Status: s.Status,
+		Nickname: s.MemberNickname, AvatarURL: s.MemberAvatarURL, Gender: s.MemberGender,
+	}
 }
 
 func reservationView(r Reservation) ReservationView {

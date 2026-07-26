@@ -43,6 +43,7 @@ type FoodOrderView struct {
 	StoreID           int64               `json:"storeId"`
 	TableID           *int64              `json:"tableId,omitempty"`
 	TotalAmountCent   int64               `json:"totalAmountCent"`
+	PointsEarned      int64               `json:"pointsEarned"`
 	FulfillmentStatus string              `json:"fulfillmentStatus"`
 	Remark            string              `json:"remark,omitempty"`
 	Items             []FoodOrderItemView `json:"items,omitempty"`
@@ -61,6 +62,7 @@ type FoodOrderItemView struct {
 	Name          string `json:"name"`
 	UnitPriceCent int64  `json:"unitPriceCent"`
 	Quantity      int    `json:"quantity"`
+	PointsReward  int64  `json:"pointsReward"`
 	SubtotalCent  int64  `json:"subtotalCent"`
 }
 

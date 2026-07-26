@@ -647,6 +647,9 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	if in.AssetID == nil || *in.AssetID <= 0 {
 		return apperr.Invalid("catalog: assetId is required")
 	}
+	if in.PointsReward < 0 {
+		return apperr.Invalid("catalog: pointsReward cannot be negative")
+	}
 	payChannels, err := normalizePayChannels(in.PayChannels)
 	if err != nil {
 		return err

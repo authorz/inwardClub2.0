@@ -69,20 +69,23 @@ type Activity struct {
 // member display fields plus the order/payment status pair the order-center
 // pages render.
 type Order struct {
-	ID             int64
-	OrderNo        string
-	OrderType      string
-	StoreID        *int64
-	StoreName      string
-	MemberID       *int64
-	MemberNickname string
-	MemberPhone    string
-	TotalCent      int64
-	PayChannel     string
-	PaymentStatus  string
-	OrderStatus    string
-	CreatedAt      time.Time
-	CompletedAt    *time.Time
+	ID              int64
+	OrderNo         string
+	OrderType       string
+	StoreID         *int64
+	StoreName       string
+	MemberID        *int64
+	MemberNickname  string
+	MemberPhone     string
+	MemberAvatarURL string
+	PaymentOrderID  int64
+	TotalCent       int64
+	PayChannel      string
+	RefundStatus    string
+	PaymentStatus   string
+	OrderStatus     string
+	CreatedAt       time.Time
+	CompletedAt     *time.Time
 }
 
 // Member is the console read model for a member.
@@ -102,16 +105,24 @@ type Member struct {
 
 // WalletLedgerEntry is the console read model for a wallet_ledger_entries row.
 type WalletLedgerEntry struct {
-	ID           int64
-	MemberID     int64
-	AssetType    string
-	Direction    string
-	Amount       int64
-	BalanceAfter int64
-	Reason       string
-	SourceType   string
-	SourceID     *int64
-	CreatedAt    time.Time
+	ID              int64
+	RecordKey       string
+	MemberID        int64
+	MemberNickname  string
+	MemberPhone     string
+	MemberAvatarURL string
+	StoreID         *int64
+	StoreName       string
+	AssetType       string
+	Direction       string
+	Amount          int64
+	BalanceAfter    *int64
+	Status          string
+	Reason          string
+	SourceType      string
+	SourceID        *int64
+	RelatedOrderNo  string
+	CreatedAt       time.Time
 }
 
 // AuditLog is the console read model for an audit-trail row.
@@ -187,11 +198,18 @@ type Refund struct {
 	BusinessOrderID int64
 	StoreID         *int64
 	StoreName       string
+	BusinessOrderNo string
+	OrderAmountCent int64
+	MemberID        *int64
+	MemberNickname  string
+	MemberPhone     string
+	MemberAvatarURL string
 	AmountCent      int64
 	Channel         string
 	Status          string
 	Reason          string
-	CreatedAt       time.Time
+	OrderCreatedAt  time.Time
+	OperatedAt      time.Time
 }
 
 // AdminAccount is the console read model for a back-office login account

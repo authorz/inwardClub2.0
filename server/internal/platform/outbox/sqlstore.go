@@ -10,10 +10,9 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
-// SQLStore is the MySQL-backed Store. It claims due events with
-// FOR UPDATE SKIP LOCKED so multiple worker instances relay disjoint batches
-// without double-dispatching, and writes each event's terminal state inside the
-// same transaction as the claim.
+// SQLStore is the MySQL-backed Store. It claims due events with FOR UPDATE so
+// concurrent worker instances serialize claims without double-dispatching, and
+// writes each event's terminal state inside the same transaction as the claim.
 type SQLStore struct{ db *platdb.DB }
 
 // NewSQLStore builds the MySQL outbox store over the shared pool.
@@ -51,7 +50,7 @@ func claim(ctx context.Context, tx *sql.Tx, limit int, now time.Time) ([]Event, 
 		WHERE status = ? AND available_at <= ?
 		ORDER BY id
 		LIMIT ?
-		FOR UPDATE SKIP LOCKED`
+		FOR UPDATE`
 	rows, err := tx.QueryContext(ctx, q, StatusPending, now, limit)
 	if err != nil {
 		return nil, apperr.Internal(err)

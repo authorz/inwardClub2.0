@@ -76,10 +76,13 @@ type OrderView struct {
 	MemberID          *int64     `json:"memberId,omitempty"`
 	MemberNickname    string     `json:"memberNickname,omitempty"`
 	MemberPhone       string     `json:"memberPhone,omitempty"`
+	MemberAvatarURL   string     `json:"memberAvatarUrl,omitempty"`
 	MemberPhoneMasked string     `json:"memberPhoneMasked,omitempty"`
+	PaymentOrderID    int64      `json:"paymentOrderId,omitempty"`
 	TotalCent         int64      `json:"totalCent"`
 	AmountCent        int64      `json:"amountCent"`
 	PayChannel        string     `json:"payChannel,omitempty"`
+	RefundStatus      string     `json:"refundStatus,omitempty"`
 	PaymentStatus     string     `json:"paymentStatus"`
 	OrderStatus       string     `json:"orderStatus"`
 	Status            string     `json:"status"`
@@ -130,16 +133,24 @@ type WalletAdjustmentView struct {
 // WalletLedgerEntryView is the console list representation of a wallet ledger
 // entry, carrying the fields useful for audit review.
 type WalletLedgerEntryView struct {
-	ID           int64     `json:"id"`
-	MemberID     int64     `json:"memberId"`
-	AssetType    string    `json:"assetType"`
-	Direction    string    `json:"direction"`
-	Amount       int64     `json:"amount"`
-	BalanceAfter int64     `json:"balanceAfter"`
-	Reason       string    `json:"reason"`
-	SourceType   string    `json:"sourceType"`
-	SourceID     *int64    `json:"sourceId,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID              int64     `json:"id"`
+	RecordKey       string    `json:"recordKey"`
+	MemberID        int64     `json:"memberId"`
+	MemberNickname  string    `json:"memberNickname,omitempty"`
+	MemberPhone     string    `json:"memberPhone,omitempty"`
+	MemberAvatarURL string    `json:"memberAvatarUrl,omitempty"`
+	StoreID         *int64    `json:"storeId,omitempty"`
+	StoreName       string    `json:"storeName,omitempty"`
+	AssetType       string    `json:"assetType"`
+	Direction       string    `json:"direction"`
+	Amount          int64     `json:"amount"`
+	BalanceAfter    *int64    `json:"balanceAfter,omitempty"`
+	Status          string    `json:"status"`
+	Reason          string    `json:"reason"`
+	SourceType      string    `json:"sourceType"`
+	SourceID        *int64    `json:"sourceId,omitempty"`
+	RelatedOrderNo  string    `json:"relatedOrderNo,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 // PaymentTransactionView is the console list representation of a payment order.
@@ -166,11 +177,18 @@ type RefundView struct {
 	BusinessOrderID int64     `json:"businessOrderId"`
 	StoreID         *int64    `json:"storeId,omitempty"`
 	StoreName       string    `json:"storeName,omitempty"`
+	BusinessOrderNo string    `json:"businessOrderNo"`
+	OrderAmountCent int64     `json:"orderAmountCent"`
+	MemberID        *int64    `json:"memberId,omitempty"`
+	MemberNickname  string    `json:"memberNickname,omitempty"`
+	MemberPhone     string    `json:"memberPhone,omitempty"`
+	MemberAvatarURL string    `json:"memberAvatarUrl,omitempty"`
 	AmountCent      int64     `json:"amountCent"`
 	Channel         string    `json:"channel"`
 	Status          string    `json:"status"`
 	Reason          string    `json:"reason,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
+	OrderCreatedAt  time.Time `json:"orderCreatedAt"`
+	OperatedAt      time.Time `json:"operatedAt"`
 }
 
 // AuditLogView is the console list representation of an audit-trail row.

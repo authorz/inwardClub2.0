@@ -2,6 +2,7 @@ package payment
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -95,19 +96,51 @@ func (r *memStoreRepo) CreateRefundAdmin(_ context.Context, in RefundCreate) (Re
 	if !ok {
 		return Refund{}, apperr.NotFound("payment order not found")
 	}
+	if in.AmountCent > 500 {
+		return Refund{}, apperr.Invalid("退款金额不能超过订单实付金额")
+	}
+	for _, existing := range r.refunds {
+		if existing.PaymentOrderID == in.PaymentOrderID &&
+			(existing.Status == RefundProcessing || existing.Status == RefundSucceeded) {
+			return Refund{}, apperr.Conflict("该订单已发起退款")
+		}
+	}
 	r.nextID++
 	rf := Refund{
-		ID:             r.nextID,
-		RefundOrderNo:  in.RefundOrderNo,
-		PaymentOrderID: in.PaymentOrderID,
-		StoreID:        owner,
-		AmountCent:     in.AmountCent,
-		Status:         RefundPending,
-		Reason:         in.Reason,
-		CreatedAt:      in.Now,
+		ID:                r.nextID,
+		RefundOrderNo:     in.RefundOrderNo,
+		PaymentOrderID:    in.PaymentOrderID,
+		StoreID:           owner,
+		AmountCent:        in.AmountCent,
+		PaymentAmountCent: 500,
+		Channel:           "wechat",
+		Status:            RefundProcessing,
+		Reason:            in.Reason,
+		CreatedAt:         in.Now,
+		PaymentOrderNo:    "PO-55",
 	}
 	r.refunds = append(r.refunds, rf)
 	return rf, nil
+}
+
+func (r *memStoreRepo) CompleteRefundAdmin(_ context.Context, refundID int64, _ string, _ time.Time) (Refund, error) {
+	for i := range r.refunds {
+		if r.refunds[i].ID == refundID {
+			r.refunds[i].Status = RefundSucceeded
+			return r.refunds[i], nil
+		}
+	}
+	return Refund{}, apperr.NotFound("refund order not found")
+}
+
+func (r *memStoreRepo) FailRefundAdmin(_ context.Context, refundID int64, _ time.Time) error {
+	for i := range r.refunds {
+		if r.refunds[i].ID == refundID {
+			r.refunds[i].Status = RefundFailed
+			return nil
+		}
+	}
+	return apperr.NotFound("refund order not found")
 }
 
 func (r *memStoreRepo) ListPaymentOrders(_ context.Context, f PaymentOrderFilter) ([]PaymentOrder, int64, error) {
@@ -151,6 +184,45 @@ func newTestStoreService() (*StoreService, *memStoreRepo) {
 	svc := NewStoreService(repo, NewFakeOfflineAcquirer())
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
+}
+
+type allowAdminPasswords struct{}
+
+func (allowAdminPasswords) VerifyAccountPassword(_ context.Context, _ int64, password string) error {
+	if password != "secret" {
+		return apperr.Forbidden("管理员登录密码错误")
+	}
+	return nil
+}
+
+func newTestAdminService(repo StoreRepository) *AdminService {
+	return NewAdminService(
+		repo,
+		NewFakeWeChatPayGateway(),
+		NewFakeOfflineAcquirer(),
+		allowAdminPasswords{},
+		0,
+	)
+}
+
+type recordingWeChatGateway struct {
+	WeChatPayGateway
+	refundAmount int64
+	totalAmount  int64
+	refundErr    error
+}
+
+func (g *recordingWeChatGateway) Refund(
+	_ context.Context,
+	_, _ string,
+	amountCent, totalCent int64,
+) (string, error) {
+	g.refundAmount = amountCent
+	g.totalAmount = totalCent
+	if g.refundErr != nil {
+		return "", g.refundErr
+	}
+	return "WX-RF-1", nil
 }
 
 func TestCreateCollectionOrder(t *testing.T) {
@@ -307,21 +379,120 @@ func TestCreateRefundValidation(t *testing.T) {
 
 func TestAdminServiceCreateRefund(t *testing.T) {
 	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
-	svc := NewAdminService(repo)
+	svc := newTestAdminService(repo)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 
 	view, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
-		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged"})
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"})
 	if err != nil {
 		t.Fatalf("refund: %v", err)
 	}
-	if view.Status != RefundPending || view.StoreID != 7 {
+	if view.Status != RefundSucceeded || view.StoreID != 7 {
 		t.Fatalf("unexpected admin refund view: %+v", view)
 	}
 
 	if _, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "",
-		CreateRefundRequest{PaymentOrderID: 999, AmountCent: 500}); apperr.From(err).Code != apperr.CodeNotFound {
+		CreateRefundRequest{PaymentOrderID: 999, AmountCent: 500, Reason: "damaged", Password: "secret"}); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for unknown payment order, got %v", err)
+	}
+}
+
+func TestAdminServiceRefundRequiresValidPassword(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	svc := newTestAdminService(repo)
+
+	_, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "wrong"})
+	if apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("expected forbidden for wrong password, got %v", err)
+	}
+	if len(repo.refunds) != 0 {
+		t.Fatalf("wrong password must not create a refund, got %+v", repo.refunds)
+	}
+}
+
+func TestAdminServiceRefundRequiresReason(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	svc := newTestAdminService(repo)
+
+	_, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Password: "secret"})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid argument for empty reason, got %v", err)
+	}
+	if len(repo.refunds) != 0 {
+		t.Fatalf("empty reason must not create a refund, got %+v", repo.refunds)
+	}
+}
+
+func TestAdminServiceRefundUsesDebugGatewayAmount(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	gateway := &recordingWeChatGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
+	svc := NewAdminService(repo, gateway, NewFakeOfflineAcquirer(), allowAdminPasswords{}, 1)
+
+	view, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"})
+	if err != nil {
+		t.Fatalf("refund: %v", err)
+	}
+	if gateway.refundAmount != 1 || gateway.totalAmount != 1 {
+		t.Fatalf("expected debug gateway amount 1/1, got %d/%d", gateway.refundAmount, gateway.totalAmount)
+	}
+	if view.AmountCent != 500 {
+		t.Fatalf("business refund amount must remain 500, got %d", view.AmountCent)
+	}
+}
+
+func TestAdminServiceSupportsOnePartialRefund(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	gateway := &recordingWeChatGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
+	svc := NewAdminService(repo, gateway, NewFakeOfflineAcquirer(), allowAdminPasswords{}, 0)
+
+	view, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-partial",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 200, Reason: "partial", Password: "secret"})
+	if err != nil {
+		t.Fatalf("partial refund: %v", err)
+	}
+	if gateway.refundAmount != 200 || gateway.totalAmount != 500 {
+		t.Fatalf("expected partial/total gateway amount 200/500, got %d/%d", gateway.refundAmount, gateway.totalAmount)
+	}
+	if view.AmountCent != 200 || view.Status != RefundSucceeded {
+		t.Fatalf("unexpected partial refund view: %+v", view)
+	}
+
+	_, err = svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-duplicate",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 100, Reason: "again", Password: "secret"})
+	if apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected duplicate refund conflict, got %v", err)
+	}
+}
+
+func TestAdminServiceRejectsRefundAbovePaidAmount(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	svc := newTestAdminService(repo)
+
+	_, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-over",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 501, Reason: "too much", Password: "secret"})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected over-refund invalid argument, got %v", err)
+	}
+}
+
+func TestAdminServiceMarksRefundFailedWhenGatewayRejects(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{55: 7}}
+	gateway := &recordingWeChatGateway{
+		WeChatPayGateway: NewFakeWeChatPayGateway(),
+		refundErr:        errors.New("gateway rejected"),
+	}
+	svc := NewAdminService(repo, gateway, NewFakeOfflineAcquirer(), allowAdminPasswords{}, 0)
+
+	_, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"})
+	if err == nil {
+		t.Fatal("expected gateway error")
+	}
+	if len(repo.refunds) != 1 || repo.refunds[0].Status != RefundFailed {
+		t.Fatalf("expected failed refund persisted, got %+v", repo.refunds)
 	}
 }
 
@@ -363,7 +534,7 @@ func TestAdminServiceListPaymentOrders(t *testing.T) {
 		{ID: 1, PaymentOrderNo: "PO1", StoreID: storeIDPtr(7), Status: "paid"},
 		{ID: 2, PaymentOrderNo: "PO2", StoreID: storeIDPtr(99), Status: "paid"},
 	}
-	svc := NewAdminService(repo)
+	svc := newTestAdminService(repo)
 
 	views, total, err := svc.ListPaymentOrders(context.Background(), PaymentOrderFilter{Page: httpx.Page{Page: 1, PageSize: 20}})
 	if err != nil {
@@ -412,7 +583,7 @@ func TestAdminServiceGetPaymentOrder(t *testing.T) {
 	repo.paymentOrders = []PaymentOrder{
 		{ID: 1, PaymentOrderNo: "PO1", StoreID: storeIDPtr(7), Status: "paid"},
 	}
-	svc := NewAdminService(repo)
+	svc := newTestAdminService(repo)
 
 	view, err := svc.GetPaymentOrder(context.Background(), 1)
 	if err != nil {

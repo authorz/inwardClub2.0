@@ -57,8 +57,9 @@ func (f *fakeRepo) ListOrders(_ context.Context, flt ListFilter) ([]Order, int64
 	f.lastFilter = flt
 	return []Order{{
 		ID: 40, OrderNo: "NO-1", OrderType: "food", StoreName: "三里屯店",
-		MemberNickname: "Sam", MemberPhone: "13800001234", TotalCent: 999,
-		PayChannel: "wechat", PaymentStatus: "paid", OrderStatus: "completed",
+		MemberNickname: "Sam", MemberPhone: "13800001234",
+		MemberAvatarURL: "https://cdn.test/member.webp", PaymentOrderID: 80, TotalCent: 999,
+		PayChannel: "wechat", RefundStatus: "processing", PaymentStatus: "paid", OrderStatus: "completed",
 	}}, 1, nil
 }
 func (f *fakeRepo) ListMembers(_ context.Context, flt ListFilter) ([]Member, int64, error) {
@@ -119,9 +120,15 @@ func (f *fakeRepo) ListWalletLedger(_ context.Context, flt ListFilter) ([]Wallet
 		return nil, 0, f.err
 	}
 	sourceID := int64(999)
+	balanceAfter := int64(150)
 	return []WalletLedgerEntry{{
-		ID: 100, MemberID: 7, AssetType: "points", Direction: "credit", Amount: 50,
-		BalanceAfter: 150, Reason: "sign_in", SourceType: "sign_in", SourceID: &sourceID,
+		ID: 100, RecordKey: "ledger:100",
+		MemberID: 7, MemberNickname: "Sam", MemberPhone: "13800001234",
+		MemberAvatarURL: "https://cdn.test/member.webp",
+		AssetType:       "points", Direction: "credit", Amount: 50,
+		BalanceAfter: &balanceAfter, Status: "completed",
+		Reason: "sign_in", SourceType: "sign_in", SourceID: &sourceID,
+		RelatedOrderNo: "BO-1",
 	}}, 1, nil
 }
 
@@ -137,7 +144,15 @@ func (f *fakeRepo) ListRefunds(_ context.Context, flt ListFilter) ([]Refund, int
 	if f.err != nil {
 		return nil, 0, f.err
 	}
-	return []Refund{{ID: 85, RefundOrderNo: "RF-1", PaymentOrderID: 80, AmountCent: 500, Status: "pending"}}, 1, nil
+	return []Refund{{
+		ID: 85, RefundOrderNo: "RF-1", PaymentOrderID: 80,
+		BusinessOrderNo: "BO-1", OrderAmountCent: 900,
+		MemberNickname: "Sam", MemberPhone: "13800001234",
+		MemberAvatarURL: "https://cdn.test/member.webp",
+		AmountCent:      500, Status: "succeeded",
+		OrderCreatedAt: time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC),
+		OperatedAt:     time.Date(2026, 7, 21, 11, 0, 0, 0, time.UTC),
+	}}, 1, nil
 }
 func (f *fakeRepo) ListAuditLogs(_ context.Context, flt ListFilter) ([]AuditLog, int64, error) {
 	f.lastFilter = flt
@@ -621,11 +636,13 @@ func TestListOrdersMapsOrderCenterReadModel(t *testing.T) {
 		t.Fatalf("unexpected amount/id aliases: %+v", v)
 	}
 	if v.OrderType != "food" || v.StoreName != "三里屯店" || v.PaymentStatus != "paid" ||
-		v.OrderStatus != "completed" || v.Status != "completed" {
+		v.RefundStatus != "processing" || v.OrderStatus != "completed" || v.Status != "completed" {
 		t.Fatalf("unexpected order-center fields: %+v", v)
 	}
 	// memberPhone is exposed raw for HQ; memberPhoneMasked hides the middle digits.
-	if v.MemberPhone != "13800001234" || v.MemberPhoneMasked != "138****1234" || v.MemberNickname != "Sam" {
+	if v.MemberPhone != "13800001234" || v.MemberPhoneMasked != "138****1234" ||
+		v.MemberNickname != "Sam" || v.MemberAvatarURL != "https://cdn.test/member.webp" ||
+		v.PaymentOrderID != 80 {
 		t.Fatalf("unexpected member fields: %+v", v)
 	}
 }
@@ -704,7 +721,11 @@ func TestListRefundsMapsAndPassesTotal(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("expected total 1, got %d", total)
 	}
-	if len(views) != 1 || views[0].RefundOrderNo != "RF-1" {
+	if len(views) != 1 || views[0].RefundOrderNo != "RF-1" ||
+		views[0].BusinessOrderNo != "BO-1" || views[0].OrderAmountCent != 900 ||
+		views[0].MemberNickname != "Sam" ||
+		views[0].MemberAvatarURL != "https://cdn.test/member.webp" ||
+		views[0].OperatedAt.IsZero() {
 		t.Fatalf("unexpected views: %+v", views)
 	}
 }
@@ -733,7 +754,12 @@ func TestListWalletLedgerMapsAndPassesTotal(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("expected total 1, got %d", total)
 	}
-	if len(views) != 1 || views[0].MemberID != 7 || views[0].AssetType != "points" || views[0].BalanceAfter != 150 {
+	if len(views) != 1 || views[0].MemberID != 7 || views[0].AssetType != "points" ||
+		views[0].BalanceAfter == nil || *views[0].BalanceAfter != 150 ||
+		views[0].Status != "completed" || views[0].RecordKey != "ledger:100" ||
+		views[0].MemberNickname != "Sam" ||
+		views[0].MemberAvatarURL != "https://cdn.test/member.webp" ||
+		views[0].RelatedOrderNo != "BO-1" {
 		t.Fatalf("unexpected views: %+v", views)
 	}
 }

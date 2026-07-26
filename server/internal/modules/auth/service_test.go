@@ -121,6 +121,28 @@ func newTestService() (*Service, *memMemberRepo, *memAccountRepo) {
 	return NewService(mgr, NewFakeWeChatClient(""), members, accounts, nil, nil), members, accounts
 }
 
+func TestVerifyAccountPassword(t *testing.T) {
+	svc, _, accounts := newTestService()
+	ctx := context.Background()
+
+	if err := svc.VerifyAccountPassword(ctx, 1, "secret"); err != nil {
+		t.Fatalf("expected valid password, got %v", err)
+	}
+	if err := svc.VerifyAccountPassword(ctx, 1, "wrong"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("expected forbidden for wrong password, got %v", err)
+	}
+	if err := svc.VerifyAccountPassword(ctx, 1, " "); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid argument for empty password, got %v", err)
+	}
+
+	account := accounts.byID[1]
+	account.Status = StatusDisabled
+	accounts.byID[1] = account
+	if err := svc.VerifyAccountPassword(ctx, 1, "secret"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("expected forbidden for disabled account, got %v", err)
+	}
+}
+
 // stubTierResolver is a configurable MemberTierResolver for exercising the "me"
 // profile tier enrichment without the member module.
 type stubTierResolver struct {

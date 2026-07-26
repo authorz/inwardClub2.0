@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strconv"
 	"strings"
+	"time"
 
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -22,6 +23,24 @@ type ListFilter struct {
 	Keyword   string
 	SortBy    string
 	SortOrder string
+	// Order-center member refinements are independent so nickname, phone and
+	// order number can each be fuzzy-matched.
+	MemberNickname string
+	MemberPhone    string
+	PaymentStatus  string
+	PayChannel     string
+	RefundID       string
+	OperatedFrom   *time.Time
+	OperatedBefore *time.Time
+	LedgerID       string
+	Direction      string
+	SourceType     string
+	ReasonKeyword  string
+	CreatedFrom    *time.Time
+	CreatedBefore  *time.Time
+	// IncludePointRequests is enabled only by the headquarters wallet ledger.
+	// Store-console wallet reads retain their existing settled-ledger semantics.
+	IncludePointRequests bool
 	// MemberID and AssetType additionally narrow the wallet ledger console read.
 	MemberID  *int64
 	AssetType string
@@ -47,10 +66,9 @@ type Repository interface {
 	// supported) across all members (not store-scoped, not order-gated) so a
 	// newly-registered member can be located for staff binding.
 	SearchMembersByPhone(ctx context.Context, phone string) ([]Member, error)
-	// ListWalletLedger returns a page of wallet_ledger_entries rows. A nil
-	// f.StoreID means no scope filter (admin console); a set f.StoreID pins the
-	// query to members with at least one business order at that store, mirroring
-	// ListMembers' scope (the ledger table itself carries no store column).
+	// ListWalletLedger returns settled wallet changes plus point deposit and
+	// withdrawal applications. A set f.StoreID filters records attributed to
+	// that store.
 	ListWalletLedger(ctx context.Context, f ListFilter) ([]WalletLedgerEntry, int64, error)
 	ListPaymentTransactions(ctx context.Context, f ListFilter) ([]PaymentTransaction, int64, error)
 	ListRefunds(ctx context.Context, f ListFilter) ([]Refund, int64, error)
@@ -235,9 +253,40 @@ func (r *sqlRepository) ListActivities(ctx context.Context, f ListFilter) ([]Act
 }
 
 func (r *sqlRepository) ListOrders(ctx context.Context, f ListFilter) ([]Order, int64, error) {
-	where, args := filterClauses(f, "bo.store_id", "bo.order_status", "bo.business_order_no")
+	where := "1 = 1"
+	var args []any
+	if f.StoreID != nil {
+		where += " AND bo.store_id = ?"
+		args = append(args, *f.StoreID)
+	}
+	if f.Status != "" {
+		where += " AND bo.order_status = ?"
+		args = append(args, f.Status)
+	}
+	if f.PaymentStatus != "" {
+		where += " AND bo.payment_status = ?"
+		args = append(args, f.PaymentStatus)
+	}
+	if f.PayChannel != "" {
+		where += ` AND COALESCE((SELECT po.pay_method FROM payment_orders po
+			WHERE po.business_order_id = bo.id ORDER BY po.id DESC LIMIT 1), '') = ?`
+		args = append(args, f.PayChannel)
+	}
+	if f.Keyword != "" {
+		where += " AND bo.business_order_no LIKE ?"
+		args = append(args, "%"+f.Keyword+"%")
+	}
+	if f.MemberNickname != "" {
+		where += " AND m.nickname LIKE ?"
+		args = append(args, "%"+f.MemberNickname+"%")
+	}
+	if f.MemberPhone != "" {
+		where += " AND m.phone LIKE ?"
+		args = append(args, "%"+f.MemberPhone+"%")
+	}
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM business_orders bo WHERE `+where, args...).Scan(&total); err != nil {
+	countQ := `SELECT COUNT(*) FROM business_orders bo LEFT JOIN members m ON m.id = bo.member_id WHERE ` + where
+	if err := r.db.QueryRowContext(ctx, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	// pay_channel is resolved from the latest payment order; completed_at is the
@@ -245,8 +294,11 @@ func (r *sqlRepository) ListOrders(ctx context.Context, f ListFilter) ([]Order, 
 	// store/member display fields are left-joined so headquarters and store-scoped
 	// (member_id may be null) rows both list.
 	q := `SELECT bo.id, bo.business_order_no, bo.order_type, bo.store_id, COALESCE(s.name, ''),
-			bo.member_id, COALESCE(m.nickname, ''), COALESCE(m.phone, ''), bo.total_amount_cent,
+			bo.member_id, COALESCE(m.nickname, ''), COALESCE(m.phone, ''), COALESCE(m.avatar_url, ''), bo.total_amount_cent,
+			COALESCE((SELECT po.id FROM payment_orders po WHERE po.business_order_id = bo.id ORDER BY po.id DESC LIMIT 1), 0),
 			COALESCE((SELECT po.pay_method FROM payment_orders po WHERE po.business_order_id = bo.id ORDER BY po.id DESC LIMIT 1), ''),
+			COALESCE((SELECT ro.status FROM refund_orders ro
+				WHERE ro.business_order_id = bo.id ORDER BY ro.id DESC LIMIT 1), ''),
 			bo.payment_status, bo.order_status, bo.created_at,
 			CASE WHEN bo.payment_status = 'paid' THEN bo.updated_at ELSE NULL END
 		FROM business_orders bo
@@ -263,8 +315,9 @@ func (r *sqlRepository) ListOrders(ctx context.Context, f ListFilter) ([]Order, 
 	for rows.Next() {
 		var o Order
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.OrderType, &o.StoreID, &o.StoreName,
-			&o.MemberID, &o.MemberNickname, &o.MemberPhone, &o.TotalCent,
-			&o.PayChannel, &o.PaymentStatus, &o.OrderStatus, &o.CreatedAt, &o.CompletedAt); err != nil {
+			&o.MemberID, &o.MemberNickname, &o.MemberPhone, &o.MemberAvatarURL, &o.TotalCent,
+			&o.PaymentOrderID, &o.PayChannel, &o.RefundStatus, &o.PaymentStatus,
+			&o.OrderStatus, &o.CreatedAt, &o.CompletedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, o)
@@ -306,17 +359,58 @@ func (r *sqlRepository) ListPaymentTransactions(ctx context.Context, f ListFilte
 }
 
 func (r *sqlRepository) ListRefunds(ctx context.Context, f ListFilter) ([]Refund, int64, error) {
-	where, args := filterClauses(f, "ro.store_id", "ro.status", "ro.refund_order_no")
+	where := "ro.status IN (?, ?)"
+	args := []any{"succeeded", "failed"}
+	if f.RefundID != "" {
+		where += " AND CAST(ro.id AS CHAR) LIKE ?"
+		args = append(args, "%"+f.RefundID+"%")
+	}
+	if f.Keyword != "" {
+		where += " AND bo.business_order_no LIKE ?"
+		args = append(args, "%"+f.Keyword+"%")
+	}
+	if f.MemberNickname != "" {
+		where += " AND m.nickname LIKE ?"
+		args = append(args, "%"+f.MemberNickname+"%")
+	}
+	if f.MemberPhone != "" {
+		where += " AND m.phone LIKE ?"
+		args = append(args, "%"+f.MemberPhone+"%")
+	}
+	if f.StoreID != nil {
+		where += " AND ro.store_id = ?"
+		args = append(args, *f.StoreID)
+	}
+	if f.Status != "" {
+		where += " AND ro.status = ?"
+		args = append(args, f.Status)
+	}
+	if f.OperatedFrom != nil {
+		where += " AND ro.updated_at >= ?"
+		args = append(args, f.OperatedFrom.UTC())
+	}
+	if f.OperatedBefore != nil {
+		where += " AND ro.updated_at < ?"
+		args = append(args, f.OperatedBefore.UTC())
+	}
 	var total int64
-	countQ := `SELECT COUNT(*) FROM refund_orders ro WHERE ` + where
+	countQ := `SELECT COUNT(*)
+		FROM refund_orders ro
+		JOIN business_orders bo ON bo.id = ro.business_order_id
+		LEFT JOIN members m ON m.id = bo.member_id
+		WHERE ` + where
 	if err := r.db.QueryRowContext(ctx, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	q := `SELECT ro.id, ro.refund_order_no, ro.payment_order_id, ro.business_order_id,
-			ro.store_id, COALESCE(s.name,''), ro.amount_cent, ro.channel, ro.status, ro.reason, ro.created_at
+			ro.store_id, COALESCE(s.name,''), bo.business_order_no, bo.total_amount_cent,
+			bo.member_id, COALESCE(m.nickname,''), COALESCE(m.phone,''), COALESCE(m.avatar_url,''),
+			ro.amount_cent, ro.channel, ro.status, ro.reason, bo.created_at, ro.updated_at
 		FROM refund_orders ro
+		JOIN business_orders bo ON bo.id = ro.business_order_id
 		LEFT JOIN stores s ON s.id = ro.store_id
-		WHERE ` + where + ` ORDER BY ro.created_at DESC LIMIT ? OFFSET ?`
+		LEFT JOIN members m ON m.id = bo.member_id
+		WHERE ` + where + ` ORDER BY ro.updated_at DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -327,7 +421,10 @@ func (r *sqlRepository) ListRefunds(ctx context.Context, f ListFilter) ([]Refund
 	for rows.Next() {
 		var rf Refund
 		if err := rows.Scan(&rf.ID, &rf.RefundOrderNo, &rf.PaymentOrderID, &rf.BusinessOrderID,
-			&rf.StoreID, &rf.StoreName, &rf.AmountCent, &rf.Channel, &rf.Status, &rf.Reason, &rf.CreatedAt); err != nil {
+			&rf.StoreID, &rf.StoreName, &rf.BusinessOrderNo, &rf.OrderAmountCent,
+			&rf.MemberID, &rf.MemberNickname, &rf.MemberPhone, &rf.MemberAvatarURL,
+			&rf.AmountCent, &rf.Channel, &rf.Status, &rf.Reason,
+			&rf.OrderCreatedAt, &rf.OperatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, rf)
@@ -471,34 +568,117 @@ func (r *sqlRepository) SearchMembersByPhone(ctx context.Context, phone string) 
 	return out, rows.Err()
 }
 
-// ListWalletLedger lists wallet_ledger_entries rows, optionally narrowed by
-// member, asset type, and store scope. Store scope is applied via an EXISTS
-// against business_orders (member has a business order at that store),
-// mirroring ListMembers/GetMember since the ledger table has no store column.
+// ListWalletLedger combines settled wallet balance changes with point deposit
+// and withdrawal applications. Pending/rejected applications intentionally
+// carry a NULL balance_after because they did not change the member's wallet.
 func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]WalletLedgerEntry, int64, error) {
 	where := "1 = 1"
 	var args []any
+	if f.LedgerID != "" {
+		where += " AND CAST(entry.id AS CHAR) LIKE ?"
+		args = append(args, "%"+f.LedgerID+"%")
+	}
 	if f.MemberID != nil {
-		where += " AND wle.member_id = ?"
+		where += " AND entry.member_id = ?"
 		args = append(args, *f.MemberID)
 	}
 	if f.AssetType != "" {
-		where += " AND wle.asset_type = ?"
+		where += " AND entry.asset_type = ?"
 		args = append(args, f.AssetType)
 	}
+	if f.MemberNickname != "" {
+		where += " AND m.nickname LIKE ?"
+		args = append(args, "%"+f.MemberNickname+"%")
+	}
+	if f.MemberPhone != "" {
+		where += " AND m.phone LIKE ?"
+		args = append(args, "%"+f.MemberPhone+"%")
+	}
+	if f.Direction != "" {
+		where += " AND entry.direction = ?"
+		args = append(args, f.Direction)
+	}
+	if f.SourceType != "" {
+		where += " AND entry.source_type LIKE ?"
+		args = append(args, "%"+f.SourceType+"%")
+	}
+	if f.Status != "" {
+		where += " AND entry.status = ?"
+		args = append(args, f.Status)
+	}
+	if f.ReasonKeyword != "" {
+		where += " AND entry.reason LIKE ?"
+		args = append(args, "%"+f.ReasonKeyword+"%")
+	}
+	if f.CreatedFrom != nil {
+		where += " AND entry.created_at >= ?"
+		args = append(args, f.CreatedFrom.UTC())
+	}
+	if f.CreatedBefore != nil {
+		where += " AND entry.created_at < ?"
+		args = append(args, f.CreatedBefore.UTC())
+	}
 	if f.StoreID != nil {
-		where += " AND EXISTS (SELECT 1 FROM business_orders bo WHERE bo.member_id = wle.member_id AND bo.store_id = ?)"
+		where += " AND entry.store_id = ?"
 		args = append(args, *f.StoreID)
 	}
+
+	const settledEntries = `SELECT wle.id, CONCAT('ledger:', wle.id) AS record_key,
+			wle.member_id, wle.asset_type, wle.direction, wle.amount,
+			wle.balance_after, 'completed' AS status, wle.reason,
+			wle.source_type, wle.source_id,
+			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
+				food_bo.store_id) AS store_id,
+			COALESCE(payment_bo.business_order_no, recharge_bo.business_order_no,
+				refund_bo.business_order_no, food_bo.business_order_no, '') AS related_order_no,
+			wle.created_at
+		FROM wallet_ledger_entries wle
+		LEFT JOIN payment_orders po
+			ON wle.source_type = 'payment_order' AND po.id = wle.source_id
+		LEFT JOIN business_orders payment_bo ON payment_bo.id = po.business_order_id
+		LEFT JOIN business_orders recharge_bo
+			ON wle.source_type IN ('recharge_order', 'recharge_growth')
+			AND recharge_bo.id = wle.source_id
+		LEFT JOIN refund_orders ro
+			ON wle.source_type = 'refund_order' AND ro.id = wle.source_id
+		LEFT JOIN business_orders refund_bo ON refund_bo.id = ro.business_order_id
+		LEFT JOIN business_orders food_bo
+			ON wle.source_type = 'food_order' AND food_bo.id = wle.source_id`
+	const pointRequestEntries = `
+		UNION ALL SELECT ps.id, CONCAT('point_saving:', ps.id), ps.member_id, 'points',
+			'credit', ps.points, NULL, ps.status,
+			CASE WHEN ps.remark = '' THEN 'point_saving' ELSE ps.remark END,
+			'point_saving', ps.id, ps.store_id, '', ps.created_at
+		FROM point_savings ps
+		UNION ALL SELECT pw.id, CONCAT('point_withdrawal:', pw.id), pw.member_id, 'points',
+			'debit', pw.points, NULL, pw.status,
+			CASE WHEN pw.remark = '' THEN 'point_withdrawal' ELSE pw.remark END,
+			'point_withdrawal', pw.id, pw.store_id, '', pw.created_at
+		FROM point_withdrawals pw`
+	entries := "(" + settledEntries
+	if f.IncludePointRequests {
+		entries += pointRequestEntries
+	}
+	entries += ") entry"
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM wallet_ledger_entries wle WHERE `+where, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)
+		FROM `+entries+`
+		JOIN members m ON m.id = entry.member_id
+		LEFT JOIN stores s ON s.id = entry.store_id
+		WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT wle.id, wle.member_id, wle.asset_type, wle.direction, wle.amount, wle.balance_after,
-			wle.reason, wle.source_type, wle.source_id, wle.created_at
-		FROM wallet_ledger_entries wle WHERE ` + where + ` ORDER BY wle.id DESC LIMIT ? OFFSET ?`
-	args = append(args, f.Page.Limit(), f.Page.Offset())
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	q := `SELECT entry.id, entry.record_key, entry.member_id,
+			COALESCE(m.nickname, ''), COALESCE(m.phone, ''), COALESCE(m.avatar_url, ''),
+			entry.store_id, COALESCE(s.name, ''), entry.asset_type, entry.direction,
+			entry.amount, entry.balance_after, entry.status, entry.reason,
+			entry.source_type, entry.source_id, entry.related_order_no, entry.created_at
+		FROM ` + entries + `
+		JOIN members m ON m.id = entry.member_id
+		LEFT JOIN stores s ON s.id = entry.store_id
+		WHERE ` + where + ` ORDER BY entry.created_at DESC, entry.record_key DESC LIMIT ? OFFSET ?`
+	queryArgs := append(append([]any(nil), args...), f.Page.Limit(), f.Page.Offset())
+	rows, err := r.db.QueryContext(ctx, q, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -506,8 +686,10 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 	out := make([]WalletLedgerEntry, 0)
 	for rows.Next() {
 		var e WalletLedgerEntry
-		if err := rows.Scan(&e.ID, &e.MemberID, &e.AssetType, &e.Direction, &e.Amount, &e.BalanceAfter,
-			&e.Reason, &e.SourceType, &e.SourceID, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.RecordKey, &e.MemberID, &e.MemberNickname, &e.MemberPhone,
+			&e.MemberAvatarURL, &e.StoreID, &e.StoreName, &e.AssetType, &e.Direction,
+			&e.Amount, &e.BalanceAfter, &e.Status, &e.Reason, &e.SourceType,
+			&e.SourceID, &e.RelatedOrderNo, &e.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, e)

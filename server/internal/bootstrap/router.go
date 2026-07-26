@@ -157,7 +157,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/error-events", a.diagnosticsHandler.ListErrorEvents)
 	p.GET("/refunds", a.adminHandler.Refunds)
 	p.GET("/refund-orders", a.adminHandler.Refunds)
-	p.POST("/refunds", a.paymentAdminHandler.CreateRefund)
+	p.POST("/refunds", idempotency.Require(), a.paymentAdminHandler.CreateRefund)
 	p.GET("/members", a.adminHandler.Members)
 	p.GET("/member-lookup", a.adminHandler.AdminLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.MemberDetail)
@@ -232,6 +232,18 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.POST("/banners", a.bannerConsoleHandler.AdminCreate)
 	p.PATCH("/banners/:id", a.bannerConsoleHandler.AdminUpdate)
 	p.DELETE("/banners/:id", a.bannerConsoleHandler.AdminDelete)
+
+	// Tables and seats (cross-store resources; seats always inherit their table's store).
+	p.GET("/tables", a.reservationConsoleHandler.ListTables)
+	p.GET("/tables/:tableID", a.reservationConsoleHandler.GetTable)
+	p.POST("/tables", a.reservationConsoleHandler.CreateTable)
+	p.PATCH("/tables/:tableID", a.reservationConsoleHandler.UpdateTable)
+	p.DELETE("/tables/:tableID", a.reservationConsoleHandler.DeleteTable)
+	p.GET("/seats", a.reservationConsoleHandler.ListSeats)
+	p.GET("/seats/:seatID", a.reservationConsoleHandler.GetSeat)
+	p.POST("/seats", a.reservationConsoleHandler.CreateSeat)
+	p.PATCH("/seats/:seatID", a.reservationConsoleHandler.UpdateSeat)
+	p.DELETE("/seats/:seatID", a.reservationConsoleHandler.DeleteSeat)
 
 	// Catalog categories.
 	p.GET("/catalog/categories", a.catalogConsoleHandler.Categories)

@@ -21,39 +21,120 @@ const ReceiptTopic = "print:receipt"
 // providers may branch on it.
 const ReceiptTemplate = "order-receipt"
 
-// Receipt is the settled-order facts a store receipt is rendered from. It is
-// produced at a payment settlement point and carries no member PII — only the
-// order identity, its store and the amount paid.
+var receiptLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+// Receipt is the settled-order snapshot rendered for a store. Member contains
+// only the masked phone number or nickname used on the paper slip.
 type Receipt struct {
 	StoreID         int64
 	PaymentOrderID  int64
+	BusinessOrderID int64
 	BusinessOrderNo string
 	// OrderType mirrors business_orders.order_type (food | activity | recharge |
 	// offline_collection); it only picks the printed heading.
 	OrderType  string
 	AmountCent int64
 	PaidAt     time.Time
+	StoreName  string
+	Member     string
+	Points     int64
+	Items      []ReceiptItem
 }
 
-// WriteReceipt resolves the store's active printer device and, when one exists,
-// appends a print:receipt outbox event carrying a ready-to-print printer.Job in
+// ReceiptItem is one snapshotted food-order line rendered on the store slip.
+type ReceiptItem struct {
+	Name         string
+	Quantity     int
+	SubtotalCent int64
+}
+
+// WriteReceipt resolves every active printer bound to the order's store and,
+// when at least one exists, appends one print:receipt outbox event per device in
 // the caller's transaction — so the receipt commits atomically with the
 // settlement and can never fire on a rolled-back one. A store with no active
 // device prints nothing (returns nil), so a settlement never fails for the lack
 // of a printer.
 func WriteReceipt(ctx context.Context, tx *sql.Tx, r Receipt) error {
-	sn, ok, err := activeDeviceSN(ctx, tx, r.StoreID)
-	if err != nil || !ok {
+	devices, err := activeDevices(ctx, tx, r.StoreID)
+	if err != nil || len(devices) == 0 {
 		return err
 	}
-	return outbox.Write(ctx, tx, ReceiptTopic, BuildReceiptJob(sn, r), receiptIdemKey(r.PaymentOrderID))
+	if r.OrderType == "food" {
+		r, err = hydrateFoodReceipt(ctx, tx, r)
+		if err != nil {
+			return err
+		}
+	}
+	for _, device := range devices {
+		if err := outbox.Write(
+			ctx,
+			tx,
+			ReceiptTopic,
+			BuildReceiptJob(device.sn, r),
+			receiptIdemKey(r.PaymentOrderID, device.id),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// receiptIdemKey is the outbox idem_key (== asynq task id) for a receipt. Keying
-// it on the payment order id makes the print exactly-once per settled order: a
-// redelivered dispatch collides on the task id instead of printing twice.
-func receiptIdemKey(paymentOrderID int64) string {
-	return fmt.Sprintf("payment:%d:print-receipt", paymentOrderID)
+// hydrateFoodReceipt loads only order-time snapshots, never the current catalog,
+// so edits made after checkout cannot change the printed slip.
+func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, error) {
+	const header = `SELECT COALESCE(s.name, ''), COALESCE(m.phone, ''),
+			COALESCE(m.nickname, ''), fo.points_earned
+		FROM food_orders fo
+		JOIN stores s ON s.id = fo.store_id
+		JOIN members m ON m.id = fo.member_id
+		WHERE fo.business_order_id = ?`
+	var phone, nickname string
+	err := tx.QueryRowContext(ctx, header, r.BusinessOrderID).
+		Scan(&r.StoreName, &phone, &nickname, &r.Points)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Receipt{}, apperr.NotFound("food order not found")
+	}
+	if err != nil {
+		return Receipt{}, apperr.Internal(err)
+	}
+	r.Member = maskedMember(phone, nickname)
+
+	const lines = `SELECT name_snapshot, quantity, subtotal_cent
+		FROM food_order_items
+		WHERE food_order_id = (SELECT id FROM food_orders WHERE business_order_id = ?)
+		ORDER BY id ASC`
+	rows, err := tx.QueryContext(ctx, lines, r.BusinessOrderID)
+	if err != nil {
+		return Receipt{}, apperr.Internal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item ReceiptItem
+		if err := rows.Scan(&item.Name, &item.Quantity, &item.SubtotalCent); err != nil {
+			return Receipt{}, apperr.Internal(err)
+		}
+		r.Items = append(r.Items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return Receipt{}, apperr.Internal(err)
+	}
+	return r, nil
+}
+
+func maskedMember(phone, nickname string) string {
+	if len(phone) >= 7 {
+		return phone[:3] + "****" + phone[len(phone)-4:]
+	}
+	if strings.TrimSpace(nickname) != "" {
+		return nickname
+	}
+	return "会员"
+}
+
+// receiptIdemKey is unique per payment and printer device. This allows every
+// active device at the store to print once while still deduplicating retries.
+func receiptIdemKey(paymentOrderID, deviceID int64) string {
+	return fmt.Sprintf("payment:%d:printer:%d:print-receipt", paymentOrderID, deviceID)
 }
 
 // BuildReceiptJob renders r onto a printer.Job for device sn. It is pure so the
@@ -62,34 +143,69 @@ func BuildReceiptJob(sn string, r Receipt) Job {
 	return Job{DeviceSN: sn, Template: ReceiptTemplate, Content: renderReceipt(r)}
 }
 
-// activeDeviceSN returns the SN of the store's first active printer device. A
-// store with no active device yields ok=false — nothing to print.
-func activeDeviceSN(ctx context.Context, tx *sql.Tx, storeID int64) (sn string, ok bool, err error) {
-	const q = `SELECT device_sn FROM printer_devices
-		WHERE store_id = ? AND status = ? ORDER BY id ASC LIMIT 1`
-	switch scanErr := tx.QueryRowContext(ctx, q, storeID, StatusActive).Scan(&sn); {
-	case errors.Is(scanErr, sql.ErrNoRows):
-		return "", false, nil
-	case scanErr != nil:
-		return "", false, apperr.Internal(scanErr)
+type activeDevice struct {
+	id int64
+	sn string
+}
+
+// activeDevices returns all active printers bound to the order's store.
+func activeDevices(ctx context.Context, tx *sql.Tx, storeID int64) ([]activeDevice, error) {
+	const q = `SELECT id, device_sn FROM printer_devices
+		WHERE store_id = ? AND status = ? ORDER BY id ASC`
+	rows, err := tx.QueryContext(ctx, q, storeID, StatusActive)
+	if err != nil {
+		return nil, apperr.Internal(err)
 	}
-	return sn, true, nil
+	defer rows.Close()
+
+	var devices []activeDevice
+	for rows.Next() {
+		var device activeDevice
+		if err := rows.Scan(&device.id, &device.sn); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		devices = append(devices, device)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return devices, nil
 }
 
 // renderReceipt renders the compact receipt body that lands on paper (the Xpyun
-// print API takes pre-rendered content). PaidAt is the settlement timestamp as
-// stored (UTC), matching payment_orders.paid_at.
+// print API takes pre-rendered content). PaidAt is stored in UTC and rendered in
+// the store's operating timezone (Asia/Shanghai).
 func renderReceipt(r Receipt) string {
 	const rule = "--------------------------------\n"
 	var b strings.Builder
-	b.WriteString("InwardClub\n")
-	b.WriteString(orderTypeLabel(r.OrderType))
-	b.WriteByte('\n')
+	b.WriteString("<IMG></IMG>\n")
+	b.WriteString("<CB>InwardClub</CB>\n")
+	if r.StoreName != "" {
+		fmt.Fprintf(&b, "<CB>%s</CB>\n", r.StoreName)
+	} else {
+		b.WriteString(orderTypeLabel(r.OrderType))
+		b.WriteByte('\n')
+	}
+	fmt.Fprintf(&b, "订单号：%s\n", r.BusinessOrderNo)
+	fmt.Fprintf(&b, "%s\n", r.PaidAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
 	b.WriteString(rule)
-	fmt.Fprintf(&b, "单号  %s\n", r.BusinessOrderNo)
-	fmt.Fprintf(&b, "金额  %s\n", yuan(r.AmountCent))
-	fmt.Fprintf(&b, "时间  %s\n", r.PaidAt.Format("2006-01-02 15:04:05"))
+	if r.Member != "" {
+		fmt.Fprintf(&b, "手机尾号                 %s\n", r.Member)
+	}
+	if r.OrderType == "food" {
+		b.WriteString(rule)
+		fmt.Fprintf(&b, "赠送积分                 %d\n", r.Points)
+		b.WriteString(rule)
+		b.WriteString("商品名称          数量    金额\n")
+		for _, item := range r.Items {
+			fmt.Fprintf(&b, "%s\n", item.Name)
+			fmt.Fprintf(&b, "                  %d      %s\n", item.Quantity, yuan(item.SubtotalCent))
+		}
+	}
 	b.WriteString(rule)
+	fmt.Fprintf(&b, "合计  %s\n", yuan(r.AmountCent))
+	b.WriteString("谢谢惠顾！\n")
+	b.WriteString("<CUT>")
 	return b.String()
 }
 

@@ -34,6 +34,7 @@ type Config struct {
 	// UseFakeAdapters. Only WeChat login and pay have overrides today.
 	WeChatLoginUseReal bool `yaml:"wechatLoginUseReal"`
 	WeChatPayUseReal   bool `yaml:"wechatPayUseReal"`
+	PaymentDebugMode   bool `yaml:"paymentDebugMode"`
 
 	JWT     JWTConfig     `yaml:"jwt"`
 	WeChat  WeChatConfig  `yaml:"wechat"`
@@ -197,6 +198,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.UseFakeAdapters, "USE_FAKE_ADAPTERS")
 	setBool(&cfg.WeChatLoginUseReal, "WECHAT_LOGIN_USE_REAL")
 	setBool(&cfg.WeChatPayUseReal, "WECHAT_PAY_USE_REAL")
+	setBool(&cfg.PaymentDebugMode, "PAYMENT_DEBUG_MODE")
 
 	setStr(&cfg.Business.TZ, "BUSINESS_TZ")
 	setStr(&cfg.Business.NowRFC3339, "BUSINESS_NOW_RFC3339")
@@ -245,6 +247,17 @@ func (c *Config) WeChatLoginReal() bool {
 // WeChatPayReal reports whether the real WeChat Pay gateway should be used.
 func (c *Config) WeChatPayReal() bool {
 	return !c.UseFakeAdapters || c.WeChatPayUseReal
+}
+
+// WeChatPayAmountOverrideCent returns the real channel amount used in payment
+// debug mode. Business orders and entitlements keep their original amounts.
+// Production always returns zero so a stray debug flag cannot discount a live
+// payment.
+func (c *Config) WeChatPayAmountOverrideCent() int64 {
+	if c.PaymentDebugMode && c.AppEnv != "production" {
+		return 1
+	}
+	return 0
 }
 
 // Validate checks that required runtime fields are present. Fake adapters relax

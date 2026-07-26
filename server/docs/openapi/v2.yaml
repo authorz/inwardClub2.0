@@ -108,6 +108,54 @@ components:
         businessHours: { type: string }
         status: { type: string }
         distanceMeters: { type: integer, format: int64 }
+    AdminTableView:
+      type: object
+      required: [id, storeId, storeName, name, code, capacity, seatCount, basePoints, status]
+      properties:
+        id: { type: integer, format: int64 }
+        storeId: { type: integer, format: int64 }
+        storeName: { type: string }
+        name: { type: string }
+        code: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        seatCount: { type: integer, minimum: 0 }
+        basePoints: { type: integer, minimum: 0 }
+        layoutAssetId: { type: integer, format: int64, nullable: true }
+        layoutUrl: { type: string }
+        status: { type: string, enum: [available, paused, full, maintenance] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TableWriteRequest:
+      type: object
+      required: [storeId, name, code, capacity, basePoints, status]
+      properties:
+        storeId: { type: integer, format: int64, minimum: 1 }
+        name: { type: string, maxLength: 64 }
+        code: { type: string, maxLength: 64 }
+        capacity: { type: integer, minimum: 1 }
+        basePoints: { type: integer, minimum: 0 }
+        layoutAssetId: { type: integer, format: int64, nullable: true }
+        status: { type: string, enum: [available, paused, full, maintenance] }
+    AdminSeatView:
+      type: object
+      required: [id, storeId, storeName, tableId, tableName, name, status]
+      properties:
+        id: { type: integer, format: int64 }
+        storeId: { type: integer, format: int64 }
+        storeName: { type: string }
+        tableId: { type: integer, format: int64 }
+        tableName: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [available, paused, full, maintenance] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SeatWriteRequest:
+      type: object
+      required: [tableId, name, status]
+      properties:
+        tableId: { type: integer, format: int64, minimum: 1 }
+        name: { type: string, maxLength: 64 }
+        status: { type: string, enum: [available, paused, full, maintenance] }
     BannerView:
       type: object
       properties:
@@ -236,11 +284,18 @@ components:
         businessOrderId: { type: integer, format: int64 }
         storeId: { type: integer, format: int64 }
         storeName: { type: string }
+        businessOrderNo: { type: string }
+        orderAmountCent: { type: integer, format: int64 }
+        memberId: { type: integer, format: int64 }
+        memberNickname: { type: string }
+        memberPhone: { type: string }
+        memberAvatarUrl: { type: string }
         amountCent: { type: integer, format: int64 }
         channel: { type: string }
-        status: { type: string }
+        status: { type: string, enum: [succeeded, failed] }
         reason: { type: string }
-        createdAt: { type: string, format: date-time }
+        orderCreatedAt: { type: string, format: date-time }
+        operatedAt: { type: string, format: date-time }
     CreateRefundRequest:
       type: object
       required: [paymentOrderId, amountCent]
@@ -248,6 +303,14 @@ components:
         paymentOrderId: { type: integer, format: int64 }
         amountCent: { type: integer, format: int64 }
         reason: { type: string }
+    AdminCreateRefundRequest:
+      type: object
+      required: [paymentOrderId, amountCent, reason, password]
+      properties:
+        paymentOrderId: { type: integer, format: int64 }
+        amountCent: { type: integer, format: int64, description: Positive partial or full refund amount; cannot exceed the paid amount }
+        reason: { type: string }
+        password: { type: string, format: password, description: Current administrator login password }
     CreateCollectionOrderRequest:
       type: object
       description: >
@@ -303,6 +366,9 @@ components:
         memberNickname: { type: string }
         memberPhone: { type: string }
         memberPhoneMasked: { type: string }
+        memberAvatarUrl: { type: string }
+        paymentOrderId: { type: integer, format: int64 }
+        refundStatus: { type: string, description: Latest refund status; used to suppress duplicate refund actions }
         totalCent: { type: integer, format: int64 }
         amountCent: { type: integer, format: int64 }
         payChannel: { type: string }
@@ -374,14 +440,22 @@ components:
       type: object
       properties:
         id: { type: integer, format: int64 }
+        recordKey: { type: string }
         memberId: { type: integer, format: int64 }
+        memberNickname: { type: string }
+        memberPhone: { type: string }
+        memberAvatarUrl: { type: string }
+        storeId: { type: integer, format: int64 }
+        storeName: { type: string }
         assetType: { type: string }
         direction: { type: string, enum: [credit, debit] }
         amount: { type: integer, format: int64 }
         balanceAfter: { type: integer, format: int64 }
+        status: { type: string, enum: [completed, pending, approved, rejected] }
         reason: { type: string }
         sourceType: { type: string }
         sourceId: { type: integer, format: int64 }
+        relatedOrderNo: { type: string }
         createdAt: { type: string, format: date-time }
     StaffAccountView:
       type: object
@@ -620,6 +694,7 @@ components:
         name: { type: string }
         unitPriceCent: { type: integer, format: int64 }
         quantity: { type: integer }
+        pointsReward: { type: integer, format: int64 }
         subtotalCent: { type: integer, format: int64 }
     FoodOrderView:
       type: object
@@ -632,6 +707,7 @@ components:
         storeId: { type: integer, format: int64 }
         tableId: { type: integer, format: int64 }
         totalAmountCent: { type: integer, format: int64 }
+        pointsEarned: { type: integer, format: int64 }
         fulfillmentStatus: { type: string }
         remark: { type: string }
         items:
@@ -1141,6 +1217,7 @@ components:
         id: { type: integer, format: int64 }
         name: { type: string }
         capacity: { type: integer }
+        layoutUrl: { type: string, description: Optional custom table background URL }
         status: { type: string }
     SeatView:
       type: object
@@ -1149,6 +1226,9 @@ components:
         tableId: { type: integer, format: int64 }
         name: { type: string }
         status: { type: string }
+        nickname: { type: string, description: Present when the seat is reserved }
+        avatarUrl: { type: string, description: Reserved member avatar URL }
+        gender: { type: string, enum: [male, female, other], description: Reserved member gender }
     ReservationView:
       type: object
       properties:
@@ -1964,6 +2044,194 @@ paths:
         pre-logout access token is rejected with 401 (session expired).
       responses:
         '200': { description: ok }
+  /api/v2/admin/tables:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: List tables across stores
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: storeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { type: string, enum: [available, paused, full, maintenance] } }
+        - { name: keyword, in: query, schema: { type: string }, description: Matches table name or code }
+      responses:
+        '200':
+          description: table list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminTableView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Create a store-bound table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TableWriteRequest' }
+      responses:
+        '201':
+          description: table created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTableView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/tables/{tableID}:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Get a table
+      parameters:
+        - { name: tableID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: table detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTableView' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update a table
+      parameters:
+        - { name: tableID, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TableWriteRequest' }
+      responses:
+        '200':
+          description: table updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTableView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Delete an unused table
+      parameters:
+        - { name: tableID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: table deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/seats:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: List seats across stores
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: storeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: tableId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { type: string, enum: [available, paused, full, maintenance] } }
+        - { name: keyword, in: query, schema: { type: string }, description: Matches seat name }
+      responses:
+        '200':
+          description: seat list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminSeatView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Create a seat under an existing table
+      description: The seat store is derived from the table. Creation fails when table capacity is reached.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatWriteRequest' }
+      responses:
+        '201':
+          description: seat created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminSeatView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/seats/{seatID}:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Get a seat
+      parameters:
+        - { name: seatID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: seat detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminSeatView' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update or move a seat to another table
+      parameters:
+        - { name: seatID, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatWriteRequest' }
+      responses:
+        '200':
+          description: seat updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminSeatView' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Delete an unused seat
+      parameters:
+        - { name: seatID, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: seat deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /api/v2/admin/orders:
     get:
       tags: [admin]
@@ -1972,8 +2240,12 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
-        - { name: status, in: query, description: filters order_status, schema: { type: string } }
-        - { name: keyword, in: query, description: matches business_order_no, schema: { type: string } }
+        - { name: orderStatus, in: query, description: exact order_status filter, schema: { type: string } }
+        - { name: paymentStatus, in: query, description: exact payment_status filter, schema: { type: string } }
+        - { name: payChannel, in: query, description: exact latest payment channel filter, schema: { type: string } }
+        - { name: keyword, in: query, description: fuzzy business_order_no match, schema: { type: string } }
+        - { name: memberNickname, in: query, description: fuzzy member nickname match, schema: { type: string } }
+        - { name: memberPhone, in: query, description: fuzzy member phone match, schema: { type: string } }
         - { name: storeId, in: query, schema: { type: integer, format: int64 } }
       responses:
         '200':
@@ -1995,9 +2267,14 @@ paths:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
         - { name: storeId, in: query, schema: { type: integer, format: int64 } }
-        - { name: status, in: query, schema: { type: string } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: id, in: query, description: fuzzy refund ID match, schema: { type: string } }
+        - { name: keyword, in: query, description: fuzzy business order number match, schema: { type: string } }
+        - { name: memberNickname, in: query, description: fuzzy member nickname match, schema: { type: string } }
+        - { name: memberPhone, in: query, description: fuzzy member phone match, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [succeeded, failed] } }
         - { name: storeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: operatedFrom, in: query, schema: { type: string, format: date-time } }
+        - { name: operatedTo, in: query, description: inclusive end date, schema: { type: string, format: date-time } }
       responses:
         '200':
           description: payment transaction list
@@ -2075,7 +2352,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/CreateRefundRequest' }
+            schema: { $ref: '#/components/schemas/AdminCreateRefundRequest' }
       responses:
         '201':
           description: refund created
@@ -2198,7 +2475,16 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { name: id, in: query, description: fuzzy ledger ID match, schema: { type: string } }
+        - { name: memberNickname, in: query, description: fuzzy member nickname match, schema: { type: string } }
+        - { name: memberPhone, in: query, description: fuzzy member phone match, schema: { type: string } }
         - { name: assetType, in: query, schema: { type: string } }
+        - { name: direction, in: query, schema: { type: string, enum: [credit, debit] } }
+        - { name: sourceType, in: query, description: fuzzy source type match, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [completed, pending, approved, rejected] } }
+        - { name: reason, in: query, description: fuzzy reason match, schema: { type: string } }
+        - { name: createdFrom, in: query, schema: { type: string, format: date-time } }
+        - { name: createdTo, in: query, description: inclusive end date, schema: { type: string, format: date-time } }
         - { name: memberId, in: query, schema: { type: integer, format: int64 } }
         - { name: storeId, in: query, schema: { type: integer, format: int64 } }
       responses:

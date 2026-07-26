@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -21,7 +22,10 @@ const (
 
 // Refund order statuses.
 const (
-	RefundPending = "pending"
+	RefundPending    = "pending"
+	RefundProcessing = "processing"
+	RefundSucceeded  = "succeeded"
+	RefundFailed     = "failed"
 )
 
 // CollectionOrder is a store-created offline aggregated collection order.
@@ -55,16 +59,21 @@ type MemberMatch struct {
 
 // Refund is a store-initiated refund against a settled payment order.
 type Refund struct {
-	ID              int64
-	RefundOrderNo   string
-	PaymentOrderID  int64
-	BusinessOrderID int64
-	StoreID         int64
-	AmountCent      int64
-	Channel         string
-	Status          string
-	Reason          string
-	CreatedAt       time.Time
+	ID                int64
+	RefundOrderNo     string
+	PaymentOrderID    int64
+	BusinessOrderID   int64
+	StoreID           int64
+	AmountCent        int64
+	PaymentAmountCent int64
+	Channel           string
+	Status            string
+	Reason            string
+	CreatedAt         time.Time
+	PaymentOrderNo    string
+	PayMethod         string
+	OrderType         string
+	AcquirerOrderNo   string
 }
 
 // PaymentOrder is the read model for a payment_orders row, joined with its
@@ -185,6 +194,7 @@ type CreateRefundRequest struct {
 	PaymentOrderID int64  `json:"paymentOrderId"`
 	AmountCent     int64  `json:"amountCent"`
 	Reason         string `json:"reason"`
+	Password       string `json:"password"`
 }
 
 // CollectionOrderCreate is the fully-resolved row set the repository persists in
@@ -246,6 +256,8 @@ type StoreRepository interface {
 	// the store scope is resolved from the payment order itself rather than
 	// verified against a caller-supplied store_id.
 	CreateRefundAdmin(ctx context.Context, in RefundCreate) (Refund, error)
+	CompleteRefundAdmin(ctx context.Context, refundID int64, externalRefundNo string, now time.Time) (Refund, error)
+	FailRefundAdmin(ctx context.Context, refundID int64, now time.Time) error
 	// ListPaymentOrders returns a page of payment_orders rows. A nil f.StoreID
 	// means no scope filter (admin console); a set f.StoreID pins the query to
 	// one store (store console).
@@ -422,14 +434,33 @@ func (s *StoreService) GetPaymentOrder(ctx context.Context, storeID, id int64) (
 // AdminService provides the admin-console refund write operation. Unlike
 // StoreService it is not scoped by a caller store_id.
 type AdminService struct {
-	repo     StoreRepository
-	now      func() time.Time
-	channels *channelSettingsStore
+	repo                     StoreRepository
+	wechat                   WeChatPayGateway
+	offline                  OfflineAcquirer
+	passwords                AdminPasswordVerifier
+	refundAmountOverrideCent int64
+	now                      func() time.Time
+	channels                 *channelSettingsStore
+}
+
+// AdminPasswordVerifier re-authenticates the current admin before a refund.
+type AdminPasswordVerifier interface {
+	VerifyAccountPassword(ctx context.Context, accountID int64, password string) error
 }
 
 // NewAdminService builds the admin payment service.
-func NewAdminService(repo StoreRepository) *AdminService {
-	return &AdminService{repo: repo, now: time.Now, channels: newChannelSettingsStore()}
+func NewAdminService(
+	repo StoreRepository,
+	wechat WeChatPayGateway,
+	offline OfflineAcquirer,
+	passwords AdminPasswordVerifier,
+	refundAmountOverrideCent int64,
+) *AdminService {
+	return &AdminService{
+		repo: repo, wechat: wechat, offline: offline, passwords: passwords,
+		refundAmountOverrideCent: refundAmountOverrideCent,
+		now:                      time.Now, channels: newChannelSettingsStore(),
+	}
 }
 
 // ListChannelSettings returns every payment channel's admin-configurable toggle.
@@ -442,13 +473,27 @@ func (s *AdminService) UpdateChannelSettings(ctx context.Context, req UpdateChan
 	return s.channels.Update(req.Channels)
 }
 
-// CreateRefund records a pending refund against any store's payment order.
+// CreateRefund verifies the administrator and executes a full refund through
+// the payment order's original channel.
 func (s *AdminService) CreateRefund(ctx context.Context, byType string, byID int64, idemKey string, req CreateRefundRequest) (AdminRefundView, error) {
 	if req.PaymentOrderID <= 0 {
 		return AdminRefundView{}, apperr.Invalid("paymentOrderId is required")
 	}
 	if req.AmountCent <= 0 {
 		return AdminRefundView{}, apperr.Invalid("amountCent must be positive")
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		return AdminRefundView{}, apperr.Invalid("请输入退款原因")
+	}
+	if utf8.RuneCountInString(req.Reason) > 255 {
+		return AdminRefundView{}, apperr.Invalid("退款原因不能超过 255 个字符")
+	}
+	if s.passwords == nil {
+		return AdminRefundView{}, apperr.Internal(fmt.Errorf("admin password verifier is not configured"))
+	}
+	if err := s.passwords.VerifyAccountPassword(ctx, byID, req.Password); err != nil {
+		return AdminRefundView{}, err
 	}
 	now := s.now().UTC()
 	refund, err := s.repo.CreateRefundAdmin(ctx, RefundCreate{
@@ -461,6 +506,34 @@ func (s *AdminService) CreateRefund(ctx context.Context, byType string, byID int
 		IdemKey:         idemKey,
 		Now:             now,
 	})
+	if err != nil {
+		return AdminRefundView{}, err
+	}
+
+	var externalRefundNo string
+	switch refund.Channel {
+	case "wechat":
+		refundCent, totalCent := refund.AmountCent, refund.PaymentAmountCent
+		if s.refundAmountOverrideCent > 0 {
+			refundCent, totalCent = s.refundAmountOverrideCent, s.refundAmountOverrideCent
+		}
+		externalRefundNo, err = s.wechat.Refund(
+			ctx, refund.PaymentOrderNo, refund.RefundOrderNo, refundCent, totalCent,
+		)
+	case "coin":
+		// Coin refunds are completed transactionally in the repository below.
+	case "offline":
+		externalRefundNo, err = s.offline.Refund(
+			ctx, refund.AcquirerOrderNo, refund.RefundOrderNo, refund.AmountCent,
+		)
+	default:
+		err = apperr.Invalid("该支付渠道暂不支持退款")
+	}
+	if err != nil {
+		_ = s.repo.FailRefundAdmin(ctx, refund.ID, now)
+		return AdminRefundView{}, apperr.From(err)
+	}
+	refund, err = s.repo.CompleteRefundAdmin(ctx, refund.ID, externalRefundNo, now)
 	if err != nil {
 		return AdminRefundView{}, err
 	}

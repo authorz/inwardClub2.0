@@ -9,20 +9,34 @@ import "time"
 
 // Table is a bookable table in a store.
 type Table struct {
-	ID       int64
-	StoreID  int64
-	Name     string
-	Capacity int
-	Status   string
+	ID            int64
+	StoreID       int64
+	StoreName     string
+	Name          string
+	Code          string
+	Capacity      int
+	BasePoints    int
+	LayoutAssetID *int64
+	Status        string
+	SeatCount     int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // Seat is a bookable seat, optionally attached to a table.
 type Seat struct {
-	ID      int64
-	StoreID int64
-	TableID *int64
-	Name    string
-	Status  string
+	ID              int64
+	StoreID         int64
+	StoreName       string
+	TableID         *int64
+	TableName       string
+	Name            string
+	Status          string
+	MemberNickname  string
+	MemberAvatarURL string
+	MemberGender    string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Reservation is a member's booking of a table or seat.
@@ -71,5 +85,9 @@ const (
 
 // Availability status shared by tables and seats.
 const (
-	AvailabilityAvailable = "available"
+	AvailabilityAvailable   = "available"
+	AvailabilityPaused      = "paused"
+	AvailabilityFull        = "full"
+	AvailabilityMaintenance = "maintenance"
+	AvailabilityReserved    = "reserved"
 )

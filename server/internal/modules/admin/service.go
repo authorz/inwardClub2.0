@@ -144,9 +144,12 @@ func (s *Service) ListOrders(ctx context.Context, f ListFilter) ([]OrderView, in
 			ID: r.ID, BusinessOrderID: r.ID, OrderNo: r.OrderNo, OrderType: r.OrderType,
 			StoreID: r.StoreID, StoreName: r.StoreName,
 			MemberID: r.MemberID, MemberNickname: r.MemberNickname,
-			MemberPhone: r.MemberPhone, MemberPhoneMasked: maskPhone(r.MemberPhone),
-			TotalCent: r.TotalCent, AmountCent: r.TotalCent, PayChannel: r.PayChannel,
-			PaymentStatus: r.PaymentStatus, OrderStatus: r.OrderStatus, Status: r.OrderStatus,
+			MemberPhone: r.MemberPhone, MemberAvatarURL: r.MemberAvatarURL,
+			MemberPhoneMasked: maskPhone(r.MemberPhone),
+			PaymentOrderID:    r.PaymentOrderID,
+			TotalCent:         r.TotalCent, AmountCent: r.TotalCent, PayChannel: r.PayChannel,
+			RefundStatus: r.RefundStatus, PaymentStatus: r.PaymentStatus,
+			OrderStatus: r.OrderStatus, Status: r.OrderStatus,
 			CreatedAt: r.CreatedAt, CompletedAt: r.CompletedAt,
 		})
 	}
@@ -287,9 +290,14 @@ func (s *Service) ListWalletLedger(ctx context.Context, f ListFilter) ([]WalletL
 	out := make([]WalletLedgerEntryView, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, WalletLedgerEntryView{
-			ID: r.ID, MemberID: r.MemberID, AssetType: r.AssetType, Direction: r.Direction,
-			Amount: r.Amount, BalanceAfter: r.BalanceAfter, Reason: r.Reason,
-			SourceType: r.SourceType, SourceID: r.SourceID, CreatedAt: r.CreatedAt,
+			ID: r.ID, RecordKey: r.RecordKey,
+			MemberID: r.MemberID, MemberNickname: r.MemberNickname,
+			MemberPhone: r.MemberPhone, MemberAvatarURL: r.MemberAvatarURL,
+			StoreID: r.StoreID, StoreName: r.StoreName,
+			AssetType: r.AssetType, Direction: r.Direction,
+			Amount: r.Amount, BalanceAfter: r.BalanceAfter, Status: r.Status, Reason: r.Reason,
+			SourceType: r.SourceType, SourceID: r.SourceID,
+			RelatedOrderNo: r.RelatedOrderNo, CreatedAt: r.CreatedAt,
 		})
 	}
 	return out, total, nil
@@ -324,8 +332,11 @@ func (s *Service) ListRefunds(ctx context.Context, f ListFilter) ([]RefundView, 
 		out = append(out, RefundView{
 			ID: r.ID, RefundOrderNo: r.RefundOrderNo, PaymentOrderID: r.PaymentOrderID,
 			BusinessOrderID: r.BusinessOrderID, StoreID: r.StoreID, StoreName: r.StoreName,
+			BusinessOrderNo: r.BusinessOrderNo, OrderAmountCent: r.OrderAmountCent,
+			MemberID: r.MemberID, MemberNickname: r.MemberNickname,
+			MemberPhone: r.MemberPhone, MemberAvatarURL: r.MemberAvatarURL,
 			AmountCent: r.AmountCent, Channel: r.Channel, Status: r.Status, Reason: r.Reason,
-			CreatedAt: r.CreatedAt,
+			OrderCreatedAt: r.OrderCreatedAt, OperatedAt: r.OperatedAt,
 		})
 	}
 	return out, total, nil
