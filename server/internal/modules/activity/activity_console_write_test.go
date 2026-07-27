@@ -260,6 +260,19 @@ func TestAdminActivityCanBindAndRebindStore(t *testing.T) {
 	}
 }
 
+func TestCreateActivityDefaultsToPublished(t *testing.T) {
+	repo := newStatefulConsoleRepo()
+	created, err := NewConsoleService(repo).CreateActivity(context.Background(), ConsoleScope{}, ActivityInput{
+		Title: "Paid Fair", PayChannels: []string{"wechat"},
+	})
+	if err != nil {
+		t.Fatalf("create activity: %v", err)
+	}
+	if created.Status != "published" {
+		t.Fatalf("expected published activity, got %+v", created)
+	}
+}
+
 func TestStoreActivityWriteIgnoresRequestedStore(t *testing.T) {
 	repo := newStatefulConsoleRepo()
 	svc := NewConsoleService(repo)

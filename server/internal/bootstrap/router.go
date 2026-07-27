@@ -317,7 +317,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 
 	p.GET("/profile", a.adminHandler.StoreProfile)
-	p.GET("/catalog/items", a.adminHandler.StoreCatalogItems)
+	p.GET("/catalog/items", a.catalogConsoleHandler.StoreItems)
 	p.GET("/coupon-templates", a.adminHandler.StoreCouponTemplates)
 	p.GET("/activities", a.adminHandler.StoreActivities)
 	p.GET("/orders", a.adminHandler.StoreOrders)
@@ -412,7 +412,7 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.PUT("/catalog/categories/:id", a.catalogConsoleHandler.StoreUpdateCategory)
 	idem.DELETE("/catalog/categories/:id", a.catalogConsoleHandler.StoreDeleteCategory)
 
-	// Catalog items (list read already registered as adminHandler.StoreCatalogItems).
+	// Catalog items (list read already registered above).
 	p.GET("/catalog/items/:id", a.catalogConsoleHandler.StoreGetItem)
 	idem.POST("/catalog/items", a.catalogConsoleHandler.StoreCreateItem)
 	idem.PUT("/catalog/items/:id", a.catalogConsoleHandler.StoreUpdateItem)

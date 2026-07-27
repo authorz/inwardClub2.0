@@ -594,6 +594,9 @@ func TestListActivitiesIncludesCoverAndAuditTimes(t *testing.T) {
 	if rows[0].ImageURL != "https://cdn.test/activity-cover.webp" {
 		t.Fatalf("unexpected image url: %q", rows[0].ImageURL)
 	}
+	if rows[0].Title != "Spring" {
+		t.Fatalf("store activity fields were not mapped: %+v", rows[0])
+	}
 	if !rows[0].CreatedAt.Equal(createdAt) || !rows[0].UpdatedAt.Equal(updatedAt) {
 		t.Fatalf("unexpected audit times: created=%v updated=%v", rows[0].CreatedAt, rows[0].UpdatedAt)
 	}

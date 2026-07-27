@@ -52,9 +52,17 @@ func (s *Service) ListFoodOrders(ctx context.Context, memberID int64, page httpx
 	if err != nil {
 		return nil, 0, err
 	}
+	orderIDs := make([]int64, 0, len(orders))
+	for _, o := range orders {
+		orderIDs = append(orderIDs, o.ID)
+	}
+	itemsByOrder, err := s.repo.ListFoodOrderItems(ctx, memberID, orderIDs)
+	if err != nil {
+		return nil, 0, err
+	}
 	views := make([]FoodOrderView, 0, len(orders))
 	for _, o := range orders {
-		views = append(views, foodOrderView(o, nil))
+		views = append(views, foodOrderView(o, itemsByOrder[o.ID]))
 	}
 	return views, total, nil
 }
@@ -64,6 +72,13 @@ func (s *Service) GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrd
 	o, items, err := s.repo.GetFoodOrder(ctx, memberID, id)
 	if err != nil {
 		return FoodOrderView{}, err
+	}
+	if s.assets != nil {
+		for i := range items {
+			if items[i].AssetID != nil {
+				items[i].ImageURL, _ = s.assets.PublicURLByID(ctx, *items[i].AssetID)
+			}
+		}
 	}
 	return foodOrderView(o, items), nil
 }
@@ -345,6 +360,7 @@ func foodOrderView(o FoodOrder, items []FoodOrderItem) FoodOrderView {
 			Quantity:      it.Quantity,
 			PointsReward:  it.PointsReward,
 			SubtotalCent:  it.SubtotalCent,
+			ImageURL:      it.ImageURL,
 		})
 	}
 	return v

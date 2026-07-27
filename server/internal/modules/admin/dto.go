@@ -53,6 +53,7 @@ type ActivityView struct {
 	ScopeType string     `json:"scopeType"`
 	StoreID   *int64     `json:"storeId,omitempty"`
 	Name      string     `json:"name"`
+	Title     string     `json:"title"`
 	Type      string     `json:"type"`
 	AssetID   *int64     `json:"assetId,omitempty"`
 	ImageURL  string     `json:"imageUrl,omitempty"`

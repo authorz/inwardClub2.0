@@ -232,10 +232,13 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			ttActivity int64
 		)
 		const selTT = `SELECT price_cent, session_id, store_id, activity_id
-			FROM activity_ticket_types WHERE id = ?`
-		err := tx.QueryRowContext(ctx, selTT, in.TicketTypeID).Scan(&price, &sessionID, &storeID, &ttActivity)
+			FROM activity_ticket_types
+			WHERE id = ? AND status = 'active'
+			  AND (sale_start_at IS NULL OR sale_start_at <= ?)
+			  AND (sale_end_at IS NULL OR sale_end_at >= ?)`
+		err := tx.QueryRowContext(ctx, selTT, in.TicketTypeID, in.Now, in.Now).Scan(&price, &sessionID, &storeID, &ttActivity)
 		if errors.Is(err, sql.ErrNoRows) {
-			return apperr.NotFound("ticket type not found")
+			return apperr.Conflict("该票档当前不在售卖时间内")
 		}
 		if err != nil {
 			return apperr.Internal(err)

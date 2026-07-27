@@ -49,6 +49,16 @@ func (r *memRepo) ListFoodOrders(_ context.Context, memberID int64, _, _ int) ([
 	return out, int64(len(out)), nil
 }
 
+func (r *memRepo) ListFoodOrderItems(_ context.Context, memberID int64, orderIDs []int64) (map[int64][]FoodOrderItem, error) {
+	out := make(map[int64][]FoodOrderItem, len(orderIDs))
+	for _, id := range orderIDs {
+		if order, ok := r.food[id]; ok && order.MemberID == memberID {
+			out[id] = r.foodItems[id]
+		}
+	}
+	return out, nil
+}
+
 func (r *memRepo) GetFoodOrder(_ context.Context, memberID, id int64) (FoodOrder, []FoodOrderItem, error) {
 	o, ok := r.food[id]
 	if !ok || o.MemberID != memberID {
@@ -155,8 +165,9 @@ func codeOf(t *testing.T, err error) apperr.Code {
 
 func TestGetFoodOrderScopedToMember(t *testing.T) {
 	repo := newMemRepo()
+	assetID := int64(9)
 	repo.food[1] = FoodOrder{ID: 1, MemberID: 10, StoreID: 5, TotalAmountCent: 1500, FulfillmentStatus: "pending"}
-	repo.foodItems[1] = []FoodOrderItem{{ID: 1, FoodOrderID: 1, ItemID: 7, NameSnapshot: "Latte", UnitPriceCent: 1500, Quantity: 1, SubtotalCent: 1500}}
+	repo.foodItems[1] = []FoodOrderItem{{ID: 1, FoodOrderID: 1, ItemID: 7, NameSnapshot: "Latte", UnitPriceCent: 1500, Quantity: 1, SubtotalCent: 1500, AssetID: &assetID}}
 	svc := newService(repo)
 	ctx := context.Background()
 
@@ -166,6 +177,9 @@ func TestGetFoodOrderScopedToMember(t *testing.T) {
 	}
 	if len(view.Items) != 1 || view.Items[0].Name != "Latte" {
 		t.Fatalf("unexpected items: %+v", view.Items)
+	}
+	if view.Items[0].ImageURL != "https://cdn/poster.png" {
+		t.Fatalf("expected resolved item image, got %q", view.Items[0].ImageURL)
 	}
 
 	// A different member must not see the order.
@@ -177,6 +191,7 @@ func TestGetFoodOrderScopedToMember(t *testing.T) {
 func TestListFoodOrdersReturnsViews(t *testing.T) {
 	repo := newMemRepo()
 	repo.food[1] = FoodOrder{ID: 1, MemberID: 10, StoreID: 5}
+	repo.foodItems[1] = []FoodOrderItem{{ID: 1, FoodOrderID: 1, ItemID: 7, NameSnapshot: "Latte", Quantity: 2}}
 	repo.food[2] = FoodOrder{ID: 2, MemberID: 20, StoreID: 5}
 	svc := newService(repo)
 
@@ -186,6 +201,9 @@ func TestListFoodOrdersReturnsViews(t *testing.T) {
 	}
 	if total != 1 || len(views) != 1 {
 		t.Fatalf("expected 1 order for member 10, got total=%d len=%d", total, len(views))
+	}
+	if len(views[0].Items) != 1 || views[0].Items[0].Name != "Latte" || views[0].Items[0].Quantity != 2 {
+		t.Fatalf("expected food item summary data, got %+v", views[0].Items)
 	}
 }
 

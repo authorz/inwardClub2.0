@@ -81,6 +81,8 @@ type FoodOrderItem struct {
 	PayChannels   string
 	PointsReward  int64
 	SubtotalCent  int64
+	AssetID       *int64
+	ImageURL      string
 }
 
 // RechargeOrder is a wallet top-up order. Recharge has no dedicated table; it is

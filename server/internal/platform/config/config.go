@@ -1,14 +1,16 @@
-// Package config loads runtime configuration from an optional YAML base file
-// (CONFIG_FILE) overlaid with environment variables. Secrets never carry
-// compiled defaults; only non-sensitive operational values do.
+// Package config loads runtime configuration from .env, an optional YAML base
+// file (CONFIG_FILE), and environment variables. Secrets never carry compiled
+// defaults; only non-sensitive operational values do.
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -149,9 +151,14 @@ func loadBusinessLocation(name string) *time.Location {
 	return time.FixedZone("CST", 8*3600)
 }
 
-// Load resolves configuration: YAML base (if CONFIG_FILE is set) then env
-// overrides. It applies safe defaults for non-secret operational fields.
+// Load resolves configuration: .env, YAML base (if CONFIG_FILE is set), then
+// environment overrides. godotenv never overwrites an already-exported value,
+// so process-level settings retain the highest priority.
 func Load() (*Config, error) {
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("load .env: %w", err)
+	}
+
 	cfg := defaults()
 
 	if path := os.Getenv("CONFIG_FILE"); path != "" {

@@ -121,7 +121,7 @@ func (s *Service) ListActivities(ctx context.Context, f ListFilter) ([]ActivityV
 	out := make([]ActivityView, 0, len(rows))
 	for _, r := range rows {
 		view := ActivityView{
-			ID: r.ID, ScopeType: r.ScopeType, StoreID: r.StoreID, Name: r.Name,
+			ID: r.ID, ScopeType: r.ScopeType, StoreID: r.StoreID, Name: r.Name, Title: r.Name,
 			Type: r.Type, AssetID: r.AssetID, StartAt: r.StartAt, EndAt: r.EndAt,
 			Status: r.Status, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		}

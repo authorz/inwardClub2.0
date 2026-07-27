@@ -231,8 +231,9 @@ func (r *sqlRepository) ListActivities(ctx context.Context, f ListFilter) ([]Act
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, title, asset_id, start_at, end_at, status, created_at, updated_at
-		FROM activities WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
+	q := `SELECT a.id, a.scope_type, a.store_id, a.title, a.asset_id, a.start_at, a.end_at,
+		a.status, a.created_at, a.updated_at
+		FROM activities a WHERE ` + where + ` ORDER BY a.id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

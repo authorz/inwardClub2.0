@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	platdb "github.com/inwardclub/server/internal/platform/db"
@@ -17,6 +18,7 @@ import (
 // in one transaction and claims the request Idempotency-Key as its duplicate guard.
 type Repository interface {
 	ListFoodOrders(ctx context.Context, memberID int64, limit, offset int) ([]FoodOrder, int64, error)
+	ListFoodOrderItems(ctx context.Context, memberID int64, orderIDs []int64) (map[int64][]FoodOrderItem, error)
 	GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrder, []FoodOrderItem, error)
 
 	ListRechargeOrders(ctx context.Context, memberID int64, limit, offset int) ([]RechargeOrder, int64, error)
@@ -93,6 +95,41 @@ func (r *sqlRepository) ListFoodOrders(ctx context.Context, memberID int64, limi
 	return out, total, rows.Err()
 }
 
+func (r *sqlRepository) ListFoodOrderItems(ctx context.Context, memberID int64, orderIDs []int64) (map[int64][]FoodOrderItem, error) {
+	out := make(map[int64][]FoodOrderItem, len(orderIDs))
+	if len(orderIDs) == 0 {
+		return out, nil
+	}
+	placeholders := make([]string, len(orderIDs))
+	args := make([]any, 0, len(orderIDs)+1)
+	args = append(args, memberID)
+	for i, id := range orderIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	q := `SELECT foi.id, foi.food_order_id, foi.item_id, foi.variant_id, foi.name_snapshot,
+		foi.unit_price_cent, foi.quantity, foi.points_reward_snapshot, foi.subtotal_cent, ci.asset_id
+		FROM food_order_items foi
+		JOIN food_orders fo ON fo.id = foi.food_order_id
+		LEFT JOIN catalog_items ci ON ci.id = foi.item_id
+		WHERE fo.member_id = ? AND foi.food_order_id IN (` + strings.Join(placeholders, ",") + `)
+		ORDER BY foi.food_order_id DESC, foi.id ASC`
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it FoodOrderItem
+		if err := rows.Scan(&it.ID, &it.FoodOrderID, &it.ItemID, &it.VariantID, &it.NameSnapshot,
+			&it.UnitPriceCent, &it.Quantity, &it.PointsReward, &it.SubtotalCent, &it.AssetID); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		out[it.FoodOrderID] = append(out[it.FoodOrderID], it)
+	}
+	return out, rows.Err()
+}
+
 func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrder, []FoodOrderItem, error) {
 	const q = `SELECT fo.id, fo.business_order_id, bo.business_order_no, fo.store_id, fo.member_id, fo.table_id, fo.total_amount_cent,
 		fo.points_earned, bo.payment_status, COALESCE(po.pay_method, ''),
@@ -110,9 +147,10 @@ func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (F
 		}
 		return FoodOrder{}, nil, apperr.Internal(err)
 	}
-	const iq = `SELECT id, food_order_id, item_id, variant_id, name_snapshot, unit_price_cent,
-		quantity, points_reward_snapshot, subtotal_cent
-		FROM food_order_items WHERE food_order_id = ? ORDER BY id ASC`
+	const iq = `SELECT foi.id, foi.food_order_id, foi.item_id, foi.variant_id, foi.name_snapshot, foi.unit_price_cent,
+		foi.quantity, foi.points_reward_snapshot, foi.subtotal_cent, ci.asset_id
+		FROM food_order_items foi LEFT JOIN catalog_items ci ON ci.id = foi.item_id
+		WHERE foi.food_order_id = ? ORDER BY foi.id ASC`
 	rows, err := r.db.QueryContext(ctx, iq, o.ID)
 	if err != nil {
 		return FoodOrder{}, nil, apperr.Internal(err)
@@ -122,7 +160,7 @@ func (r *sqlRepository) GetFoodOrder(ctx context.Context, memberID, id int64) (F
 	for rows.Next() {
 		var it FoodOrderItem
 		if err := rows.Scan(&it.ID, &it.FoodOrderID, &it.ItemID, &it.VariantID, &it.NameSnapshot,
-			&it.UnitPriceCent, &it.Quantity, &it.PointsReward, &it.SubtotalCent); err != nil {
+			&it.UnitPriceCent, &it.Quantity, &it.PointsReward, &it.SubtotalCent, &it.AssetID); err != nil {
 			return FoodOrder{}, nil, apperr.Internal(err)
 		}
 		items = append(items, it)

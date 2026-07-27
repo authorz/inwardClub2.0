@@ -145,22 +145,37 @@ func (r *sqlConsoleRepository) UpdateAdminTable(ctx context.Context, id int64, t
 	if err != nil {
 		return Table{}, err
 	}
-	if current.StoreID != table.StoreID && current.SeatCount > 0 {
-		return Table{}, apperr.Conflict("cannot change store while table has seats")
-	}
-	result, err := r.db.ExecContext(ctx, `UPDATE tables
-		SET store_id = ?, name = ?, code = ?, capacity = ?, base_points = ?, layout_asset_id = ?, status = ?, updated_at = ?
-		WHERE id = ?`,
-		table.StoreID, table.Name, table.Code, table.Capacity, table.BasePoints,
-		table.LayoutAssetID, table.Status, time.Now().UTC(), id,
-	)
-	if err != nil {
-		if platdb.IsDuplicate(err) {
-			return Table{}, apperr.Conflict("table code already exists in this store")
+	now := time.Now().UTC()
+	err = r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE tables
+			SET store_id = ?, name = ?, code = ?, capacity = ?, base_points = ?, layout_asset_id = ?, status = ?, updated_at = ?
+			WHERE id = ?`,
+			table.StoreID, table.Name, table.Code, table.Capacity, table.BasePoints,
+			table.LayoutAssetID, table.Status, now, id,
+		); err != nil {
+			if platdb.IsDuplicate(err) {
+				return apperr.Conflict("table code already exists in this store")
+			}
+			return apperr.Internal(err)
 		}
-		return Table{}, apperr.Internal(err)
-	}
-	if err := affectedOrNotFound(result, "table not found"); err != nil {
+		if current.StoreID == table.StoreID {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE seats SET store_id = ?, updated_at = ? WHERE table_id = ?`,
+			table.StoreID, now, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE reservations SET store_id = ?, updated_at = ? WHERE table_id = ? AND status = ?`,
+			table.StoreID, now, id, StatusBooked,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
+	if err != nil {
 		return Table{}, err
 	}
 	return r.GetAdminTable(ctx, id)

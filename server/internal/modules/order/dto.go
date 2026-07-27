@@ -70,6 +70,7 @@ type FoodOrderItemView struct {
 	Quantity      int    `json:"quantity"`
 	PointsReward  int64  `json:"pointsReward"`
 	SubtotalCent  int64  `json:"subtotalCent"`
+	ImageURL      string `json:"imageUrl,omitempty"`
 }
 
 // RechargeOrderView is the mini-program recharge order representation.

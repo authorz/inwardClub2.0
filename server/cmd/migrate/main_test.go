@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"testing"
+
+	"github.com/inwardclub/server/internal/platform/config"
 )
 
 func TestDotEnvProvidesMySQLDSN(t *testing.T) {
@@ -23,7 +25,7 @@ func TestDotEnvProvidesMySQLDSN(t *testing.T) {
 		}
 	})
 
-	cfg, err := loadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}

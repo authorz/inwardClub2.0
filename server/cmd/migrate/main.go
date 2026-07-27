@@ -7,12 +7,10 @@ package main
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/joho/godotenv"
 	"github.com/pressly/goose/v3"
 
 	appdb "github.com/inwardclub/server/db"
@@ -29,7 +27,7 @@ func main() {
 }
 
 func run() error {
-	cfg, err := loadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
@@ -67,11 +65,4 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
-}
-
-func loadConfig() (*config.Config, error) {
-	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("load .env: %w", err)
-	}
-	return config.Load()
 }

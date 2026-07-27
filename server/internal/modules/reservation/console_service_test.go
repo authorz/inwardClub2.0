@@ -129,6 +129,22 @@ func TestConsoleServiceUpdateTableAllowsClearingLayout(t *testing.T) {
 	}
 }
 
+func TestConsoleServiceUpdateTableAllowsChangingStoreWithSeats(t *testing.T) {
+	repo := &consoleRepoStub{
+		storeExists: true,
+		table:       Table{ID: 1, StoreID: 7, SeatCount: 3},
+	}
+	view, err := NewConsoleService(repo, nil).UpdateTable(context.Background(), 1, TableWriteRequest{
+		StoreID: 8, Name: "A", Code: "A1", Capacity: 3, Status: AvailabilityAvailable,
+	})
+	if err != nil {
+		t.Fatalf("changing table store with seats should succeed: %v", err)
+	}
+	if repo.updatedTable.StoreID != 8 || view.StoreID != 8 {
+		t.Fatalf("expected table to move to store 8, updated=%+v view=%+v", repo.updatedTable, view)
+	}
+}
+
 func TestConsoleServiceCreateSeatRequiresTable(t *testing.T) {
 	repo := &consoleRepoStub{}
 	svc := NewConsoleService(repo, nil)

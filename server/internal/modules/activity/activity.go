@@ -156,11 +156,14 @@ func (r *sqlRepository) GetByID(ctx context.Context, id int64) (Activity, error)
 
 // ListSellableTicketTypes reads the activity's active ticket types for the
 // public detail page. Reuses the console ticket-type columns/scanner (same
-// package); only status = 'active' rows are exposed and they are ordered
-// cheapest-first to match the "from ¥X" summary the client renders.
+// package); only active, in-sale and in-stock rows are exposed.
 func (r *sqlRepository) ListSellableTicketTypes(ctx context.Context, activityID int64) ([]TicketType, error) {
 	const q = `SELECT ` + ticketTypeColumns + ` FROM activity_ticket_types
-		WHERE activity_id = ? AND status = 'active' ORDER BY price_cent ASC, id ASC`
+		WHERE activity_id = ? AND status = 'active'
+		  AND (sale_start_at IS NULL OR sale_start_at <= UTC_TIMESTAMP())
+		  AND (sale_end_at IS NULL OR sale_end_at >= UTC_TIMESTAMP())
+		  AND (stock_quantity = 0 OR sold_quantity < stock_quantity)
+		ORDER BY price_cent ASC, id ASC`
 	rows, err := r.db.QueryContext(ctx, q, activityID)
 	if err != nil {
 		return nil, apperr.Internal(err)

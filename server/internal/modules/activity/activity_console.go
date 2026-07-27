@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -260,15 +261,15 @@ func scopeWrite(scope ConsoleScope, requestedStoreID *int64) (string, any) {
 
 func (r *sqlConsoleRepository) CreateActivity(ctx context.Context, scope ConsoleScope, in ActivityInput) (Activity, error) {
 	now := time.Now().UTC()
+	scopeType, storeID := scopeWrite(scope, in.StoreID)
+	status := in.Status
+	if status == "" {
+		status = "published"
+	}
 	if scope.StoreID == nil && in.StoreID != nil {
 		if err := validateActivityStore(ctx, r.db, *in.StoreID); err != nil {
 			return Activity{}, err
 		}
-	}
-	scopeType, storeID := scopeWrite(scope, in.StoreID)
-	status := in.Status
-	if status == "" {
-		status = "draft"
 	}
 	const q = `INSERT INTO activities
 		(scope_type, store_id, title, description, content, asset_id, start_at, end_at,
@@ -291,7 +292,7 @@ func (r *sqlConsoleRepository) UpdateActivity(ctx context.Context, scope Console
 	now := time.Now().UTC()
 	status := in.Status
 	if status == "" {
-		status = "draft"
+		status = "published"
 	}
 	scopeType, storeID := scopeWrite(scope, in.StoreID)
 	where, args := scopeWhere(scope)
@@ -637,6 +638,9 @@ func (s *ConsoleService) GetActivity(ctx context.Context, scope ConsoleScope, id
 
 // CreateActivity creates an activity within scope.
 func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope, in ActivityInput) (ConsoleActivityView, error) {
+	if in.Status == "" {
+		in.Status = "published"
+	}
 	payChannels, err := normalizePayChannels(in.PayChannels)
 	if err != nil {
 		return ConsoleActivityView{}, err
@@ -651,6 +655,9 @@ func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope,
 
 // UpdateActivity updates an activity within scope.
 func (s *ConsoleService) UpdateActivity(ctx context.Context, scope ConsoleScope, id int64, in ActivityInput) (ConsoleActivityView, error) {
+	if in.Status == "" {
+		in.Status = "published"
+	}
 	payChannels, err := normalizePayChannels(in.PayChannels)
 	if err != nil {
 		return ConsoleActivityView{}, err
@@ -765,6 +772,9 @@ func (s *ConsoleService) CreateTicketType(ctx context.Context, scope ConsoleScop
 	if _, err := s.repo.GetActivity(ctx, scope, activityID); err != nil {
 		return TicketTypeView{}, err
 	}
+	if err := validateTicketTypeInput(in); err != nil {
+		return TicketTypeView{}, err
+	}
 	payChannels, err := normalizePayChannels(in.PayChannels)
 	if err != nil {
 		return TicketTypeView{}, err
@@ -782,6 +792,9 @@ func (s *ConsoleService) UpdateTicketType(ctx context.Context, scope ConsoleScop
 	if _, err := s.repo.GetActivity(ctx, scope, activityID); err != nil {
 		return TicketTypeView{}, err
 	}
+	if err := validateTicketTypeInput(in); err != nil {
+		return TicketTypeView{}, err
+	}
 	payChannels, err := normalizePayChannels(in.PayChannels)
 	if err != nil {
 		return TicketTypeView{}, err
@@ -792,6 +805,31 @@ func (s *ConsoleService) UpdateTicketType(ctx context.Context, scope ConsoleScop
 		return TicketTypeView{}, err
 	}
 	return ticketTypeView(t), nil
+}
+
+func validateTicketTypeInput(in TicketTypeInput) error {
+	if strings.TrimSpace(in.Name) == "" {
+		return apperr.Invalid("请填写票档名称")
+	}
+	if in.PriceCent <= 0 {
+		return apperr.Invalid("票档价格必须大于 0")
+	}
+	if in.StockQuantity < 0 {
+		return apperr.Invalid("票档库存不能小于 0")
+	}
+	if in.MaxTicketsPerOrder < 0 {
+		return apperr.Invalid("单次限购数量不能小于 0")
+	}
+	if (in.SaleStartAt == nil) != (in.SaleEndAt == nil) {
+		return apperr.Invalid("售卖开始时间和结束时间必须同时填写")
+	}
+	if in.SaleStartAt != nil && !in.SaleEndAt.After(*in.SaleStartAt) {
+		return apperr.Invalid("售卖结束时间必须晚于开始时间")
+	}
+	if (in.Name == "早鸟票" || in.Name == "预售票") && in.SaleStartAt == nil {
+		return apperr.Invalid("早鸟票和预售票必须设置售卖时间")
+	}
+	return nil
 }
 
 // DeleteTicketType deletes a ticket type under an activity within scope.
