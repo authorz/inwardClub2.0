@@ -153,7 +153,7 @@ func (r *sqlRepository) ListStores(ctx context.Context, f ListFilter) ([]StoreSu
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM stores WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, name, COALESCE(phone,''), address, status, created_at
+	q := `SELECT id, name, COALESCE(phone,''), address, latitude, longitude, status, created_at
 		FROM stores WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -164,7 +164,7 @@ func (r *sqlRepository) ListStores(ctx context.Context, f ListFilter) ([]StoreSu
 	out := make([]StoreSummary, 0)
 	for rows.Next() {
 		var s StoreSummary
-		if err := rows.Scan(&s.ID, &s.Name, &s.Phone, &s.Address, &s.Status, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Phone, &s.Address, &s.Latitude, &s.Longitude, &s.Status, &s.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, s)

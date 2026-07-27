@@ -71,6 +71,7 @@ func (s *Service) ListStores(ctx context.Context, f ListFilter) ([]StoreView, in
 	for _, r := range rows {
 		out = append(out, StoreView{
 			ID: r.ID, Name: r.Name, Phone: r.Phone, Address: r.Address,
+			Latitude: r.Latitude, Longitude: r.Longitude,
 			Status: r.Status, CreatedAt: r.CreatedAt,
 		})
 	}

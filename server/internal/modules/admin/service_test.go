@@ -36,7 +36,8 @@ func (f *fakeRepo) ListStores(_ context.Context, flt ListFilter) ([]StoreSummary
 	if f.err != nil {
 		return nil, 0, f.err
 	}
-	return []StoreSummary{{ID: 1, Name: "HQ", Status: StatusActive}}, 3, nil
+	lat, lng := 29.56301, 106.55156
+	return []StoreSummary{{ID: 1, Name: "HQ", Latitude: &lat, Longitude: &lng, Status: StatusActive}}, 3, nil
 }
 func (f *fakeRepo) ListCatalogItems(_ context.Context, flt ListFilter) ([]CatalogItem, int64, error) {
 	f.lastFilter = flt
@@ -564,6 +565,9 @@ func TestListStoresMapsAndPassesTotal(t *testing.T) {
 	}
 	if len(views) != 1 || views[0].Name != "HQ" {
 		t.Fatalf("unexpected views: %+v", views)
+	}
+	if views[0].Latitude == nil || views[0].Longitude == nil || *views[0].Latitude != 29.56301 || *views[0].Longitude != 106.55156 {
+		t.Fatalf("coordinates were not mapped: %+v", views[0])
 	}
 }
 

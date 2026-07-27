@@ -18,6 +18,8 @@ type StoreSummary struct {
 	Name      string
 	Phone     string
 	Address   string
+	Latitude  *float64
+	Longitude *float64
 	Status    string
 	CreatedAt time.Time
 }
