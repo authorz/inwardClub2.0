@@ -12,6 +12,8 @@ const { mergeCachedProfile } = require('../../utils/member-profile');
 const { POINT_SAVING } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
+const MINE_MENU_ASSET_BASE = 'https://assets.inwardclub.com/public/mine-menu/';
+
 // 会员等级短标：优先按 tierCode 映射 VIP1-8，其次从 tierName 取 VIPn，兜底 VIP1
 const TIER_SHORT = { normal: 'VIP1', bronze: 'VIP2', silver: 'VIP3', gold: 'VIP4', platinum: 'VIP5', diamond: 'VIP6', star: 'VIP7', master: 'VIP8' };
 function tierShortOf(me) {
@@ -35,24 +37,24 @@ Page({
       { type: 'recharge', label: '充值订单', icon: 'ic-ic-wallet' },
       { type: 'coupon', label: '兑换订单', icon: 'ic-ic-bag' },
     ],
-    // 会员功能 grid — icon 为 assets/mine-menu/*.png 文件名
+    // 菜单图标优先使用七牛公共资源，避免本地包资源被误删或增大主包体积。
     memberMenuEntries: [
-      { label: '充值', icon: 'recharge-coins', action: 'recharge' },
-      { label: '存积分', icon: 'save-points', action: 'point', dir: POINT_SAVING.DEPOSIT },
-      { label: '取积分', icon: 'withdraw-points', action: 'point', dir: POINT_SAVING.WITHDRAW },
-      { label: '排行榜', icon: 'rankings', action: 'nav', url: '/pages/rankings/rankings' },
-      { label: '邀请有礼', icon: 'invite-gift', action: 'nav', url: '/pages/invitations/invitations' },
-      { label: '交易记录', icon: 'transactions', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
-      { label: '会员权益', icon: 'member-benefits', action: 'nav', url: '/pages/benefits/benefits' },
-      { label: '咨询客服', icon: 'customer-service', action: 'nav', url: '/pages/customer-service/customer-service' },
-      { label: '加入社群', icon: 'community', action: 'toast' },
+      { label: '充值', icon: MINE_MENU_ASSET_BASE + 'recharge-coins.png', action: 'recharge' },
+      { label: '存积分', icon: '/assets/mine-menu/save-points.png', action: 'point', dir: POINT_SAVING.DEPOSIT },
+      { label: '取积分', icon: MINE_MENU_ASSET_BASE + 'withdraw-points.png', action: 'point', dir: POINT_SAVING.WITHDRAW },
+      { label: '排行榜', icon: MINE_MENU_ASSET_BASE + 'rankings.png', action: 'nav', url: '/pages/rankings/rankings' },
+      { label: '邀请有礼', icon: MINE_MENU_ASSET_BASE + 'invite-gift.png', action: 'nav', url: '/pages/invitations/invitations' },
+      { label: '交易记录', icon: MINE_MENU_ASSET_BASE + 'transactions.png', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
+      { label: '会员权益', icon: MINE_MENU_ASSET_BASE + 'member-benefits.png', action: 'nav', url: '/pages/benefits/benefits' },
+      { label: '咨询客服', icon: '/assets/mine-menu/customer-service.png', action: 'nav', url: '/pages/customer-service/customer-service' },
+      { label: '加入社群', icon: MINE_MENU_ASSET_BASE + 'community.png', action: 'toast' },
     ],
     // 工作人员功能 grid — 仅员工选中自己的绑定门店时显示
     staffMenuEntries: [
-      { label: '活动核销', icon: 'staff-verify', url: '/pages/staff-verify/staff-verify' },
-      { label: '积分审核', icon: 'staff-point-review', url: '/pages/staff-point-review/staff-point-review' },
-      { label: '核销记录', icon: 'staff-records', url: '/pages/staff-verifications/staff-verifications' },
-      { label: '今日活动', icon: 'staff-today', url: '/pages/staff-today/staff-today' },
+      { label: '活动核销', icon: MINE_MENU_ASSET_BASE + 'staff-verify.png', url: '/pages/staff-verify/staff-verify' },
+      { label: '积分审核', icon: MINE_MENU_ASSET_BASE + 'staff-point-review.png', url: '/pages/staff-point-review/staff-point-review' },
+      { label: '核销记录', icon: MINE_MENU_ASSET_BASE + 'staff-records.png', url: '/pages/staff-verifications/staff-verifications' },
+      { label: '今日活动', icon: MINE_MENU_ASSET_BASE + 'staff-today.png', url: '/pages/staff-today/staff-today' },
     ],
 
     // recharge sheet

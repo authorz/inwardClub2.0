@@ -63,7 +63,7 @@
     <text class="ic-h2 mine__block-title">会员功能</text>
     <view class="mine__menu">
       <view class="mine__menu-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__grid-item--hover">
-        <image class="mine__menu-ico" src="/assets/mine-menu/{{item.icon}}.png" mode="aspectFit" />
+        <image class="mine__menu-ico" src="{{item.icon}}" mode="aspectFit" />
         <text class="mine__grid-label">{{item.label}}</text>
       </view>
     </view>
@@ -74,7 +74,7 @@
     <text class="ic-h2 mine__block-title">工作人员功能</text>
     <view class="mine__menu">
       <view class="mine__menu-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__grid-item--hover">
-        <image class="mine__menu-ico" src="/assets/mine-menu/{{item.icon}}.png" mode="aspectFit" />
+        <image class="mine__menu-ico" src="{{item.icon}}" mode="aspectFit" />
         <text class="mine__grid-label">{{item.label}}</text>
       </view>
     </view>
