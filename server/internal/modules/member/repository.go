@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 )
 
 // Repository is the member persistence port. Profile/phone/invitation reads and
-// writes hit the members table directly; the tier/product/ranking reads target
-// the membership_tiers, recharge_products and point_savings tables.
+// writes hit the members table directly; rankings aggregate settled recharge
+// business orders across all stores.
 type Repository interface {
 	// Member self-service (backed by the members table).
 	GetMember(ctx context.Context, id int64) (Member, error)
 	UpdateProfile(ctx context.Context, id int64, p ProfileUpdate) error
-	UpdatePhone(ctx context.Context, id int64, phone string) error
+	UpdatePhone(ctx context.Context, id int64, phone string, intervalDays int) (PhoneChangeResult, error)
 
 	// Invitations (backed by members.invite_code / invited_by_member_id).
 	GetByInviteCode(ctx context.Context, code string) (Member, error)
@@ -47,6 +48,7 @@ type Repository interface {
 	// Admin recharge product writes (backed by the recharge_products table).
 	CreateRechargeProduct(ctx context.Context, p RechargeProductCreate) (RechargeProduct, error)
 	UpdateRechargeProduct(ctx context.Context, id int64, u RechargeProductUpdate) (RechargeProduct, error)
+	ValidateRechargeCouponTemplate(ctx context.Context, id int64) error
 }
 
 // Clock is the source of the business "now" used to compute the leaderboard
@@ -67,12 +69,12 @@ func NewRepository(db *platdb.DB, clock Clock) Repository {
 	return &sqlRepository{db: db, clock: clock}
 }
 
-const memberColumns = `id, nickname, COALESCE(phone,''), COALESCE(invite_code,''),
+const memberColumns = `id, nickname, COALESCE(gender,''), COALESCE(phone,''), phone_changed_at, COALESCE(invite_code,''),
 	avatar_asset_id, invited_by_member_id, current_tier_id, status, created_at`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
-	err := row.Scan(&m.ID, &m.Nickname, &m.Phone, &m.InviteCode,
+	err := row.Scan(&m.ID, &m.Nickname, &m.Gender, &m.Phone, &m.PhoneChangedAt, &m.InviteCode,
 		&m.AvatarAssetID, &m.InvitedByMemberID, &m.CurrentTierID, &m.Status, &m.CreatedAt)
 	return m, err
 }
@@ -96,6 +98,10 @@ func (r *sqlRepository) UpdateProfile(ctx context.Context, id int64, p ProfileUp
 		sets = append(sets, "nickname = ?")
 		args = append(args, *p.Nickname)
 	}
+	if p.Gender != nil {
+		sets = append(sets, "gender = ?")
+		args = append(args, *p.Gender)
+	}
 	if p.AvatarAssetID != nil {
 		sets = append(sets, "avatar_asset_id = ?")
 		args = append(args, *p.AvatarAssetID)
@@ -116,12 +122,58 @@ func (r *sqlRepository) UpdateProfile(ctx context.Context, id int64, p ProfileUp
 	return nil
 }
 
-func (r *sqlRepository) UpdatePhone(ctx context.Context, id int64, phone string) error {
-	const q = `UPDATE members SET phone = ?, updated_at = ? WHERE id = ?`
-	if _, err := r.db.ExecContext(ctx, q, phone, time.Now().UTC(), id); err != nil {
-		return apperr.Internal(err)
+func (r *sqlRepository) UpdatePhone(ctx context.Context, id int64, phone string, intervalDays int) (PhoneChangeResult, error) {
+	var result PhoneChangeResult
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		const selectMember = `SELECT COALESCE(phone,''), phone_changed_at FROM members WHERE id = ? FOR UPDATE`
+		var currentPhone string
+		var changedAt sql.NullTime
+		if err := tx.QueryRowContext(ctx, selectMember, id).Scan(&currentPhone, &changedAt); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.New(apperr.CodeMemberNotFound, "会员不存在")
+			}
+			return apperr.Internal(err)
+		}
+
+		now := r.clock.Now()
+		if currentPhone == phone {
+			if changedAt.Valid {
+				result.NextAllowedAt = changedAt.Time.In(now.Location()).AddDate(0, 0, intervalDays)
+			}
+			return nil
+		}
+		if nextAllowedAt, blocked := phoneChangeCooldown(currentPhone, phone, changedAt, intervalDays, now); blocked {
+			return apperr.Conflict(fmt.Sprintf(
+				"手机号每 %d 天只能更换一次，请于 %s 后再试",
+				intervalDays,
+				nextAllowedAt.Format("2006-01-02 15:04"),
+			)).WithDetails(map[string]any{
+				"intervalDays":  intervalDays,
+				"nextAllowedAt": nextAllowedAt.UTC().Format(time.RFC3339),
+			})
+		}
+
+		const updatePhone = `UPDATE members SET phone = ?, phone_changed_at = ?, updated_at = ? WHERE id = ?`
+		nowUTC := now.UTC()
+		if _, err := tx.ExecContext(ctx, updatePhone, phone, nowUTC, nowUTC, id); err != nil {
+			return apperr.Internal(err)
+		}
+		result.Changed = true
+		result.NextAllowedAt = now.AddDate(0, 0, intervalDays)
+		return nil
+	})
+	if err != nil {
+		return PhoneChangeResult{}, err
 	}
-	return nil
+	return result, nil
+}
+
+func phoneChangeCooldown(currentPhone, nextPhone string, changedAt sql.NullTime, intervalDays int, now time.Time) (time.Time, bool) {
+	if currentPhone == "" || currentPhone == nextPhone || !changedAt.Valid {
+		return time.Time{}, false
+	}
+	nextAllowedAt := changedAt.Time.In(now.Location()).AddDate(0, 0, intervalDays)
+	return nextAllowedAt, now.Before(nextAllowedAt)
 }
 
 func (r *sqlRepository) GetByInviteCode(ctx context.Context, code string) (Member, error) {
@@ -319,7 +371,7 @@ func (r *sqlRepository) UpdateMembershipTier(ctx context.Context, id int64, u Me
 }
 
 func (r *sqlRepository) ListRechargeProducts(ctx context.Context) ([]RechargeProduct, error) {
-	const q = `SELECT id, amount_cent, coin_amount, points_amount, sort_order, status
+	const q = `SELECT id, amount_cent, coin_amount, points_amount, coupon_template_id, sort_order, status
 		FROM recharge_products WHERE status = ? ORDER BY sort_order ASC, id ASC`
 	rows, err := r.db.QueryContext(ctx, q, StatusActive)
 	if err != nil {
@@ -376,11 +428,11 @@ func (r *sqlRepository) GetRechargeProduct(ctx context.Context, id int64) (Recha
 	return p, nil
 }
 
-const rechargeProductColumns = `id, amount_cent, coin_amount, points_amount, sort_order, status`
+const rechargeProductColumns = `id, amount_cent, coin_amount, points_amount, coupon_template_id, sort_order, status`
 
 func scanRechargeProduct(row interface{ Scan(...any) error }) (RechargeProduct, error) {
 	var p RechargeProduct
-	err := row.Scan(&p.ID, &p.AmountCent, &p.CoinAmount, &p.PointsAmount, &p.SortOrder, &p.Status)
+	err := row.Scan(&p.ID, &p.AmountCent, &p.CoinAmount, &p.PointsAmount, &p.CouponTemplateID, &p.SortOrder, &p.Status)
 	return p, err
 }
 
@@ -390,9 +442,9 @@ func (r *sqlRepository) CreateRechargeProduct(ctx context.Context, p RechargePro
 		status = StatusActive
 	}
 	const q = `INSERT INTO recharge_products
-		(amount_cent, coin_amount, points_amount, sort_order, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, p.AmountCent, p.CoinAmount, p.PointsAmount, p.SortOrder, status)
+		(amount_cent, coin_amount, points_amount, coupon_template_id, sort_order, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	res, err := r.db.ExecContext(ctx, q, p.AmountCent, p.CoinAmount, p.PointsAmount, p.CouponTemplateID, p.SortOrder, status)
 	if err != nil {
 		return RechargeProduct{}, apperr.Internal(err)
 	}
@@ -418,6 +470,10 @@ func (r *sqlRepository) UpdateRechargeProduct(ctx context.Context, id int64, u R
 	if u.PointsAmount != nil {
 		set = append(set, "points_amount = ?")
 		args = append(args, *u.PointsAmount)
+	}
+	if u.CouponTemplateID != nil {
+		set = append(set, "coupon_template_id = ?")
+		args = append(args, *u.CouponTemplateID)
 	}
 	if u.SortOrder != nil {
 		set = append(set, "sort_order = ?")
@@ -449,23 +505,64 @@ func (r *sqlRepository) UpdateRechargeProduct(ctx context.Context, id int64, u R
 	return scanRechargeProduct(row)
 }
 
-// ListRankings sums approved point_savings.points per member within the period
-// window and returns the top scorers. Per the 2.0 spec the leaderboard is a
-// monthly one; week/all are supported as narrower/wider windows over the same
-// approved-points measure. Rank is 1-based by descending score.
+func (r *sqlRepository) ValidateRechargeCouponTemplate(ctx context.Context, id int64) error {
+	var status string
+	if err := r.db.QueryRowContext(ctx, `SELECT status FROM coupon_templates WHERE id = ?`, id).Scan(&status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.Invalid("请选择有效的优惠券")
+		}
+		return apperr.Internal(err)
+	}
+	if status != "published" {
+		return apperr.Invalid("充值奖励只能绑定已发布的优惠券")
+	}
+	return nil
+}
+
+// ListRankings sums settled WeChat business-order amounts per member within the
+// requested period. ¥1 of successful WeChat payment equals 1 growth value. The
+// business-order amount is authoritative so the payment-debug amount never
+// changes member entitlements or ranking growth. Successful refunds reduce the
+// counted amount. Rank is 1-based by descending growth value.
 func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit int) ([]RankingEntry, error) {
 	since, hasSince := rankingWindowStart(period, r.clock.Now())
 
-	q := `SELECT m.id, m.nickname, m.avatar_asset_id, COALESCE(SUM(ps.points), 0) AS score
-		FROM point_savings ps
-		JOIN members m ON m.id = ps.member_id
-		WHERE ps.status = ?`
-	args := []any{pointSavingApproved}
+	sourceQuery := `SELECT ro.member_id,
+			FLOOR(GREATEST(ro.total_amount_cent - COALESCE(rf.refunded_cent, 0), 0) / 100) AS score
+		FROM business_orders ro
+		JOIN (
+			SELECT business_order_id, MIN(paid_at) AS paid_at
+			FROM payment_orders
+			WHERE pay_method = 'wechat' AND paid_at IS NOT NULL
+				AND status IN ('paid', 'partially_refunded', 'refunded')
+			GROUP BY business_order_id
+		) paid ON paid.business_order_id = ro.id
+		LEFT JOIN (
+			SELECT business_order_id, SUM(amount_cent) AS refunded_cent
+			FROM refund_orders
+			WHERE status = 'succeeded'
+			GROUP BY business_order_id
+		) rf ON rf.business_order_id = ro.id
+		WHERE ro.payment_status IN ('paid', 'partially_refunded')`
+	args := make([]any, 0, 2)
 	if hasSince {
-		q += ` AND ps.reviewed_at >= ?`
+		sourceQuery += ` AND paid.paid_at >= ?`
 		args = append(args, since)
 	}
-	q += ` GROUP BY m.id, m.nickname, m.avatar_asset_id
+	if period == RankingAll {
+		sourceQuery += ` UNION ALL
+			SELECT m.id AS member_id, legacy.growth_value AS score
+			FROM legacy_recharge_growth_totals legacy
+			JOIN members m ON m.legacy_user_id = legacy.legacy_user_id`
+	}
+
+	q := `SELECT m.id, m.nickname, m.avatar_asset_id, COALESCE(m.avatar_url, ''),
+			COALESCE(m.gender, ''), COALESCE(SUM(src.score), 0) AS score
+		FROM (` + sourceQuery + `) src
+		JOIN members m ON m.id = src.member_id
+		WHERE m.status = 'active'
+		GROUP BY m.id, m.nickname, m.avatar_asset_id, m.avatar_url, m.gender
+		HAVING score > 0
 		ORDER BY score DESC, m.id ASC LIMIT ?`
 	args = append(args, limit)
 
@@ -479,7 +576,7 @@ func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit i
 	for rows.Next() {
 		rank++
 		e := RankingEntry{Rank: rank}
-		if err := rows.Scan(&e.MemberID, &e.Nickname, &e.AvatarAssetID, &e.Score); err != nil {
+		if err := rows.Scan(&e.MemberID, &e.Nickname, &e.AvatarAssetID, &e.AvatarURL, &e.Gender, &e.Score); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, e)
@@ -493,8 +590,7 @@ func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit i
 // rankingWindowStart returns the inclusive lower bound for the given leaderboard
 // period, plus whether a bound applies. RankingAll has no bound. now is the
 // business "now" (in the business zone); the window edges are anchored to that
-// zone's calendar and returned as UTC instants for comparison against the
-// stored UTC reviewed_at column.
+// zone's calendar and returned as UTC instants for comparison against paid_at.
 func rankingWindowStart(period string, now time.Time) (time.Time, bool) {
 	loc := now.Location()
 	switch period {

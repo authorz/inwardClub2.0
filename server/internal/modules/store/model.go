@@ -6,17 +6,18 @@ import "time"
 
 // Store is a store profile.
 type Store struct {
-	ID            int64
-	Name          string
-	LogoAssetID   *int64
-	Phone         string
-	Address       string
-	Latitude      *float64
-	Longitude     *float64
-	BusinessHours string
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                       int64
+	Name                     string
+	LogoAssetID              *int64
+	Phone                    string
+	CustomerServiceQRAssetID *int64
+	Address                  string
+	Latitude                 *float64
+	Longitude                *float64
+	BusinessHours            string
+	Status                   string
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 // Banner is a promotional banner scoped globally or to a store.

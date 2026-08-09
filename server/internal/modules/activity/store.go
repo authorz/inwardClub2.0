@@ -10,6 +10,7 @@ import (
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // Point-saving review decisions accepted by the store console.
@@ -400,8 +401,9 @@ func NewStoreService(repo StoreRepository, assets AssetResolver) *StoreService {
 // VerifyTicket redeems a ticket by its code at the acting store. byID identifies
 // the staff account performing the verification.
 func (s *StoreService) VerifyTicket(ctx context.Context, storeID int64, code string, byID int64) (TicketVerificationView, error) {
-	if code == "" {
-		return TicketVerificationView{}, apperr.Invalid("ticket code is required")
+	code, validationErr := inputvalidation.VerificationCode(code)
+	if validationErr != nil {
+		return TicketVerificationView{}, apperr.Invalid(validationErr.Error())
 	}
 	v, err := s.repo.VerifyTicket(ctx, storeID, code, byID, s.now().UTC())
 	if err != nil {
@@ -437,7 +439,13 @@ func (s *StoreService) ReviewPointSaving(ctx context.Context, storeID, requestID
 	if req.Decision != ReviewApprove && req.Decision != ReviewReject {
 		return PointSavingView{}, apperr.Invalid("decision must be approve or reject")
 	}
-	p, err := s.repo.ReviewPointSaving(ctx, storeID, requestID, req.Decision, req.Remark, byID, s.now().UTC())
+	remark, validationErr := inputvalidation.PlainText(req.Remark, inputvalidation.TextOptions{
+		Label: "审核备注", MaxRunes: 200, AllowEmpty: true, AllowNewlines: true,
+	})
+	if validationErr != nil {
+		return PointSavingView{}, apperr.Invalid(validationErr.Error())
+	}
+	p, err := s.repo.ReviewPointSaving(ctx, storeID, requestID, req.Decision, remark, byID, s.now().UTC())
 	if err != nil {
 		return PointSavingView{}, err
 	}
@@ -500,7 +508,7 @@ func (s *StoreService) StaffHome(ctx context.Context, storeID int64) (StaffHomeV
 func (s *StoreService) activityView(ctx context.Context, a Activity) ActivityView {
 	v := ActivityView{
 		ID: a.ID, StoreID: a.StoreID, Title: a.Title, Description: a.Description,
-		Content: a.Content, StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels, Status: a.Status,
+		Content: inputvalidation.SanitizeRichHTML(a.Content), StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels, Status: a.Status,
 	}
 	if a.AssetID != nil {
 		v.ImageURL, _ = s.assets.PublicURLByID(ctx, *a.AssetID)

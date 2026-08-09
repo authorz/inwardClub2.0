@@ -5,6 +5,7 @@
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  NButton,
   NDatePicker,
   NForm,
   NFormItem,
@@ -34,7 +35,7 @@ import {
 } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { activityService, storeService } from '@/api/services'
-import type { Activity } from '@/api/models'
+import type { Activity, ActivityTicketType } from '@/api/models'
 import { runAudited } from '@/composables/useAuditedAction'
 import { toastError, toastSuccess } from '@/utils/feedback'
 import { formatDateTime } from '@/utils/format'
@@ -181,13 +182,72 @@ interface ActivityForm {
   timeRange: [number, number] | null
   payChannels: string[]
   purchaseLimitPerMember: number
+  ticketTypes: TicketTypeForm[]
   status: string
+}
+
+interface TicketTypeForm {
+  key: number
+  id: string | null
+  name: string
+  priceYuan: number | null
+  stockQuantity: number
+  saleRange: [number, number] | null
+  payChannels: string[]
+  maxTicketsPerOrder: number
+  status: string
+}
+
+const ticketNameOptions = ['早鸟票', '预售票', '单人票', '双人票'].map((value) => ({
+  label: value,
+  value,
+}))
+const ticketStatusOptions = [
+  { label: '启用', value: 'active' },
+  { label: '停用', value: 'inactive' },
+]
+let ticketKeySeed = 0
+
+function newTicketType(name = '单人票'): TicketTypeForm {
+  return {
+    key: ++ticketKeySeed,
+    id: null,
+    name,
+    priceYuan: null,
+    stockQuantity: 0,
+    saleRange: null,
+    payChannels: ['wechat'],
+    maxTicketsPerOrder: 0,
+    status: 'active',
+  }
+}
+
+function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
+  return {
+    key: ++ticketKeySeed,
+    id: String(ticket.id),
+    name: ticket.name,
+    priceYuan: ticket.priceCent / 100,
+    stockQuantity: ticket.stockQuantity,
+    saleRange:
+      ticket.saleStartAt && ticket.saleEndAt
+        ? [new Date(ticket.saleStartAt).getTime(), new Date(ticket.saleEndAt).getTime()]
+        : null,
+    payChannels: ticket.payChannels?.length ? [...ticket.payChannels] : ['wechat'],
+    maxTicketsPerOrder: ticket.maxTicketsPerOrder ?? 0,
+    status: ticket.status || 'active',
+  }
+}
+
+function isTimedTicket(ticket: TicketTypeForm): boolean {
+  return ticket.name === '早鸟票' || ticket.name === '预售票'
 }
 
 const drawerShow = ref(false)
 const submitting = ref(false)
 const detailLoading = ref(false)
 const editingId = ref<string | null>(null)
+const originalTicketTypeIds = ref<string[]>([])
 const form = reactive<ActivityForm>({
   storeTarget: 'global',
   title: '',
@@ -198,7 +258,8 @@ const form = reactive<ActivityForm>({
   timeRange: null,
   payChannels: ['wechat'],
   purchaseLimitPerMember: 0,
-  status: RESOURCE_STATUS.DRAFT,
+  ticketTypes: [newTicketType()],
+  status: RESOURCE_STATUS.PUBLISHED,
 })
 
 function resetForm(): void {
@@ -211,7 +272,9 @@ function resetForm(): void {
   form.timeRange = null
   form.payChannels = ['wechat']
   form.purchaseLimitPerMember = 0
-  form.status = RESOURCE_STATUS.DRAFT
+  form.ticketTypes = [newTicketType()]
+  form.status = RESOURCE_STATUS.PUBLISHED
+  originalTicketTypeIds.value = []
   uploadKey.value += 1
 }
 
@@ -225,7 +288,10 @@ async function openEdit(row: Activity): Promise<void> {
   if (detailLoading.value) return
   detailLoading.value = true
   try {
-    const detail = await activityService.get(row.id)
+    const [detail, ticketTypes] = await Promise.all([
+      activityService.get(row.id),
+      activityService.ticketTypes(row.id),
+    ])
     editingId.value = row.id
     resetForm()
     form.storeTarget = detail.storeId == null ? 'global' : String(detail.storeId)
@@ -240,7 +306,9 @@ async function openEdit(row: Activity): Promise<void> {
         : null
     form.payChannels = detail.payChannels?.length ? [...detail.payChannels] : ['wechat']
     form.purchaseLimitPerMember = detail.purchaseLimitPerMember ?? 0
-    form.status = detail.status ?? RESOURCE_STATUS.DRAFT
+    form.ticketTypes = ticketTypes.length ? ticketTypes.map(mapTicketType) : [newTicketType()]
+    originalTicketTypeIds.value = ticketTypes.map((ticket) => String(ticket.id))
+    form.status = detail.status ?? RESOURCE_STATUS.PUBLISHED
     drawerShow.value = true
   } catch (e) {
     toastError((e as { message?: string }).message ?? '活动详情加载失败')
@@ -254,6 +322,21 @@ async function submit(): Promise<void> {
   if (!form.payChannels.length) return toastError('请选择至少一种支付方式')
   if (form.timeRange && form.timeRange[0] >= form.timeRange[1]) {
     return toastError('活动结束时间必须晚于开始时间')
+  }
+  if (!form.ticketTypes.length) return toastError('请至少添加一个票档')
+  for (const ticket of form.ticketTypes) {
+    if (!ticket.name.trim()) return toastError('请填写票档名称')
+    if (ticket.priceYuan == null || ticket.priceYuan <= 0) {
+      return toastError(`请填写“${ticket.name}”的正确价格`)
+    }
+    if (ticket.stockQuantity < 0) return toastError(`“${ticket.name}”的库存不能小于 0`)
+    if (!ticket.payChannels.length) return toastError(`请选择“${ticket.name}”的支付方式`)
+    if (isTimedTicket(ticket) && !ticket.saleRange) {
+      return toastError(`请设置“${ticket.name}”的售卖时间`)
+    }
+    if (ticket.saleRange && ticket.saleRange[0] >= ticket.saleRange[1]) {
+      return toastError(`“${ticket.name}”的售卖结束时间必须晚于开始时间`)
+    }
   }
 
   const payload: Partial<Activity> = {
@@ -271,8 +354,37 @@ async function submit(): Promise<void> {
 
   submitting.value = true
   try {
-    if (editingId.value) await activityService.update(editingId.value, payload)
-    else await activityService.create(payload)
+    const activity = editingId.value
+      ? await activityService.update(editingId.value, payload)
+      : await activityService.create(payload)
+    const activityId = String(activity.id)
+    const retainedIds = new Set<string>()
+    for (const ticket of form.ticketTypes) {
+      const ticketPayload: Partial<ActivityTicketType> = {
+        name: ticket.name.trim(),
+        priceCent: Math.round((ticket.priceYuan ?? 0) * 100),
+        stockQuantity: ticket.stockQuantity,
+        saleStartAt: ticket.saleRange
+          ? new Date(ticket.saleRange[0]).toISOString()
+          : undefined,
+        saleEndAt: ticket.saleRange ? new Date(ticket.saleRange[1]).toISOString() : undefined,
+        payChannels: ticket.payChannels,
+        maxTicketsPerOrder: ticket.maxTicketsPerOrder,
+        status: ticket.status,
+      }
+      if (ticket.id) {
+        await activityService.updateTicketType(activityId, ticket.id, ticketPayload)
+        retainedIds.add(ticket.id)
+      } else {
+        const created = await activityService.createTicketType(activityId, ticketPayload)
+        retainedIds.add(String(created.id))
+      }
+    }
+    for (const ticketTypeId of originalTicketTypeIds.value) {
+      if (!retainedIds.has(ticketTypeId)) {
+        await activityService.removeTicketType(activityId, ticketTypeId)
+      }
+    }
     toastSuccess(editingId.value ? '活动已更新' : '活动已创建')
     drawerShow.value = false
     listRef.value?.reload()
@@ -313,7 +425,7 @@ onMounted(loadStores)
     <ResourceListView
       ref="listRef"
       title="活动管理"
-      description="维护活动基本信息、封面、图文详情、时间、支付方式和发布状态"
+      description="维护活动基本信息、票档、封面、图文详情、支付方式和发布状态"
       :breadcrumb="['活动管理']"
       :fields="fields"
       :columns="columns"
@@ -414,6 +526,114 @@ onMounted(loadStores)
           />
         </NFormItem>
 
+        <section class="ticket-types">
+          <div class="ticket-types__header">
+            <div>
+              <h3>票档设置</h3>
+              <p>每个票档独立设置价格、库存和售卖时间；库存为 0 表示不限量。</p>
+            </div>
+            <NButton
+              secondary
+              @click="form.ticketTypes.push(newTicketType())"
+            >
+              新增票档
+            </NButton>
+          </div>
+
+          <div
+            v-for="(ticket, index) in form.ticketTypes"
+            :key="ticket.key"
+            class="ticket-type"
+          >
+            <div class="ticket-type__heading">
+              <strong>票档 {{ index + 1 }}</strong>
+              <NButton
+                v-if="form.ticketTypes.length > 1"
+                text
+                type="error"
+                @click="form.ticketTypes.splice(index, 1)"
+              >
+                删除
+              </NButton>
+            </div>
+            <div class="ticket-type__grid ticket-type__grid--primary">
+              <NFormItem
+                label="票档名称"
+                required
+              >
+                <NSelect
+                  v-model:value="ticket.name"
+                  :options="ticketNameOptions"
+                  tag
+                  filterable
+                />
+              </NFormItem>
+              <NFormItem
+                label="价格"
+                required
+              >
+                <NInputNumber
+                  v-model:value="ticket.priceYuan"
+                  :min="0.01"
+                  :precision="2"
+                  style="width: 100%"
+                >
+                  <template #prefix>
+                    ¥
+                  </template>
+                </NInputNumber>
+              </NFormItem>
+              <NFormItem label="库存">
+                <NInputNumber
+                  v-model:value="ticket.stockQuantity"
+                  :min="0"
+                  :precision="0"
+                  placeholder="0 表示不限量"
+                  style="width: 100%"
+                />
+              </NFormItem>
+              <NFormItem label="状态">
+                <NSelect
+                  v-model:value="ticket.status"
+                  :options="ticketStatusOptions"
+                />
+              </NFormItem>
+            </div>
+            <div class="ticket-type__grid ticket-type__grid--rules">
+              <NFormItem
+                :label="isTimedTicket(ticket) ? '售卖时间（必填）' : '售卖时间（选填）'"
+                :required="isTimedTicket(ticket)"
+              >
+                <NDatePicker
+                  v-model:value="ticket.saleRange"
+                  type="datetimerange"
+                  clearable
+                  style="width: 100%"
+                />
+              </NFormItem>
+              <NFormItem label="单次限购">
+                <NInputNumber
+                  v-model:value="ticket.maxTicketsPerOrder"
+                  :min="0"
+                  :precision="0"
+                  placeholder="0 表示不限制"
+                  style="width: 100%"
+                />
+              </NFormItem>
+              <NFormItem
+                label="支付方式"
+                required
+              >
+                <NSelect
+                  v-model:value="ticket.payChannels"
+                  multiple
+                  :options="onlinePayChannelOptions.map(({ label, value }) => ({ label, value }))"
+                />
+              </NFormItem>
+            </div>
+          </div>
+        </section>
+
         <NFormItem label="活动封面">
           <div class="activity-form__asset">
             <AssetUpload
@@ -473,10 +693,64 @@ onMounted(loadStores)
   font-size: var(--ic-font-xs);
 }
 
+.ticket-types {
+  margin-bottom: var(--ic-space-lg);
+}
+
+.ticket-types__header,
+.ticket-type__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-md);
+}
+
+.ticket-types__header {
+  margin-bottom: var(--ic-space-sm);
+}
+
+.ticket-types__header h3,
+.ticket-types__header p {
+  margin: 0;
+}
+
+.ticket-types__header p {
+  margin-top: 4px;
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+}
+
+.ticket-type {
+  padding: var(--ic-space-md) 0;
+  border-top: 1px solid var(--ic-color-border);
+}
+
+.ticket-type__heading {
+  margin-bottom: var(--ic-space-sm);
+}
+
+.ticket-type__grid {
+  display: grid;
+  gap: 0 var(--ic-space-md);
+}
+
+.ticket-type__grid--primary {
+  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(120px, 1fr));
+}
+
+.ticket-type__grid--rules {
+  grid-template-columns: minmax(280px, 2fr) minmax(130px, 1fr) minmax(180px, 1.3fr);
+}
+
 @media (max-width: 720px) {
   .activity-form__grid {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .ticket-type__grid--primary,
+  .ticket-type__grid--rules {
+    grid-template-columns: 1fr;
   }
 }
 </style>

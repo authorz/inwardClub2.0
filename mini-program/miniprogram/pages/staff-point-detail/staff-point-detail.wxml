@@ -10,6 +10,12 @@
     <view class="od-row"><text class="od-row__label">会员</text><text class="od-row__value od-row__value--strong">{{item.memberName}}</text></view>
     <view class="od-row"><text class="od-row__label">类型</text><text class="od-row__value">{{item.directionLabel}}积分</text></view>
     <view class="od-row"><text class="od-row__label">积分数量</text><text class="od-row__value od-row__value--big">{{item.points}}</text></view>
+    <block wx:if="{{item.status === 'approved'}}">
+      <view class="od-row"><text class="od-row__label">基数积分</text><text class="od-row__value">{{item.basePoints}}</text></view>
+      <view class="od-row"><text class="od-row__label">实际到账</text><text class="od-row__value od-row__value--big">{{item.awardedPoints}}</text></view>
+      <view class="od-row"><text class="od-row__label">奖励金币</text><text class="od-row__value">{{item.awardedCoins}}</text></view>
+      <view class="od-row"><text class="od-row__label">计算说明</text><text class="od-row__value">{{item.calculationDescription}}</text></view>
+    </block>
     <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{item.storeName}}</text></view>
     <view class="od-row"><text class="od-row__label">提交时间</text><text class="od-row__value">{{item.timeText}}</text></view>
     <view class="od-row"><text class="od-row__label">备注</text><text class="od-row__value">{{item.note}}</text></view>

@@ -11,7 +11,7 @@
     <view class="cp__list">
       <view class="cp__card {{item.status !== 'unused' ? 'is-dim' : ''}}" wx:for="{{list}}" wx:key="id">
         <view class="cp__left">
-          <image class="cp__icon" src="/assets/icons/coupon-gpt.png" mode="aspectFit" />
+          <image class="cp__icon" src="https://assets.inwardclub.com/public/images/coupon-gpt.png" mode="aspectFit" />
         </view>
         <view class="cp__mid">
           <text class="cp__name">{{item.name}}</text>

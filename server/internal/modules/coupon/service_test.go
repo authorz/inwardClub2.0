@@ -106,6 +106,13 @@ func TestRedeemActiveMarksUsed(t *testing.T) {
 	}
 }
 
+func TestRedeemRejectsInvalidIdentifiers(t *testing.T) {
+	svc := NewService(&memRepo{})
+	if _, err := svc.Redeem(context.Background(), 10, "idem-invalid", RedeemRequest{}); codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid identifiers rejection, got %v", err)
+	}
+}
+
 func TestListAndGetRedemptions(t *testing.T) {
 	repo := &memRepo{redemptions: map[int64][]RedemptionOrder{
 		10: {

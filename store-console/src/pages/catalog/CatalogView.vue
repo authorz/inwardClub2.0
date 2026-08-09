@@ -1,16 +1,16 @@
 <script setup lang="ts">
-/**
- * 本店商品：本店自建商品 + 采用全局商品的本店覆盖（价格、库存、支付方式、上下架）。
- * 门店不可修改全局模板；库存调整/发布为高风险写操作，服务端带 Idempotency-Key。
- */
-import { computed, h, reactive, ref } from 'vue'
+/** 本店商品：商品创建后直接归属当前登录门店。 */
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NCheckboxGroup,
   NCheckbox,
+  NInput,
   NInputNumber,
   NModal,
+  NSelect,
   NSpace,
+  NTooltip,
   type DataTableColumns,
 } from 'naive-ui'
 import { catalogService } from '@/api/services'
@@ -19,20 +19,38 @@ import { useAsyncAction } from '@/composables/useAsyncAction'
 import {
   PAY_CHANNEL,
   PUBLISH_STATUS,
-  SCOPE_TYPE,
   toOptions,
   type PayChannel,
 } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { centToYuan, formatCent, yuanToCent } from '@/utils/format'
 import { moneyColumn, statusColumn, textColumn } from '@/utils/columns'
-import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
-import type { CatalogItem } from '@/types/models'
+import {
+  AppIcon,
+  AssetImage,
+  AssetUpload,
+  DataTable,
+  PageHeader,
+  PermissionButton,
+  StatusFilterBar,
+} from '@/components/common'
+import type { CatalogCategory, CatalogItem } from '@/types/models'
 
 const list = useAsyncList<CatalogItem>((params) => catalogService.items(params), {
-  initialFilters: { status: '', keyword: '' },
+  initialFilters: { status: '', keyword: '', categoryId: '' },
 })
 const action = useAsyncAction()
+const categories = ref<CatalogCategory[]>([])
+const categoryOptions = computed(() => categories.value.map((row) => ({ label: row.name, value: String(row.id) })))
+const categoryFilterOptions = computed(() => [
+  { label: '全部分类', value: '' },
+  ...categoryOptions.value,
+])
+const itemTypeOptions = [
+  { label: '餐品', value: 'food' }, { label: '券商品', value: 'coupon' },
+  { label: '积分兑换', value: 'redeemable' }, { label: '实物', value: 'physical' },
+]
+const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
 
 // 商品可选支付方式（点餐/积分商城）：微信、金币。
 const ITEM_PAY_CHANNELS: PayChannel[] = ['wechat', 'coin']
@@ -41,37 +59,64 @@ const editShow = ref(false)
 const editForm = reactive<{
   id: string | number | null
   name: string
+  categoryId: string | null
+  description: string
+  assetId: string | null
+  imageUrl: string
+  itemType: string
   priceYuan: number
   stockQuantity: number
   payChannels: PayChannel[]
-}>({ id: null, name: '', priceYuan: 0, stockQuantity: 0, payChannels: [] })
+  pointsReward: number
+  sortOrder: number
+  status: string
+}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
 
-function openEdit(row: CatalogItem) {
-  editForm.id = row.id
-  editForm.name = row.name
-  editForm.priceYuan = centToYuan(row.priceCent)
-  editForm.stockQuantity = row.stockQuantity
-  editForm.payChannels = row.payChannels.map((channel) =>
+function openEdit(row?: CatalogItem) {
+  editForm.id = row?.id ?? null
+  editForm.name = row?.name ?? ''
+  editForm.categoryId = row?.categoryId == null ? null : String(row.categoryId)
+  editForm.description = row?.description ?? ''
+  editForm.assetId = row?.assetId == null ? null : String(row.assetId)
+  editForm.imageUrl = row?.imageUrl ?? ''
+  editForm.itemType = row?.itemType ?? 'food'
+  editForm.priceYuan = centToYuan(row?.priceCent ?? 0)
+  editForm.stockQuantity = row?.stockQuantity ?? 0
+  editForm.payChannels = (row?.payChannels ?? []).map((channel) =>
     (channel as string) === 'balance' ? 'coin' : channel,
   ).filter((channel, index, channels) =>
     ITEM_PAY_CHANNELS.includes(channel) && channels.indexOf(channel) === index,
   )
+  editForm.pointsReward = row?.pointsReward ?? 0
+  editForm.sortOrder = row?.sortOrder ?? 0
+  editForm.status = row?.status ?? 'draft'
   editShow.value = true
 }
 
 async function saveEdit() {
   const id = editForm.id
-  if (id == null) return
-  // 价格、库存、支付方式分别调用对应覆盖接口。
   await action.run(
     async () => {
-      await catalogService.updatePrice(id, yuanToCent(editForm.priceYuan))
-      await catalogService.updateStock(id, editForm.stockQuantity)
-      await catalogService.updatePaymentRules(id, editForm.payChannels)
+      if (!editForm.name.trim()) throw new Error('请填写商品名称')
+      const payload = {
+        categoryId: editForm.categoryId ? Number(editForm.categoryId) : undefined,
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+        assetId: editForm.assetId ? Number(editForm.assetId) : undefined,
+        itemType: editForm.itemType,
+        priceCent: yuanToCent(editForm.priceYuan),
+        stockQuantity: editForm.stockQuantity,
+        payChannels: editForm.payChannels,
+        pointsReward: editForm.pointsReward,
+        sortOrder: editForm.sortOrder,
+        status: editForm.status,
+      }
+      if (id == null) await catalogService.create(payload)
+      else await catalogService.update(id, payload)
       return true
     },
     {
-      successMessage: '已保存本店覆盖',
+      successMessage: '商品已保存',
       onSuccess: () => {
         editShow.value = false
         list.refresh()
@@ -83,7 +128,22 @@ async function saveEdit() {
 function togglePublish(row: CatalogItem) {
   const publishing = row.status !== 'published'
   void action.run(
-    () => (publishing ? catalogService.publish(row.id) : catalogService.unpublish(row.id)),
+    async () => {
+      const current = await catalogService.detail(row.id)
+      return catalogService.update(row.id, {
+        categoryId: current.categoryId,
+        name: current.name,
+        description: current.description ?? '',
+        assetId: current.assetId,
+        itemType: current.itemType ?? 'food',
+        priceCent: current.priceCent,
+        stockQuantity: current.stockQuantity,
+        payChannels: current.payChannels,
+        pointsReward: current.pointsReward ?? 0,
+        sortOrder: current.sortOrder ?? 0,
+        status: publishing ? 'published' : 'unpublished',
+      })
+    },
     {
       confirm: { content: `确认${publishing ? '上架' : '下架'}「${row.name}」？` },
       successMessage: publishing ? '已上架' : '已下架',
@@ -93,10 +153,22 @@ function togglePublish(row: CatalogItem) {
 }
 
 const columns = computed<DataTableColumns<CatalogItem>>(() => [
-  textColumn<CatalogItem>('商品', (r) => r.name),
-  statusColumn<CatalogItem>('来源', SCOPE_TYPE, (r) => r.scopeType, { width: 96 }),
-  textColumn<CatalogItem>('分类', (r) => r.categoryName, { width: 110 }),
-  moneyColumn<CatalogItem>('本店价', (r) => r.priceCent, { width: 100 }),
+  textColumn<CatalogItem>('ID', (r) => r.id, { width: 72 }),
+  {
+    title: '商品图片',
+    key: 'image',
+    width: 76,
+    render: (row: CatalogItem) => h(AssetImage, {
+      src: row.imageUrl,
+      assetId: row.assetId,
+      width: 48,
+      height: 48,
+    }),
+  },
+  textColumn<CatalogItem>('商品名称', (r) => r.name, { width: 180, ellipsis: { tooltip: true } }),
+  textColumn<CatalogItem>('分类', (r) => r.categoryName, { width: 120, ellipsis: { tooltip: true } }),
+  moneyColumn<CatalogItem>('价格', (r) => r.priceCent, { width: 100 }),
+  textColumn<CatalogItem>('赠送积分', (r) => r.pointsReward ?? 0, { width: 90 }),
   textColumn<CatalogItem>('库存', (r) => r.stockQuantity, { width: 80, align: 'right' }),
   {
     title: '支付方式',
@@ -109,33 +181,75 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 170,
+    width: 112,
     fixed: 'right',
     render: (row: CatalogItem) =>
-      h(NSpace, { size: 4 }, {
+      h(NSpace, { size: 6, wrap: false }, {
         default: () => [
           h(
-            PermissionButton,
-            { permissions: [PERM.catalogWrite], type: 'primary', text: true, onClick: () => openEdit(row) },
-            { default: () => '价格/库存' },
+            NTooltip,
+            { trigger: 'hover' },
+            {
+              trigger: () => h(
+                PermissionButton,
+                {
+                  permissions: [PERM.catalogWrite],
+                  ariaLabel: `编辑${row.name}`,
+                  onClick: () => openEdit(row),
+                },
+                { default: () => h(AppIcon, { name: 'edit', size: 17 }) },
+              ),
+              default: () => '编辑商品',
+            },
           ),
           h(
-            PermissionButton,
-            { permissions: [PERM.catalogWrite], text: true, onClick: () => togglePublish(row) },
-            { default: () => (row.status === 'published' ? '下架' : '上架') },
+            NTooltip,
+            { trigger: 'hover' },
+            {
+              trigger: () => h(
+                PermissionButton,
+                {
+                  permissions: [PERM.catalogWrite],
+                  ariaLabel: `${row.status === 'published' ? '下架' : '上架'}${row.name}`,
+                  onClick: () => togglePublish(row),
+                },
+                {
+                  default: () => h(AppIcon, {
+                    name: row.status === 'published' ? 'eyeOff' : 'eye',
+                    size: 17,
+                  }),
+                },
+              ),
+              default: () => (row.status === 'published' ? '下架商品' : '上架商品'),
+            },
           ),
         ],
       }),
   },
 ])
+
+onMounted(async () => {
+  try { categories.value = (await catalogService.categories({ page: 1, pageSize: 100 })).rows }
+  catch { categories.value = [] }
+})
 </script>
 
 <template>
   <div>
     <PageHeader
-      title="本店商品 / 库存 / 价格覆盖"
-      description="维护本店自建商品与全局商品的本店覆盖"
-    />
+      title="本店商品"
+      description="维护当前门店的商品、库存、支付方式和购买赠送积分"
+    >
+      <template #actions>
+        <PermissionButton
+          :permissions="[PERM.catalogWrite]"
+          type="primary"
+          @click="openEdit()"
+        >
+          新增商品
+        </PermissionButton>
+      </template>
+    </PageHeader>
 
     <StatusFilterBar
       :status-options="toOptions(PUBLISH_STATUS)"
@@ -147,7 +261,17 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
       @update:keyword="list.filters.keyword = $event"
       @apply="list.applyFilters({})"
       @reset="list.reset()"
-    />
+    >
+      <template #prefix-filters>
+        <NSelect
+          class="catalog-category-filter"
+          :value="(list.filters.categoryId as string) ?? ''"
+          :options="categoryFilterOptions"
+          placeholder="全部分类"
+          @update:value="list.filters.categoryId = $event ?? ''"
+        />
+      </template>
+    </StatusFilterBar>
 
     <DataTable
       :columns="columns"
@@ -156,6 +280,7 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
+      :scroll-x="1110"
       empty-text="暂无商品"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
@@ -164,41 +289,81 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
     <NModal
       v-model:show="editShow"
       preset="card"
-      title="本店覆盖"
-      style="width: 420px"
+      :title="editForm.id == null ? '新增商品' : '编辑商品'"
+      style="width: min(680px, calc(100vw - 24px))"
     >
       <div class="edit-form">
-        <div class="edit-form__name">
-          {{ editForm.name }}
-        </div>
-        <label class="edit-form__field">
-          <span class="ic-muted">本店售价（元）</span>
-          <NInputNumber
-            v-model:value="editForm.priceYuan"
-            :min="0"
-            :precision="2"
-          />
-        </label>
-        <label class="edit-form__field">
-          <span class="ic-muted">本店库存</span>
-          <NInputNumber
-            v-model:value="editForm.stockQuantity"
+        <div class="edit-form__grid">
+          <label class="edit-form__field edit-form__span-2"><span class="ic-muted">商品名称</span><NInput v-model:value="editForm.name" /></label>
+          <label class="edit-form__field"><span class="ic-muted">商品分类</span><NSelect
+            v-model:value="editForm.categoryId"
+            :options="categoryOptions"
+            clearable
+          /></label>
+          <label class="edit-form__field"><span class="ic-muted">商品类型</span><NSelect
+            v-model:value="editForm.itemType"
+            :options="itemTypeOptions"
+          /></label>
+          <label class="edit-form__field"><span class="ic-muted">商品说明</span><NInput
+            v-model:value="editForm.description"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 2 }"
+          /></label>
+          <div class="edit-form__field">
+            <span class="ic-muted">商品图片</span><AssetUpload
+              v-model:asset-id="editForm.assetId"
+              v-model:preview-url="editForm.imageUrl"
+              purpose="product"
+              :width="88"
+              :height="54"
+              compact
+            />
+          </div>
+          <label class="edit-form__field">
+            <span class="ic-muted">售价（元）</span>
+            <NInputNumber
+              v-model:value="editForm.priceYuan"
+              :min="0"
+              :precision="2"
+            />
+          </label>
+          <label class="edit-form__field"><span class="ic-muted">赠送积分</span><NInputNumber
+            v-model:value="editForm.pointsReward"
             :min="0"
             :precision="0"
-          />
-        </label>
-        <div class="edit-form__field">
-          <span class="ic-muted">支付方式</span>
-          <NCheckboxGroup v-model:value="editForm.payChannels">
-            <NSpace>
-              <NCheckbox
-                v-for="c in ITEM_PAY_CHANNELS"
-                :key="c"
-                :value="c"
-                :label="PAY_CHANNEL[c].label"
-              />
-            </NSpace>
-          </NCheckboxGroup>
+          /></label>
+          <label class="edit-form__field">
+            <span class="ic-muted">库存</span>
+            <NInputNumber
+              v-model:value="editForm.stockQuantity"
+              :min="0"
+              :precision="0"
+            />
+          </label>
+          <label class="edit-form__field"><span class="ic-muted">排序</span><NInputNumber
+            v-model:value="editForm.sortOrder"
+            :min="0"
+            :precision="0"
+          /></label>
+          <label class="edit-form__field"><span class="ic-muted">状态</span><NSelect
+            v-model:value="editForm.status"
+            :options="publishOptions"
+          /></label>
+          <div class="edit-form__field">
+            <span class="ic-muted">支付方式</span>
+            <div class="edit-form__checks">
+              <NCheckboxGroup v-model:value="editForm.payChannels">
+                <NSpace>
+                  <NCheckbox
+                    v-for="c in ITEM_PAY_CHANNELS"
+                    :key="c"
+                    :value="c"
+                    :label="PAY_CHANNEL[c].label"
+                  />
+                </NSpace>
+              </NCheckboxGroup>
+            </div>
+          </div>
         </div>
         <p class="ic-muted edit-form__hint">
           当前价格：{{ formatCent(yuanToCent(editForm.priceYuan)) }}
@@ -226,16 +391,29 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
 .edit-form {
   display: flex;
   flex-direction: column;
-  gap: var(--ic-space-4);
+  gap: var(--ic-space-2);
 }
-.edit-form__name {
-  font-weight: 600;
+.catalog-category-filter {
+  width: 180px;
+}
+.edit-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ic-space-3) var(--ic-space-4);
 }
 .edit-form__field {
   display: flex;
   flex-direction: column;
   gap: var(--ic-space-2);
   font-size: var(--ic-font-sm);
+}
+.edit-form__span-2 {
+  grid-column: 1 / -1;
+}
+.edit-form__checks {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
 }
 .edit-form__hint {
   font-size: var(--ic-font-xs);
@@ -245,5 +423,10 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
   display: flex;
   justify-content: flex-end;
   gap: var(--ic-space-2);
+}
+@media (max-width: 560px) {
+  .edit-form__grid {
+    gap: var(--ic-space-2) var(--ic-space-3);
+  }
 }
 </style>

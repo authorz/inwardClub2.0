@@ -48,15 +48,16 @@ var richMimes = map[string]string{
 
 // policies is the purpose→constraints table (Qiniu spec §6).
 var policies = map[UploadPurpose]purposePolicy{
-	UploadPurposeAvatar:      {mimes: imageMimes, maxSize: 5 * mib},
-	UploadPurposeStoreLogo:   {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeBanner:      {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeCategory:    {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeProduct:     {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeActivity:    {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeTableLayout: {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeSeatLayout:  {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeVipIcon:     {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeVipBanner:   {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeRichContent: {mimes: richMimes, maxSize: 200 * mib},
+	UploadPurposeAvatar:         {mimes: imageMimes, maxSize: 5 * mib},
+	UploadPurposeStoreLogo:      {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeStoreContactQR: {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeBanner:         {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeCategory:       {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeProduct:        {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeActivity:       {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeTableLayout:    {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeSeatLayout:     {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeVipIcon:        {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeVipBanner:      {mimes: imageMimes, maxSize: 10 * mib},
+	UploadPurposeRichContent:    {mimes: richMimes, maxSize: 200 * mib},
 }

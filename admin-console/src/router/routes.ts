@@ -36,6 +36,12 @@ function metaFor(path: string): AppRouteMeta {
 const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['component']> }[] = [
   { path: '/dashboard', component: () => import('@/pages/DashboardView.vue') },
   { path: '/stores', component: () => import('@/pages/stores/StoreListView.vue') },
+  {
+    path: '/franchise-inquiries',
+    component: () => import('@/pages/franchise/FranchiseInquiryListView.vue'),
+  },
+  { path: '/tables', component: () => import('@/pages/tables/TableListView.vue') },
+  { path: '/seats', component: () => import('@/pages/seats/SeatListView.vue') },
   { path: '/accounts/admins', component: () => import('@/pages/accounts/AdminAccountsView.vue') },
   {
     path: '/accounts/store-admins',
@@ -45,6 +51,10 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
   { path: '/catalog/categories', component: () => import('@/pages/catalog/CategoryListView.vue') },
   { path: '/catalog/items', component: () => import('@/pages/catalog/ItemListView.vue') },
   { path: '/activities', component: () => import('@/pages/activities/ActivityListView.vue') },
+  {
+    path: '/tournament-events',
+    component: () => import('@/pages/tournaments/TournamentEventListView.vue'),
+  },
   { path: '/coupons', component: () => import('@/pages/coupons/CouponTemplateListView.vue') },
   { path: '/banners', component: () => import('@/pages/banners/BannerListView.vue') },
   {
@@ -60,15 +70,10 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
     component: () => import('@/pages/rules/SignInRuleView.vue'),
   },
   {
-    path: '/rules/definitions',
-    component: () => import('@/pages/rules/RuleDefinitionListView.vue'),
+    path: '/rules/store-low-spend',
+    component: () => import('@/pages/rules/StoreLowSpendRuleListView.vue'),
   },
   { path: '/orders', component: () => import('@/pages/orders/OrderListView.vue') },
-  { path: '/payments/orders', component: () => import('@/pages/payments/PaymentOrderListView.vue') },
-  {
-    path: '/payments/transactions',
-    component: () => import('@/pages/payments/PaymentTransactionListView.vue'),
-  },
   { path: '/payments/refunds', component: () => import('@/pages/payments/RefundListView.vue') },
   { path: '/members', component: () => import('@/pages/members/MemberListView.vue') },
   {
@@ -79,8 +84,16 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
   { path: '/audit/logs', component: () => import('@/pages/audit/AuditLogView.vue') },
   { path: '/audit/error-events', component: () => import('@/pages/audit/ErrorEventView.vue') },
   {
+    path: '/system/global-settings',
+    component: () => import('@/pages/system/GlobalSettingsView.vue'),
+  },
+  {
     path: '/system/payment-settings',
     component: () => import('@/pages/system/PaymentSettingsView.vue'),
+  },
+  {
+    path: '/system/point-review-settings',
+    component: () => import('@/pages/system/PointReviewSettingsView.vue'),
   },
 ]
 

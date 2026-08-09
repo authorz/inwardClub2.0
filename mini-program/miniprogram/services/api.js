@@ -37,7 +37,14 @@ function normalizeWallet(accounts) {
 // payment/settlement_repository.go, wallet/points_repository.go, wallet/wallet.go).
 const LEDGER_REASON_LABEL = {
   order_payment: '订单支付',
+  food_order_reward: '购买餐品赠送积分',
+  food_order_cancel_clawback: '取消订单扣回赠送积分',
+  food_order_cancel_rollback: '取消订单失败返还积分',
+  refund: '订单退款返还',
   recharge: '金币充值到账',
+  first_recharge_reward: '用户首充获得积分',
+  high_value_recharge_reward: '满额充值获得积分',
+  low_spend_reward: '预约低消达标奖励',
   sign_in: '签到奖励',
   admin_adjustment: '系统调整',
 };
@@ -123,6 +130,11 @@ function normalizeFoodOrder(o) {
     status: o.status != null ? o.status : o.fulfillmentStatus,
     totalCent: o.totalCent != null ? o.totalCent : o.totalAmountCent,
     payChannel: o.payChannel != null ? o.payChannel : o.payMethod,
+    orderNo: o.orderNo || o.businessOrderId,
+    payCent: o.paidAmountCent != null ? o.paidAmountCent : o.totalAmountCent,
+    refundCent: o.refundAmountCent || 0,
+    storeName: o.storeName || '',
+    tableText: o.tableName || '',
     items: (o.items || []).map((it) =>
       Object.assign({}, it, {
         qty: it.qty != null ? it.qty : it.quantity,
@@ -237,31 +249,14 @@ function couponRedemptionBody(data) {
   });
 }
 
-// Reservation create: the page collects {storeId,tableId,tableName,seatNo,
-// seatId,timeText}; server CreateReservationRequest (reservation/dto.go) wants
-// {storeId,tableId?,seatId?,partySize,reservedAt(RFC3339),remark}. Map here,
-// additively. partySize and
-// reservedAt are best-effort: the UI collects neither a party size nor a real
-// datetime, so partySize defaults to 1 and reservedAt is derived from the picked
-// time-slot text (falling back to now).
-function reservedAtFromSlot(timeText) {
-  const now = new Date();
-  const match = typeof timeText === 'string' ? timeText.match(/(\d{1,2}):(\d{2})/) : null;
-  if (match) {
-    const d = new Date(now);
-    if (timeText.indexOf('明天') >= 0) d.setDate(d.getDate() + 1);
-    d.setHours(Number(match[1]), Number(match[2]), 0, 0);
-    return d.toISOString();
-  }
-  return now.toISOString();
-}
-
+// A seat reservation has no member-selected arrival time. The server records
+// its creation time and keeps the seat occupied until cancellation or the
+// daily 04:00 reset; `partySize` remains one seat by default.
 function reservationBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
     seatId: d.seatId,
     partySize: d.partySize != null ? d.partySize : 1,
-    reservedAt: d.reservedAt || reservedAtFromSlot(d.timeText),
     remark: d.remark != null ? d.remark : '',
   });
 }
@@ -344,6 +339,7 @@ function benefitItems(benefitsStr) {
 const api = {
   /* ---------- auth ---------- */
   wechatLogin: (data) => http.post(m('/auth/wechat/login'), data, { noAuth: true }),
+  preRegister: (data) => http.post(m('/auth/wechat/pre-register'), data, { noAuth: true }),
   // First-time registration: authorized by the register ticket from wechatLogin,
   // NOT a session. This is what creates the member row.
   register: (data) => http.post(m('/auth/wechat/register'), data, { noAuth: true }),
@@ -387,6 +383,10 @@ const api = {
   getRechargeProducts: () =>
     http.get(m('/recharge-products')).then((res) => ({ data: (res.data || []).map(normalizeRechargeProduct), meta: res.meta })),
   getRankings: (params) => http.get(m('/rankings') + qs(params)),
+  getFranchiseInquiryConfig: () => http.get(m('/franchise-inquiries/config'), { noAuth: true }),
+  // The endpoint remains public, but a valid login token lets the server link
+  // the consultation to the submitting member without trusting a client ID.
+  createFranchiseInquiry: (data) => http.post(m('/franchise-inquiries'), data),
 
   /* ---------- member / wallet ---------- */
   getMe: () => http.get(m('/me')).then((res) => ({ data: normalizeMe(res.data), meta: res.meta })),
@@ -411,8 +411,15 @@ const api = {
   },
 
   // 存取积分 (fixed to current store; reviewed by staff)
-  createPointSaving: (data, key) =>
-    http.post(m('/point-savings'), data, { idempotent: true, idempotencyKey: key }),
+  createPointSaving: (data, key) => {
+    const input = data || {};
+    const path = input.direction === 'withdraw' ? '/point-withdrawals' : '/point-savings';
+    return http.post(
+      m(path),
+      { amount: Number(input.amount || input.points || 0), storeId: input.storeId },
+      { idempotent: true, idempotencyKey: key }
+    );
+  },
   // 金币充值 (wechat only)
   createRechargeOrder: (data, key) =>
     http.post(m('/recharge-orders'), rechargeOrderBody(data), { idempotent: true, idempotencyKey: key }),
@@ -426,7 +433,7 @@ const api = {
     http.get(m(`/stores/${storeId}/catalog/items`) + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeItem), meta: res.meta })),
   createFoodOrder: (data, key) =>
     http.post(m('/food-orders'), foodOrderBody(data), { idempotent: true, idempotencyKey: key }),
-  getFoodOrders: (params) => http.get(m('/food-orders') + qs(params)),
+  getFoodOrders: (params) => http.get(m('/food-orders') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeFoodOrder), meta: res.meta })),
   getFoodOrder: (id) =>
     http.get(m(`/food-orders/${id}`)).then((res) => ({ data: normalizeFoodOrder(res.data), meta: res.meta })),
 
@@ -453,7 +460,11 @@ const api = {
     http.get(m('/activities') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
   getStoreActivities: (storeId, params) =>
     http.get(m(`/stores/${storeId}/activities`) + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
+  getTodayStoreActivities: (storeId) =>
+    http.get(m(`/stores/${storeId}/activities/today`)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
   getActivity: (id) => http.get(m(`/activities/${id}`)).then((res) => ({ data: normalizeActivity(res.data), meta: res.meta })),
+  getTournamentEvents: (storeId) => http.get(m(`/stores/${storeId}/tournament-events`)),
+  getTournamentEvent: (id) => http.get(m(`/tournament-events/${id}`)),
   createActivityOrder: (data, key) =>
     http.post(m('/activity-orders'), activityOrderBody(data), { idempotent: true, idempotencyKey: key }),
   getActivityOrders: (params) => http.get(m('/activity-orders') + qs(params)),

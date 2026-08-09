@@ -3,38 +3,40 @@
  * 库存调整、发布/下架为高风险写操作，带 Idempotency-Key。
  */
 
-import { getPaged, patch, post } from '../request'
+import { del, get, getPaged, post, put } from '../request'
 import { API_PATHS } from '@/constants/apiPaths'
 import type { PageQuery } from '@/types/api'
 import type { CatalogCategory, CatalogItem } from '@/types/models'
-import type { PayChannel } from '@/constants/enums'
 
 export const catalogService = {
   items(params?: PageQuery) {
     return getPaged<CatalogItem>(API_PATHS.catalog.items, params)
   },
-  globalItems(params?: PageQuery) {
-    return getPaged<CatalogItem>(API_PATHS.catalog.globalItems, params)
-  },
   categories(params?: PageQuery) {
     return getPaged<CatalogCategory>(API_PATHS.catalog.categories, params)
   },
-  adoptGlobalItem(id: string | number) {
-    return post<CatalogItem>(API_PATHS.catalog.adoptGlobalItem(id), undefined, { idempotent: true })
+  category(id: string | number) {
+    return get<CatalogCategory>(API_PATHS.catalog.category(id))
   },
-  updateStock(id: string | number, stockQuantity: number) {
-    return patch<CatalogItem>(API_PATHS.catalog.itemStock(id), { stockQuantity }, { idempotent: true })
+  createCategory(body: Record<string, unknown>) {
+    return post<CatalogCategory>(API_PATHS.catalog.categories, body, { idempotent: true })
   },
-  updatePrice(id: string | number, priceCent: number) {
-    return patch<CatalogItem>(API_PATHS.catalog.item(id), { priceCent })
+  updateCategory(id: string | number, body: Record<string, unknown>) {
+    return put<CatalogCategory>(API_PATHS.catalog.category(id), body, { idempotent: true })
   },
-  updatePaymentRules(id: string | number, payChannels: PayChannel[]) {
-    return patch<CatalogItem>(API_PATHS.catalog.itemPaymentRules(id), { payChannels })
+  deleteCategory(id: string | number) {
+    return del<void>(API_PATHS.catalog.category(id), { idempotent: true })
   },
-  publish(id: string | number) {
-    return post<CatalogItem>(API_PATHS.catalog.publishItem(id), undefined, { idempotent: true })
+  detail(id: string | number) {
+    return get<CatalogItem>(API_PATHS.catalog.item(id))
   },
-  unpublish(id: string | number) {
-    return post<CatalogItem>(API_PATHS.catalog.unpublishItem(id), undefined, { idempotent: true })
+  create(body: Record<string, unknown>) {
+    return post<CatalogItem>(API_PATHS.catalog.items, body, { idempotent: true })
+  },
+  update(id: string | number, body: Record<string, unknown>) {
+    return put<CatalogItem>(API_PATHS.catalog.item(id), body, { idempotent: true })
+  },
+  remove(id: string | number) {
+    return del<void>(API_PATHS.catalog.item(id), { idempotent: true })
   },
 }

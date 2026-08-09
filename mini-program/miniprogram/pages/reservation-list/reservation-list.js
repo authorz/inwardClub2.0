@@ -20,7 +20,7 @@ Page({
           tableName: r.tableName,
           seatNo: r.seatNo,
           storeName: r.storeName,
-          timeText: r.timeText || fmt.dateTime(r.createdAt),
+          timeText: fmt.dateTime(r.createdAt),
           status: r.status,
           statusLabel: RESERVATION_STATUS_LABEL[r.status] || r.status,
         }));

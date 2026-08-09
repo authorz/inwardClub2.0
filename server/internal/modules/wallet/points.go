@@ -18,6 +18,7 @@ import (
 
 // pointsMinAmount is the smallest points amount that may be saved or withdrawn.
 const pointsMinAmount = 1
+const pointsMaxAmount = 1_000_000_000
 
 // Idempotency scopes for the points endpoints. The sign-in and savings/withdrawal
 // request rows are claimed on the idempotency key, so a retried create is idempotent.
@@ -139,6 +140,9 @@ func requireIdemKey(key string) error {
 func validatePointsAmount(amount int64) error {
 	if amount < pointsMinAmount {
 		return apperr.Invalid("amount must be a positive number of points")
+	}
+	if amount > pointsMaxAmount {
+		return apperr.Invalid("单次积分数量不能超过10亿")
 	}
 	return nil
 }

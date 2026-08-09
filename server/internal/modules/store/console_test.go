@@ -42,6 +42,7 @@ func (r *consoleFakeRepo) UpdateStoreProfile(_ context.Context, storeID int64, f
 	r.gotUpdateFields = fields
 	r.store.Name = fields.Name
 	r.store.Phone = fields.Phone
+	r.store.CustomerServiceQRAssetID = fields.CustomerServiceQRAssetID
 	r.store.Address = fields.Address
 	r.store.BusinessHours = fields.BusinessHours
 	r.store.Latitude = fields.Latitude
@@ -54,7 +55,7 @@ func (r *consoleFakeRepo) CreateStore(_ context.Context, input StoreInput) (Stor
 	r.gotCreateInput = input
 	return Store{ID: 100, Name: input.Name, Phone: input.Phone, Address: input.Address,
 		BusinessHours: input.BusinessHours, Latitude: input.Latitude, Longitude: input.Longitude,
-		LogoAssetID: input.LogoAssetID, Status: StatusActive}, nil
+		LogoAssetID: input.LogoAssetID, CustomerServiceQRAssetID: input.CustomerServiceQRAssetID, Status: StatusActive}, nil
 }
 
 func (r *consoleFakeRepo) UpdateStore(_ context.Context, id int64, input StoreInput) (Store, error) {
@@ -65,6 +66,7 @@ func (r *consoleFakeRepo) UpdateStore(_ context.Context, id int64, input StoreIn
 	}
 	r.store.Name = input.Name
 	r.store.Phone = input.Phone
+	r.store.CustomerServiceQRAssetID = input.CustomerServiceQRAssetID
 	r.store.Address = input.Address
 	r.store.BusinessHours = input.BusinessHours
 	r.store.Latitude = input.Latitude
@@ -110,10 +112,11 @@ func (r *consoleFakeRepo) DeleteBanner(_ context.Context, _ int64) error        
 func TestConsoleGetProfileMapsView(t *testing.T) {
 	lat, lng := 31.0, 121.0
 	logoID := int64(7)
+	qrID := int64(8)
 	repo := &consoleFakeRepo{store: Store{
 		ID: 1, Name: "Store A", Phone: "123", Address: "Addr",
 		Latitude: &lat, Longitude: &lng, BusinessHours: "9-21",
-		Status: StatusActive, LogoAssetID: &logoID,
+		Status: StatusActive, LogoAssetID: &logoID, CustomerServiceQRAssetID: &qrID,
 	}}
 	svc := NewConsoleService(repo, fakeResolver{})
 
@@ -126,6 +129,12 @@ func TestConsoleGetProfileMapsView(t *testing.T) {
 	}
 	if view.LogoURL != "https://cdn.test/asset" {
 		t.Fatalf("expected logo url resolved, got %q", view.LogoURL)
+	}
+	if view.CustomerServiceQRAssetID == nil || *view.CustomerServiceQRAssetID != qrID || view.CustomerServiceQRURL != "https://cdn.test/asset" {
+		t.Fatalf("expected customer service QR resolved, got %+v", view)
+	}
+	if view.Latitude == nil || *view.Latitude != lat || view.Longitude == nil || *view.Longitude != lng {
+		t.Fatalf("expected coordinates mapped, got latitude=%v longitude=%v", view.Latitude, view.Longitude)
 	}
 }
 

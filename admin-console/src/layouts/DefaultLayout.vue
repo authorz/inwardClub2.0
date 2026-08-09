@@ -10,6 +10,7 @@ import {
   NBreadcrumbItem,
   NButton,
   NDropdown,
+  NIcon,
   NLayout,
   NLayoutContent,
   NLayoutHeader,
@@ -40,9 +41,20 @@ function toMenuOptions(nodes: MenuNode[]): MenuOption[] {
   for (const node of nodes) {
     if (node.children) {
       const children = toMenuOptions(node.children)
-      if (children.length) result.push({ key: node.key, label: node.label, children })
+      if (children.length) {
+        result.push({
+          key: node.key,
+          label: node.label,
+          icon: node.icon ? () => h(NIcon, null, { default: () => h(node.icon!) }) : undefined,
+          children,
+        })
+      }
     } else if (node.path && permission.has(node.permission)) {
-      result.push({ key: node.path, label: node.label })
+      result.push({
+        key: node.path,
+        label: node.label,
+        icon: node.icon ? () => h(NIcon, null, { default: () => h(node.icon!) }) : undefined,
+      })
     }
   }
   return result
@@ -102,11 +114,13 @@ function renderCollapseIcon(): ReturnType<typeof h> {
         >InwardClub 总后台</span>
       </div>
       <NMenu
+        class="layout__menu"
         :value="activeKey"
         :options="menuOptions"
         :collapsed="collapsed"
         :collapsed-width="64"
-        :indent="18"
+        :indent="20"
+        accordion
         @update:value="handleMenuSelect"
       />
     </NLayoutSider>
@@ -188,6 +202,26 @@ function renderCollapseIcon(): ReturnType<typeof h> {
   font-weight: 600;
   font-size: var(--ic-font-md);
   white-space: nowrap;
+}
+.layout__menu {
+  padding: var(--ic-space-sm);
+}
+:deep(.layout__menu .n-menu-item) {
+  margin-top: 2px;
+}
+:deep(.layout__menu .n-menu-item-content) {
+  height: 44px;
+  border-radius: var(--ic-radius-md);
+}
+:deep(.layout__menu .n-menu-item-content-header) {
+  font-size: 15px;
+  font-weight: 500;
+}
+:deep(.layout__menu .n-menu-item-content__icon) {
+  font-size: 21px;
+}
+:deep(.layout__menu .n-submenu-children) {
+  padding: 2px 0 6px;
 }
 .layout__header {
   display: flex;

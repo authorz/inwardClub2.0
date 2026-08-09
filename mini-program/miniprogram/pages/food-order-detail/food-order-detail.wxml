@@ -1,21 +1,27 @@
 <ic-loading wx:if="{{loading}}" />
 
-<view wx:elif="{{order}}" class="od">
-  <view class="od-head">
-    <view class="od-head__icon"><view class="ic-ic {{done ? 'ic-ic-check' : 'ic-ic-clock'}} ic-ic--sm"></view></view>
-    <text class="od-head__status">{{order.statusText}}</text>
-    <text class="od-head__no">#{{order.orderNo}}</text>
+<view wx:elif="{{order}}" class="fod">
+  <view class="fod__status">
+    <view class="fod__status-icon"><view class="ic-ic {{done ? 'ic-ic-check' : 'ic-ic-clock'}} ic-ic--sm"></view></view>
+    <view class="fod__status-copy">
+      <text class="fod__status-text">{{order.statusText}}</text>
+      <text class="fod__order-no">#{{order.orderNo}}</text>
+    </view>
   </view>
 
-  <view class="od-card">
-    <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{order.storeName}}</text></view>
-    <view class="od-row"><text class="od-row__label">桌台</text><text class="od-row__value">{{order.tableText || '到店堂食'}}</text></view>
-    <view class="od-row"><text class="od-row__label">下单时间</text><text class="od-row__value">{{order.timeText}}</text></view>
-    <view class="od-row"><text class="od-row__label">支付方式</text><text class="od-row__value">{{order.payChannelText}}</text></view>
+  <view class="fod__section fod__section--facts">
+    <text class="fod__section-title">订单信息</text>
+    <view class="fod__facts">
+      <view class="fod__fact"><text class="fod__fact-label">门店</text><text class="fod__fact-value ic-ellipsis">{{order.storeName}}</text></view>
+      <view class="fod__fact"><text class="fod__fact-label">桌台</text><text class="fod__fact-value ic-ellipsis">{{order.tableText || '到店堂食'}}</text></view>
+      <view class="fod__fact"><text class="fod__fact-label">下单时间</text><text class="fod__fact-value ic-ellipsis">{{order.timeText}}</text></view>
+      <view class="fod__fact"><text class="fod__fact-label">支付方式</text><text class="fod__fact-value ic-ellipsis">{{order.payChannelText}}</text></view>
+    </view>
   </view>
 
-  <view class="od-card od-card--pad">
-    <view class="fod__item" wx:for="{{order.items}}" wx:key="name">
+  <view class="fod__section">
+    <text class="fod__section-title">餐品明细</text>
+    <view class="fod__item" wx:for="{{order.items}}" wx:key="itemId">
       <view class="fod__thumb">
         <image wx:if="{{item.imageUrl}}" class="fod__pic" src="{{item.imageUrl}}" mode="aspectFill" />
         <view wx:else class="fod__ph"></view>
@@ -24,15 +30,19 @@
       <text class="fod__qty">x{{item.qty}}</text>
       <text class="fod__amt">¥{{item.amountText}}</text>
     </view>
+  </view>
+
+  <view class="fod__section fod__section--amount">
+    <text class="fod__section-title">金额明细</text>
     <view class="fod__sum">
       <view class="fod__sum-row"><text>商品金额</text><text>¥{{order.goodsText}}</text></view>
       <view class="fod__sum-row"><text>金币抵扣</text><text>- ¥{{order.discountText}}</text></view>
       <view class="fod__sum-row fod__sum-row--total"><text>实付</text><text class="fod__pay">¥{{order.payText}}</text></view>
+      <view wx:if="{{order.refundText}}" class="fod__sum-row"><text>已退款</text><text>¥{{order.refundText}}</text></view>
     </view>
   </view>
 
-  <view class="od-bar">
-    <button class="ic-btn ic-btn-ghost" bindtap="reorder">再来一单</button>
-    <button class="ic-btn ic-btn-primary" bindtap="viewReceipt">查看小票</button>
+  <view class="fod__bar">
+    <button class="ic-btn ic-btn-primary fod__reorder" bindtap="reorder">再来一单</button>
   </view>
 </view>

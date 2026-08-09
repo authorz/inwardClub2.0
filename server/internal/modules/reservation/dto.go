@@ -20,6 +20,7 @@ type SeatView struct {
 	Nickname  string `json:"nickname,omitempty"`
 	AvatarURL string `json:"avatarUrl,omitempty"`
 	Gender    string `json:"gender,omitempty"`
+	IsGuest   bool   `json:"isGuest,omitempty"`
 }
 
 // ReservationView is the member-facing reservation representation.
@@ -81,6 +82,7 @@ func seatView(s Seat) SeatView {
 	return SeatView{
 		ID: s.ID, TableID: s.TableID, Name: s.Name, Status: s.Status,
 		Nickname: s.MemberNickname, AvatarURL: s.MemberAvatarURL, Gender: s.MemberGender,
+		IsGuest: s.BookedAsGuest,
 	}
 }
 

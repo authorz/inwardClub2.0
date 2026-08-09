@@ -21,7 +21,7 @@
   </view>
 
   <!-- assets: 金币 / 积分 / 券（大数字友好，三列） -->
-  <view class="mine__assets ic-card">
+  <view class="mine__assets">
     <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
       <text class="mine__asset-num">{{coinsText}}</text>
       <view class="mine__asset-label">
@@ -69,7 +69,7 @@
     </view>
   </view>
 
-  <!-- 工作人员功能（仅员工可见） -->
+  <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
   <view wx:if="{{isStaff}}" class="mine__block">
     <text class="ic-h2 mine__block-title">工作人员功能</text>
     <view class="mine__menu">
@@ -105,7 +105,7 @@
     <text class="rc__custom-label">自定义金额</text>
     <view class="rc__custom-field">
       <text class="rc__custom-sign">¥</text>
-      <input class="rc__custom-input" type="number" value="{{customAmount}}" placeholder="输入金额" placeholder-class="rc__custom-ph" bindinput="onCustomAmount" />
+      <input class="rc__custom-input" type="number" maxlength="7" value="{{customAmount}}" placeholder="输入金额" placeholder-class="rc__custom-ph" bindinput="onCustomAmount" />
     </view>
   </view>
   <view class="sheet-row sheet-row--bordered">
@@ -131,7 +131,7 @@
   </view>
   <view class="ps__field">
     <text class="ps__field-label">积分数量</text>
-    <input class="ps__input" type="number" value="{{pointAmount}}" placeholder="请输入积分数量" placeholder-class="ps__ph" bindinput="onPointAmount" />
+    <input class="ps__input" type="number" maxlength="10" value="{{pointAmount}}" placeholder="请输入积分数量" placeholder-class="ps__ph" bindinput="onPointAmount" />
     <text class="ps__unit">积分</text>
   </view>
   <view class="ps__hint"><text class="ps__hint-ico">!</text>提交后由工作人员审核</view>

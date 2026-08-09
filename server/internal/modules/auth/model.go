@@ -12,6 +12,7 @@ type Member struct {
 	Phone             string
 	InviteCode        string
 	InvitedByMemberID *int64
+	ProfileCompleted  bool
 	Status            string
 	TokenVersion      int64
 	CreatedAt         time.Time

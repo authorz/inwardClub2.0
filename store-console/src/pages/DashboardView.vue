@@ -33,7 +33,7 @@ async function load() {
 onMounted(load)
 
 const quickLinks = [
-  { title: '点餐订单处理', name: 'food-orders' },
+  { title: '点餐订单', name: 'food-orders' },
   { title: '活动核销', name: 'activity-verify' },
   { title: '积分审核', name: 'point-review' },
   { title: '线下聚合收款', name: 'collection' },

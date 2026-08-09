@@ -5,6 +5,22 @@
  * 侧边菜单渲染、路由 meta（标题 + 权限）、面包屑都从这里派生，避免重复维护。
  * 每一项挂 permission，用于路由守卫与菜单显隐。
  */
+import type { Component } from 'vue'
+import {
+  Ad,
+  Armchair,
+  BuildingStore,
+  CalendarEvent,
+  Crown,
+  Dashboard,
+  Database,
+  MessageCircle,
+  Package,
+  Receipt,
+  Settings,
+  ShieldLock,
+  Users,
+} from '@vicons/tabler'
 import { PERMISSIONS, type PermissionCode } from '@/constants/permissions'
 
 export interface MenuNode {
@@ -14,25 +30,43 @@ export interface MenuNode {
   path?: string
   /** 页面所需权限码 */
   permission?: PermissionCode
+  /** 一级菜单使用的统一线性图标 */
+  icon?: Component
   children?: MenuNode[]
 }
 
 export const MENU: MenuNode[] = [
   {
     key: 'dashboard',
-    label: '工作台',
+    label: '概览',
     path: '/dashboard',
     permission: PERMISSIONS.REPORT_READ,
+    icon: Dashboard,
   },
   {
     key: 'stores',
     label: '门店管理',
-    path: '/stores',
+    icon: BuildingStore,
+    children: [
+      {
+        key: 'store-list',
+        label: '门店列表',
+        path: '/stores',
+        permission: PERMISSIONS.STORE_READ,
+      },
+    ],
+  },
+  {
+    key: 'franchise-inquiries',
+    label: '加盟咨询',
+    path: '/franchise-inquiries',
     permission: PERMISSIONS.STORE_READ,
+    icon: MessageCircle,
   },
   {
     key: 'accounts',
-    label: '账号与权限',
+    label: '管理员管理',
+    icon: ShieldLock,
     children: [
       {
         key: 'admin-accounts',
@@ -55,8 +89,23 @@ export const MENU: MenuNode[] = [
     ],
   },
   {
+    key: 'activities',
+    label: '活动管理',
+    path: '/activities',
+    permission: PERMISSIONS.ACTIVITY_READ,
+    icon: CalendarEvent,
+  },
+  {
+    key: 'tournament-events',
+    label: '赛事活动',
+    path: '/tournament-events',
+    permission: PERMISSIONS.ACTIVITY_READ,
+    icon: CalendarEvent,
+  },
+  {
     key: 'catalog',
-    label: '商品管理',
+    label: '餐品管理',
+    icon: Package,
     children: [
       {
         key: 'categories',
@@ -73,78 +122,38 @@ export const MENU: MenuNode[] = [
     ],
   },
   {
-    key: 'activities',
-    label: '活动管理',
-    path: '/activities',
-    permission: PERMISSIONS.ACTIVITY_READ,
-  },
-  {
-    key: 'coupons',
-    label: '券管理',
-    path: '/coupons',
-    permission: PERMISSIONS.COUPON_READ,
-  },
-  {
-    key: 'banners',
-    label: '广告管理',
-    path: '/banners',
-    permission: PERMISSIONS.BANNER_READ,
-  },
-  {
-    key: 'recharge-products',
-    label: '快捷充值',
-    path: '/recharge-products',
-    permission: PERMISSIONS.RECHARGE_READ,
-  },
-  {
-    key: 'rules',
-    label: 'VIP / 权益规则',
+    key: 'table-seats',
+    label: '桌子管理',
+    icon: Armchair,
     children: [
       {
-        key: 'membership-tiers',
-        label: 'VIP 等级',
-        path: '/rules/membership-tiers',
-        permission: PERMISSIONS.RULE_READ,
+        key: 'tables',
+        label: '桌子列表',
+        path: '/tables',
+        permission: PERMISSIONS.STORE_READ,
       },
       {
-        key: 'sign-in-rule',
-        label: '签到规则',
-        path: '/rules/sign-in',
-        permission: PERMISSIONS.RULE_READ,
-      },
-      {
-        key: 'rule-definitions',
-        label: '规则中心',
-        path: '/rules/definitions',
-        permission: PERMISSIONS.RULE_READ,
+        key: 'seats',
+        label: '座位管理',
+        path: '/seats',
+        permission: PERMISSIONS.STORE_READ,
       },
     ],
   },
   {
     key: 'orders',
-    label: '订单中心',
-    path: '/orders',
-    permission: PERMISSIONS.ORDER_READ,
-  },
-  {
-    key: 'payments',
-    label: '支付与退款',
+    label: '订单管理',
+    icon: Receipt,
     children: [
       {
-        key: 'payment-orders',
-        label: '支付单',
-        path: '/payments/orders',
-        permission: PERMISSIONS.PAYMENT_READ,
-      },
-      {
-        key: 'payment-transactions',
-        label: '支付流水',
-        path: '/payments/transactions',
-        permission: PERMISSIONS.PAYMENT_READ,
+        key: 'order-list',
+        label: '订单列表',
+        path: '/orders',
+        permission: PERMISSIONS.ORDER_READ,
       },
       {
         key: 'refunds',
-        label: '退款单',
+        label: '退款记录',
         path: '/payments/refunds',
         permission: PERMISSIONS.PAYMENT_READ,
       },
@@ -152,7 +161,8 @@ export const MENU: MenuNode[] = [
   },
   {
     key: 'members',
-    label: '用户 / 会员',
+    label: '用户管理',
+    icon: Users,
     children: [
       {
         key: 'members-list',
@@ -162,22 +172,67 @@ export const MENU: MenuNode[] = [
       },
       {
         key: 'wallet-ledger',
-        label: '钱包账本',
+        label: '资产流水',
         path: '/members/wallet-ledger',
         permission: PERMISSIONS.MEMBER_READ,
+      },
+      {
+        key: 'membership-tiers',
+        label: 'VIP 等级',
+        path: '/rules/membership-tiers',
+        permission: PERMISSIONS.RULE_READ,
+      },
+      {
+        key: 'recharge-products',
+        label: '快捷充值',
+        path: '/recharge-products',
+        permission: PERMISSIONS.RECHARGE_READ,
       },
     ],
   },
   {
-    key: 'reports',
-    label: '报表',
-    path: '/reports',
-    permission: PERMISSIONS.REPORT_READ,
+    key: 'banners',
+    label: '广告管理',
+    path: '/banners',
+    permission: PERMISSIONS.BANNER_READ,
+    icon: Ad,
   },
   {
-    key: 'audit',
-    label: '审计与日志',
+    key: 'benefits',
+    label: '权益规则',
+    icon: Crown,
     children: [
+      {
+        key: 'coupons',
+        label: '券管理',
+        path: '/coupons',
+        permission: PERMISSIONS.COUPON_READ,
+      },
+      {
+        key: 'sign-in-rule',
+        label: '签到规则',
+        path: '/rules/sign-in',
+        permission: PERMISSIONS.RULE_READ,
+      },
+      {
+        key: 'store-low-spend-rule',
+        label: '预约低消奖励',
+        path: '/rules/store-low-spend',
+        permission: PERMISSIONS.RULE_READ,
+      },
+    ],
+  },
+  {
+    key: 'data-logs',
+    label: '数据与日志',
+    icon: Database,
+    children: [
+      {
+        key: 'reports',
+        label: '经营报表',
+        path: '/reports',
+        permission: PERMISSIONS.REPORT_READ,
+      },
       {
         key: 'audit-logs',
         label: '审计日志',
@@ -195,8 +250,27 @@ export const MENU: MenuNode[] = [
   {
     key: 'system',
     label: '系统设置',
-    path: '/system/payment-settings',
-    permission: PERMISSIONS.SYSTEM_PAYMENT_SETTINGS_WRITE,
+    icon: Settings,
+    children: [
+      {
+        key: 'global-settings',
+        label: '全局设置',
+        path: '/system/global-settings',
+        permission: PERMISSIONS.SYSTEM_PAYMENT_SETTINGS_WRITE,
+      },
+      {
+        key: 'payment-settings',
+        label: '支付渠道',
+        path: '/system/payment-settings',
+        permission: PERMISSIONS.SYSTEM_PAYMENT_SETTINGS_WRITE,
+      },
+      {
+        key: 'point-review-settings',
+        label: '积分审核配置',
+        path: '/system/point-review-settings',
+        permission: PERMISSIONS.SYSTEM_PAYMENT_SETTINGS_WRITE,
+      },
+    ],
   },
 ]
 

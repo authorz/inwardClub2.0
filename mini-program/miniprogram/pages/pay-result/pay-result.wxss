@@ -1,9 +1,10 @@
 .pr { min-height: 100vh; background: var(--ic-white); display: flex; flex-direction: column; align-items: center; padding: 120rpx 48rpx; box-sizing: border-box; }
-.pr__icon { width: 140rpx; height: 140rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.pr__icon { width: 168rpx; height: 168rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .pr__icon.is-ok { background: var(--ic-black); }
-.pr__icon.is-ok .ic-ic { color: #fff; width: 60rpx; height: 60rpx; }
+.pr__icon.is-ok .ic-ic { color: #fff; width: 84rpx; height: 84rpx; }
+.pr__icon.is-ok .ic-ic-check::before { left: 18rpx; top: 20rpx; width: 42rpx; height: 22rpx; border-left-width: 6rpx; border-bottom-width: 6rpx; }
 .pr__icon.is-fail { background: var(--ic-fill); }
-.pr__fail-mark { font-size: 72rpx; font-weight: 700; color: var(--ic-text-3); }
+.pr__fail-mark { font-size: 84rpx; font-weight: 700; color: var(--ic-text-3); }
 .pr__title { margin-top: 40rpx; font-size: 40rpx; font-weight: 700; color: var(--ic-black); }
 .pr__amount { margin-top: 20rpx; font-size: 48rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .pr__desc { margin-top: 20rpx; font-size: 24rpx; color: var(--ic-text-3); text-align: center; }

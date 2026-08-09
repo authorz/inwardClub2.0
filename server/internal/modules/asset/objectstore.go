@@ -13,17 +13,18 @@ import (
 type UploadPurpose string
 
 const (
-	UploadPurposeAvatar      UploadPurpose = "avatar"
-	UploadPurposeStoreLogo   UploadPurpose = "store_logo"
-	UploadPurposeBanner      UploadPurpose = "banner"
-	UploadPurposeCategory    UploadPurpose = "category"
-	UploadPurposeProduct     UploadPurpose = "product"
-	UploadPurposeActivity    UploadPurpose = "activity"
-	UploadPurposeTableLayout UploadPurpose = "table_layout"
-	UploadPurposeSeatLayout  UploadPurpose = "seat_layout"
-	UploadPurposeVipIcon     UploadPurpose = "vip_icon"
-	UploadPurposeVipBanner   UploadPurpose = "vip_banner"
-	UploadPurposeRichContent UploadPurpose = "rich_content"
+	UploadPurposeAvatar         UploadPurpose = "avatar"
+	UploadPurposeStoreLogo      UploadPurpose = "store_logo"
+	UploadPurposeStoreContactQR UploadPurpose = "store_contact_qr"
+	UploadPurposeBanner         UploadPurpose = "banner"
+	UploadPurposeCategory       UploadPurpose = "category"
+	UploadPurposeProduct        UploadPurpose = "product"
+	UploadPurposeActivity       UploadPurpose = "activity"
+	UploadPurposeTableLayout    UploadPurpose = "table_layout"
+	UploadPurposeSeatLayout     UploadPurpose = "seat_layout"
+	UploadPurposeVipIcon        UploadPurpose = "vip_icon"
+	UploadPurposeVipBanner      UploadPurpose = "vip_banner"
+	UploadPurposeRichContent    UploadPurpose = "rich_content"
 )
 
 // Asset visibility.

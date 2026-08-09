@@ -5,6 +5,7 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const http = require('../../utils/request');
 const { VERIFY_RESULT_LABEL } = require('../../constants/index');
+const validation = require('../../utils/validation');
 
 Page({
   data: {
@@ -74,6 +75,12 @@ Page({
   },
 
   doVerify(code) {
+	try {
+	  code = validation.verificationCode(code);
+	} catch (err) {
+	  ui.toast(err.message);
+	  return;
+	}
     ui.showLoading('核销中');
     api
       .staff.verifyTicket({ code }, http.uuid())

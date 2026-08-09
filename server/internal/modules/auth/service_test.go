@@ -51,6 +51,25 @@ func (r *memMemberRepo) Create(_ context.Context, m Member) (int64, error) {
 	r.byOpen[m.WeChatOpenID] = m.ID
 	return m.ID, nil
 }
+func (r *memMemberRepo) CompleteRegistration(_ context.Context, id int64, update Member) error {
+	m, ok := r.byID[id]
+	if !ok {
+		return apperr.NotFound("member not found")
+	}
+	if m.ProfileCompleted {
+		return apperr.Conflict("会员资料已经完善")
+	}
+	m.Nickname = update.Nickname
+	m.AvatarURL = update.AvatarURL
+	m.Gender = update.Gender
+	m.Phone = update.Phone
+	m.InviteCode = update.InviteCode
+	m.InvitedByMemberID = update.InvitedByMemberID
+	m.ProfileCompleted = true
+	m.TokenVersion++
+	r.byID[id] = m
+	return nil
+}
 func (r *memMemberRepo) BumpTokenVersion(_ context.Context, id int64) error {
 	m := r.byID[id]
 	m.TokenVersion++
@@ -206,6 +225,13 @@ func TestMemberProfileIncludesInviterBindingState(t *testing.T) {
 	}
 }
 
+func TestMemberProfileIncludesGender(t *testing.T) {
+	profile := memberProfile(Member{ID: 1, Gender: "female"})
+	if profile.Gender != "female" {
+		t.Fatalf("expected gender in member profile, got %q", profile.Gender)
+	}
+}
+
 func TestMiniLoginDefersCreationUntilRegister(t *testing.T) {
 	svc, members, _ := newTestService()
 	ctx := context.Background()
@@ -251,6 +277,70 @@ func TestMiniLoginDefersCreationUntilRegister(t *testing.T) {
 	}
 	if len(members.byID) != 1 {
 		t.Fatalf("same openID must reuse member, got %d", len(members.byID))
+	}
+}
+
+func TestPreRegisterReservesIdentityButStillRequiresProfileCompletion(t *testing.T) {
+	svc, members, _ := newTestService()
+	ctx := context.Background()
+
+	pre, err := svc.MiniPreRegister(ctx, "silent-code")
+	if err != nil {
+		t.Fatalf("pre-register: %v", err)
+	}
+	if pre.SubjectType != authn.SubjectPreMember || pre.Token.AccessToken == "" {
+		t.Fatalf("unexpected pre-register response: %+v", pre)
+	}
+	claims, err := svc.tokens.Parse(pre.Token.AccessToken, authn.AudienceMini)
+	if err != nil || claims.SubjectType != authn.SubjectPreMember {
+		t.Fatalf("unexpected pre-register claims: %+v, %v", claims, err)
+	}
+	if len(members.byID) != 1 {
+		t.Fatalf("expected one persisted OpenID identity, got %d", len(members.byID))
+	}
+	memberID := members.byOpen[defaultFakeOpenID]
+	pending := members.byID[memberID]
+	if pending.ProfileCompleted || pending.WeChatOpenID == "" || pending.Nickname != "inward会员" {
+		t.Fatalf("unexpected pending member: %+v", pending)
+	}
+
+	login, err := svc.MiniLogin(ctx, "explicit-login-code")
+	if err != nil {
+		t.Fatalf("login after pre-register: %v", err)
+	}
+	if !login.IsNew || login.RegisterTicket == "" || login.Token.AccessToken != "" {
+		t.Fatalf("pending member must still complete profile: %+v", login)
+	}
+	_, phoneTicket, err := svc.GetPhoneMask(ctx, login.RegisterTicket, "phone-code")
+	if err != nil {
+		t.Fatalf("phone mask: %v", err)
+	}
+	registered, err := svc.MiniRegister(ctx, WeChatRegisterRequest{
+		RegisterTicket: phoneTicket,
+		AvatarURL:      "https://example.com/avatar.jpg",
+		Nickname:       "正式会员",
+		Gender:         "female",
+	})
+	if err != nil {
+		t.Fatalf("complete registration: %v", err)
+	}
+	if registered.Token.AccessToken == "" || len(members.byID) != 1 {
+		t.Fatalf("registration must upgrade the same member: %+v", registered)
+	}
+	completed := members.byID[memberID]
+	if !completed.ProfileCompleted || completed.Phone == "" || completed.Nickname != "正式会员" {
+		t.Fatalf("profile was not completed: %+v", completed)
+	}
+	if _, err := svc.Refresh(ctx, pre.Token.RefreshToken, authn.AudienceMini); err == nil {
+		t.Fatal("pre-registration refresh token must be invalid after profile completion")
+	}
+
+	recovered, err := svc.MiniPreRegister(ctx, "silent-login-for-existing-member")
+	if err != nil {
+		t.Fatalf("silent login for completed member: %v", err)
+	}
+	if recovered.SubjectType != authn.SubjectMember || recovered.Profile == nil || recovered.IsNew {
+		t.Fatalf("completed member must recover a full login session: %+v", recovered)
 	}
 }
 

@@ -55,7 +55,17 @@ function clear() {
 }
 
 function isLoggedIn() {
-  return !!getAccessToken();
+	const s = load();
+	return !!(s && s.accessToken && s.subjectType !== 'pre_member');
+}
+
+function isPreRegistered() {
+	const s = load();
+	return !!(s && s.accessToken && s.subjectType === 'pre_member');
+}
+
+function hasReservationIdentity() {
+	return !!getAccessToken();
 }
 
 module.exports = {
@@ -66,6 +76,8 @@ module.exports = {
   setTokens,
   isStaff,
   getStoreId,
-  isLoggedIn,
-  clear,
+	isLoggedIn,
+	isPreRegistered,
+	hasReservationIdentity,
+	clear,
 };

@@ -141,18 +141,24 @@ func (s *ConsoleService) ProfileView(ctx context.Context, st Store) ConsoleProfi
 
 func (s *ConsoleService) consoleProfileView(ctx context.Context, st Store) ConsoleProfileView {
 	view := ConsoleProfileView{
-		ID:            st.ID,
-		Name:          st.Name,
-		Phone:         st.Phone,
-		Address:       st.Address,
-		Latitude:      st.Latitude,
-		Longitude:     st.Longitude,
-		BusinessHours: st.BusinessHours,
-		Status:        st.Status,
+		ID:                       st.ID,
+		Name:                     st.Name,
+		Phone:                    st.Phone,
+		CustomerServiceQRAssetID: st.CustomerServiceQRAssetID,
+		Address:                  st.Address,
+		Latitude:                 st.Latitude,
+		Longitude:                st.Longitude,
+		BusinessHours:            st.BusinessHours,
+		Status:                   st.Status,
 	}
 	if st.LogoAssetID != nil {
 		if url, err := s.assets.PublicURLByID(ctx, *st.LogoAssetID); err == nil {
 			view.LogoURL = url
+		}
+	}
+	if st.CustomerServiceQRAssetID != nil {
+		if url, err := s.assets.PublicURLByID(ctx, *st.CustomerServiceQRAssetID); err == nil {
+			view.CustomerServiceQRURL = url
 		}
 	}
 	return view

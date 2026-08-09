@@ -11,10 +11,11 @@
  *   - When location is unavailable/denied, the default falls back to the first
  *     store.
  *
- * The staff store is fixed by the server and must never be switched here.
+ * This context only controls the consumer-facing store used by ordering,
+ * reservations and browsing. A staff token's operational store scope is kept
+ * separately in auth and is enforced by the server on `/mini/staff/*` routes.
  */
 const api = require('../services/api');
-const auth = require('./auth');
 
 const STORAGE_KEY = 'ic_current_store'; // holds ONLY manual picks
 
@@ -25,7 +26,7 @@ let ensuring = null; // single-flight for the initial default resolve
 function readManual() {
   try {
     return wx.getStorageSync(STORAGE_KEY) || null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -42,12 +43,11 @@ function set(store) {
   try {
     if (current) wx.setStorageSync(STORAGE_KEY, current);
     else wx.removeStorageSync(STORAGE_KEY);
-  } catch (e) {}
+  } catch {}
   return current;
 }
 
 function getId() {
-  if (auth.isStaff()) return auth.getStoreId();
   const s = get();
   return s && s.id;
 }
@@ -55,7 +55,6 @@ function getId() {
 // switchStore records a store the member explicitly picked — persisted, so it
 // wins over the nearest default until they switch again.
 function switchStore(store) {
-  if (auth.isStaff()) return current;
   return set(store);
 }
 
@@ -65,23 +64,6 @@ function switchStore(store) {
 // The nearest auto-pick is kept in memory only, so it is re-resolved on the next
 // app launch. Single-flighted so concurrent callers share one resolve.
 function ensureStore() {
-  if (auth.isStaff()) {
-    const storeId = auth.getStoreId();
-    if (!storeId) return Promise.resolve(null);
-    if (current && String(current.id) === String(storeId)) return Promise.resolve(current);
-    if (ensuring) return ensuring;
-    ensuring = api
-      .getStore(storeId)
-      .then((res) => {
-        current = res.data || null;
-        return current;
-      })
-      .catch(() => null)
-      .finally(() => {
-        ensuring = null;
-      });
-    return ensuring;
-  }
   if (current) return Promise.resolve(current);
   const manual = readManual();
   if (manual && manual.id) {
@@ -100,18 +82,30 @@ function ensureStore() {
   return ensuring;
 }
 
+// Refreshes the selected store from the distance-annotated public list. This
+// keeps a persisted manual selection current after administrators update its
+// address/coordinates, instead of rendering the stale object from local cache.
+function refreshCurrent() {
+  const selected = get();
+  if (!selected || !selected.id) return ensureStore();
+  return listNearby().then((stores) => {
+    const refreshed = stores.find((store) => Number(store.id) === Number(selected.id));
+    if (!refreshed) return selected;
+    current = refreshed;
+    const manual = readManual();
+    if (manual && Number(manual.id) === Number(refreshed.id)) {
+      try {
+        wx.setStorageSync(STORAGE_KEY, refreshed);
+      } catch {}
+    }
+    return current;
+  });
+}
+
 // listNearby returns all active stores, distance-annotated and sorted
 // nearest-first when a user location is available (for both the default resolve
 // and the store-select list). Never rejects — returns [] on failure.
 function listNearby() {
-  if (auth.isStaff()) {
-    const storeId = auth.getStoreId();
-    if (!storeId) return Promise.resolve([]);
-    return api
-      .getStore(storeId)
-      .then((res) => (res.data ? [res.data] : []))
-      .catch(() => []);
-  }
   return currentLocation().then((loc) => {
     const params = loc ? { lat: loc.latitude, lng: loc.longitude, pageSize: 50 } : { pageSize: 50 };
     return api
@@ -156,4 +150,4 @@ function checkNearbyChange() {
   });
 }
 
-module.exports = { get, set, getId, switchStore, ensureStore, listNearby, checkNearbyChange };
+module.exports = { get, set, getId, switchStore, ensureStore, refreshCurrent, listNearby, checkNearbyChange };

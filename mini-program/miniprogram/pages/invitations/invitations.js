@@ -4,6 +4,7 @@ const api = require('../../services/api');
 const auth = require('../../utils/auth');
 const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
+const validation = require('../../utils/validation');
 
 Page({
   data: {
@@ -69,8 +70,12 @@ Page({
 
   bindInvitation() {
     if (this.data.binding) return;
-    const inviteCode = (this.data.bindCode || '').trim();
-    if (!inviteCode) return ui.toast('请输入邀请码');
+    let inviteCode;
+	try {
+	  inviteCode = validation.inviteCode(this.data.bindCode, false);
+	} catch (err) {
+	  return ui.toast(err.message);
+	}
 
     ui.confirm({
       title: '确认绑定',

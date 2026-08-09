@@ -5,26 +5,33 @@
  * 门店范围来自 token scope，页面不出现门店选择器。
  */
 import { onMounted, reactive, ref } from 'vue'
-import { NButton, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpin, NSwitch } from 'naive-ui'
+import { NButton, NForm, NFormItem, NInput, NInputNumber, NSpin, NSwitch, NTimePicker } from 'naive-ui'
 import { profileService, type StoreProfile } from '@/api/services/profile'
+import { lowSpendRuleService } from '@/api/services/lowSpendRule'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { ApiError } from '@/api/error'
 import { useAuthStore } from '@/stores/auth'
-import { AssetImage, PageHeader } from '@/components/common'
+import { AssetImage, AssetUpload, PageHeader } from '@/components/common'
 
 const auth = useAuthStore()
 const action = useAsyncAction()
-const settingsAction = useAsyncAction()
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
-const settingsLoading = ref(false)
-const settingsErrorMsg = ref<string | null>(null)
-const settingsText = ref('{}')
+
+const ruleForm = reactive({
+  enabled: true,
+  reservationCutoff: '20:00',
+  consumptionCutoff: '20:30',
+  minimumAmount: 88,
+  rewardPoints: 2000,
+})
 
 const form = reactive<Partial<StoreProfile>>({
   name: '',
   address: '',
   phone: '',
+  customerServiceQrAssetId: null,
+  customerServiceQrUrl: '',
   businessHours: '',
   latitude: null,
   longitude: null,
@@ -47,32 +54,19 @@ async function load() {
   }
 }
 
-async function loadSettings() {
-  settingsLoading.value = true
-  settingsErrorMsg.value = null
+async function loadRule() {
   try {
-    const view = (await profileService.getSettings()) as { settings?: Record<string, unknown> }
-    settingsText.value = JSON.stringify(view.settings ?? {}, null, 2)
+    const rule = await lowSpendRuleService.get()
+    Object.assign(ruleForm, {
+      enabled: rule.enabled,
+      reservationCutoff: rule.reservationCutoff || '20:00',
+      consumptionCutoff: rule.consumptionCutoff || '20:30',
+      minimumAmount: rule.minimumAmount || 88,
+      rewardPoints: rule.rewardPoints || 2000,
+    })
   } catch (err) {
-    settingsErrorMsg.value = err instanceof ApiError ? err.message : '门店设置加载失败'
-  } finally {
-    settingsLoading.value = false
+    errorMsg.value = err instanceof ApiError ? err.message : '奖励规则加载失败'
   }
-}
-
-function saveSettings() {
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(settingsText.value)
-  } catch {
-    settingsErrorMsg.value = 'JSON 格式有误，请检查后重试'
-    return
-  }
-  settingsErrorMsg.value = null
-  void settingsAction.run(() => profileService.updateSettings({ settings: parsed }), {
-    successMessage: '门店设置已保存',
-    onSuccess: () => loadSettings(),
-  })
 }
 
 function saveProfile() {
@@ -82,6 +76,9 @@ function saveProfile() {
         name: form.name,
         address: form.address,
         phone: form.phone,
+        customerServiceQrAssetId: form.customerServiceQrAssetId
+          ? Number(form.customerServiceQrAssetId)
+          : null,
         businessHours: form.businessHours,
         latitude: form.latitude ?? null,
         longitude: form.longitude ?? null,
@@ -101,9 +98,33 @@ function toggleStatus(open: boolean) {
   })
 }
 
+function saveRule() {
+  if (!ruleForm.reservationCutoff || !ruleForm.consumptionCutoff) {
+    errorMsg.value = '请选择完整的规则时间'
+    return
+  }
+  if (ruleForm.reservationCutoff >= ruleForm.consumptionCutoff) {
+    errorMsg.value = '低消截止时间必须晚于预约或候桌截止时间'
+    return
+  }
+  if (!Number.isInteger(ruleForm.minimumAmount) || ruleForm.minimumAmount <= 0) {
+    errorMsg.value = '低消金额必须是大于 0 的整数'
+    return
+  }
+  if (!Number.isInteger(ruleForm.rewardPoints) || ruleForm.rewardPoints <= 0) {
+    errorMsg.value = '赠送积分必须是大于 0 的整数'
+    return
+  }
+  errorMsg.value = null
+  void action.run(() => lowSpendRuleService.update({ ...ruleForm }), {
+    successMessage: '预约低消奖励规则已保存',
+    onSuccess: () => loadRule(),
+  })
+}
+
 onMounted(() => {
   load()
-  loadSettings()
+  loadRule()
 })
 </script>
 
@@ -115,74 +136,32 @@ onMounted(() => {
     />
 
     <NSpin :show="loading">
-      <div class="settings ic-band">
-        <div class="settings__logo">
-          <AssetImage
-            :url="form.logoUrl"
-            :size="72"
-          />
-          <div>
-            <div class="settings__store-name">
-              {{ form.name || auth.store?.name || '当前门店' }}
+      <section class="settings ic-band">
+        <header class="settings__header">
+          <div class="settings__logo">
+            <AssetImage
+              :url="form.logoUrl"
+              :size="64"
+            />
+            <div>
+              <div class="settings__store-name">
+                {{ form.name || auth.store?.name || '当前门店' }}
+              </div>
+              <p class="ic-muted settings__logo-hint">
+                维护门店展示资料、地址及客服联系方式
+              </p>
             </div>
-            <p class="ic-muted settings__logo-hint">
-              Logo 仅提交 assetId，上传组件待资产服务接入
-            </p>
           </div>
-        </div>
 
-        <NForm
-          label-placement="top"
-          class="settings__form"
-        >
-          <NFormItem label="门店名称">
-            <NInput
-              v-model:value="form.name"
-              placeholder="门店名称"
-            />
-          </NFormItem>
-          <NFormItem label="门店地址">
-            <NInput
-              v-model:value="form.address"
-              placeholder="门店地址"
-            />
-          </NFormItem>
-          <NFormItem label="联系电话">
-            <NInput
-              v-model:value="form.phone"
-              placeholder="门店联系电话"
-            />
-          </NFormItem>
-          <NFormItem label="营业时间">
-            <NInput
-              v-model:value="form.businessHours"
-              placeholder="如：10:00 - 22:00"
-            />
-          </NFormItem>
-          <NFormItem label="纬度 latitude">
-            <NInputNumber
-              v-model:value="form.latitude"
-              :show-button="false"
-              :precision="6"
-              :min="-90"
-              :max="90"
-              placeholder="如：31.230416（小程序据此算距离/导航）"
-              style="width: 100%"
-            />
-          </NFormItem>
-          <NFormItem label="经度 longitude">
-            <NInputNumber
-              v-model:value="form.longitude"
-              :show-button="false"
-              :precision="6"
-              :min="-180"
-              :max="180"
-              placeholder="如：121.473701（小程序据此算距离/导航）"
-              style="width: 100%"
-            />
-          </NFormItem>
-
-          <NFormItem label="营业状态">
+          <div class="settings__status">
+            <div>
+              <div class="settings__status-label">
+                营业状态
+              </div>
+              <div class="ic-muted settings__status-hint">
+                关闭后门店显示为休息中
+              </div>
+            </div>
             <NSwitch
               :value="form.status === 'open'"
               :loading="action.running.value"
@@ -195,70 +174,199 @@ onMounted(() => {
                 休息中
               </template>
             </NSwitch>
-          </NFormItem>
+          </div>
+        </header>
 
-          <NButton
-            type="primary"
-            :loading="action.running.value"
-            @click="saveProfile"
-          >
-            保存资料
-          </NButton>
+        <NForm
+          label-placement="top"
+          class="settings__form"
+        >
+          <div class="settings__grid">
+            <section class="settings__section">
+              <div class="settings__section-head">
+                <h2 class="settings__section-title">
+                  基础资料
+                </h2>
+                <p class="ic-muted settings__section-desc">
+                  用于小程序门店列表、导航和营业信息展示
+                </p>
+              </div>
+
+              <div class="settings__fields">
+                <NFormItem label="门店名称">
+                  <NInput
+                    v-model:value="form.name"
+                    placeholder="门店名称"
+                  />
+                </NFormItem>
+                <NFormItem label="营业时间">
+                  <NInput
+                    v-model:value="form.businessHours"
+                    placeholder="如：10:00 - 22:00"
+                  />
+                </NFormItem>
+                <NFormItem
+                  label="门店地址"
+                  class="settings__field--wide"
+                >
+                  <NInput
+                    v-model:value="form.address"
+                    placeholder="请输入完整门店地址"
+                  />
+                </NFormItem>
+                <NFormItem label="纬度 latitude">
+                  <NInputNumber
+                    v-model:value="form.latitude"
+                    :show-button="false"
+                    :precision="6"
+                    :min="-90"
+                    :max="90"
+                    placeholder="如：31.230416"
+                    style="width: 100%"
+                  />
+                </NFormItem>
+                <NFormItem label="经度 longitude">
+                  <NInputNumber
+                    v-model:value="form.longitude"
+                    :show-button="false"
+                    :precision="6"
+                    :min="-180"
+                    :max="180"
+                    placeholder="如：121.473701"
+                    style="width: 100%"
+                  />
+                </NFormItem>
+              </div>
+            </section>
+
+            <section class="settings__section settings__contact">
+              <div class="settings__section-head">
+                <h2 class="settings__section-title">
+                  客服联系方式
+                </h2>
+                <p class="ic-muted settings__section-desc">
+                  用户可通过电话或微信二维码联系当前门店
+                </p>
+              </div>
+
+              <NFormItem label="客服电话 / 联系方式">
+                <NInput
+                  v-model:value="form.phone"
+                  placeholder="请输入客服电话或门店联系电话"
+                />
+              </NFormItem>
+              <NFormItem label="客服微信二维码">
+                <AssetUpload
+                  v-model:asset-id="form.customerServiceQrAssetId"
+                  v-model:preview-url="form.customerServiceQrUrl"
+                  purpose="store_contact_qr"
+                  :width="150"
+                  :height="150"
+                />
+              </NFormItem>
+            </section>
+          </div>
+
+          <div class="settings__actions">
+            <p
+              v-if="errorMsg"
+              class="ic-muted settings__error"
+            >
+              {{ errorMsg }}（等待服务端接口就绪）
+            </p>
+            <NButton
+              type="primary"
+              :loading="action.running.value"
+              @click="saveProfile"
+            >
+              保存资料
+            </NButton>
+          </div>
         </NForm>
-
-        <p
-          v-if="errorMsg"
-          class="ic-muted settings__error"
-        >
-          {{ errorMsg }}（等待服务端接口就绪）
-        </p>
-      </div>
+      </section>
     </NSpin>
 
-    <NDivider />
-
-    <NSpin :show="settingsLoading">
-      <div class="settings ic-band">
-        <NFormItem label="门店设置（JSON）">
-          <NInput
-            v-model:value="settingsText"
-            type="textarea"
-            :rows="10"
-            placeholder="{}"
-          />
-        </NFormItem>
-
-        <NButton
-          type="primary"
-          :loading="settingsAction.running.value"
-          @click="saveSettings"
-        >
-          保存设置
-        </NButton>
-
-        <p
-          v-if="settingsErrorMsg"
-          class="ic-muted settings__error"
-        >
-          {{ settingsErrorMsg }}
-        </p>
+    <section class="reward-settings ic-band">
+      <div class="reward-settings__head">
+        <div>
+          <h2 class="settings__section-title">预约低消奖励</h2>
+          <p class="ic-muted settings__section-desc">
+            按时预约座位或候桌，并在截止前完成微信或金币点餐低消后，自动标记已到店并发放积分
+          </p>
+        </div>
+        <NSwitch v-model:value="ruleForm.enabled">
+          <template #checked>已开启</template>
+          <template #unchecked>已关闭</template>
+        </NSwitch>
       </div>
-    </NSpin>
+
+      <NForm label-placement="top">
+        <div class="reward-settings__grid">
+          <NFormItem label="预约 / 候桌截止">
+            <NTimePicker
+              v-model:formatted-value="ruleForm.reservationCutoff"
+              format="HH:mm"
+              :clearable="false"
+              style="width: 100%"
+            />
+          </NFormItem>
+          <NFormItem label="完成低消截止">
+            <NTimePicker
+              v-model:formatted-value="ruleForm.consumptionCutoff"
+              format="HH:mm"
+              :clearable="false"
+              style="width: 100%"
+            />
+          </NFormItem>
+          <NFormItem label="累计低消金额">
+            <NInputNumber v-model:value="ruleForm.minimumAmount" :min="1" :precision="0" style="width: 100%">
+              <template #suffix>元</template>
+            </NInputNumber>
+          </NFormItem>
+          <NFormItem label="达标赠送积分">
+            <NInputNumber v-model:value="ruleForm.rewardPoints" :min="1" :precision="0" style="width: 100%">
+              <template #suffix>积分</template>
+            </NInputNumber>
+          </NFormItem>
+        </div>
+        <div class="reward-settings__actions">
+          <span class="ic-muted">同一会员在本门店每天最多获得一次</span>
+          <NButton type="primary" :loading="action.running.value" @click="saveRule">
+            保存奖励规则
+          </NButton>
+        </div>
+      </NForm>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .settings {
-  max-width: 520px;
-  padding: var(--ic-space-5);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--ic-space-5) var(--ic-space-6);
 }
-.settings__logo {
+.settings__header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--ic-space-4);
-  padding-bottom: var(--ic-space-4);
+  padding-bottom: var(--ic-space-5);
   border-bottom: var(--ic-divider);
-  margin-bottom: var(--ic-space-4);
+  margin-bottom: var(--ic-space-5);
+}
+.settings__logo,
+.settings__status {
+  display: flex;
+  align-items: center;
+}
+.settings__logo {
+  gap: var(--ic-space-4);
+}
+.settings__status {
+  justify-content: flex-end;
+  gap: var(--ic-space-4);
+  text-align: right;
 }
 .settings__store-name {
   font-size: var(--ic-font-md);
@@ -268,8 +376,130 @@ onMounted(() => {
   font-size: var(--ic-font-xs);
   margin: 4px 0 0;
 }
+.settings__status-label {
+  font-size: var(--ic-font-base);
+  font-weight: 600;
+}
+.settings__status-hint {
+  font-size: var(--ic-font-xs);
+  margin-top: 2px;
+}
+.settings__form {
+  width: 100%;
+}
+.settings__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+  align-items: start;
+  gap: var(--ic-space-7);
+}
+.settings__section-head {
+  margin-bottom: var(--ic-space-4);
+}
+.settings__section-title {
+  margin: 0;
+  color: var(--ic-color-text);
+  font-size: var(--ic-font-md);
+  font-weight: 600;
+}
+.settings__section-desc {
+  margin: 4px 0 0;
+  font-size: var(--ic-font-xs);
+}
+.settings__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ic-space-4);
+}
+.settings__field--wide {
+  grid-column: 1 / -1;
+}
+.settings__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ic-space-3);
+  margin-top: var(--ic-space-4);
+  padding-top: var(--ic-space-4);
+  border-top: var(--ic-divider);
+}
 .settings__error {
   font-size: var(--ic-font-xs);
-  margin-top: var(--ic-space-3);
+  margin: 0 auto 0 0;
+}
+.reward-settings {
+  margin-top: var(--ic-space-5);
+  padding: var(--ic-space-5) var(--ic-space-6);
+}
+.reward-settings__head,
+.reward-settings__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-4);
+}
+.reward-settings__head {
+  padding-bottom: var(--ic-space-4);
+  border-bottom: var(--ic-divider);
+  margin-bottom: var(--ic-space-4);
+}
+.reward-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ic-space-4);
+}
+.reward-settings__actions {
+  padding-top: var(--ic-space-3);
+  border-top: var(--ic-divider);
+  font-size: var(--ic-font-xs);
+}
+
+@media (max-width: 1080px) {
+  .settings__grid {
+    grid-template-columns: 1fr;
+    gap: var(--ic-space-6);
+  }
+  .reward-settings__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .settings {
+    padding: var(--ic-space-4);
+  }
+  .settings__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .settings__status {
+    width: 100%;
+    justify-content: space-between;
+    text-align: left;
+  }
+  .settings__fields {
+    grid-template-columns: 1fr;
+  }
+  .settings__field--wide {
+    grid-column: auto;
+  }
+  .settings__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .settings__actions :deep(.n-button) {
+    width: 100%;
+  }
+  .reward-settings {
+    padding: var(--ic-space-4);
+  }
+  .reward-settings__head,
+  .reward-settings__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .reward-settings__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

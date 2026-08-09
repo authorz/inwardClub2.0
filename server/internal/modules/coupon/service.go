@@ -38,6 +38,9 @@ func (s *Service) ListCoupons(ctx context.Context, memberID int64, status string
 // is the request's Idempotency-Key. Rule matching / item snapshotting is layered
 // on later; this records the hit and consumes the entitlement.
 func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, req RedeemRequest) (MemberCouponView, error) {
+	if req.EntitlementID <= 0 || req.StoreID <= 0 {
+		return MemberCouponView{}, apperr.Invalid("优惠券和门店信息不正确")
+	}
 	c, err := s.repo.GetEntitlement(ctx, memberID, req.EntitlementID)
 	if err != nil {
 		return MemberCouponView{}, err

@@ -3,12 +3,12 @@
  * 本店订单：统一订单读模型，支持类型/支付状态/关键字筛选。
  * 门店范围来自 token scope，不传 storeId。
  */
-import { computed } from 'vue'
-import { NButton, type DataTableColumns } from 'naive-ui'
+import { computed, h } from 'vue'
+import { NAvatar, NButton, type DataTableColumns } from 'naive-ui'
 import { orderService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { ORDER_TYPE, PAYMENT_STATUS, PAY_CHANNEL, toOptions } from '@/constants/enums'
-import { dateColumn, moneyColumn, phoneColumn, statusColumn, textColumn } from '@/utils/columns'
+import { dateColumn, moneyColumn, statusColumn, textColumn } from '@/utils/columns'
 import { DataTable, PageHeader, StatusFilterBar } from '@/components/common'
 import type { StoreOrder } from '@/types/models'
 
@@ -19,13 +19,22 @@ const list = useAsyncList<StoreOrder>((params) => orderService.list(params), {
 })
 
 const columns = computed<DataTableColumns<StoreOrder>>(() => [
-  textColumn<StoreOrder>('订单号', (r) => r.businessOrderId),
+  textColumn<StoreOrder>('ID', (r) => r.id, { width: 72 }),
+  {
+    title: '用户信息', key: 'member', width: 190,
+    render: (row) => h('div', { class: 'member-cell' }, [
+      h(NAvatar, { round: true, size: 34, src: row.memberAvatarUrl }, () => (row.memberNickname || '会').slice(0, 1)),
+      h('div', { class: 'member-cell__text' }, [
+        h('span', row.memberNickname || '未关联会员'),
+        h('small', row.memberPhoneMasked || row.memberPhone || '暂无手机号'),
+      ]),
+    ]),
+  },
+  textColumn<StoreOrder>('订单号', (r) => r.orderNo, { width: 190 }),
   statusColumn<StoreOrder>('类型', ORDER_TYPE, (r) => r.orderType, { width: 96 }),
   moneyColumn<StoreOrder>('金额', (r) => r.amountCent, { width: 120 }),
   statusColumn<StoreOrder>('支付状态', PAYMENT_STATUS, (r) => r.paymentStatus, { width: 110 }),
   statusColumn<StoreOrder>('渠道', PAY_CHANNEL, (r) => r.payChannel, { width: 90 }),
-  textColumn<StoreOrder>('会员', (r) => r.memberNickname),
-  phoneColumn<StoreOrder>('手机号', (r) => r.memberPhoneMasked),
   dateColumn<StoreOrder>('下单时间', (r) => r.createdAt, { width: 150 }),
 ])
 
@@ -44,7 +53,7 @@ const typeOptions = toOptions(ORDER_TYPE)
       :status="(list.filters.paymentStatus as string) ?? null"
       :keyword="(list.filters.keyword as string) ?? ''"
       :loading="list.loading.value"
-      search-placeholder="搜索订单号 / 会员"
+      search-placeholder="搜索订单号 / 会员 / 手机号"
       @update:status="list.filters.paymentStatus = $event ?? ''"
       @update:keyword="list.filters.keyword = $event"
       @apply="list.applyFilters({})"
@@ -79,3 +88,10 @@ const typeOptions = toOptions(ORDER_TYPE)
     />
   </div>
 </template>
+
+<style scoped>
+.member-cell { display: flex; align-items: center; gap: var(--ic-space-2); min-width: 0; }
+.member-cell__text { display: flex; flex-direction: column; min-width: 0; }
+.member-cell__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-cell__text small { color: var(--ic-color-text-tertiary); }
+</style>

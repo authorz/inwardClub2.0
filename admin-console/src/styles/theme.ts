@@ -40,10 +40,12 @@ export const adminThemeOverrides: GlobalThemeOverrides = {
     headerColor: '#ffffff',
   },
   Menu: {
-    itemColorActive: '#f0f0f0',
-    itemColorActiveHover: '#f0f0f0',
-    itemTextColorActive: '#1a1a1a',
-    itemTextColorActiveHover: '#1a1a1a',
-    itemIconColorActive: '#1a1a1a',
+    itemColorActive: 'transparent',
+    itemColorActiveHover: '#f3f7ff',
+    itemColorHover: '#f5f5f5',
+    itemTextColorActive: '#1677ff',
+    itemTextColorActiveHover: '#1677ff',
+    itemIconColorActive: '#1677ff',
+    itemIconColorActiveHover: '#1677ff',
   },
 }

@@ -19,7 +19,7 @@
   <view class="astrip__div"></view>
   <view class="astrip__col" bindtap="tapCoupon" hover-class="{{tappable ? 'astrip__col--hover' : ''}}">
     <view class="astrip__icon astrip__icon--coupon">
-      <image class="astrip__icon-img" src="/assets/icons/coupon-gpt.png" mode="aspectFit" />
+      <image class="astrip__icon-img" src="https://assets.inwardclub.com/public/images/coupon-gpt.png" mode="aspectFit" />
     </view>
     <view class="astrip__meta">
       <text class="astrip__label">券</text>

@@ -2,6 +2,7 @@
 const api = require('../../services/api');
 const ui = require('../../utils/ui');
 const http = require('../../utils/request');
+const fmt = require('../../utils/format');
 const { RESERVATION_STATUS_LABEL } = require('../../constants/index');
 
 Page({
@@ -26,10 +27,10 @@ Page({
             tableName: r.tableName,
             seatNo: r.seatNo,
             storeName: r.storeName,
-            timeText: r.timeText,
+            timeText: fmt.dateTime(r.createdAt),
             status: r.status,
             statusLabel: RESERVATION_STATUS_LABEL[r.status] || r.status,
-            note: r.note || '请按预约时间到店，超时将释放座位',
+            note: '预约没有到店时间限制；如不再需要该座位，请及时取消预约',
           },
         });
       })

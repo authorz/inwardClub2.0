@@ -6,6 +6,7 @@ const fmt = require('../../utils/format');
 const http = require('../../utils/request');
 const pay = require('../../utils/pay');
 const draft = require('../../utils/order-draft');
+const validation = require('../../utils/validation');
 
 // 商品缺失 payChannels 时的兼容默认（老数据视为两种都支持）
 const DEFAULT_CHANNELS = ['wechat', 'coin'];
@@ -101,6 +102,13 @@ Page({
       ui.toast('请选择支付方式');
       return;
     }
+	let remark;
+	try {
+	  remark = validation.plainText(this.data.note, { label: '订单备注', max: 200, allowEmpty: true });
+	} catch (err) {
+	  ui.toast(err.message);
+	  return;
+	}
     this.setData({ submitting: true });
     ui.showLoading('支付中');
     api
@@ -108,7 +116,7 @@ Page({
         {
           storeId: store.id,
           tableText: this.data.tableText,
-          note: this.data.note,
+		  note: remark,
           items: this.data.items,
           totalCent: this.totalCent,
           payChannel,
@@ -124,7 +132,7 @@ Page({
       .then(() => {
         ui.hideLoading();
         this.setData({ submitting: false });
-        draft.clear();
+        draft.complete('food', { storeId: store.id });
         wx.redirectTo({ url: '/pages/pay-result/pay-result?type=food&status=success&amount=' + this.data.payText });
       })
       .catch((err) => {

@@ -122,6 +122,7 @@ type ConsoleRepository interface {
 	GetTemplate(ctx context.Context, scope ConsoleScope, id int64) (Template, error)
 	CreateTemplate(ctx context.Context, scope ConsoleScope, in TemplateInput) (Template, error)
 	UpdateTemplate(ctx context.Context, scope ConsoleScope, id int64, in TemplateInput) (Template, error)
+	SetTemplateStatus(ctx context.Context, scope ConsoleScope, id int64, status string) (Template, error)
 	DeleteTemplate(ctx context.Context, scope ConsoleScope, id int64) error
 	GetApplicableScope(ctx context.Context, scope ConsoleScope, templateID int64) (ApplicableScope, error)
 	Grant(ctx context.Context, scope ConsoleScope, req GrantRequest) (EntitlementView, error)
@@ -218,7 +219,13 @@ func validCouponType(t string) bool {
 
 func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope ConsoleScope, in TemplateInput) (Template, error) {
 	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("invalid couponType")
+		return Template{}, apperr.Invalid("优惠券类型不正确")
+	}
+	if in.Name == "" {
+		return Template{}, apperr.Invalid("请填写优惠券名称")
+	}
+	if in.ValueCent < 0 || in.PointsPrice < 0 || in.StockQty < 0 || in.PerMemberLim < 0 {
+		return Template{}, apperr.Invalid("优惠券金额、积分、库存和限领数量不能小于 0")
 	}
 	now := time.Now().UTC()
 	// A store console pins scope_type='store' + its own store id; the admin
@@ -250,7 +257,20 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 
 func (r *sqlConsoleRepository) UpdateTemplate(ctx context.Context, scope ConsoleScope, id int64, in TemplateInput) (Template, error) {
 	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("invalid couponType")
+		return Template{}, apperr.Invalid("优惠券类型不正确")
+	}
+	if in.Name == "" {
+		return Template{}, apperr.Invalid("请填写优惠券名称")
+	}
+	if in.ValueCent < 0 || in.PointsPrice < 0 || in.StockQty < 0 || in.PerMemberLim < 0 {
+		return Template{}, apperr.Invalid("优惠券金额、积分、库存和限领数量不能小于 0")
+	}
+	current, err := r.GetTemplate(ctx, scope, id)
+	if err != nil {
+		return Template{}, err
+	}
+	if in.StockQty > 0 && in.StockQty < current.IssuedQty {
+		return Template{}, apperr.Invalid("库存不能小于已发放数量")
 	}
 	now := time.Now().UTC()
 	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, value_cent=?,
@@ -270,6 +290,22 @@ func (r *sqlConsoleRepository) UpdateTemplate(ctx context.Context, scope Console
 }
 
 func (r *sqlConsoleRepository) DeleteTemplate(ctx context.Context, scope ConsoleScope, id int64) error {
+	tmpl, err := r.GetTemplate(ctx, scope, id)
+	if err != nil {
+		return err
+	}
+	if tmpl.IssuedQty > 0 {
+		return apperr.Conflict("该优惠券已有发放记录，不能删除，可改为停用")
+	}
+	var bound int64
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM recharge_products WHERE coupon_template_id = ?`, id,
+	).Scan(&bound); err != nil {
+		return apperr.Internal(err)
+	}
+	if bound > 0 {
+		return apperr.Conflict("该优惠券已绑定充值档位，请先解除绑定")
+	}
 	q := `DELETE FROM coupon_templates WHERE id=?`
 	args := []any{id}
 	if scope.StoreID != nil {
@@ -284,6 +320,42 @@ func (r *sqlConsoleRepository) DeleteTemplate(ctx context.Context, scope Console
 		return apperr.NotFound("coupon template not found")
 	}
 	return nil
+}
+
+func (r *sqlConsoleRepository) SetTemplateStatus(ctx context.Context, scope ConsoleScope, id int64, status string) (Template, error) {
+	if status != "published" && status != "disabled" {
+		return Template{}, apperr.Invalid("优惠券状态不正确")
+	}
+	if _, err := r.GetTemplate(ctx, scope, id); err != nil {
+		return Template{}, err
+	}
+	if status == "disabled" {
+		var bound int64
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM recharge_products WHERE coupon_template_id = ? AND status = 'active'`, id,
+		).Scan(&bound); err != nil {
+			return Template{}, apperr.Internal(err)
+		}
+		if bound > 0 {
+			return Template{}, apperr.Conflict("该优惠券已绑定启用中的充值档位，不能停用")
+		}
+	}
+	q := `UPDATE coupon_templates SET status = ?, updated_at = ? WHERE id = ?`
+	args := []any{status, time.Now().UTC(), id}
+	if scope.StoreID != nil {
+		q += ` AND scope_type = 'store' AND store_id = ?`
+		args = append(args, *scope.StoreID)
+	}
+	res, err := r.db.ExecContext(ctx, q, args...)
+	if err != nil {
+		return Template{}, apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := r.GetTemplate(ctx, scope, id); err != nil {
+			return Template{}, err
+		}
+	}
+	return r.GetTemplate(ctx, scope, id)
 }
 
 // Grant issues one entitlement to a member from a template, enforcing the
@@ -529,6 +601,22 @@ func (s *ConsoleService) UpdateTemplate(ctx context.Context, scope ConsoleScope,
 	return templateView(t), nil
 }
 
+func (s *ConsoleService) PublishTemplate(ctx context.Context, scope ConsoleScope, id int64) (ConsoleTemplateView, error) {
+	t, err := s.repo.SetTemplateStatus(ctx, scope, id, "published")
+	if err != nil {
+		return ConsoleTemplateView{}, err
+	}
+	return templateView(t), nil
+}
+
+func (s *ConsoleService) DisableTemplate(ctx context.Context, scope ConsoleScope, id int64) (ConsoleTemplateView, error) {
+	t, err := s.repo.SetTemplateStatus(ctx, scope, id, "disabled")
+	if err != nil {
+		return ConsoleTemplateView{}, err
+	}
+	return templateView(t), nil
+}
+
 // DeleteTemplate deletes a coupon template within scope.
 func (s *ConsoleService) DeleteTemplate(ctx context.Context, scope ConsoleScope, id int64) error {
 	return s.repo.DeleteTemplate(ctx, scope, id)
@@ -617,6 +705,10 @@ func (h *ConsoleHandler) Update(c *gin.Context) {
 	h.update(c, ConsoleScope{})
 }
 
+func (h *ConsoleHandler) Publish(c *gin.Context) { h.setStatus(c, ConsoleScope{}, true) }
+
+func (h *ConsoleHandler) Disable(c *gin.Context) { h.setStatus(c, ConsoleScope{}, false) }
+
 // Delete handles DELETE /admin/coupon-templates/:id.
 func (h *ConsoleHandler) Delete(c *gin.Context) {
 	h.delete(c, ConsoleScope{})
@@ -678,6 +770,22 @@ func (h *ConsoleHandler) StoreUpdate(c *gin.Context) {
 		return
 	}
 	h.update(c, ConsoleScope{StoreID: &storeID})
+}
+
+func (h *ConsoleHandler) StorePublish(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	h.setStatus(c, ConsoleScope{StoreID: &storeID}, true)
+}
+
+func (h *ConsoleHandler) StoreDisable(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	h.setStatus(c, ConsoleScope{StoreID: &storeID}, false)
 }
 
 // StoreDelete handles DELETE /store/coupon-templates/:id.
@@ -795,6 +903,25 @@ func (h *ConsoleHandler) delete(c *gin.Context, scope ConsoleScope) {
 		return
 	}
 	httpx.NoData(c)
+}
+
+func (h *ConsoleHandler) setStatus(c *gin.Context, scope ConsoleScope, publish bool) {
+	id, err := templateID(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var view ConsoleTemplateView
+	if publish {
+		view, err = h.svc.PublishTemplate(c.Request.Context(), scope, id)
+	} else {
+		view, err = h.svc.DisableTemplate(c.Request.Context(), scope, id)
+	}
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
 }
 
 func (h *ConsoleHandler) applicableItems(c *gin.Context, scope ConsoleScope) {

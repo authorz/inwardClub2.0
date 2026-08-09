@@ -16,6 +16,7 @@ type MemberRepository interface {
 	GetByID(ctx context.Context, id int64) (Member, error)
 	FindIDByInviteCode(ctx context.Context, inviteCode string) (int64, bool, error)
 	Create(ctx context.Context, m Member) (int64, error)
+	CompleteRegistration(ctx context.Context, id int64, m Member) error
 	BumpTokenVersion(ctx context.Context, id int64) error
 }
 
@@ -47,12 +48,12 @@ func NewAccountRepository(db *platdb.DB) AccountRepository { return &sqlAccountR
 func NewStaffRepository(db *platdb.DB) StaffRepository { return &sqlStaffRepository{db: db} }
 
 const memberColumns = `id, COALESCE(wechat_openid,''), nickname, COALESCE(avatar_url,''), COALESCE(gender,''), COALESCE(phone,''),
-	COALESCE(invite_code,''), invited_by_member_id, status, token_version, created_at, updated_at`
+	COALESCE(invite_code,''), invited_by_member_id, profile_completed, status, token_version, created_at, updated_at`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	err := row.Scan(&m.ID, &m.WeChatOpenID, &m.Nickname, &m.AvatarURL, &m.Gender, &m.Phone,
-		&m.InviteCode, &m.InvitedByMemberID, &m.Status, &m.TokenVersion, &m.CreatedAt, &m.UpdatedAt)
+		&m.InviteCode, &m.InvitedByMemberID, &m.ProfileCompleted, &m.Status, &m.TokenVersion, &m.CreatedAt, &m.UpdatedAt)
 	return m, err
 }
 
@@ -95,10 +96,14 @@ func (r *sqlMemberRepository) FindIDByInviteCode(ctx context.Context, inviteCode
 
 func (r *sqlMemberRepository) Create(ctx context.Context, m Member) (int64, error) {
 	const q = `INSERT INTO members
-		(wechat_openid, nickname, avatar_url, gender, phone, invite_code, invited_by_member_id, status, token_version, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+		(wechat_openid, nickname, avatar_url, gender, phone, phone_changed_at, invite_code, invited_by_member_id, profile_completed, status, token_version, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
 	now := time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), nullable(m.InviteCode), m.InvitedByMemberID, StatusActive, now, now)
+	var phoneChangedAt any
+	if m.Phone != "" {
+		phoneChangedAt = now
+	}
+	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), phoneChangedAt, nullable(m.InviteCode), m.InvitedByMemberID, m.ProfileCompleted, StatusActive, now, now)
 	if err != nil {
 		return 0, apperr.Internal(err)
 	}
@@ -107,6 +112,27 @@ func (r *sqlMemberRepository) Create(ctx context.Context, m Member) (int64, erro
 		return 0, apperr.Internal(err)
 	}
 	return id, nil
+}
+
+func (r *sqlMemberRepository) CompleteRegistration(ctx context.Context, id int64, m Member) error {
+	const q = `UPDATE members SET nickname = ?, avatar_url = ?, gender = ?, phone = ?, phone_changed_at = ?,
+		invite_code = ?, invited_by_member_id = ?, profile_completed = 1,
+		token_version = token_version + 1, updated_at = ?
+		WHERE id = ? AND profile_completed = 0`
+	now := time.Now().UTC()
+	result, err := r.db.ExecContext(ctx, q, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender),
+		nullable(m.Phone), now, nullable(m.InviteCode), m.InvitedByMemberID, now, id)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if affected == 0 {
+		return apperr.Conflict("会员资料已经完善")
+	}
+	return nil
 }
 
 func (r *sqlMemberRepository) BumpTokenVersion(ctx context.Context, id int64) error {

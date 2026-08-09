@@ -24,12 +24,32 @@ export interface AdminUser {
 export interface Store extends AuditableEntity {
   name: string
   phone?: string
+  customerServiceQrAssetId?: string | number | null
+  customerServiceQrUrl?: string
   address?: string
   businessHours?: string
   /** GPS 坐标：小程序据此计算门店距离并支持"导航前往"，缺失则两者都不可用 */
   latitude?: number | null
   longitude?: number | null
   logoAssetId?: string
+}
+
+export interface VenueTable extends AuditableEntity {
+  storeName: string
+  name: string
+  code: string
+  capacity: number
+  seatCount: number
+  basePoints: number
+  layoutAssetId?: string | number | null
+  layoutUrl?: string
+}
+
+export interface VenueSeat extends AuditableEntity {
+  storeName: string
+  tableId: string | number
+  tableName: string
+  name: string
 }
 
 export interface AccountEntity extends AuditableEntity {
@@ -87,13 +107,46 @@ export interface Activity extends AuditableEntity {
   purchaseLimitPerMember?: number
 }
 
+/** 门店赛事宣传活动；不包含票档、支付或报名。 */
+export interface TournamentEvent extends AuditableEntity {
+  storeId: string | number
+  storeName?: string
+  title: string
+  summary?: string
+  content?: string
+  assetId?: string | number | null
+  imageUrl?: string
+  startAt?: string
+  endAt?: string
+}
+
+export interface ActivityTicketType {
+  id: string | number
+  activityId: string | number
+  name: string
+  priceCent: number
+  stockQuantity: number
+  soldQuantity?: number
+  saleStartAt?: string
+  saleEndAt?: string
+  payChannels: string[]
+  maxTicketsPerOrder: number
+  status: string
+}
+
 export interface CouponTemplate extends AuditableEntity {
   name: string
-  couponType?: string
-  // server admin.CouponTemplateView 提供 valueCent/totalStock/issuedCount（无 validDays）。
-  valueCent?: number
+  description?: string
+  couponType: string
+  valueCent: number
+  pointsPrice?: number
+  stockQuantity?: number
+  issuedQuantity?: number
+  perMemberLimit?: number
   totalStock?: number
   issuedCount?: number
+  scopeType?: string
+  storeId?: string | number | null
 }
 
 export interface Banner extends AuditableEntity {
@@ -111,6 +164,8 @@ export interface RechargeProduct extends AuditableEntity {
   coinAmount: number
   /** 支付成功后赠送的积分数 */
   pointsAmount: number
+  /** 支付成功后赠送的优惠券模板；为空表示不赠券 */
+  couponTemplateId?: string | number | null
   sortOrder?: number
 }
 
@@ -142,6 +197,10 @@ export interface BusinessOrder extends AuditableEntity {
   orderStatus?: string
   payChannel?: string
   amountCent: number
+  paymentOrderId?: number
+  refundStatus?: string
+  memberAvatarUrl?: string
+  memberNickname?: string
   memberPhone?: string
   storeName?: string
 }
@@ -169,10 +228,18 @@ export interface RefundOrder extends AuditableEntity {
   refundOrderNo: string
   paymentOrderId?: number
   businessOrderId?: number
+  businessOrderNo: string
   storeName?: string
+  orderAmountCent: number
+  memberId?: number
+  memberNickname?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
   amountCent: number
   channel?: string
   reason?: string
+  orderCreatedAt: string
+  operatedAt: string
 }
 
 export interface Member {
@@ -203,14 +270,22 @@ export interface MemberDetail extends Member {
 
 export interface WalletLedgerEntry {
   id: string
+  recordKey: string
   memberId: string
+  memberNickname?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
+  storeId?: string
+  storeName?: string
   assetType: string
   direction: string
   amount: number
-  balanceAfter: number
+  balanceAfter?: number
+  status: string
   reason?: string
   sourceType?: string
   sourceId?: string
+  relatedOrderNo?: string
   createdAt: string
 }
 
@@ -254,16 +329,51 @@ export interface PaymentChannelSetting {
   enabled: boolean
 }
 
-/** 门店运营配置的业务字段。服务端将其整体存为不透明 JSON blob，schema 由前端约定。
- *  注：自动接单、桌位预订为平台默认能力（常开、不可关闭），不作为可配置项。 */
-export interface StoreSettingsData {
-  businessHoursNote?: string
+/** 员工审核存积分时使用的总部统一比例配置。 */
+export interface PointReviewSettings {
+  pointsDivisor: number
+  coinPointsDivisor: number
+  version: number
+  updatedAt?: string
 }
 
-/** 门店运营配置接口返回：settings 为不透明配置对象，updatedAt 为服务端更新时间。 */
-export interface StoreSettings {
-  settings: StoreSettingsData
+/** 总后台统一展示配置。 */
+export interface GlobalSettings {
+  tableDefaultBackgroundUrl: string
+  firstRechargeDoublePointsEnabled: boolean
+  rechargeDoublePointsThresholdAmount: number
+  franchiseInquirySources: string[]
+  franchiseHotline: string
+  phoneChangeIntervalDays: number
   updatedAt?: string
+}
+
+export interface StoreLowSpendRule {
+  storeId: number
+  storeName: string
+  configured: boolean
+  enabled: boolean
+  reservationCutoff: string
+  consumptionCutoff: string
+  minimumAmount: number
+  rewardPoints: number
+  updatedAt?: string
+}
+
+/** 小程序提交的加盟咨询。 */
+export interface FranchiseInquiry {
+  id: number
+  memberId?: number
+  memberNickname?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
+  contactName: string
+  phone: string
+  expectedRegion: string
+  source: string
+  status: 'unprocessed' | 'processed'
+  processedAt?: string
+  createdAt: string
 }
 
 /** 报表：经营总览（/admin/reports/overview） */

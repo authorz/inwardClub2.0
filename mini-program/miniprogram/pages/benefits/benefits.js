@@ -22,16 +22,16 @@ const BANNER_FALLBACK = 'https://assets.inwardclub.com/mini-program/benefits/mem
 
 // 等级 code -> 等级图标，后端 code 不认识时回退 vip1-normal
 const LEVEL_ICON = {
-  normal: '/assets/benefits/level-icons/vip1-normal.png',
-  bronze: '/assets/benefits/level-icons/vip2-bronze.png',
-  silver: '/assets/benefits/level-icons/vip3-silver.png',
-  gold: '/assets/benefits/level-icons/vip4-gold.png',
-  platinum: '/assets/benefits/level-icons/vip5-platinum.png',
-  diamond: '/assets/benefits/level-icons/vip6-diamond.png',
-  star: '/assets/benefits/level-icons/vip7-star.png',
-  master: '/assets/benefits/level-icons/vip8-master.png',
+  normal: 'https://assets.inwardclub.com/public/level-icons/vip1-normal.png',
+  bronze: 'https://assets.inwardclub.com/public/level-icons/vip2-bronze.png',
+  silver: 'https://assets.inwardclub.com/public/level-icons/vip3-silver.png',
+  gold: 'https://assets.inwardclub.com/public/level-icons/vip4-gold.png',
+  platinum: 'https://assets.inwardclub.com/public/level-icons/vip5-platinum.png',
+  diamond: 'https://assets.inwardclub.com/public/level-icons/vip6-diamond.png',
+  star: 'https://assets.inwardclub.com/public/level-icons/vip7-star.png',
+  master: 'https://assets.inwardclub.com/public/level-icons/vip8-master.png',
 };
-const LEVEL_ICON_FALLBACK = '/assets/benefits/level-icons/vip1-normal.png';
+const LEVEL_ICON_FALLBACK = 'https://assets.inwardclub.com/public/level-icons/vip1-normal.png';
 
 Page({
   data: { loading: true, tier: null },

@@ -30,7 +30,8 @@ export interface AuditFields {
 
 export interface StoreOrder extends AuditFields {
   id: number | string
-  businessOrderId: string
+  businessOrderId: number | string
+  orderNo: string
   orderType: string
   paymentStatus: PaymentStatus
   orderStatus?: string
@@ -39,6 +40,10 @@ export interface StoreOrder extends AuditFields {
   refundableCent?: number
   memberPhoneMasked?: string
   memberNickname?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
+  paymentOrderId?: number | string
+  refundStatus?: string
 }
 
 export interface PaymentOrder extends AuditFields {
@@ -85,10 +90,24 @@ export interface FoodOrder extends AuditFields {
   paymentStatus: PaymentStatus
   payChannel?: PayChannel
   amountCent: number
+  paidAmountCent: number
+  paymentOrderId: number | string
+  pointsEarned: number
   tableName?: string
   itemsSummary?: string
+  items: Array<{
+    id: number | string
+    name: string
+    unitPriceCent: number
+    quantity: number
+    subtotalCent: number
+    pointsReward: number
+    assetId?: number | string
+    imageUrl?: string
+  }>
   memberNickname?: string
-  memberPhoneMasked?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
 }
 
 export interface CatalogItem extends AuditFields {
@@ -103,7 +122,13 @@ export interface CatalogItem extends AuditFields {
   payChannels: PayChannel[]
   status: PublishStatus
   categoryName?: string
-  assetUrl?: string
+  categoryId?: number | string
+  description?: string
+  assetId?: number | string
+  imageUrl?: string
+  itemType?: string
+  pointsReward?: number
+  sortOrder?: number
 }
 
 export interface CatalogCategory extends AuditFields {
@@ -112,6 +137,8 @@ export interface CatalogCategory extends AuditFields {
   scopeType: ScopeType
   sortOrder?: number
   status?: string
+  parentId?: number | string | null
+  assetId?: number | string | null
 }
 
 export interface StoreActivity extends AuditFields {
@@ -123,7 +150,41 @@ export interface StoreActivity extends AuditFields {
   endAt?: string
   soldCount?: number
   verifiedCount?: number
-  assetUrl?: string
+  imageUrl?: string
+  description?: string
+  content?: string
+  assetId?: number | string
+  payChannels?: PayChannel[]
+  purchaseLimitPerMember?: number
+}
+
+/** 本店赛事宣传活动；不包含票档、支付或报名。 */
+export interface TournamentEvent extends AuditFields {
+  id: number | string
+  storeId: number | string
+  storeName?: string
+  title: string
+  summary?: string
+  content?: string
+  assetId?: number | string | null
+  imageUrl?: string
+  startAt?: string
+  endAt?: string
+  status: PublishStatus
+}
+
+export interface ActivityTicketType extends AuditFields {
+  id: number | string
+  activityId: number | string
+  name: string
+  priceCent: number
+  stockQuantity: number
+  soldQuantity?: number
+  saleStartAt?: string
+  saleEndAt?: string
+  payChannels: PayChannel[]
+  maxTicketsPerOrder: number
+  status: string
 }
 
 export interface Ticket extends AuditFields {
@@ -166,11 +227,13 @@ export interface PointSavingRequest extends AuditFields {
 export interface Reservation extends AuditFields {
   id: number | string
   reservationNo?: string
-  // memberNickname/memberPhoneMasked/tableName 依赖服务端 ReservationView 关联 members/tables，
-  // 当前 /store/reservations 读模型未提供（见 blocked API gaps），到位前这些列为空。
   memberNickname?: string
-  memberPhoneMasked?: string
-  tableName?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
+  tableId?: number | string
+  seatId?: number | string
+  tableNo?: string
+  seatNo?: string
   partySize?: number
   reservedAt?: string
   status: ReservationStatus
@@ -179,10 +242,55 @@ export interface Reservation extends AuditFields {
 
 export interface StoreTable extends AuditFields {
   id: number | string
+  storeId: number | string
+  storeName?: string
   name: string
+  code: string
+  capacity: number
   seatCount: number
-  area?: string
-  status?: string
+  basePoints: number
+  layoutAssetId?: number | string | null
+  layoutUrl?: string
+  status: string
+}
+
+export interface StoreSeat extends AuditFields {
+  id: number | string
+  storeId: number | string
+  storeName?: string
+  tableId: number | string
+  tableName: string
+  name: string
+  status: string
+}
+
+export interface StoreBanner extends AuditFields {
+  id: number | string
+  storeId: number | string
+  scopeType: 'store'
+  title: string
+  assetId: number | string
+  imageUrl?: string
+  linkUrl?: string
+  sortOrder: number
+  status: string
+}
+
+export interface CouponTemplate extends AuditFields {
+  id: number | string
+  storeId?: number | string
+  scopeType: 'store'
+  name: string
+  description?: string
+  couponType: string
+  valueCent: number
+  pointsPrice: number
+  stockQuantity: number
+  issuedQuantity: number
+  totalStock?: number
+  issuedCount?: number
+  perMemberLimit: number
+  status: string
 }
 
 export interface CollectionOrder extends AuditFields {

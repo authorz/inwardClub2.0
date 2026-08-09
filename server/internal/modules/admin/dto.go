@@ -35,16 +35,22 @@ type CatalogItemView struct {
 
 // CouponTemplateView is the console list representation of a coupon template.
 type CouponTemplateView struct {
-	ID          int64     `json:"id"`
-	ScopeType   string    `json:"scopeType"`
-	StoreID     *int64    `json:"storeId,omitempty"`
-	Name        string    `json:"name"`
-	CouponType  string    `json:"couponType"`
-	ValueCent   int64     `json:"valueCent"`
-	TotalStock  int64     `json:"totalStock"`
-	IssuedCount int64     `json:"issuedCount"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID             int64     `json:"id"`
+	ScopeType      string    `json:"scopeType"`
+	StoreID        *int64    `json:"storeId,omitempty"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description,omitempty"`
+	CouponType     string    `json:"couponType"`
+	ValueCent      int64     `json:"valueCent"`
+	PointsPrice    int64     `json:"pointsPrice"`
+	TotalStock     int64     `json:"totalStock"`
+	StockQuantity  int64     `json:"stockQuantity"`
+	IssuedCount    int64     `json:"issuedCount"`
+	IssuedQuantity int64     `json:"issuedQuantity"`
+	PerMemberLimit int64     `json:"perMemberLimit"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // ActivityView is the console list representation of an activity.
@@ -357,11 +363,13 @@ type StoreAdminUpdateRequest struct {
 
 // StoreProfileView is the single store profile returned to the store console.
 type StoreProfileView struct {
-	ID            int64  `json:"id"`
-	Name          string `json:"name"`
-	LogoURL       string `json:"logoUrl,omitempty"`
-	Phone         string `json:"phone,omitempty"`
-	Address       string `json:"address"`
-	BusinessHours string `json:"businessHours,omitempty"`
-	Status        string `json:"status"`
+	ID                       int64  `json:"id"`
+	Name                     string `json:"name"`
+	LogoURL                  string `json:"logoUrl,omitempty"`
+	Phone                    string `json:"phone,omitempty"`
+	CustomerServiceQRAssetID *int64 `json:"customerServiceQrAssetId,omitempty"`
+	CustomerServiceQRURL     string `json:"customerServiceQrUrl,omitempty"`
+	Address                  string `json:"address"`
+	BusinessHours            string `json:"businessHours,omitempty"`
+	Status                   string `json:"status"`
 }

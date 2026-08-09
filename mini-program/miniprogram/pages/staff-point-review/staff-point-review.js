@@ -4,6 +4,7 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const http = require('../../utils/request');
 const { POINT_SAVING_LABEL } = require('../../constants/index');
+const validation = require('../../utils/validation');
 
 const PS_STATUS = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
 
@@ -43,7 +44,13 @@ Page({
   },
 
   filter() {
-    const kw = (this.data.keyword || '').trim().toLowerCase();
+	let kw = '';
+	try {
+	  kw = validation.plainText(this.data.keyword, { label: '搜索内容', max: 50, allowEmpty: true }).toLowerCase();
+	} catch {
+	  this.setData({ list: [] });
+	  return;
+	}
     const all = this.all || [];
     const list = kw
       ? all.filter((p) => (p.memberName || '').toLowerCase().includes(kw) || (p.phone || '').includes(kw))

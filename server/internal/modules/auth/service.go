@@ -11,6 +11,7 @@ import (
 	"github.com/inwardclub/server/internal/platform/authn"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // MemberTierResolver resolves a member's current VIP tier for the "me" surface.
@@ -55,13 +56,17 @@ func NewService(tokens *authn.Manager, wechat WeChatClient, members MemberReposi
 }
 
 // MiniLogin exchanges a WeChat code for a member session. A returning member is
-// logged straight in. A first-time user is NOT created here: the response
-// carries IsNew=true and a short-lived register ticket (no token), and the
-// member row is inserted only when the profile form is submitted (MiniRegister).
+// logged straight in. A first-time or pre-registered user receives IsNew=true
+// and a short-lived register ticket instead of a full member session.
 func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, error) {
+	var err error
+	code, err = inputvalidation.OpaqueToken("微信登录凭证", code, 2048)
+	if err != nil {
+		return LoginResponse{}, apperr.Invalid(err.Error())
+	}
 	session, err := s.wechat.Code2Session(ctx, code)
 	if err != nil {
-		return LoginResponse{}, apperr.Unauthenticated("wechat login failed")
+		return LoginResponse{}, apperr.Unauthenticated("微信身份获取失败").WithCause(err)
 	}
 	member, err := s.members.GetByOpenID(ctx, session.OpenID)
 	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
@@ -76,6 +81,15 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 	if err != nil {
 		return LoginResponse{}, err
 	}
+	if !member.ProfileCompleted {
+		// A reservation-only pre-registration is still an incomplete member. A
+		// deliberate login must continue through avatar/nickname/phone/gender.
+		ticket, terr := s.tokens.IssueRegisterTicket(session.OpenID, "")
+		if terr != nil {
+			return LoginResponse{}, apperr.Internal(terr)
+		}
+		return LoginResponse{IsNew: true, RegisterTicket: ticket}, nil
+	}
 	if s.staff != nil {
 		staff, staffErr := s.staff.GetByMemberID(ctx, member.ID)
 		if staffErr == nil && staff.Status == StatusActive {
@@ -88,13 +102,75 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 	return s.issueMemberSession(member, false)
 }
 
-// MiniRegister completes a first-time member's registration: it verifies the
-// register ticket, resolves the WeChat-authorized phone number and inserts the
-// member with the submitted profile (avatar, nickname, gender, phone), then mints
-// a mini session. This is the ONLY path that creates a member — nothing is
-// persisted before the form is submitted.
+// MiniPreRegister creates or reuses an OpenID-backed member. Completed members
+// recover their ordinary session; new users receive reservation-only access
+// without completing registration.
+func (s *Service) MiniPreRegister(ctx context.Context, code string) (LoginResponse, error) {
+	var err error
+	code, err = inputvalidation.OpaqueToken("微信登录凭证", code, 2048)
+	if err != nil {
+		return LoginResponse{}, apperr.Invalid(err.Error())
+	}
+	session, err := s.wechat.Code2Session(ctx, code)
+	if err != nil {
+		return LoginResponse{}, apperr.Unauthenticated("微信身份获取失败").WithCause(err)
+	}
+	member, err := s.members.GetByOpenID(ctx, session.OpenID)
+	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
+		id, createErr := s.members.Create(ctx, Member{
+			WeChatOpenID: session.OpenID, Nickname: "inward会员", ProfileCompleted: false,
+		})
+		if createErr != nil {
+			// Concurrent wx.login calls may race on the unique OpenID. Re-read the
+			// winner instead of creating a second pre-registration.
+			member, err = s.members.GetByOpenID(ctx, session.OpenID)
+			if err != nil {
+				return LoginResponse{}, createErr
+			}
+		} else {
+			member, err = s.members.GetByID(ctx, id)
+		}
+	}
+	if err != nil {
+		return LoginResponse{}, err
+	}
+	if member.Status != StatusActive {
+		return LoginResponse{}, apperr.Forbidden("会员已被停用")
+	}
+	if member.ProfileCompleted {
+		// A known, fully registered OpenID should recover the ordinary login
+		// session transparently instead of being downgraded to pre_member.
+		if s.staff != nil {
+			staff, staffErr := s.staff.GetByMemberID(ctx, member.ID)
+			if staffErr == nil && staff.Status == StatusActive {
+				return s.issueStaffSession(member, staff, false)
+			}
+			if staffErr != nil && apperr.From(staffErr).Code != apperr.CodeNotFound {
+				return LoginResponse{}, staffErr
+			}
+		}
+		return s.issueMemberSession(member, false)
+	}
+	pair, err := s.tokens.Issue(authn.Identity{
+		SubjectID: member.ID, SubjectType: authn.SubjectPreMember, Role: authn.RolePreMember,
+		Audience: authn.AudienceMini, TokenVersion: member.TokenVersion,
+	})
+	if err != nil {
+		return LoginResponse{}, apperr.Internal(err)
+	}
+	return LoginResponse{Token: pair, IsNew: true, SubjectType: authn.SubjectPreMember}, nil
+}
+
+// MiniRegister completes a member's registration: it verifies the register
+// ticket and either inserts a new member or upgrades an OpenID-only
+// pre-registration with avatar, nickname, gender and phone before minting a
+// full mini session.
 func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (LoginResponse, error) {
-	openID, phone, err := s.tokens.ParseRegisterTicket(req.RegisterTicket)
+	registerTicket, validationErr := inputvalidation.OpaqueToken("注册凭证", req.RegisterTicket, 4096)
+	if validationErr != nil {
+		return LoginResponse{}, apperr.Invalid(validationErr.Error())
+	}
+	openID, phone, err := s.tokens.ParseRegisterTicket(registerTicket)
 	if err != nil || openID == "" {
 		return LoginResponse{}, apperr.Unauthenticated("invalid or expired register ticket")
 	}
@@ -104,13 +180,15 @@ func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (
 		// decrypted here.
 		return LoginResponse{}, apperr.Invalid("phone is required")
 	}
-	avatarURL := strings.TrimSpace(req.AvatarURL)
-	if avatarURL == "" {
-		return LoginResponse{}, apperr.Invalid("avatarUrl is required")
+	avatarURL, validationErr := inputvalidation.HTTPURL("头像", req.AvatarURL, false)
+	if validationErr != nil {
+		return LoginResponse{}, apperr.Invalid(validationErr.Error())
 	}
-	nickname := strings.TrimSpace(req.Nickname)
-	if nickname == "" {
-		return LoginResponse{}, apperr.Invalid("nickname is required")
+	nickname, validationErr := inputvalidation.PlainText(req.Nickname, inputvalidation.TextOptions{
+		Label: "昵称", MinRunes: 1, MaxRunes: 30,
+	})
+	if validationErr != nil {
+		return LoginResponse{}, apperr.Invalid(validationErr.Error())
 	}
 	gender := strings.TrimSpace(req.Gender)
 	if gender == "" {
@@ -120,26 +198,28 @@ func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (
 		return LoginResponse{}, apperr.Invalid("gender must be male, female, or other")
 	}
 
-	// Idempotent: if the member already exists (double submit / retry after a
-	// dropped response), log them in rather than failing.
+	// Idempotent for completed members; pre-registered members are upgraded in
+	// place so their existing reservations remain attached to the same ID.
 	member, err := s.members.GetByOpenID(ctx, openID)
 	if apperr.From(err) != nil && apperr.From(err).Code == apperr.CodeNotFound {
-		var invitedByMemberID *int64
-		inviterCode := strings.TrimSpace(req.InviterCode)
-		if inviterCode != "" {
-			inviterID, found, findErr := s.members.FindIDByInviteCode(ctx, inviterCode)
-			if findErr != nil {
-				return LoginResponse{}, findErr
-			}
-			if found {
-				invitedByMemberID = &inviterID
-			}
+		invitedByMemberID, resolveErr := s.resolveInviter(ctx, req.InviterCode)
+		if resolveErr != nil {
+			return LoginResponse{}, resolveErr
 		}
 		id, cerr := s.createMember(ctx, openID, avatarURL, nickname, gender, phone, invitedByMemberID)
 		if cerr != nil {
 			return LoginResponse{}, cerr
 		}
 		member, err = s.members.GetByID(ctx, id)
+	} else if err == nil && !member.ProfileCompleted {
+		invitedByMemberID, resolveErr := s.resolveInviter(ctx, req.InviterCode)
+		if resolveErr != nil {
+			return LoginResponse{}, resolveErr
+		}
+		if completeErr := s.completePreRegisteredMember(ctx, member.ID, avatarURL, nickname, gender, phone, invitedByMemberID); completeErr != nil {
+			return LoginResponse{}, completeErr
+		}
+		member, err = s.members.GetByID(ctx, member.ID)
 	}
 	if err != nil {
 		return LoginResponse{}, err
@@ -147,11 +227,52 @@ func (s *Service) MiniRegister(ctx context.Context, req WeChatRegisterRequest) (
 	return s.issueMemberSession(member, true)
 }
 
+func (s *Service) resolveInviter(ctx context.Context, rawCode string) (*int64, error) {
+	inviterCode, err := inputvalidation.InviteCode(rawCode, true)
+	if err != nil {
+		return nil, apperr.Invalid(err.Error())
+	}
+	if inviterCode == "" {
+		return nil, nil
+	}
+	inviterID, found, err := s.members.FindIDByInviteCode(ctx, inviterCode)
+	if err != nil || !found {
+		return nil, err
+	}
+	return &inviterID, nil
+}
+
+func (s *Service) completePreRegisteredMember(ctx context.Context, memberID int64, avatarURL, nickname, gender, phone string, invitedByMemberID *int64) error {
+	const maxAttempts = 8
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err := s.members.CompleteRegistration(ctx, memberID, Member{
+			AvatarURL: avatarURL, Nickname: nickname, Gender: gender, Phone: phone,
+			InviteCode: newInviteCode(), InvitedByMemberID: invitedByMemberID, ProfileCompleted: true,
+		})
+		if err == nil {
+			return nil
+		}
+		if platdb.IsDuplicate(err) {
+			continue
+		}
+		return err
+	}
+	return apperr.Internal(fmt.Errorf("could not allocate a unique invite code after %d attempts", maxAttempts))
+}
+
 // GetPhoneMask decrypts the single-use WeChat phone code ONCE, embeds the phone
 // number into a fresh register ticket (so registration never re-decrypts the
 // code), and returns the masked phone for display plus the new ticket. The
 // client must submit the returned ticket to /register.
 func (s *Service) GetPhoneMask(ctx context.Context, registerTicket, phoneCode string) (masked, ticket string, err error) {
+	registerTicket, err = inputvalidation.OpaqueToken("注册凭证", registerTicket, 4096)
+	if err != nil {
+		return "", "", apperr.Invalid(err.Error())
+	}
+	phoneCode, err = inputvalidation.OpaqueToken("手机号授权凭证", phoneCode, 2048)
+	if err != nil {
+		return "", "", apperr.Invalid(err.Error())
+	}
 	openID, _, terr := s.tokens.ParseRegisterTicket(registerTicket)
 	if terr != nil || openID == "" {
 		return "", "", apperr.Unauthenticated("invalid or expired register ticket")
@@ -171,6 +292,10 @@ func (s *Service) GetPhoneMask(ctx context.Context, registerTicket, phoneCode st
 // (authorized by the register ticket, since no member/session exists yet) and
 // returns its public https URL, which the client then submits to /register.
 func (s *Service) RegisterAvatar(ctx context.Context, registerTicket string, r io.Reader, size int64, contentType string) (string, error) {
+	registerTicket, validationErr := inputvalidation.OpaqueToken("注册凭证", registerTicket, 4096)
+	if validationErr != nil {
+		return "", apperr.Invalid(validationErr.Error())
+	}
 	openID, _, err := s.tokens.ParseRegisterTicket(registerTicket)
 	if err != nil || openID == "" {
 		return "", apperr.Unauthenticated("invalid or expired register ticket")
@@ -248,6 +373,7 @@ func (s *Service) createMember(ctx context.Context, openID, avatarURL, nickname,
 			Phone:             phone,
 			InviteCode:        newInviteCode(),
 			InvitedByMemberID: invitedByMemberID,
+			ProfileCompleted:  true,
 		})
 		if err == nil {
 			return id, nil
@@ -298,6 +424,10 @@ func (s *Service) StoreLogin(ctx context.Context, username, password string) (Lo
 
 // Refresh validates a refresh token for the audience and reissues a pair.
 func (s *Service) Refresh(ctx context.Context, refreshToken string, audience authn.Audience) (authn.TokenPair, error) {
+	refreshToken, validationErr := inputvalidation.OpaqueToken("刷新凭证", refreshToken, 4096)
+	if validationErr != nil {
+		return authn.TokenPair{}, apperr.Unauthenticated("登录状态无效")
+	}
 	claims, err := s.tokens.Parse(refreshToken, audience)
 	if err != nil || claims.Kind != authn.TokenRefresh {
 		return authn.TokenPair{}, apperr.Unauthenticated("invalid refresh token")
@@ -309,6 +439,15 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, audience aut
 		}
 		if member.Status != StatusActive {
 			return authn.TokenPair{}, apperr.Unauthenticated("session expired")
+		}
+		if claims.SubjectType == authn.SubjectPreMember {
+			if member.TokenVersion != claims.TokenVersion {
+				return authn.TokenPair{}, apperr.Unauthenticated("预注册状态已失效，请重新登录")
+			}
+			return s.tokens.Issue(authn.Identity{
+				SubjectID: member.ID, SubjectType: authn.SubjectPreMember, Role: authn.RolePreMember,
+				Audience: authn.AudienceMini, TokenVersion: member.TokenVersion,
+			})
 		}
 		if claims.SubjectType == authn.SubjectStaff {
 			if s.staff == nil {
@@ -460,6 +599,7 @@ func memberProfile(m Member) MemberProfile {
 	return MemberProfile{
 		ID:           m.ID,
 		Nickname:     m.Nickname,
+		Gender:       m.Gender,
 		AvatarURL:    m.AvatarURL,
 		MemberNo:     formatMemberNo(m.ID),
 		Phone:        m.Phone,

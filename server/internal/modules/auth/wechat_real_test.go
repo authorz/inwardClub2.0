@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -59,6 +60,26 @@ func TestWeChatCode2SessionError(t *testing.T) {
 
 	if _, err := newTestWeChatClient(server).Code2Session(context.Background(), "bad"); err == nil {
 		t.Fatal("expected error on errcode 40029")
+	}
+}
+
+func TestWeChatCode2SessionTransportErrorDoesNotLeakQuerySecrets(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	c := newTestWeChatClient(server)
+	server.Close()
+
+	_, err := c.Code2Session(context.Background(), "sensitive-login-code")
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+	message := err.Error()
+	for _, secret := range []string{"secret", "sensitive-login-code", "js_code="} {
+		if strings.Contains(message, secret) {
+			t.Fatalf("transport error leaked query credential %q: %s", secret, message)
+		}
+	}
+	if !strings.Contains(message, "/sns/jscode2session") {
+		t.Fatalf("transport error should retain safe operation path: %s", message)
 	}
 }
 

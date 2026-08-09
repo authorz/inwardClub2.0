@@ -65,17 +65,20 @@ func (r *sqlRepository) ListTables(ctx context.Context, storeID int64) ([]Table,
 func (r *sqlRepository) ListSeats(ctx context.Context, storeID int64, activeSince time.Time) ([]Seat, error) {
 	const q = `SELECT s.id, s.store_id, s.table_id, s.name,
 		CASE WHEN r.id IS NULL THEN s.status ELSE ? END,
-		COALESCE(m.nickname, ''), COALESCE(m.avatar_url, ''), COALESCE(m.gender, '')
+		CASE WHEN COALESCE(r.booked_as_guest, 0) = 1 THEN 'inward会员' ELSE COALESCE(m.nickname, '') END,
+		CASE WHEN COALESCE(r.booked_as_guest, 0) = 1 THEN '' ELSE COALESCE(m.avatar_url, '') END,
+		CASE WHEN COALESCE(r.booked_as_guest, 0) = 1 THEN '' ELSE COALESCE(m.gender, '') END,
+		COALESCE(r.booked_as_guest, 0)
 		FROM seats s
 		LEFT JOIN reservations r ON r.id = (
 			SELECT r2.id FROM reservations r2
-			WHERE r2.seat_id = s.id AND r2.status = ? AND r2.created_at >= ?
+			WHERE r2.seat_id = s.id AND r2.status IN (?, ?) AND r2.created_at >= ?
 			ORDER BY r2.created_at DESC, r2.id DESC LIMIT 1
 		)
 		LEFT JOIN members m ON m.id = r.member_id
 		WHERE s.store_id = ? ORDER BY s.id ASC`
 	rows, err := r.db.QueryContext(
-		ctx, q, AvailabilityReserved, StatusBooked, activeSince.UTC(), storeID,
+		ctx, q, AvailabilityReserved, StatusBooked, StatusArrived, activeSince.UTC(), storeID,
 	)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -86,7 +89,7 @@ func (r *sqlRepository) ListSeats(ctx context.Context, storeID int64, activeSinc
 		var s Seat
 		if err := rows.Scan(
 			&s.ID, &s.StoreID, &s.TableID, &s.Name, &s.Status,
-			&s.MemberNickname, &s.MemberAvatarURL, &s.MemberGender,
+			&s.MemberNickname, &s.MemberAvatarURL, &s.MemberGender, &s.BookedAsGuest,
 		); err != nil {
 			return nil, apperr.Internal(err)
 		}
@@ -95,24 +98,24 @@ func (r *sqlRepository) ListSeats(ctx context.Context, storeID int64, activeSinc
 	return out, rows.Err()
 }
 
-const reservationColumns = `id, reservation_no, store_id, member_id, table_id, seat_id,
+const reservationColumns = `id, reservation_no, store_id, member_id, booked_as_guest, table_id, seat_id,
 	party_size, reserved_at, status, remark, created_at, updated_at`
 
 func scanReservation(row interface{ Scan(...any) error }) (Reservation, error) {
 	var r Reservation
-	err := row.Scan(&r.ID, &r.ReservationNo, &r.StoreID, &r.MemberID, &r.TableID, &r.SeatID,
+	err := row.Scan(&r.ID, &r.ReservationNo, &r.StoreID, &r.MemberID, &r.BookedAsGuest, &r.TableID, &r.SeatID,
 		&r.PartySize, &r.ReservedAt, &r.Status, &r.Remark, &r.CreatedAt, &r.UpdatedAt)
 	return r, err
 }
 
 func (r *sqlRepository) ListMemberReservations(ctx context.Context, memberID int64, limit, offset int) ([]Reservation, int64, error) {
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE member_id = ? AND status = ?`, memberID, StatusBooked).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reservations WHERE member_id = ? AND status IN (?, ?)`, memberID, StatusBooked, StatusArrived).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	const q = `SELECT ` + reservationColumns + ` FROM reservations
-		WHERE member_id = ? AND status = ? ORDER BY id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, memberID, StatusBooked, limit, offset)
+		WHERE member_id = ? AND status IN (?, ?) ORDER BY id DESC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, q, memberID, StatusBooked, StatusArrived, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -133,8 +136,8 @@ func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64
 		LEFT JOIN members m ON m.id = r.member_id
 		LEFT JOIN tables t ON t.id = r.table_id
 		LEFT JOIN seats s ON s.id = r.seat_id`
-	where := []string{"r.store_id = ?", "r.status = ?"}
-	args := []any{storeID, StatusBooked}
+	where := []string{"r.store_id = ?", "r.status IN (?, ?)"}
+	args := []any{storeID, StatusBooked, StatusArrived}
 	addLike := func(condition, value string, copies int) {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -156,7 +159,7 @@ func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64
 	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*)"+joins+whereSQL, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT r.id, r.reservation_no, r.store_id, r.member_id, r.table_id, r.seat_id,
+	q := `SELECT r.id, r.reservation_no, r.store_id, r.member_id, r.booked_as_guest, r.table_id, r.seat_id,
 		r.party_size, r.reserved_at, r.status, r.remark, r.created_at, r.updated_at,
 		COALESCE(m.nickname, ''), COALESCE(m.phone, ''), m.avatar_asset_id, COALESCE(m.avatar_url, ''),
 		COALESCE(NULLIF(t.code, ''), t.name, ''), COALESCE(s.name, '')` + joins + whereSQL + ` ORDER BY r.id DESC LIMIT ? OFFSET ?`
@@ -170,7 +173,7 @@ func (r *sqlRepository) ListStoreReservations(ctx context.Context, storeID int64
 	for rows.Next() {
 		var res Reservation
 		if err := rows.Scan(
-			&res.ID, &res.ReservationNo, &res.StoreID, &res.MemberID, &res.TableID, &res.SeatID,
+			&res.ID, &res.ReservationNo, &res.StoreID, &res.MemberID, &res.BookedAsGuest, &res.TableID, &res.SeatID,
 			&res.PartySize, &res.ReservedAt, &res.Status, &res.Remark, &res.CreatedAt, &res.UpdatedAt,
 			&res.MemberNickname, &res.MemberPhone, &res.MemberAvatarAssetID, &res.MemberAvatarURL, &res.TableNo, &res.SeatNo,
 		); err != nil {
@@ -274,8 +277,8 @@ func (r *sqlRepository) CreateReservation(
 
 		var occupied bool
 		if err := tx.QueryRowContext(ctx,
-			`SELECT EXISTS(SELECT 1 FROM reservations WHERE seat_id = ? AND status = ?)`,
-			*res.SeatID, StatusBooked,
+			`SELECT EXISTS(SELECT 1 FROM reservations WHERE seat_id = ? AND status IN (?, ?))`,
+			*res.SeatID, StatusBooked, StatusArrived,
 		).Scan(&occupied); err != nil {
 			return apperr.Internal(err)
 		}
@@ -296,10 +299,10 @@ type reservationExecutor interface {
 
 func insertReservation(ctx context.Context, exec reservationExecutor, res Reservation) (int64, error) {
 	const q = `INSERT INTO reservations
-		(reservation_no, store_id, member_id, table_id, seat_id, party_size, reserved_at, status, remark, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(reservation_no, store_id, member_id, booked_as_guest, table_id, seat_id, party_size, reserved_at, status, remark, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := exec.ExecContext(ctx, q, res.ReservationNo, res.StoreID, res.MemberID,
-		res.TableID, res.SeatID, res.PartySize, res.ReservedAt, res.Status, res.Remark,
+		res.BookedAsGuest, res.TableID, res.SeatID, res.PartySize, res.ReservedAt, res.Status, res.Remark,
 		res.CreatedAt, res.UpdatedAt)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
@@ -315,8 +318,8 @@ func insertReservation(ctx context.Context, exec reservationExecutor, res Reserv
 }
 
 func (r *sqlRepository) GetReservation(ctx context.Context, id int64) (Reservation, error) {
-	const q = `SELECT ` + reservationColumns + ` FROM reservations WHERE id = ? AND status = ?`
-	res, err := scanReservation(r.db.QueryRowContext(ctx, q, id, StatusBooked))
+	const q = `SELECT ` + reservationColumns + ` FROM reservations WHERE id = ? AND status IN (?, ?)`
+	res, err := scanReservation(r.db.QueryRowContext(ctx, q, id, StatusBooked, StatusArrived))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Reservation{}, apperr.NotFound("reservation not found")
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/payment"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // MemberDirectory resolves the WeChat openid a payment needs for JSAPI prepay.
@@ -88,11 +89,26 @@ func (s *Service) GetFoodOrder(ctx context.Context, memberID, id int64) (FoodOrd
 // view carries the payment order so the client can continue to pay. idemKey is
 // the request's Idempotency-Key and guards against duplicate placement.
 func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey string, req CreateFoodOrderRequest) (FoodOrderView, error) {
+	if req.StoreID <= 0 {
+		return FoodOrderView{}, apperr.Invalid("请选择有效的门店")
+	}
+	if req.TableID != nil && *req.TableID <= 0 {
+		return FoodOrderView{}, apperr.Invalid("桌台信息不正确")
+	}
 	if err := validatePayMethod(req.PayMethod); err != nil {
 		return FoodOrderView{}, err
 	}
 	if len(req.Items) == 0 {
 		return FoodOrderView{}, apperr.Invalid("at least one item is required")
+	}
+	if len(req.Items) > 100 {
+		return FoodOrderView{}, apperr.Invalid("单笔订单最多包含100种餐品")
+	}
+	remark, validationErr := inputvalidation.PlainText(req.Remark, inputvalidation.TextOptions{
+		Label: "订单备注", MaxRunes: 200, AllowEmpty: true, AllowNewlines: true,
+	})
+	if validationErr != nil {
+		return FoodOrderView{}, apperr.Invalid(validationErr.Error())
 	}
 	lines, err := normalizeFoodLines(req.Items)
 	if err != nil {
@@ -103,7 +119,7 @@ func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey s
 		MemberID:        memberID,
 		StoreID:         req.StoreID,
 		TableID:         req.TableID,
-		Remark:          req.Remark,
+		Remark:          remark,
 		PayMethod:       req.PayMethod,
 		Lines:           lines,
 		BusinessOrderNo: newNo("BO", now),
@@ -130,6 +146,9 @@ func normalizeFoodLines(lines []FoodLineItem) ([]FoodLineItem, error) {
 		if line.ItemID <= 0 || line.Quantity <= 0 {
 			return nil, apperr.Invalid("itemId and quantity must be positive")
 		}
+		if line.Quantity > 99 {
+			return nil, apperr.Invalid("单种餐品数量不能超过99")
+		}
 		variantID := int64(0)
 		if line.VariantID != nil {
 			if *line.VariantID <= 0 {
@@ -140,6 +159,9 @@ func normalizeFoodLines(lines []FoodLineItem) ([]FoodLineItem, error) {
 		key := fmt.Sprintf("%d:%d", line.ItemID, variantID)
 		if i, ok := index[key]; ok {
 			out[i].Quantity += line.Quantity
+			if out[i].Quantity > 99 {
+				return nil, apperr.Invalid("单种餐品数量不能超过99")
+			}
 			continue
 		}
 		index[key] = len(out)
@@ -182,6 +204,9 @@ func (s *Service) CreateRechargeOrder(ctx context.Context, memberID int64, idemK
 	}
 	if req.AmountCent <= 0 {
 		return RechargeOrderView{}, apperr.Invalid("amountCent must be positive")
+	}
+	if req.AmountCent > 100_000_000 {
+		return RechargeOrderView{}, apperr.Invalid("单次充值金额不能超过100万元")
 	}
 	now := time.Now().UTC()
 	o, po, err := s.repo.CreateRechargeOrder(ctx, RechargeOrderCreate{
@@ -232,11 +257,17 @@ func (s *Service) GetActivityOrder(ctx context.Context, memberID, id int64) (Act
 // the business + activity + payment orders. The returned view carries the issued
 // tickets and the payment order.
 func (s *Service) CreateActivityOrder(ctx context.Context, memberID int64, idemKey string, req CreateActivityOrderRequest) (ActivityOrderView, error) {
+	if req.ActivityID <= 0 || req.TicketTypeID <= 0 {
+		return ActivityOrderView{}, apperr.Invalid("活动或票档信息不正确")
+	}
 	if err := validatePayMethod(req.PayMethod); err != nil {
 		return ActivityOrderView{}, err
 	}
 	if req.Quantity <= 0 {
 		return ActivityOrderView{}, apperr.Invalid("quantity must be positive")
+	}
+	if req.Quantity > 99 {
+		return ActivityOrderView{}, apperr.Invalid("单次购票数量不能超过99张")
 	}
 	now := time.Now().UTC()
 	o, tickets, po, err := s.repo.CreateActivityOrder(ctx, ActivityOrderCreate{

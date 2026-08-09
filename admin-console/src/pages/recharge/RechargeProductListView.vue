@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, h, reactive, ref } from 'vue'
-import { NForm, NFormItem, NInputNumber, NSpace } from 'naive-ui'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import { NForm, NFormItem, NInputNumber, NSelect, NSpace } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
@@ -9,7 +9,7 @@ import { actionsColumn, moneyColumn, renderColumn, statusColumn, textColumn } fr
 import { RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
-import { rechargeProductService } from '@/api/services'
+import { couponTemplateService, rechargeProductService } from '@/api/services'
 import { API_PATHS } from '@/constants/api-paths'
 import type { RechargeProduct } from '@/api/models'
 import type { FilterField } from '@/components/ui-types'
@@ -22,11 +22,32 @@ const fields: FilterField[] = [
   { key: 'status', label: '状态', type: 'select', options: RESOURCE_STATUS_OPTIONS },
 ]
 const numberFormatter = new Intl.NumberFormat('zh-CN')
+const couponOptions = ref<{ label: string; value: string }[]>([])
+const couponNames = computed(() => new Map(couponOptions.value.map((option) => [option.value, option.label])))
+
+onMounted(loadCoupons)
+
+async function loadCoupons(): Promise<void> {
+  try {
+    const result = await couponTemplateService.list({ status: 'published', page: 1, pageSize: 100 })
+    couponOptions.value = result.items.map((coupon) => ({ label: coupon.name, value: String(coupon.id) }))
+  } catch (error) {
+    toastError((error as { message?: string }).message ?? '读取可赠送优惠券失败')
+  }
+}
 
 const columns = [
   moneyColumn<RechargeProduct>('充值金额', 'amountCent'),
   renderColumn<RechargeProduct>('到账金币', 'coinAmount', (row) => numberFormatter.format(row.coinAmount), 120),
   renderColumn<RechargeProduct>('赠送积分', 'pointsAmount', (row) => numberFormatter.format(row.pointsAmount), 120),
+  renderColumn<RechargeProduct>(
+    '赠送优惠券',
+    'couponTemplateId',
+    (row) => row.couponTemplateId
+      ? (couponNames.value.get(String(row.couponTemplateId)) ?? `券 #${row.couponTemplateId}`)
+      : '—',
+    160,
+  ),
   textColumn<RechargeProduct>('排序', 'sortOrder', { width: 80 }),
   statusColumn<RechargeProduct>('状态', 'status', RESOURCE_STATUS_OPTIONS),
   actionsColumn<RechargeProduct>(
@@ -54,6 +75,7 @@ const amountYuan = ref<number | null>(null)
 const form = reactive({
   coinAmount: null as number | null,
   pointsAmount: 0 as number | null,
+  couponTemplateId: null as string | null,
   sortOrder: 0,
 })
 const previewText = computed(() => {
@@ -62,15 +84,17 @@ const previewText = computed(() => {
     return '填写金额和到账金币后，可在这里确认用户实际获得的权益。'
   }
   const points = form.pointsAmount ?? 0
+  const coupon = form.couponTemplateId ? couponNames.value.get(form.couponTemplateId) : ''
   return `支付 ${formatCent(amountCent)}，到账 ${numberFormatter.format(form.coinAmount)} 金币${
     points > 0 ? `，赠送 ${numberFormatter.format(points)} 积分` : ''
-  }`
+  }${coupon ? `，赠送“${coupon}”` : ''}`
 })
 
 function openCreate(): void {
   editingId.value = null
   form.coinAmount = null
   form.pointsAmount = 0
+  form.couponTemplateId = null
   form.sortOrder = 0
   amountYuan.value = null
   drawerShow.value = true
@@ -79,6 +103,7 @@ function openEdit(row: RechargeProduct): void {
   editingId.value = row.id
   form.coinAmount = row.coinAmount
   form.pointsAmount = row.pointsAmount ?? 0
+  form.couponTemplateId = row.couponTemplateId ? String(row.couponTemplateId) : null
   form.sortOrder = row.sortOrder ?? 0
   amountYuan.value = row.amountCent != null ? row.amountCent / 100 : null
   drawerShow.value = true
@@ -92,6 +117,7 @@ async function submit(): Promise<void> {
     amountCent: cent,
     coinAmount: form.coinAmount,
     pointsAmount: form.pointsAmount,
+    couponTemplateId: form.couponTemplateId ? Number(form.couponTemplateId) : 0,
     sortOrder: form.sortOrder,
   }
   submitting.value = true
@@ -134,7 +160,7 @@ const toolbarActions = [
     <ResourceListView
       ref="listRef"
       title="快捷充值"
-      description="配置固定充值金额，以及支付成功后到账的金币和赠送积分"
+      description="配置固定充值金额，以及支付成功后到账的金币、积分和优惠券"
       :breadcrumb="['快捷充值']"
       :fields="fields"
       :columns="columns"
@@ -179,6 +205,15 @@ const toolbarActions = [
             style="width: 100%"
           />
         </NFormItem>
+        <NFormItem label="赠送优惠券">
+          <NSelect
+            v-model:value="form.couponTemplateId"
+            :options="couponOptions"
+            clearable
+            filterable
+            placeholder="不赠送优惠券"
+          />
+        </NFormItem>
         <NFormItem label="排序（小在前）">
           <NInputNumber
             v-model:value="form.sortOrder"
@@ -202,7 +237,7 @@ const toolbarActions = [
   padding: 14px 16px;
   color: #333;
   background: #f5f5f3;
-  border-left: 3px solid #1d1d1f;
+  border-radius: 6px;
 }
 
 .recharge-preview__label {

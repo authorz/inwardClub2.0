@@ -1,0 +1,53 @@
+<view class="login-page">
+  <view class="login-page__hero">
+    <image class="login-page__logo" src="/assets/brand/logo-wordmark.png" mode="widthFix" />
+    <text class="login-page__title">{{mode === 'login' ? '登录 Inward Club' : mode === 'register' ? '完善会员资料' : '绑定手机号'}}</text>
+    <text class="login-page__desc">{{mode === 'login' ? '登录后可使用预约、点餐及会员权益' : mode === 'register' ? '首次登录，请完成以下资料注册会员' : '完成手机号绑定后即可继续使用会员功能'}}</text>
+  </view>
+
+  <view wx:if="{{mode === 'login'}}" class="login-page__welcome">
+    <button class="login-page__primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="startLogin">微信登录</button>
+    <text class="login-page__note">首次登录将自动进入会员注册</text>
+  </view>
+
+  <view wx:else class="login-page__form">
+    <button wx:if="{{mode === 'register'}}" class="login-page__avatar" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" aria-label="选择头像">
+      <image wx:if="{{form.avatarUrl}}" class="login-page__avatar-image" src="{{form.avatarUrl}}" mode="aspectFill" />
+      <view wx:else class="login-page__avatar-placeholder">
+        <text class="login-page__avatar-plus">+</text>
+        <text class="login-page__avatar-text">选择头像</text>
+      </view>
+    </button>
+
+    <view wx:if="{{mode === 'register'}}" class="login-page__field">
+      <text class="login-page__label">昵称</text>
+      <input class="login-page__input" type="nickname" maxlength="30" value="{{form.nickName}}" placeholder="请输入昵称" placeholder-class="login-page__placeholder" bindinput="onNickname" bindblur="onNickname" />
+    </view>
+
+    <view class="login-page__field">
+      <text class="login-page__label">手机号</text>
+      <view class="login-page__phone">
+        <text wx:if="{{form.phoneBound}}" class="login-page__phone-value">{{form.phoneMasked}}</text>
+        <button wx:else class="login-page__phone-button" loading="{{form.phoneBinding}}" disabled="{{form.phoneBinding}}" open-type="getPhoneNumber" bindgetphonenumber="onGetPhoneNumber">获取手机号</button>
+      </view>
+    </view>
+
+    <view wx:if="{{mode === 'register'}}" class="login-page__field">
+      <text class="login-page__label">性别</text>
+      <radio-group class="login-page__gender" bindchange="onGender">
+        <label class="login-page__gender-item">
+          <radio class="login-page__gender-radio" color="#111111" value="male" checked="{{form.gender === 'male'}}" />
+          <image class="login-page__gender-icon" src="/assets/icons/gender-male.svg" mode="aspectFit" />
+          <text>男</text>
+        </label>
+        <label class="login-page__gender-item">
+          <radio class="login-page__gender-radio" color="#111111" value="female" checked="{{form.gender === 'female'}}" />
+          <image class="login-page__gender-icon" src="/assets/icons/gender-female.svg" mode="aspectFit" />
+          <text>女</text>
+        </label>
+      </radio-group>
+    </view>
+
+    <button class="login-page__primary login-page__submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitProfile">{{mode === 'register' ? '完成注册' : '完成登录'}}</button>
+  </view>
+</view>

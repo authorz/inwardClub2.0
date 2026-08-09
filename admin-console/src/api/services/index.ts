@@ -13,6 +13,7 @@ import { createResource } from '@/api/resource'
 import { http } from '@/api/http'
 import type {
   Activity,
+  ActivityTicketType,
   ActivityReportRow,
   AccountEntity,
   AuditLog,
@@ -24,10 +25,13 @@ import type {
   CouponReportRow,
   CouponTemplate,
   ErrorEvent,
+  FranchiseInquiry,
+  GlobalSettings,
   Member,
   MemberReportRow,
   MembershipTier,
   PaymentChannelSetting,
+  PointReviewSettings,
   PaymentOrder,
   PaymentTransaction,
   RechargeProduct,
@@ -38,19 +42,24 @@ import type {
   RevenueReportRow,
   RuleDefinition,
   Store,
+  StoreLowSpendRule,
+  TournamentEvent,
+  VenueSeat,
+  VenueTable,
   StoreReportRow,
-  StoreSettings,
-  StoreSettingsData,
   WalletLedgerEntry,
 } from '@/api/models'
 
 export const storeService = createResource<Store>({ base: API_PATHS.stores.list })
-
-/** 门店运营配置（读写，写操作高风险）。服务端约定为 { settings: {...} } 整体覆盖。 */
-export const storeSettingsService = {
-  get: (storeId: string) => http.get<StoreSettings>(API_PATHS.stores.settings(storeId)),
-  update: (storeId: string, settings: Partial<StoreSettingsData>) =>
-    http.put<StoreSettings>(API_PATHS.stores.settings(storeId), { settings }, { idempotent: true }),
+export const tableService = createResource<VenueTable>({ base: API_PATHS.tables.list })
+export const seatService = createResource<VenueSeat>({ base: API_PATHS.seats.list })
+const franchiseInquiryResource = createResource<FranchiseInquiry>({
+  base: API_PATHS.franchiseInquiries.list,
+})
+export const franchiseInquiryService = {
+  ...franchiseInquiryResource,
+  updateStatus: (id: string, status: FranchiseInquiry['status']) =>
+    http.patch<void>(API_PATHS.franchiseInquiries.status(id), { status }),
 }
 
 export const adminAccountService = createResource<AccountEntity>({
@@ -79,8 +88,36 @@ export const catalogItemService = createResource<CatalogItem>({
   updateMethod: 'put',
 })
 
-export const activityService = createResource<Activity>({
+const activityResource = createResource<Activity>({
   base: API_PATHS.activities.list,
+  idempotentWrites: true,
+  updateMethod: 'put',
+})
+export const activityService = {
+  ...activityResource,
+  ticketTypes: (activityId: string) =>
+    http.get<ActivityTicketType[]>(API_PATHS.activities.ticketTypes(activityId)),
+  createTicketType: (activityId: string, payload: Partial<ActivityTicketType>) =>
+    http.post<ActivityTicketType>(API_PATHS.activities.ticketTypes(activityId), payload, {
+      idempotent: true,
+    }),
+  updateTicketType: (
+    activityId: string,
+    ticketTypeId: string,
+    payload: Partial<ActivityTicketType>,
+  ) =>
+    http.put<ActivityTicketType>(
+      API_PATHS.activities.ticketTypeDetail(activityId, ticketTypeId),
+      payload,
+      { idempotent: true },
+    ),
+  removeTicketType: (activityId: string, ticketTypeId: string) =>
+    http.delete<void>(API_PATHS.activities.ticketTypeDetail(activityId, ticketTypeId), {
+      idempotent: true,
+    }),
+}
+export const tournamentEventService = createResource<TournamentEvent>({
+  base: API_PATHS.tournamentEvents.list,
   idempotentWrites: true,
   updateMethod: 'put',
 })
@@ -102,7 +139,16 @@ export const ruleDefinitionService = createResource<RuleDefinition>({
   idempotentWrites: true,
 })
 
-export const orderService = createResource<BusinessOrder>({ base: API_PATHS.orders.list })
+const orderResource = createResource<BusinessOrder>({ base: API_PATHS.orders.list })
+export const orderService = {
+  ...orderResource,
+  refund: (payload: {
+    paymentOrderId: number
+    amountCent: number
+    reason: string
+    password: string
+  }) => http.post(API_PATHS.payments.refunds, payload, { idempotent: true }),
+}
 export const memberService = createResource<Member>({ base: API_PATHS.members.list })
 
 /** 只读列表类资源，直接用 http.getList，不需要完整 CRUD */
@@ -132,6 +178,16 @@ export const readonlyLists = {
 
 /** 系统设置：支付渠道配置（读写，写操作高风险）。GET 返回渠道列表，PUT 提交 { channels } 开关集合。 */
 export const systemService = {
+  getGlobalSettings: () => http.get<GlobalSettings>(API_PATHS.system.globalSettings),
+  updateGlobalSettings: (settings: {
+    tableDefaultBackgroundUrl: string
+    firstRechargeDoublePointsEnabled: boolean
+    rechargeDoublePointsThresholdAmount: number
+    franchiseInquirySources: string[]
+    franchiseHotline: string
+    phoneChangeIntervalDays: number
+  }) =>
+    http.put<GlobalSettings>(API_PATHS.system.globalSettings, settings, { idempotent: true }),
   getPaymentChannelSettings: () =>
     http.get<PaymentChannelSetting[]>(API_PATHS.system.paymentChannelSettings),
   updatePaymentChannelSettings: (channels: { channel: string; enabled: boolean }[]) =>
@@ -140,6 +196,26 @@ export const systemService = {
       { channels },
       { idempotent: true },
     ),
+  getPointReviewSettings: () =>
+    http.get<PointReviewSettings>(API_PATHS.system.pointReviewSettings),
+  updatePointReviewSettings: (settings: {
+    pointsDivisor: number
+    coinPointsDivisor: number
+  }) =>
+    http.put<PointReviewSettings>(API_PATHS.system.pointReviewSettings, settings, {
+      idempotent: true,
+    }),
+  listStoreLowSpendRules: (query?: Record<string, unknown>) =>
+    http.getList<StoreLowSpendRule>(API_PATHS.system.storeLowSpendRules, query),
+  updateStoreLowSpendRule: (
+    storeId: number,
+    settings: Omit<StoreLowSpendRule, 'storeId' | 'storeName' | 'configured' | 'updatedAt'>,
+  ) =>
+    http.put<StoreLowSpendRule>(API_PATHS.system.storeLowSpendRule(storeId), settings, {
+      idempotent: true,
+    }),
+  deleteStoreLowSpendRule: (storeId: number) =>
+    http.delete<void>(API_PATHS.system.storeLowSpendRule(storeId), { idempotent: true }),
 }
 
 /** 报表列表接口统一用 created 筛选（daterange 写入 createdFrom/createdTo），转换为后端约定的 from/to */

@@ -120,7 +120,12 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     { align: 'right' },
   ),
   textColumn<WalletLedgerEntry>('变动后余额', (r) => r.balanceAfter, { align: 'right' }),
-  textColumn<WalletLedgerEntry>('原因', (r) => r.reason),
+  textColumn<WalletLedgerEntry>('原因', (r) => ({
+    food_order_reward: '购买餐品赠送积分',
+    food_order_cancel_clawback: '取消订单扣回赠送积分',
+    food_order_cancel_rollback: '取消订单失败返还积分',
+    order_payment: '订单支付', refund: '订单退款返还',
+  }[r.reason || ''] ?? r.reason)),
   dateColumn<WalletLedgerEntry>('时间', (r) => r.createdAt, { width: 150 }),
 ])
 </script>

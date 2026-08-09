@@ -8,7 +8,7 @@
 
   <view class="od-card">
     <view class="od-row"><text class="od-row__label">座位</text><text class="od-row__value od-row__value--strong">{{rsv.tableName}} · {{rsv.seatNo}}号座位</text></view>
-    <view class="od-row"><text class="od-row__label">时间</text><text class="od-row__value">{{rsv.timeText}}</text></view>
+    <view class="od-row"><text class="od-row__label">预约创建时间</text><text class="od-row__value">{{rsv.timeText}}</text></view>
     <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{rsv.storeName}}</text></view>
   </view>
 

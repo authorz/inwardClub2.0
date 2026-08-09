@@ -7,24 +7,22 @@
 import { h, reactive, ref } from 'vue'
 import {
   NButton,
-  NDescriptions,
-  NDescriptionsItem,
   NForm,
   NFormItem,
   NInput,
   NInputNumber,
   NSpace,
-  NSpin,
 } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
+import AssetUpload from '@/components/AssetUpload.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import { actionsColumn, dateTimeColumn, statusColumn, textColumn } from '@/utils/columns'
-import { STORE_STATUS_OPTIONS, storeStatusLabel } from '@/constants/enums'
+import { STORE_STATUS_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
-import { storeService, storeSettingsService } from '@/api/services'
-import type { Store, StoreSettingsData } from '@/api/models'
+import { storeService } from '@/api/services'
+import type { Store } from '@/api/models'
 import type { FilterField } from '@/components/ui-types'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
@@ -36,7 +34,9 @@ const fields: FilterField[] = [
 ]
 
 const columns = [
+  textColumn<Store>('ID', 'id', { width: 80 }),
   textColumn<Store>('门店名称', 'name'),
+  textColumn<Store>('门店地址', 'address', { width: 260 }),
   textColumn<Store>('联系电话', 'phone', { width: 140 }),
   statusColumn<Store>('营业状态', 'status', STORE_STATUS_OPTIONS),
   dateTimeColumn<Store>('创建时间', 'createdAt'),
@@ -46,11 +46,6 @@ const columns = [
         PermissionButton,
         { permission: PERMISSIONS.STORE_WRITE, onClick: () => openEdit(row) },
         () => '编辑',
-      ),
-      h(
-        PermissionButton,
-        { permission: PERMISSIONS.STORE_READ, onClick: () => openSettings(row) },
-        () => '详情/设置',
       ),
     ]),
   ),
@@ -67,6 +62,8 @@ const form = reactive<Partial<Store>>({
   businessHours: '',
   latitude: null,
   longitude: null,
+  customerServiceQrAssetId: null,
+  customerServiceQrUrl: '',
 })
 
 function resetForm(): void {
@@ -76,6 +73,8 @@ function resetForm(): void {
   form.businessHours = ''
   form.latitude = null
   form.longitude = null
+  form.customerServiceQrAssetId = null
+  form.customerServiceQrUrl = ''
   coordPaste.value = ''
 }
 
@@ -85,16 +84,25 @@ function openCreate(): void {
   drawerShow.value = true
 }
 
-function openEdit(row: Store): void {
+async function openEdit(row: Store): Promise<void> {
   editingId.value = row.id
-  form.name = row.name
-  form.phone = row.phone
-  form.address = row.address
-  form.businessHours = row.businessHours ?? ''
-  form.latitude = row.latitude ?? null
-  form.longitude = row.longitude ?? null
-  coordPaste.value = ''
+  resetForm()
   drawerShow.value = true
+  try {
+    const detail = await storeService.get(row.id)
+    form.name = detail.name
+    form.phone = detail.phone
+    form.address = detail.address
+    form.businessHours = detail.businessHours ?? ''
+    form.latitude = detail.latitude ?? null
+    form.longitude = detail.longitude ?? null
+    form.customerServiceQrAssetId = detail.customerServiceQrAssetId ?? null
+    form.customerServiceQrUrl = detail.customerServiceQrUrl ?? ''
+    coordPaste.value = ''
+  } catch (e) {
+    drawerShow.value = false
+    toastError((e as { message?: string }).message ?? '加载门店资料失败')
+  }
 }
 
 // —— 坐标拾取 ——
@@ -132,11 +140,17 @@ async function submit(): Promise<void> {
   }
   submitting.value = true
   try {
+    const payload: Partial<Store> = {
+      ...form,
+      customerServiceQrAssetId: form.customerServiceQrAssetId
+        ? Number(form.customerServiceQrAssetId)
+        : null,
+    }
     if (editingId.value) {
-      await storeService.update(editingId.value, form)
+      await storeService.update(editingId.value, payload)
       toastSuccess('门店已更新')
     } else {
-      await storeService.create(form)
+      await storeService.create(payload)
       toastSuccess('门店已创建')
     }
     drawerShow.value = false
@@ -145,54 +159,6 @@ async function submit(): Promise<void> {
     toastError((e as { message?: string }).message ?? '保存失败')
   } finally {
     submitting.value = false
-  }
-}
-
-// —— 详情 / 设置抽屉 ——
-const settingsDrawerShow = ref(false)
-const settingsLoading = ref(false)
-const settingsSaving = ref(false)
-const settingsStoreId = ref<string | null>(null)
-const detail = ref<Store | null>(null)
-const settingsForm = reactive<StoreSettingsData>({
-  businessHoursNote: '',
-})
-
-async function openSettings(row: Store): Promise<void> {
-  settingsStoreId.value = row.id
-  detail.value = null
-  settingsDrawerShow.value = true
-  settingsLoading.value = true
-  try {
-    const [detailData, settingsData] = await Promise.all([
-      storeService.get(row.id),
-      storeSettingsService.get(row.id),
-    ])
-    detail.value = detailData
-    // 只回填仍保留的字段；旧 blob 里遗留的开关键(自动接单/桌位预订)不再读取，
-    // 下次保存即被整体覆盖清除。
-    settingsForm.businessHoursNote = settingsData.settings?.businessHoursNote ?? ''
-  } catch (e) {
-    toastError((e as { message?: string }).message ?? '加载门店详情/设置失败')
-    settingsDrawerShow.value = false
-  } finally {
-    settingsLoading.value = false
-  }
-}
-
-async function submitSettings(): Promise<void> {
-  if (!settingsStoreId.value) return
-  settingsSaving.value = true
-  try {
-    await storeSettingsService.update(settingsStoreId.value, {
-      businessHoursNote: settingsForm.businessHoursNote,
-    })
-    toastSuccess('门店设置已更新')
-    settingsDrawerShow.value = false
-  } catch (e) {
-    toastError((e as { message?: string }).message ?? '保存失败')
-  } finally {
-    settingsSaving.value = false
   }
 }
 
@@ -240,12 +206,12 @@ const toolbarActions = [
         </NFormItem>
         <div class="form-row">
           <NFormItem
-            label="联系电话"
+            label="客服电话 / 联系方式"
             class="form-row__item"
           >
             <NInput
               v-model:value="form.phone"
-              placeholder="请输入联系电话"
+              placeholder="请输入客服电话或门店联系电话"
             />
           </NFormItem>
           <NFormItem
@@ -258,6 +224,16 @@ const toolbarActions = [
             />
           </NFormItem>
         </div>
+        <NFormItem label="客服微信二维码">
+          <AssetUpload
+            v-model:asset-id="form.customerServiceQrAssetId"
+            v-model:public-url="form.customerServiceQrUrl"
+            purpose="store_contact_qr"
+            :preview-url="form.customerServiceQrUrl"
+            :width="150"
+            :height="150"
+          />
+        </NFormItem>
         <NFormItem
           label="地址"
           required
@@ -311,53 +287,6 @@ const toolbarActions = [
       <p class="form-note">
         坐标用于小程序「距离计算」与「导航前往」。请用<strong>腾讯 / 高德</strong>坐标拾取器（GCJ-02，与微信一致），<strong>勿用百度</strong>（坐标系不同，会偏移数百米）。在拾取器里搜门店地址 → 点地图 → 复制「纬度,经度」粘贴到上方即可。
       </p>
-    </FormDrawer>
-
-    <FormDrawer
-      v-model:show="settingsDrawerShow"
-      title="门店详情 / 设置"
-      :width="860"
-      :submitting="settingsSaving"
-      high-risk
-      submit-text="保存设置"
-      @submit="submitSettings"
-    >
-      <NSpin :show="settingsLoading">
-        <NDescriptions
-          v-if="detail"
-          label-placement="left"
-          :column="1"
-          bordered
-        >
-          <NDescriptionsItem label="门店名称">
-            {{ detail.name }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="联系电话">
-            {{ detail.phone }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="地址">
-            {{ detail.address }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="营业时间">
-            {{ detail.businessHours }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="营业状态">
-            {{ storeStatusLabel(detail.status) }}
-          </NDescriptionsItem>
-        </NDescriptions>
-
-        <NForm
-          label-placement="top"
-          style="margin-top: var(--ic-space-md)"
-        >
-          <NFormItem label="营业时间备注">
-            <NInput
-              v-model:value="settingsForm.businessHoursNote"
-              placeholder="请输入营业时间备注"
-            />
-          </NFormItem>
-        </NForm>
-      </NSpin>
     </FormDrawer>
   </div>
 </template>

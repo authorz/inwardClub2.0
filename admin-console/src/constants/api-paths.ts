@@ -34,7 +34,21 @@ export const API_PATHS = {
     create: '/admin/stores',
     detail: (id: string) => `/admin/stores/${id}`,
     update: (id: string) => `/admin/stores/${id}`,
-    settings: (id: string) => `/admin/stores/${id}/settings`,
+  },
+
+  franchiseInquiries: {
+    list: '/admin/franchise-inquiries',
+    status: (id: string) => `/admin/franchise-inquiries/${id}/status`,
+  },
+
+  tables: {
+    list: '/admin/tables',
+    detail: (id: string) => `/admin/tables/${id}`,
+  },
+
+  seats: {
+    list: '/admin/seats',
+    detail: (id: string) => `/admin/seats/${id}`,
   },
 
   adminAccounts: {
@@ -81,10 +95,16 @@ export const API_PATHS = {
     sessions: (id: string) => `/admin/activities/${id}/sessions`,
     sessionDetail: (sessionId: string) => `/admin/activity-sessions/${sessionId}`,
     ticketTypes: (id: string) => `/admin/activities/${id}/ticket-types`,
-    ticketTypeDetail: (ticketTypeId: string) => `/admin/activity-ticket-types/${ticketTypeId}`,
+    ticketTypeDetail: (activityId: string, ticketTypeId: string) =>
+      `/admin/activities/${activityId}/ticket-types/${ticketTypeId}`,
     orders: '/admin/activity-orders',
     tickets: '/admin/tickets',
     verifications: '/admin/verifications',
+  },
+
+  tournamentEvents: {
+    list: '/admin/tournament-events',
+    detail: (id: string) => `/admin/tournament-events/${id}`,
   },
 
   coupons: {
@@ -92,6 +112,8 @@ export const API_PATHS = {
     templateDetail: (id: string) => `/admin/coupon-templates/${id}`,
     templateAssignStores: (id: string) => `/admin/coupon-templates/${id}/assign-stores`,
     templateApplicableItems: (id: string) => `/admin/coupon-templates/${id}/applicable-items`,
+    publishTemplate: (id: string) => `/admin/coupon-templates/${id}/publish`,
+    disableTemplate: (id: string) => `/admin/coupon-templates/${id}/disable`,
     entitlementsGrant: '/admin/coupon-entitlements/grant',
     entitlements: '/admin/coupon-entitlements',
     redemptions: '/admin/coupon-redemptions',
@@ -167,6 +189,10 @@ export const API_PATHS = {
   },
 
   system: {
+    globalSettings: '/admin/global-settings',
+    storeLowSpendRules: '/admin/store-low-spend-rules',
+    storeLowSpendRule: (storeId: string | number) => `/admin/store-low-spend-rules/${storeId}`,
     paymentChannelSettings: '/admin/payment-channel-settings',
+    pointReviewSettings: '/admin/point-review-settings',
   },
 } as const

@@ -51,7 +51,7 @@ func (r *memRepo) ListSeats(_ context.Context, storeID int64, _ time.Time) ([]Se
 func (r *memRepo) ListMemberReservations(_ context.Context, memberID int64, limit, offset int) ([]Reservation, int64, error) {
 	var all []Reservation
 	for _, res := range r.reservations {
-		if res.MemberID == memberID && res.Status == StatusBooked {
+		if res.MemberID == memberID && (res.Status == StatusBooked || res.Status == StatusArrived) {
 			all = append(all, res)
 		}
 	}
@@ -72,7 +72,7 @@ func (r *memRepo) ListStoreReservations(_ context.Context, storeID int64, filter
 	}
 	var all []Reservation
 	for _, res := range r.reservations {
-		if res.StoreID == storeID && res.Status == StatusBooked &&
+		if res.StoreID == storeID && (res.Status == StatusBooked || res.Status == StatusArrived) &&
 			matches(res.TableNo, filter.TableNo) && matches(res.SeatNo, filter.SeatNo) &&
 			matches(res.MemberNickname, filter.MemberNickname) && matches(res.MemberPhone, filter.MemberPhone) {
 			all = append(all, res)
@@ -117,7 +117,8 @@ func (r *memRepo) CreateReservation(
 	}
 	if res.SeatID != nil {
 		for _, existing := range r.reservations {
-			if existing.SeatID != nil && *existing.SeatID == *res.SeatID && existing.Status == StatusBooked {
+			if existing.SeatID != nil && *existing.SeatID == *res.SeatID &&
+				(existing.Status == StatusBooked || existing.Status == StatusArrived) {
 				return 0, apperr.Conflict("seat is already reserved")
 			}
 		}
@@ -328,6 +329,29 @@ func TestCreateReservationBooks(t *testing.T) {
 	}
 }
 
+func TestCreateGuestReservationPreservesGenericSeatIdentity(t *testing.T) {
+	svc, repo := newTestService()
+	view, err := svc.CreateReservationForActor(context.Background(), 42, true, validCreateReq())
+	if err != nil {
+		t.Fatalf("create guest reservation: %v", err)
+	}
+	if view.ID == 0 || len(repo.reservations) != 1 || !repo.reservations[0].BookedAsGuest {
+		t.Fatalf("guest booking marker was not persisted: %+v", repo.reservations)
+	}
+
+	repo.seats = []Seat{{
+		ID: 1, StoreID: 1, Status: AvailabilityReserved, BookedAsGuest: true,
+		MemberNickname: "inward会员",
+	}}
+	seats, err := svc.ListSeats(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("list guest seat: %v", err)
+	}
+	if len(seats) != 1 || !seats[0].IsGuest || seats[0].Nickname != "inward会员" {
+		t.Fatalf("unexpected guest seat view: %+v", seats)
+	}
+}
+
 func TestCreateReservationRejectsOccupiedSeat(t *testing.T) {
 	svc, _ := newTestService()
 	seatID := int64(9)
@@ -375,6 +399,18 @@ func TestCreateReservationValidation(t *testing.T) {
 	}
 }
 
+func TestCreateReservationRejectsUnsafeRemark(t *testing.T) {
+	svc, repo := newTestService()
+	req := validCreateReq()
+	req.Remark = `<svg onload=alert(1)>`
+	if _, err := svc.CreateReservation(context.Background(), 1, req); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected unsafe remark rejection, got %v", err)
+	}
+	if len(repo.reservations) != 0 {
+		t.Fatal("unsafe reservation reached repository")
+	}
+}
+
 func TestGetReservationOwnership(t *testing.T) {
 	svc, _ := newTestService()
 	view, _ := svc.CreateReservation(context.Background(), 42, validCreateReq())
@@ -413,14 +449,15 @@ func TestListReservations(t *testing.T) {
 		{ID: 1, MemberID: 42, StoreID: 1, Status: StatusBooked},
 		{ID: 2, MemberID: 42, StoreID: 1, Status: StatusExpired},
 		{ID: 3, MemberID: 7, StoreID: 1, Status: StatusBooked},
+		{ID: 4, MemberID: 42, StoreID: 1, Status: StatusArrived},
 	}
 
 	views, total, err := svc.ListReservations(context.Background(), 42, httpx.Page{Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if total != 1 || len(views) != 1 {
-		t.Fatalf("expected one active reservation for member 42, got %d", total)
+	if total != 2 || len(views) != 2 {
+		t.Fatalf("expected booked and arrived reservations for member 42, got %d", total)
 	}
 }
 
@@ -432,6 +469,7 @@ func TestStoreReservationScope(t *testing.T) {
 		own,
 		{ID: 2, MemberID: 7, StoreID: 1, Status: StatusBooked},
 		{ID: 4, MemberID: 8, StoreID: 1, Status: StatusExpired},
+		{ID: 5, MemberID: 9, StoreID: 1, Status: StatusArrived},
 		other,
 	}
 
@@ -440,8 +478,8 @@ func TestStoreReservationScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if total != 2 || len(views) != 2 {
-		t.Fatalf("expected 2 reservations for store 1, got %d", total)
+	if total != 3 || len(views) != 3 {
+		t.Fatalf("expected booked and arrived reservations for store 1, got %d", total)
 	}
 
 	repo.reservations[0].TableNo = "A-01"

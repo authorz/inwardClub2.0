@@ -18,6 +18,19 @@ function saveProfile(profile) {
   } catch {}
 }
 
+function clearProfile() {
+  const profile = loadProfile();
+  try {
+    wx.removeStorageSync(PROFILE_KEY);
+  } catch {}
+  const avatarUrl = profile && profile.avatarUrl;
+  if (avatarUrl && avatarUrl.indexOf('/store/') !== -1 && wx.getFileSystemManager) {
+    try {
+      wx.getFileSystemManager().unlink({ filePath: avatarUrl, fail: () => {} });
+    } catch {}
+  }
+}
+
 // chooseAvatar returns a temporary path (wxfile://tmp_… / http://tmp/…) that is
 // wiped on refresh/restart, so a cached avatarUrl pointing at it fails to load.
 // Detect those so we can copy them into a persistent local file before caching.
@@ -65,4 +78,4 @@ function mergeCachedProfile(me) {
   return merged;
 }
 
-module.exports = { PROFILE_KEY, loadProfile, saveProfile, saveProfilePersistently, mergeCachedProfile };
+module.exports = { PROFILE_KEY, loadProfile, saveProfile, clearProfile, saveProfilePersistently, mergeCachedProfile };

@@ -8,6 +8,7 @@ import (
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // Service provides reservation, waitlist and arrival operations for both the
@@ -122,11 +123,27 @@ func (s *Service) ListStoreReservations(ctx context.Context, storeID int64, filt
 
 // CreateReservation books a table/seat for the member.
 func (s *Service) CreateReservation(ctx context.Context, memberID int64, req CreateReservationRequest) (ReservationView, error) {
+	return s.CreateReservationForActor(ctx, memberID, false, req)
+}
+
+// CreateReservationForActor records whether this booking was made from a
+// reservation-only pre-registration session. Public seat reads use that flag
+// to show the generic brand identity instead of exposing a member profile.
+func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64, bookedAsGuest bool, req CreateReservationRequest) (ReservationView, error) {
 	if req.StoreID <= 0 {
 		return ReservationView{}, apperr.Invalid("storeId is required")
 	}
 	if req.PartySize <= 0 {
 		return ReservationView{}, apperr.Invalid("partySize must be positive")
+	}
+	if req.PartySize > 50 {
+		return ReservationView{}, apperr.Invalid("预约人数不能超过50人")
+	}
+	remark, validationErr := inputvalidation.PlainText(req.Remark, inputvalidation.TextOptions{
+		Label: "预约备注", MaxRunes: 200, AllowEmpty: true, AllowNewlines: true,
+	})
+	if validationErr != nil {
+		return ReservationView{}, apperr.Invalid(validationErr.Error())
 	}
 	if req.TableID == nil || *req.TableID <= 0 {
 		return ReservationView{}, apperr.Invalid("tableId is required")
@@ -147,6 +164,7 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 		ReservationNo: s.newReservationNo(now),
 		StoreID:       req.StoreID,
 		MemberID:      memberID,
+		BookedAsGuest: bookedAsGuest,
 		TableID:       req.TableID,
 		SeatID:        req.SeatID,
 		PartySize:     req.PartySize,
@@ -154,7 +172,7 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 		// no member-selected arrival time; it mirrors the server creation time.
 		ReservedAt: now,
 		Status:     StatusBooked,
-		Remark:     req.Remark,
+		Remark:     remark,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -218,6 +236,9 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, memberID int64, req C
 	}
 	if req.PartySize <= 0 {
 		return WaitlistEntryView{}, apperr.Invalid("partySize must be positive")
+	}
+	if req.PartySize > 50 {
+		return WaitlistEntryView{}, apperr.Invalid("排队人数不能超过50人")
 	}
 	now := s.now().UTC()
 	entry := WaitlistEntry{

@@ -1,8 +1,7 @@
 // Package member owns the mini-program member self-service surface: profile,
 // phone binding, invitations, plus the read-only membership tier / recharge
-// product / ranking catalogues. The member profile itself lives in the members
-// table (shared with auth); tiers/products come from the membership_tiers /
-// recharge_products tables and rankings from approved point_savings.
+// product / ranking catalogues. Rankings are derived from settled recharge
+// orders across all stores.
 package member
 
 import "time"
@@ -11,7 +10,9 @@ import "time"
 type Member struct {
 	ID                int64
 	Nickname          string
+	Gender            string
 	Phone             string
+	PhoneChangedAt    *time.Time
 	InviteCode        string
 	AvatarAssetID     *int64
 	InvitedByMemberID *int64
@@ -24,8 +25,16 @@ type Member struct {
 // "leave unchanged"; only non-nil fields are written.
 type ProfileUpdate struct {
 	Nickname      *string
+	Gender        *string
 	AvatarAssetID *int64
 	AvatarURL     *string
+}
+
+// PhoneChangeResult describes whether an authorised number actually changed
+// and when a subsequent change becomes available.
+type PhoneChangeResult struct {
+	Changed       bool
+	NextAllowedAt time.Time
 }
 
 // Invitee is a member that the current member has invited.
@@ -79,31 +88,34 @@ type MembershipTierUpdate struct {
 // RechargeProduct is a quick-recharge tier. Payment amount is stored in cents;
 // credited coins and points are independent integer quantities.
 type RechargeProduct struct {
-	ID           int64
-	AmountCent   int64
-	CoinAmount   int64
-	PointsAmount int64
-	SortOrder    int
-	Status       string
+	ID               int64
+	AmountCent       int64
+	CoinAmount       int64
+	PointsAmount     int64
+	CouponTemplateID *int64
+	SortOrder        int
+	Status           string
 }
 
 // RechargeProductCreate is the input to creating a new recharge package.
 type RechargeProductCreate struct {
-	AmountCent   int64
-	CoinAmount   int64
-	PointsAmount int64
-	SortOrder    int
-	Status       string
+	AmountCent       int64
+	CoinAmount       int64
+	PointsAmount     int64
+	CouponTemplateID *int64
+	SortOrder        int
+	Status           string
 }
 
 // RechargeProductUpdate is a partial update to a recharge package; a nil field
 // is left unchanged.
 type RechargeProductUpdate struct {
-	AmountCent   *int64
-	CoinAmount   *int64
-	PointsAmount *int64
-	SortOrder    *int
-	Status       *string
+	AmountCent       *int64
+	CoinAmount       *int64
+	PointsAmount     *int64
+	CouponTemplateID **int64
+	SortOrder        *int
+	Status           *string
 }
 
 // RankingEntry is a single row in a leaderboard snapshot.
@@ -112,6 +124,8 @@ type RankingEntry struct {
 	MemberID      int64
 	Nickname      string
 	AvatarAssetID *int64
+	AvatarURL     string
+	Gender        string
 	Score         int64
 }
 
@@ -127,7 +141,3 @@ const (
 	RankingMonth = "month"
 	RankingAll   = "all"
 )
-
-// pointSavingApproved is the point_savings status counted toward rankings. It
-// mirrors activity.PointSavingApproved without importing that module.
-const pointSavingApproved = "approved"

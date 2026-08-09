@@ -1,9 +1,9 @@
 {
-  "usingComponents": {
-    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet"
-  },
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "navigationStyle": "custom",
-  "navigationBarTitleText": "Inward Club"
+  "navigationBarTitleText": "Inward Club",
+  "backgroundColor": "#ffffff",
+  "backgroundColorTop": "#ffffff",
+  "backgroundColorBottom": "#ffffff"
 }

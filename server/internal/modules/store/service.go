@@ -67,18 +67,24 @@ func (s *Service) ListBanners(ctx context.Context, storeID int64) ([]BannerView,
 
 func (s *Service) storeView(ctx context.Context, st Store, geo Geo) StoreView {
 	view := StoreView{
-		ID:            st.ID,
-		Name:          st.Name,
-		Phone:         st.Phone,
-		Address:       st.Address,
-		Latitude:      st.Latitude,
-		Longitude:     st.Longitude,
-		BusinessHours: st.BusinessHours,
-		Status:        st.Status,
+		ID:                       st.ID,
+		Name:                     st.Name,
+		Phone:                    st.Phone,
+		CustomerServiceQRAssetID: st.CustomerServiceQRAssetID,
+		Address:                  st.Address,
+		Latitude:                 st.Latitude,
+		Longitude:                st.Longitude,
+		BusinessHours:            st.BusinessHours,
+		Status:                   st.Status,
 	}
 	if st.LogoAssetID != nil {
 		if url, err := s.assets.PublicURLByID(ctx, *st.LogoAssetID); err == nil {
 			view.LogoURL = url
+		}
+	}
+	if st.CustomerServiceQRAssetID != nil {
+		if url, err := s.assets.PublicURLByID(ctx, *st.CustomerServiceQRAssetID); err == nil {
+			view.CustomerServiceQRURL = url
 		}
 	}
 	if geo.Lat != nil && geo.Lng != nil && st.Latitude != nil && st.Longitude != nil {

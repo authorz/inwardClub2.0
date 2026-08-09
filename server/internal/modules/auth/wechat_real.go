@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -212,7 +213,14 @@ func (c *WeChatHTTPClient) postJSON(ctx context.Context, endpoint string, payloa
 func (c *WeChatHTTPClient) do(req *http.Request, out any) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		// net/http includes the full request URL in *url.Error. Some WeChat
+		// endpoints carry credentials in their query string, so only retain the
+		// operation path and the underlying transport error for diagnostics.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			return fmt.Errorf("wechat api %s: request failed: %w", req.URL.Path, urlErr.Err)
+		}
+		return fmt.Errorf("wechat api %s: request failed: %w", req.URL.Path, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

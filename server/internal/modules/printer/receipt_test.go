@@ -8,6 +8,7 @@ import (
 
 func TestBuildReceiptJob(t *testing.T) {
 	paidAt := time.Date(2026, 7, 18, 15, 4, 5, 0, time.UTC)
+	coinBalance := int64(12345)
 	job := BuildReceiptJob("SN-42", Receipt{
 		StoreID:         5,
 		PaymentOrderID:  99,
@@ -17,7 +18,11 @@ func TestBuildReceiptJob(t *testing.T) {
 		PaidAt:          paidAt,
 		StoreName:       "南滨公园店",
 		Member:          "138****5678",
+		VIPLevel:        3,
+		PayMethod:       "coin",
 		Points:          20,
+		Remark:          "少冰，不要柠檬",
+		CoinBalance:     &coinBalance,
 		Items: []ReceiptItem{{
 			Name: "苏打水", Quantity: 2, SubtotalCent: 1500,
 		}},
@@ -30,11 +35,56 @@ func TestBuildReceiptJob(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<IMG></IMG>", "<CB>InwardClub</CB>", "南滨公园店", "订单号：BO-20260718-1",
-		"手机尾号", "138****5678", "赠送积分", "20", "商品名称", "数量", "金额",
+		"手机尾号", "138****5678", "会员等级", "VIP3 会员下单", "消费方式", "金币支付",
+		"赠送积分", "20", "金币余额", "12345", "订单备注：少冰，不要柠檬", "商品名称", "数量", "金额",
 		"苏打水", "2", "¥15.00", "合计", "谢谢惠顾！", "<CUT>", "2026-07-18 23:04:05",
 	} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("content missing %q:\n%s", want, job.Content)
+		}
+	}
+}
+
+func TestBuildReceiptJobOmitsEmptyRemark(t *testing.T) {
+	job := BuildReceiptJob("SN-42", Receipt{
+		BusinessOrderNo: "BO-NO-REMARK-1",
+		OrderType:       "food",
+		Remark:          "   ",
+		PaidAt:          time.Date(2026, 7, 18, 15, 4, 5, 0, time.UTC),
+	})
+	if strings.Contains(job.Content, "订单备注") {
+		t.Fatalf("empty remark must not take receipt space:\n%s", job.Content)
+	}
+}
+
+func TestBuildReceiptJobShowsWechatPaymentAndBalance(t *testing.T) {
+	coinBalance := int64(8800)
+	job := BuildReceiptJob("SN-42", Receipt{
+		BusinessOrderNo: "BO-WECHAT-1",
+		OrderType:       "food",
+		VIPLevel:        1,
+		PayMethod:       "wechat",
+		CoinBalance:     &coinBalance,
+		PaidAt:          time.Date(2026, 7, 18, 15, 4, 5, 0, time.UTC),
+	})
+	for _, want := range []string{"VIP1 会员下单", "微信支付", "金币余额", "8800"} {
+		if !strings.Contains(job.Content, want) {
+			t.Fatalf("wechat receipt missing %q:\n%s", want, job.Content)
+		}
+	}
+}
+
+func TestPaymentMethodLabel(t *testing.T) {
+	cases := map[string]string{
+		"wechat":  "微信支付",
+		"coin":    "金币支付",
+		"coupon":  "券兑换",
+		"voucher": "券兑换",
+		"unknown": "",
+	}
+	for in, want := range cases {
+		if got := paymentMethodLabel(in); got != want {
+			t.Fatalf("paymentMethodLabel(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

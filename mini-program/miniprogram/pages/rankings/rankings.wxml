@@ -6,30 +6,117 @@
   <ic-loading wx:if="{{loading}}" />
 
   <block wx:elif="{{board}}">
-    <view wx:if="{{board.myRank}}" class="rk__me ic-card">
-      <view class="rk__me-block">
-        <text class="rk__me-label">我的排名</text>
-        <text class="rk__me-num">{{board.myRank}}</text>
+    <block wx:if="{{board.hasEntries}}">
+    <view class="rk__arena">
+      <view class="rk__arena-head">
+        <view>
+          <text class="rk__arena-title">{{board.scopeLabel}}巅峰榜</text>
+          <text class="rk__arena-sub">微信支付越多，排名越高</text>
+        </view>
+        <view class="rk__arena-meta">
+          <text class="rk__arena-label">冠军成长值</text>
+          <text class="rk__arena-value">{{board.championGrowthText}}</text>
+        </view>
       </view>
-      <view class="rk__me-div"></view>
-      <view class="rk__me-block">
-        <text class="rk__me-label">积分</text>
-        <text class="rk__me-num">{{board.myScore}}</text>
+
+      <view class="rk__podium {{board.podiumClass}}">
+        <view class="rk__podium-item {{item.placeClass}}" wx:for="{{board.podium}}" wx:key="rank">
+          <view class="rk__contestant">
+            <text wx:if="{{item.rank === 1}}" class="rk__winner-mark">榜首</text>
+            <view class="rk__podium-avatar {{item.avatarTone}}">
+              <image wx:if="{{item.avatarUrl}}" class="rk__avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
+              <text wx:else class="rk__avatar-initial">{{item.initial}}</text>
+              <image wx:if="{{item.genderIcon}}" class="rk__avatar-gender rk__avatar-gender--podium" src="{{item.genderIcon}}" mode="aspectFit" />
+              <text class="rk__medal">{{item.rank}}</text>
+            </view>
+            <text class="rk__podium-name ic-ellipsis">{{item.name}}</text>
+            <text class="rk__podium-score">{{item.growthText}}</text>
+            <text class="rk__podium-unit">成长值</text>
+          </view>
+          <view class="rk__stage">
+            <text class="rk__stage-rank">{{item.rank}}</text>
+            <text class="rk__stage-medal">{{item.medalText}}</text>
+          </view>
+        </view>
       </view>
     </view>
 
-    <view class="rk__list ic-card">
-      <view class="rk__row" wx:for="{{board.top}}" wx:key="rank">
-        <text class="rk__rank {{item.top3 ? 'is-top' : ''}}">{{item.rank}}</text>
-        <view class="rk__avatar">
+    <view wx:if="{{board.myRank}}" class="rk__chase">
+      <view class="rk__chase-main">
+        <view class="rk__me-avatar">
+          <image wx:if="{{board.myAvatarUrl}}" class="rk__avatar-img" src="{{board.myAvatarUrl}}" mode="aspectFill" />
+          <text wx:else>{{board.myInitial}}</text>
+        </view>
+        <view class="rk__chase-copy">
+          <text class="rk__chase-kicker">我的冲榜进度</text>
+          <view class="rk__chase-rank-line">
+            <text class="rk__chase-rank">第 {{board.myRank}} 名</text>
+            <text class="rk__chase-score">{{board.myGrowthText}} 成长值</text>
+          </view>
+        </view>
+      </view>
+      <view class="rk__progress">
+        <view class="rk__progress-value" style="width: {{board.chaseProgress}}%;"></view>
+      </view>
+      <view class="rk__chase-goals">
+        <view class="rk__goal">
+          <text class="rk__goal-label">距离上一名</text>
+          <text class="rk__goal-value">还差 {{board.gapToPreviousText}}</text>
+        </view>
+        <view class="rk__goal rk__goal--right">
+          <text class="rk__goal-label">冲进前 10</text>
+          <text class="rk__goal-value">{{board.gapToTopTenText === '已进入' ? '已进入' : '还差 ' + board.gapToTopTenText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:elif="{{loggedIn}}" class="rk__chase rk__chase--outside">
+      <text class="rk__outside-title">暂未进入前 50 名</text>
+      <text class="rk__outside-sub">使用微信完成充值或消费即可获得成长值</text>
+    </view>
+
+    <view wx:else class="rk__login-note">
+      <text>登录后可查看自己的实时名次与冲榜差距</text>
+    </view>
+
+    <view class="rk__list-head">
+      <view>
+        <text class="rk__list-title">全榜排名</text>
+        <text class="rk__list-sub">成长值按微信支付金额 1:1 累计</text>
+      </view>
+      <text class="rk__count-tag">当前上榜 {{board.total}} 人</text>
+    </view>
+
+    <view class="rk__list">
+      <view class="rk__row {{item.isMe ? 'is-me' : ''}}" wx:for="{{board.list}}" wx:key="rank">
+        <view class="rk__rank-wrap">
+          <text class="rk__rank">{{item.rankText}}</text>
+          <text class="rk__rank-arrow" wx:if="{{item.isMe}}">当前</text>
+        </view>
+        <view class="rk__avatar {{item.avatarTone}}">
           <image wx:if="{{item.avatarUrl}}" class="rk__avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
           <text wx:else class="rk__avatar-initial">{{item.initial}}</text>
+          <image wx:if="{{item.genderIcon}}" class="rk__avatar-gender" src="{{item.genderIcon}}" mode="aspectFit" />
         </view>
-        <text class="rk__name ic-ellipsis">{{item.name}}</text>
-        <text class="rk__score">{{item.score}}</text>
+        <view class="rk__member">
+          <view class="rk__member-line">
+            <text class="rk__name ic-ellipsis">{{item.name}}</text>
+            <text wx:if="{{item.isMe}}" class="rk__me-tag">我</text>
+          </view>
+        </view>
+        <view class="rk__score-wrap">
+          <text class="rk__score">{{item.growthText}}</text>
+          <text class="rk__gap">{{item.gapText}}</text>
+        </view>
       </view>
     </view>
 
-    <text class="rk__foot">{{board.updatedText}}</text>
+    <text class="rk__foot">榜单根据微信支付成功金额实时统计</text>
+    </block>
+
+    <view wx:else class="rk__empty">
+      <text class="rk__empty-title">本期暂无成长值排名</text>
+      <text class="rk__empty-sub">使用微信完成充值或消费后即可进入排行榜</text>
+    </view>
   </block>
 </view>

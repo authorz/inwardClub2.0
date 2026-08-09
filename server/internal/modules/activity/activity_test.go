@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"testing"
+	"time"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -35,6 +36,23 @@ func (r *publicMemRepo) ListPublished(_ context.Context, storeID *int64, limit, 
 	return all[offset:end], total, nil
 }
 
+func (r *publicMemRepo) ListTodayPublished(_ context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error) {
+	var out []Activity
+	for _, activity := range r.activities {
+		if activity.ScopeType != "global" && (activity.StoreID == nil || *activity.StoreID != storeID) {
+			continue
+		}
+		if activity.StartAt != nil && !activity.StartAt.Before(dayEnd) {
+			continue
+		}
+		if activity.EndAt != nil && activity.EndAt.Before(dayStart) {
+			continue
+		}
+		out = append(out, activity)
+	}
+	return out, nil
+}
+
 func (r *publicMemRepo) GetByID(_ context.Context, id int64) (Activity, error) {
 	for _, a := range r.activities {
 		if a.ID == id {
@@ -57,12 +75,13 @@ func newPublicTestService() (*Service, *publicMemRepo) {
 func TestGetAttachesSellableTicketTypes(t *testing.T) {
 	svc, repo := newPublicTestService()
 	lat, lng := 31.2, 121.5
+	saleStart := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
 	repo.activities = []Activity{{
 		ID: 5, ScopeType: "store", StoreName: "南滨公园店", StoreAddress: "滨江路 1 号",
 		StoreLatitude: &lat, StoreLongitude: &lng, Title: "Show", Status: "published",
 	}}
 	repo.ticketTypes[5] = []TicketType{
-		{ID: 20, ActivityID: 5, Name: "VIP", PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, PayChannels: []string{"wechat"}, MaxTicketsPerOrder: 4},
+		{ID: 20, ActivityID: 5, Name: "VIP", PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, SaleStartAt: &saleStart, PayChannels: []string{"wechat"}, MaxTicketsPerOrder: 4},
 		{ID: 21, ActivityID: 5, Name: "Free", PriceCent: 0, StockQuantity: 0, SoldQuantity: 3, PayChannels: []string{}},
 	}
 
@@ -74,7 +93,7 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 		t.Fatalf("expected 2 ticket types, got %d", len(view.TicketTypes))
 	}
 	// Limited tier: remaining = stock - sold.
-	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 {
+	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 || got.SaleStartAt == nil || !got.SaleStartAt.Equal(saleStart) {
 		t.Fatalf("unexpected limited ticket view: %+v", got)
 	}
 	if view.ScopeType != "store" || view.StoreName != "南滨公园店" || view.Address != "滨江路 1 号" ||
@@ -100,6 +119,26 @@ func TestListDoesNotLoadTicketTypes(t *testing.T) {
 	}
 	if repo.sellableCall != 0 {
 		t.Fatalf("list path must not query ticket types, called %d times", repo.sellableCall)
+	}
+}
+
+func TestListTodayUsesChinaStandardTimeAndStoreScope(t *testing.T) {
+	svc, repo := newPublicTestService()
+	storeID := int64(7)
+	otherStoreID := int64(8)
+	start := time.Date(2026, 8, 7, 16, 0, 0, 0, time.UTC) // Aug 8 00:00 in China.
+	end := time.Date(2026, 8, 8, 15, 59, 0, 0, time.UTC)
+	repo.activities = []Activity{
+		{ID: 1, ScopeType: "store", StoreID: &storeID, Title: "本店活动", StartAt: &start, EndAt: &end},
+		{ID: 2, ScopeType: "store", StoreID: &otherStoreID, Title: "其他门店活动", StartAt: &start, EndAt: &end},
+	}
+	svc.now = func() time.Time { return time.Date(2026, 8, 8, 12, 0, 0, 0, publicActivityLocation) }
+	views, err := svc.ListToday(context.Background(), storeID)
+	if err != nil {
+		t.Fatalf("list today: %v", err)
+	}
+	if len(views) != 1 || views[0].ID != 1 {
+		t.Fatalf("unexpected today activities: %+v", views)
 	}
 }
 

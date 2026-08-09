@@ -22,8 +22,10 @@ export const orderService = {
     return get<StoreOrder>(API_PATHS.orders.detail(id))
   },
   foodOrders(params?: PageQuery) {
-    // 点餐订单以订单读模型按 orderType=food 过滤。
-    return getPaged<FoodOrder>(API_PATHS.orders.list, { ...params, orderType: 'food' })
+    return getPaged<FoodOrder>(API_PATHS.orders.foodOrders, params)
+  },
+  foodOrderDetail(id: string | number) {
+    return get<FoodOrder>(`${API_PATHS.orders.foodOrders}/${id}`)
   },
   /** 点餐订单状态流转（confirm/prepare/ready/complete/cancel）。 */
   foodAction(id: string | number, action: string, body?: unknown) {

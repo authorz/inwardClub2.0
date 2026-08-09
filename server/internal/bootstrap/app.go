@@ -15,6 +15,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/catalog"
 	"github.com/inwardclub/server/internal/modules/coupon"
 	"github.com/inwardclub/server/internal/modules/diagnostics"
+	"github.com/inwardclub/server/internal/modules/franchise"
 	"github.com/inwardclub/server/internal/modules/member"
 	"github.com/inwardclub/server/internal/modules/order"
 	"github.com/inwardclub/server/internal/modules/payment"
@@ -23,6 +24,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/reservation"
 	"github.com/inwardclub/server/internal/modules/store"
 	"github.com/inwardclub/server/internal/modules/systemsetting"
+	"github.com/inwardclub/server/internal/modules/tournament"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/config"
@@ -43,19 +45,22 @@ type App struct {
 	memberVersions  authn.TokenVersionChecker
 	accountVersions authn.TokenVersionChecker
 
-	authHandler     *auth.Handler
-	assetHandler    *asset.Handler
-	storeHandler    *store.Handler
-	catalogHandler  *catalog.Handler
-	activityHandler *activity.Handler
-	walletHandler   *wallet.Handler
-	paymentHandler  *payment.Handler
+	authHandler       *auth.Handler
+	assetHandler      *asset.Handler
+	storeHandler      *store.Handler
+	catalogHandler    *catalog.Handler
+	activityHandler   *activity.Handler
+	tournamentHandler *tournament.Handler
+	walletHandler     *wallet.Handler
+	paymentHandler    *payment.Handler
 
 	paymentStoreHandler        *payment.StoreHandler
 	paymentAdminHandler        *payment.AdminHandler
 	activityStoreHandler       *activity.StoreHandler
 	pointReviewSettingsHandler *activity.PointReviewSettingsHandler
 	globalSettingsHandler      *systemsetting.Handler
+	storeLowSpendRuleHandler   *systemsetting.StoreLowSpendRuleHandler
+	franchiseHandler           *franchise.Handler
 
 	memberHandler      *member.Handler
 	reservationHandler *reservation.Handler
@@ -122,6 +127,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	storeSvc := store.NewService(store.NewRepository(database), assetSvc)
 	catalogSvc := catalog.NewService(catalog.NewRepository(database), assetSvc)
 	activitySvc := activity.NewService(activity.NewRepository(database), assetSvc)
+	tournamentSvc := tournament.NewService(tournament.NewRepository(database), assetSvc)
 	walletSvc := wallet.NewService(wallet.NewRepository(database))
 	walletPointsSvc := wallet.NewPointsService(wallet.NewPointsRepository(database, businessClock))
 	paymentRepo := payment.NewStoreRepository(database)
@@ -131,10 +137,19 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		activity.NewPointReviewSettingsRepository(database),
 	)
 	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
+	storeLowSpendRuleSvc := systemsetting.NewStoreLowSpendRuleService(
+		systemsetting.NewStoreLowSpendRuleRepository(database),
+	)
+	franchiseSvc := franchise.NewService(franchise.NewRepository(database), globalSettingsSvc)
 
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
 	// WeChat phone code via the WeChat client (fake offline, real once wired).
-	memberSvc := member.NewService(member.NewRepository(database, businessClock), assetSvc, phoneResolverAdapter{wechatLogin})
+	memberSvc := member.NewService(
+		member.NewRepository(database, businessClock),
+		assetSvc,
+		phoneResolverAdapter{wechatLogin},
+		globalSettingsSvc,
+	)
 	authSvc := auth.NewService(
 		tokens, wechatLogin, authMembers, authAccounts,
 		memberTierAdapter{memberSvc}, assetSvc, authStaff,
@@ -181,25 +196,28 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	diagnosticsSvc := diagnostics.NewService(diagnostics.NewRepository(database), log)
 
 	return &App{
-		cfg:             cfg,
-		log:             log,
-		db:              database,
-		tokens:          tokens,
-		memberVersions:  auth.NewMemberTokenVersions(authMembers, authStaff),
-		accountVersions: auth.NewAccountTokenVersions(authAccounts),
-		authHandler:     auth.NewHandler(authSvc),
-		assetHandler:    asset.NewHandler(assetSvc),
-		storeHandler:    store.NewHandler(storeSvc),
-		catalogHandler:  catalog.NewHandler(catalogSvc),
-		activityHandler: activity.NewHandler(activitySvc),
-		walletHandler:   wallet.NewHandler(walletSvc, walletPointsSvc),
-		paymentHandler:  payment.NewHandler(wechatPay, offlineAcquirer, payment.NewSettlementService(payment.NewSettlementRepository(database))),
+		cfg:               cfg,
+		log:               log,
+		db:                database,
+		tokens:            tokens,
+		memberVersions:    auth.NewMemberTokenVersions(authMembers, authStaff),
+		accountVersions:   auth.NewAccountTokenVersions(authAccounts),
+		authHandler:       auth.NewHandler(authSvc),
+		assetHandler:      asset.NewHandler(assetSvc),
+		storeHandler:      store.NewHandler(storeSvc),
+		catalogHandler:    catalog.NewHandler(catalogSvc),
+		activityHandler:   activity.NewHandler(activitySvc),
+		tournamentHandler: tournament.NewHandler(tournamentSvc),
+		walletHandler:     wallet.NewHandler(walletSvc, walletPointsSvc),
+		paymentHandler:    payment.NewHandler(wechatPay, offlineAcquirer, payment.NewSettlementService(payment.NewSettlementRepository(database))),
 
 		paymentStoreHandler:        payment.NewStoreHandler(paymentStoreSvc),
 		paymentAdminHandler:        payment.NewAdminHandler(paymentAdminSvc),
 		activityStoreHandler:       activity.NewStoreHandler(activityStoreSvc),
 		pointReviewSettingsHandler: activity.NewPointReviewSettingsHandler(pointReviewSettingsSvc),
 		globalSettingsHandler:      systemsetting.NewHandler(globalSettingsSvc),
+		storeLowSpendRuleHandler:   systemsetting.NewStoreLowSpendRuleHandler(storeLowSpendRuleSvc),
+		franchiseHandler:           franchise.NewHandler(franchiseSvc),
 
 		memberHandler:      member.NewHandler(memberSvc),
 		reservationHandler: reservation.NewHandler(reservationSvc),
@@ -275,13 +293,15 @@ func (a storeProfileAdapter) StoreProfile(ctx context.Context, storeID int64) (a
 		return admin.StoreProfileView{}, err
 	}
 	return admin.StoreProfileView{
-		ID:            v.ID,
-		Name:          v.Name,
-		LogoURL:       v.LogoURL,
-		Phone:         v.Phone,
-		Address:       v.Address,
-		BusinessHours: v.BusinessHours,
-		Status:        v.Status,
+		ID:                       v.ID,
+		Name:                     v.Name,
+		LogoURL:                  v.LogoURL,
+		Phone:                    v.Phone,
+		CustomerServiceQRAssetID: v.CustomerServiceQRAssetID,
+		CustomerServiceQRURL:     v.CustomerServiceQRURL,
+		Address:                  v.Address,
+		BusinessHours:            v.BusinessHours,
+		Status:                   v.Status,
 	}, nil
 }
 

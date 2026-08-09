@@ -2,6 +2,23 @@ package payment
 
 import "testing"
 
+func TestWechatGrowthAmountUsesOneToOneYuanRule(t *testing.T) {
+	tests := []struct {
+		amountCent int64
+		want       int64
+	}{
+		{amountCent: 0, want: 0},
+		{amountCent: 1, want: 0},
+		{amountCent: 100, want: 1},
+		{amountCent: 50000, want: 500},
+	}
+	for _, tt := range tests {
+		if got := wechatGrowthAmount(tt.amountCent); got != tt.want {
+			t.Fatalf("wechatGrowthAmount(%d) = %d, want %d", tt.amountCent, got, tt.want)
+		}
+	}
+}
+
 // tiers mirrors a typical membership_tiers configuration: a base tier at
 // threshold 0 plus two paid tiers. resolveTier is the core of the VIP growth
 // upgrade path, so it is exercised across the threshold boundaries the settlement

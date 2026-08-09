@@ -15,6 +15,7 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/storescope"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // ConsoleScope pins a console request to a single store, or leaves it nil for
@@ -587,7 +588,7 @@ func NewConsoleService(repo ConsoleRepository, assets ...AssetResolver) *Console
 func (s *ConsoleService) activityView(ctx context.Context, a Activity) ConsoleActivityView {
 	view := ConsoleActivityView{
 		ID: a.ID, ScopeType: a.ScopeType, StoreID: a.StoreID, Title: a.Title,
-		Description: a.Description, Content: a.Content, AssetID: a.AssetID,
+		Description: a.Description, Content: inputvalidation.SanitizeRichHTML(a.Content), AssetID: a.AssetID,
 		StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
 		PurchaseLimitPerMember: a.PurchaseLimit, Status: a.Status,
 		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
@@ -638,6 +639,11 @@ func (s *ConsoleService) GetActivity(ctx context.Context, scope ConsoleScope, id
 
 // CreateActivity creates an activity within scope.
 func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope, in ActivityInput) (ConsoleActivityView, error) {
+	var err error
+	in, err = validateActivityInput(in)
+	if err != nil {
+		return ConsoleActivityView{}, err
+	}
 	if in.Status == "" {
 		in.Status = "published"
 	}
@@ -655,6 +661,11 @@ func (s *ConsoleService) CreateActivity(ctx context.Context, scope ConsoleScope,
 
 // UpdateActivity updates an activity within scope.
 func (s *ConsoleService) UpdateActivity(ctx context.Context, scope ConsoleScope, id int64, in ActivityInput) (ConsoleActivityView, error) {
+	var err error
+	in, err = validateActivityInput(in)
+	if err != nil {
+		return ConsoleActivityView{}, err
+	}
 	if in.Status == "" {
 		in.Status = "published"
 	}
@@ -668,6 +679,39 @@ func (s *ConsoleService) UpdateActivity(ctx context.Context, scope ConsoleScope,
 		return ConsoleActivityView{}, err
 	}
 	return s.activityView(ctx, a), nil
+}
+
+func validateActivityInput(in ActivityInput) (ActivityInput, error) {
+	var err error
+	in.Title, err = inputvalidation.PlainText(in.Title, inputvalidation.TextOptions{
+		Label: "活动标题", MinRunes: 1, MaxRunes: 100,
+	})
+	if err != nil {
+		return ActivityInput{}, apperr.Invalid(err.Error())
+	}
+	in.Description, err = inputvalidation.PlainText(in.Description, inputvalidation.TextOptions{
+		Label: "活动简介", MaxRunes: 500, AllowEmpty: true, AllowNewlines: true,
+	})
+	if err != nil {
+		return ActivityInput{}, apperr.Invalid(err.Error())
+	}
+	if len(in.Content) > 200_000 {
+		return ActivityInput{}, apperr.Invalid("活动图文详情不能超过200KB")
+	}
+	in.Content = inputvalidation.SanitizeRichHTML(in.Content)
+	if in.StoreID != nil && *in.StoreID <= 0 {
+		return ActivityInput{}, apperr.Invalid("所属门店不正确")
+	}
+	if in.AssetID != nil && *in.AssetID <= 0 {
+		return ActivityInput{}, apperr.Invalid("活动封面资源不正确")
+	}
+	if in.StartAt != nil && in.EndAt != nil && !in.EndAt.After(*in.StartAt) {
+		return ActivityInput{}, apperr.Invalid("活动结束时间必须晚于开始时间")
+	}
+	if in.PurchaseLimitPerMember < 0 || in.PurchaseLimitPerMember > 9999 {
+		return ActivityInput{}, apperr.Invalid("每人限购数量应在0到9999之间")
+	}
+	return in, nil
 }
 
 // DeleteActivity deletes an activity within scope.

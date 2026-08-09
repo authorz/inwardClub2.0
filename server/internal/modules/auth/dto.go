@@ -10,8 +10,8 @@ type WeChatLoginRequest struct {
 // WeChatRegisterRequest completes a first-time member's registration. It is
 // authorized by the register ticket returned from the phone-mask step, which
 // already carries the authorized phone (no member exists until this succeeds).
-// AvatarURL, Nickname, and Gender are all required — the member is NOT created
-// until the complete profile is submitted.
+// AvatarURL, Nickname, and Gender are all required before a full member session
+// is issued; an OpenID-only pre-registration may already exist.
 type WeChatRegisterRequest struct {
 	RegisterTicket string `json:"registerTicket" binding:"required"`
 	AvatarURL      string `json:"avatarUrl" binding:"required"`
@@ -53,6 +53,7 @@ type LoginResponse struct {
 type MemberProfile struct {
 	ID           int64          `json:"id"`
 	Nickname     string         `json:"nickname"`
+	Gender       string         `json:"gender,omitempty"`
 	AvatarURL    string         `json:"avatarUrl,omitempty"`
 	MemberNo     string         `json:"memberNo,omitempty"`
 	Phone        string         `json:"phone,omitempty"`

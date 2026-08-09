@@ -37,12 +37,12 @@ type sqlRepository struct{ db *platdb.DB }
 // NewRepository builds the MySQL store repository.
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
-const storeColumns = `id, name, logo_asset_id, COALESCE(phone,''), address,
+const storeColumns = `id, name, logo_asset_id, COALESCE(phone,''), customer_service_qr_asset_id, address,
 	latitude, longitude, business_hours, status, created_at, updated_at`
 
 func scanStore(row interface{ Scan(...any) error }) (Store, error) {
 	var s Store
-	err := row.Scan(&s.ID, &s.Name, &s.LogoAssetID, &s.Phone, &s.Address,
+	err := row.Scan(&s.ID, &s.Name, &s.LogoAssetID, &s.Phone, &s.CustomerServiceQRAssetID, &s.Address,
 		&s.Latitude, &s.Longitude, &s.BusinessHours, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 	return s, err
 }
@@ -86,10 +86,10 @@ func (r *sqlRepository) UpdateStoreProfile(ctx context.Context, storeID int64, f
 	if storeID <= 0 {
 		return Store{}, apperr.Invalid("invalid storeID")
 	}
-	const q = `UPDATE stores SET name = ?, phone = ?, address = ?, business_hours = ?,
+	const q = `UPDATE stores SET name = ?, phone = ?, customer_service_qr_asset_id = ?, address = ?, business_hours = ?,
 		latitude = ?, longitude = ?, logo_asset_id = ?, updated_at = NOW()
 		WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, q, fields.Name, fields.Phone, fields.Address, fields.BusinessHours,
+	_, err := r.db.ExecContext(ctx, q, fields.Name, fields.Phone, fields.CustomerServiceQRAssetID, fields.Address, fields.BusinessHours,
 		fields.Latitude, fields.Longitude, fields.LogoAssetID, storeID)
 	if err != nil {
 		return Store{}, apperr.Internal(err)
@@ -101,9 +101,9 @@ func (r *sqlRepository) UpdateStoreProfile(ctx context.Context, storeID int64, f
 // stores default to active.
 func (r *sqlRepository) CreateStore(ctx context.Context, input StoreInput) (Store, error) {
 	const q = `INSERT INTO stores
-		(name, logo_asset_id, phone, address, latitude, longitude, business_hours, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, input.Name, input.LogoAssetID, input.Phone, input.Address,
+		(name, logo_asset_id, phone, customer_service_qr_asset_id, address, latitude, longitude, business_hours, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	res, err := r.db.ExecContext(ctx, q, input.Name, input.LogoAssetID, input.Phone, input.CustomerServiceQRAssetID, input.Address,
 		input.Latitude, input.Longitude, input.BusinessHours, StatusActive)
 	if err != nil {
 		return Store{}, apperr.Internal(err)
@@ -118,10 +118,10 @@ func (r *sqlRepository) CreateStore(ctx context.Context, input StoreInput) (Stor
 // UpdateStore applies a full-replace update to an existing store profile. A
 // missing row surfaces as NotFound via the trailing GetStore.
 func (r *sqlRepository) UpdateStore(ctx context.Context, id int64, input StoreInput) (Store, error) {
-	const q = `UPDATE stores SET name = ?, phone = ?, address = ?, business_hours = ?,
+	const q = `UPDATE stores SET name = ?, phone = ?, customer_service_qr_asset_id = ?, address = ?, business_hours = ?,
 		latitude = ?, longitude = ?, logo_asset_id = ?, updated_at = NOW()
 		WHERE id = ?`
-	res, err := r.db.ExecContext(ctx, q, input.Name, input.Phone, input.Address, input.BusinessHours,
+	res, err := r.db.ExecContext(ctx, q, input.Name, input.Phone, input.CustomerServiceQRAssetID, input.Address, input.BusinessHours,
 		input.Latitude, input.Longitude, input.LogoAssetID, id)
 	if err != nil {
 		return Store{}, apperr.Internal(err)

@@ -46,6 +46,10 @@ const statusSelectOptions = computed<SelectOption[]>(() => [
       @update:value="emit('update:status', $event === '' ? null : $event)"
     />
 
+    <div class="filter-bar__extra">
+      <slot name="prefix-filters" />
+    </div>
+
     <NInput
       v-if="searchable"
       class="filter-bar__search"

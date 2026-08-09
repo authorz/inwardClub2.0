@@ -52,17 +52,23 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	g.GET("/stores/:storeID/catalog/categories", a.catalogHandler.Categories)
 	g.GET("/stores/:storeID/catalog/items", a.catalogHandler.Items)
 	g.GET("/stores/:storeID/activities", a.activityHandler.ListForStore)
+	g.GET("/stores/:storeID/activities/today", a.activityHandler.TodayForStore)
+	g.GET("/stores/:storeID/tournament-events", a.tournamentHandler.PublicList)
 	g.GET("/stores/:storeID/tables", a.reservationHandler.Tables)
 	g.GET("/stores/:storeID/seats", a.reservationHandler.Seats)
 	g.GET("/activities", a.activityHandler.List)
 	g.GET("/activities/:activityID", a.activityHandler.Detail)
+	g.GET("/tournament-events/:eventID", a.tournamentHandler.PublicDetail)
 	g.GET("/membership-tiers", a.memberHandler.MembershipTiers)
 	g.GET("/recharge-products", a.memberHandler.RechargeProducts)
 	g.GET("/rankings", a.memberHandler.Rankings)
+	g.GET("/franchise-inquiries/config", a.franchiseHandler.Config)
+	g.POST("/franchise-inquiries", mw.OptionalAuth(authn.SubjectMember), a.franchiseHandler.Create)
 
 	// Auth (login/register/refresh are public; logout/me require a token).
 	// Register is authorized by the ticket MiniLogin returns for a new user.
 	g.POST("/auth/wechat/login", a.authHandler.MiniLogin)
+	g.POST("/auth/wechat/pre-register", a.authHandler.MiniPreRegister)
 	g.POST("/auth/wechat/register", a.authHandler.MiniRegister)
 	g.POST("/auth/wechat/register-avatar", a.authHandler.RegisterAvatar)
 	g.POST("/auth/wechat/phone-mask", a.authHandler.GetPhoneMask)
@@ -82,6 +88,15 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)
 	p.GET("/coupon-redemptions/:id", a.couponHandler.GetRedemption)
 
+	// Reservations also accept a restricted OpenID-only pre-registration
+	// identity. No other member capability is exposed to pre_member tokens.
+	reservationRead := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember))
+	reservationRead.GET("/reservations", a.reservationHandler.ListReservations)
+	reservationRead.GET("/reservations/:reservationID", a.reservationHandler.GetReservation)
+	reservationWrite := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember), idempotency.Require())
+	reservationWrite.POST("/reservations", a.reservationHandler.CreateReservation)
+	reservationWrite.POST("/reservations/:reservationID/cancel", a.reservationHandler.CancelReservation)
+
 	// Money/asset-mutating endpoints require an Idempotency-Key.
 	idem := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff), idempotency.Require())
 	idem.POST("/sign-ins", a.walletHandler.SignIn)
@@ -91,8 +106,6 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/food-orders", a.orderHandler.CreateFoodOrder)
 	idem.POST("/recharge-orders", a.orderHandler.CreateRechargeOrder)
 	idem.POST("/activity-orders", a.orderHandler.CreateActivityOrder)
-	idem.POST("/reservations", a.reservationHandler.CreateReservation)
-	idem.POST("/reservations/:reservationID/cancel", a.reservationHandler.CancelReservation)
 	idem.POST("/waitlist-entries", a.reservationHandler.CreateWaitlistEntry)
 	idem.POST("/coupon-redemptions", a.couponHandler.Redeem)
 	idem.POST("/payment-orders/:paymentOrderID/wechat-jsapi", a.orderHandler.WeChatJSAPI)
@@ -106,8 +119,6 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/activity-orders", a.orderHandler.ListActivityOrders)
 	p.GET("/activity-orders/:orderID", a.orderHandler.GetActivityOrder)
 	p.GET("/tickets", a.orderHandler.ListTickets)
-	p.GET("/reservations", a.reservationHandler.ListReservations)
-	p.GET("/reservations/:reservationID", a.reservationHandler.GetReservation)
 
 	// Mini-program staff operations use the mini audience with a staff-only
 	// subject. Store scope comes from the bound staff account in the JWT.
@@ -158,6 +169,11 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.PUT("/point-review-settings", a.pointReviewSettingsHandler.Update)
 	p.GET("/global-settings", a.globalSettingsHandler.Get)
 	p.PUT("/global-settings", a.globalSettingsHandler.Update)
+	p.GET("/store-low-spend-rules", a.storeLowSpendRuleHandler.AdminList)
+	p.PUT("/store-low-spend-rules/:storeID", a.storeLowSpendRuleHandler.AdminUpdate)
+	p.DELETE("/store-low-spend-rules/:storeID", a.storeLowSpendRuleHandler.AdminDelete)
+	p.GET("/franchise-inquiries", a.franchiseHandler.AdminList)
+	p.PATCH("/franchise-inquiries/:inquiryID/status", a.franchiseHandler.AdminUpdateStatus)
 	p.GET("/error-events", a.diagnosticsHandler.ListErrorEvents)
 	p.GET("/refunds", a.adminHandler.Refunds)
 	p.GET("/refund-orders", a.adminHandler.Refunds)
@@ -275,6 +291,14 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.PUT("/activities/:activityID", a.activityConsoleHandler.UpdateActivity)
 	p.DELETE("/activities/:activityID", a.activityConsoleHandler.DeleteActivity)
 
+	// Tournament events are store-bound informational competitions, separate
+	// from ticketed activities.
+	p.GET("/tournament-events", a.tournamentHandler.AdminList)
+	p.GET("/tournament-events/:eventID", a.tournamentHandler.AdminGet)
+	p.POST("/tournament-events", a.tournamentHandler.AdminCreate)
+	p.PUT("/tournament-events/:eventID", a.tournamentHandler.AdminUpdate)
+	p.DELETE("/tournament-events/:eventID", a.tournamentHandler.AdminDelete)
+
 	// Activity sessions and ticket types (reads).
 	p.GET("/activities/:activityID/sessions", a.activityConsoleHandler.Sessions)
 	p.GET("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.SessionDetail)
@@ -286,6 +310,8 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.POST("/coupon-templates", a.couponConsoleHandler.Create)
 	p.PUT("/coupon-templates/:id", a.couponConsoleHandler.Update)
 	p.DELETE("/coupon-templates/:id", a.couponConsoleHandler.Delete)
+	p.POST("/coupon-templates/:id/publish", a.couponConsoleHandler.Publish)
+	p.POST("/coupon-templates/:id/disable", a.couponConsoleHandler.Disable)
 	p.GET("/coupon-templates/:id/applicable-items", a.couponConsoleHandler.ApplicableItems)
 
 	// High-risk coupon entitlement actions require an Idempotency-Key.
@@ -316,7 +342,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/auth/logout", a.authHandler.AccountLogout)
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 
-	p.GET("/profile", a.adminHandler.StoreProfile)
+	p.GET("/profile", a.storeConsoleHandler.GetOwnProfile)
 	p.GET("/catalog/items", a.catalogConsoleHandler.StoreItems)
 	p.GET("/coupon-templates", a.adminHandler.StoreCouponTemplates)
 	p.GET("/activities", a.adminHandler.StoreActivities)
@@ -385,6 +411,8 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	// Own-store settings.
 	p.GET("/settings", a.storeConsoleHandler.GetOwnSettings)
 	idem.PUT("/settings", a.storeConsoleHandler.UpdateOwnSettings)
+	p.GET("/low-spend-reward-rule", a.storeLowSpendRuleHandler.StoreGet)
+	idem.PUT("/low-spend-reward-rule", a.storeLowSpendRuleHandler.StoreUpdate)
 
 	// Tables and seats (own store only).
 	p.GET("/tables", a.reservationConsoleHandler.StoreListTables)
@@ -431,6 +459,13 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.PUT("/activities/:activityID", a.activityConsoleHandler.StoreUpdateActivity)
 	idem.DELETE("/activities/:activityID", a.activityConsoleHandler.StoreDeleteActivity)
 
+	// Own-store tournament events.
+	p.GET("/tournament-events", a.tournamentHandler.StoreList)
+	p.GET("/tournament-events/:eventID", a.tournamentHandler.StoreGet)
+	idem.POST("/tournament-events", a.tournamentHandler.StoreCreate)
+	idem.PUT("/tournament-events/:eventID", a.tournamentHandler.StoreUpdate)
+	idem.DELETE("/tournament-events/:eventID", a.tournamentHandler.StoreDelete)
+
 	// Activity sessions and ticket types.
 	p.GET("/activities/:activityID/sessions", a.activityConsoleHandler.StoreSessions)
 	p.GET("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.StoreSessionDetail)
@@ -449,6 +484,8 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/coupon-templates", a.couponConsoleHandler.StoreCreate)
 	idem.PUT("/coupon-templates/:id", a.couponConsoleHandler.StoreUpdate)
 	idem.DELETE("/coupon-templates/:id", a.couponConsoleHandler.StoreDelete)
+	idem.POST("/coupon-templates/:id/publish", a.couponConsoleHandler.StorePublish)
+	idem.POST("/coupon-templates/:id/disable", a.couponConsoleHandler.StoreDisable)
 
 	// High-risk coupon entitlement actions.
 	idem.POST("/coupon-grants", a.couponConsoleHandler.StoreGrant)

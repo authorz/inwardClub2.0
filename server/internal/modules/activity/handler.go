@@ -44,6 +44,21 @@ func (h *Handler) ListForStore(c *gin.Context) {
 	httpx.List(c, views, httpx.MetaFor(page, total))
 }
 
+// TodayForStore handles GET /mini/stores/{storeID}/activities/today.
+func (h *Handler) TodayForStore(c *gin.Context) {
+	storeID, err := pathID(c, "storeID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	views, err := h.svc.ListToday(c.Request.Context(), storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
+}
+
 // Detail handles GET /mini/activities/{activityID}.
 func (h *Handler) Detail(c *gin.Context) {
 	id, err := pathID(c, "activityID")

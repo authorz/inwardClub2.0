@@ -7,6 +7,7 @@ package idempotency
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,7 @@ import (
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 const headerName = "Idempotency-Key"
@@ -22,9 +24,13 @@ const headerName = "Idempotency-Key"
 // the request context for the service layer.
 func Require() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := c.GetHeader(headerName)
+		key := strings.TrimSpace(c.GetHeader(headerName))
 		if key == "" {
 			httpx.Fail(c, apperr.New(apperr.CodeIdempotencyRequired, "Idempotency-Key header is required"))
+			return
+		}
+		if _, err := inputvalidation.OpaqueToken("幂等请求标识", key, 128); err != nil {
+			httpx.Fail(c, apperr.Invalid(err.Error()))
 			return
 		}
 		c.Set(httpx.CtxIdemKey, key)
@@ -35,7 +41,11 @@ func Require() gin.HandlerFunc {
 // Optional captures the Idempotency-Key header when present without requiring it.
 func Optional() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if key := c.GetHeader(headerName); key != "" {
+		if key := strings.TrimSpace(c.GetHeader(headerName)); key != "" {
+			if _, err := inputvalidation.OpaqueToken("幂等请求标识", key, 128); err != nil {
+				httpx.Fail(c, apperr.Invalid(err.Error()))
+				return
+			}
 			c.Set(httpx.CtxIdemKey, key)
 		}
 		c.Next()

@@ -14,9 +14,16 @@ func TestClientMessageKeepsChineseBusinessMessage(t *testing.T) {
 }
 
 func TestClientMessageTranslatesKnownBusinessMessage(t *testing.T) {
-	got := clientMessage(apperr.CodeConflict, "capacity cannot be lower than existing seat count")
-	if got != "座位数量不能小于该桌子已有的座位数" {
-		t.Fatalf("clientMessage() = %q", got)
+	tests := map[string]string{
+		"capacity cannot be lower than existing seat count": "座位数量不能小于该桌子已有的座位数",
+		"seat is already reserved":                          "该座位已被预约，请选择其他座位",
+		"seat is not available":                             "该座位当前不可预约，请选择其他座位",
+		"reservation cannot be cancelled":                   "该预约已取消或不存在",
+	}
+	for message, want := range tests {
+		if got := clientMessage(apperr.CodeConflict, message); got != want {
+			t.Fatalf("clientMessage(%q) = %q, want %q", message, got, want)
+		}
 	}
 }
 

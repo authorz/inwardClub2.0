@@ -18,7 +18,7 @@
     <text class="ap__section-title">选择票种</text>
     <view wx:if="{{tickets.length}}" class="ap__tickets">
       <view
-        class="ap__ticket {{ticketId === item.id ? 'is-active' : ''}}"
+        class="ap__ticket {{ticketId === item.id ? 'is-active' : ''}} {{item.disabled ? 'is-disabled' : ''}}"
         wx:for="{{tickets}}"
         wx:key="id"
         data-id="{{item.id}}"
@@ -30,7 +30,7 @@
             <text class="ap__ticket-name">{{item.name}}</text>
             <text class="ap__ticket-price">¥{{item.priceText}}</text>
           </view>
-          <text class="ap__ticket-stock">{{item.stockText}} · {{item.limitText}}</text>
+          <text class="ap__ticket-stock">{{item.metaText}}</text>
         </view>
         <view wx:if="{{ticketId === item.id}}" class="ap__qty" catchtap="noop">
           <text class="ap__qty-label">购买数量</text>

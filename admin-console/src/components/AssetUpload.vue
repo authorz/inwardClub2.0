@@ -22,15 +22,18 @@ const props = withDefaults(
     assetId?: string | number | null
     /** 编辑态已有图片的展示地址（服务端返回 bannerUrl，仅预览） */
     previewUrl?: string | null
+    /** 上传成功后自动回填的公开访问地址。 */
+    publicUrl?: string | null
     width?: number
     height?: number
   }>(),
-  { path: null, assetId: null, previewUrl: null, width: 160, height: 80 },
+  { path: null, assetId: null, previewUrl: null, publicUrl: null, width: 160, height: 80 },
 )
 
 const emit = defineEmits<{
   'update:path': [value: string | null]
   'update:assetId': [value: string | null]
+  'update:publicUrl': [value: string]
 }>()
 
 const uploading = ref(false)
@@ -52,6 +55,7 @@ async function customRequest({
     const result = await assetService.uploadImage(props.purpose, raw)
     emit('update:path', result.objectKey)
     emit('update:assetId', String(result.assetId))
+    emit('update:publicUrl', result.publicUrl)
     uploadedUrl.value = result.publicUrl
     onFinish()
   } catch (e) {
@@ -69,7 +73,7 @@ async function customRequest({
     style="width: 100%"
   >
     <AssetImage
-      :src="uploadedUrl || previewUrl || null"
+      :src="publicUrl || uploadedUrl || previewUrl || null"
       :width="width"
       :height="height"
     />
@@ -80,7 +84,7 @@ async function customRequest({
       accept="image/png,image/jpeg,image/webp"
     >
       <NButton :loading="uploading">
-        {{ path || assetId ? '重新上传' : '上传图片' }}
+        {{ path || assetId || publicUrl ? '重新上传' : '上传图片' }}
       </NButton>
     </NUpload>
   </NSpace>

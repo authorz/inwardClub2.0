@@ -7,6 +7,7 @@ import (
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // AssetResolver resolves assets to public URLs. Implemented by asset.Service.
@@ -24,20 +25,33 @@ type PhoneResolver interface {
 	ResolvePhone(ctx context.Context, code string) (string, error)
 }
 
+// PhoneChangePolicy supplies the headquarters-configured cooldown.
+type PhoneChangePolicy interface {
+	PhoneChangeIntervalDays(ctx context.Context) (int, error)
+}
+
 // Service provides the member self-service and catalogue read operations.
 type Service struct {
-	repo   Repository
-	assets AssetResolver
-	phone  PhoneResolver
+	repo              Repository
+	assets            AssetResolver
+	phone             PhoneResolver
+	phoneChangePolicy PhoneChangePolicy
 }
 
 // NewService builds the member service. phone may be nil until the WeChat phone
 // exchange is available.
-func NewService(repo Repository, assets AssetResolver, phone PhoneResolver) *Service {
-	return &Service{repo: repo, assets: assets, phone: phone}
+func NewService(repo Repository, assets AssetResolver, phone PhoneResolver, policies ...PhoneChangePolicy) *Service {
+	svc := &Service{repo: repo, assets: assets, phone: phone}
+	if len(policies) > 0 {
+		svc.phoneChangePolicy = policies[0]
+	}
+	return svc
 }
 
-const defaultRankingLimit = 20
+const (
+	defaultRankingLimit            = 50
+	defaultPhoneChangeIntervalDays = 30
+)
 
 // GetProfile returns the member profile view.
 func (s *Service) GetProfile(ctx context.Context, memberID int64) (MemberView, error) {
@@ -50,7 +64,35 @@ func (s *Service) GetProfile(ctx context.Context, memberID int64) (MemberView, e
 
 // UpdateProfile applies a partial profile update and returns the fresh view.
 func (s *Service) UpdateProfile(ctx context.Context, memberID int64, req UpdateProfileRequest) (MemberView, error) {
-	if err := s.repo.UpdateProfile(ctx, memberID, ProfileUpdate{Nickname: req.Nickname, AvatarAssetID: req.AssetID, AvatarURL: req.AvatarURL}); err != nil {
+	if req.Nickname != nil {
+		nickname, err := inputvalidation.PlainText(*req.Nickname, inputvalidation.TextOptions{
+			Label: "昵称", MinRunes: 1, MaxRunes: 30,
+		})
+		if err != nil {
+			return MemberView{}, apperr.Invalid(err.Error())
+		}
+		req.Nickname = &nickname
+	}
+	if req.Gender != nil {
+		gender := *req.Gender
+		if gender != "male" && gender != "female" && gender != "other" {
+			return MemberView{}, apperr.Invalid("请选择正确的性别")
+		}
+	}
+	if req.AssetID != nil && *req.AssetID <= 0 {
+		return MemberView{}, apperr.Invalid("头像资源不正确")
+	}
+	if req.AvatarURL != nil {
+		avatarURL, err := inputvalidation.HTTPURL("头像", *req.AvatarURL, true)
+		if err != nil {
+			return MemberView{}, apperr.Invalid(err.Error())
+		}
+		req.AvatarURL = &avatarURL
+	}
+	if req.Nickname == nil && req.Gender == nil && req.AssetID == nil && req.AvatarURL == nil {
+		return MemberView{}, apperr.Invalid("没有需要更新的资料")
+	}
+	if err := s.repo.UpdateProfile(ctx, memberID, ProfileUpdate{Nickname: req.Nickname, Gender: req.Gender, AvatarAssetID: req.AssetID, AvatarURL: req.AvatarURL}); err != nil {
 		return MemberView{}, err
 	}
 	return s.GetProfile(ctx, memberID)
@@ -62,14 +104,30 @@ func (s *Service) BindPhone(ctx context.Context, memberID int64, req BindPhoneRe
 	if s.phone == nil {
 		return PhoneBindingView{}, ErrPhoneBindingUnavailable
 	}
-	phone, err := s.phone.ResolvePhone(ctx, req.Code)
-	if err != nil {
-		return PhoneBindingView{}, apperr.Unauthenticated("wechat phone authorization failed")
+	code, validationErr := inputvalidation.OpaqueToken("手机号授权凭证", req.Code, 2048)
+	if validationErr != nil {
+		return PhoneBindingView{}, apperr.Invalid(validationErr.Error())
 	}
-	if err := s.repo.UpdatePhone(ctx, memberID, phone); err != nil {
+	phone, err := s.phone.ResolvePhone(ctx, code)
+	if err != nil {
+		return PhoneBindingView{}, apperr.Invalid("微信手机号授权失败，请重新授权").WithCause(err)
+	}
+	intervalDays := defaultPhoneChangeIntervalDays
+	if s.phoneChangePolicy != nil {
+		intervalDays, err = s.phoneChangePolicy.PhoneChangeIntervalDays(ctx)
+		if err != nil {
+			return PhoneBindingView{}, err
+		}
+	}
+	change, err := s.repo.UpdatePhone(ctx, memberID, phone, intervalDays)
+	if err != nil {
 		return PhoneBindingView{}, err
 	}
-	return PhoneBindingView{PhoneMasked: maskPhone(phone), Bound: true}, nil
+	view := PhoneBindingView{PhoneMasked: maskPhone(phone), Bound: true, Changed: change.Changed}
+	if !change.NextAllowedAt.IsZero() {
+		view.NextChangeAvailableAt = change.NextAllowedAt.UTC().Format(time.RFC3339)
+	}
+	return view, nil
 }
 
 // ListInvitations returns the members invited by the current member.
@@ -97,7 +155,11 @@ func (s *Service) ListInvitations(ctx context.Context, memberID int64, page http
 // BindInvitation binds the current member to an inviter by invite code. A member
 // may bind exactly once and never to themselves.
 func (s *Service) BindInvitation(ctx context.Context, memberID int64, req BindInvitationRequest) error {
-	inviter, err := s.repo.GetByInviteCode(ctx, req.InviteCode)
+	inviteCode, validationErr := inputvalidation.InviteCode(req.InviteCode, false)
+	if validationErr != nil {
+		return apperr.Invalid(validationErr.Error())
+	}
+	inviter, err := s.repo.GetByInviteCode(ctx, inviteCode)
 	if err != nil {
 		return err
 	}
@@ -239,12 +301,20 @@ func (s *Service) CreateRechargeProduct(ctx context.Context, req RechargeProduct
 	if req.PointsAmount < 0 {
 		return RechargeProductView{}, apperr.Invalid("member: pointsAmount cannot be negative")
 	}
+	if req.CouponTemplateID != nil {
+		if *req.CouponTemplateID <= 0 {
+			req.CouponTemplateID = nil
+		} else if err := s.repo.ValidateRechargeCouponTemplate(ctx, *req.CouponTemplateID); err != nil {
+			return RechargeProductView{}, err
+		}
+	}
 	p, err := s.repo.CreateRechargeProduct(ctx, RechargeProductCreate{
-		AmountCent:   req.AmountCent,
-		CoinAmount:   req.CoinAmount,
-		PointsAmount: req.PointsAmount,
-		SortOrder:    req.SortOrder,
-		Status:       req.Status,
+		AmountCent:       req.AmountCent,
+		CoinAmount:       req.CoinAmount,
+		PointsAmount:     req.PointsAmount,
+		CouponTemplateID: req.CouponTemplateID,
+		SortOrder:        req.SortOrder,
+		Status:           req.Status,
 	})
 	if err != nil {
 		return RechargeProductView{}, err
@@ -261,7 +331,17 @@ func (s *Service) UpdateRechargeProduct(ctx context.Context, productID int64, re
 		SortOrder:    req.SortOrder,
 		Status:       req.Status,
 	}
-	if u.AmountCent == nil && u.CoinAmount == nil && u.PointsAmount == nil && u.SortOrder == nil && u.Status == nil {
+	if req.CouponTemplateID != nil {
+		var couponID *int64
+		if *req.CouponTemplateID > 0 {
+			if err := s.repo.ValidateRechargeCouponTemplate(ctx, *req.CouponTemplateID); err != nil {
+				return RechargeProductView{}, err
+			}
+			couponID = req.CouponTemplateID
+		}
+		u.CouponTemplateID = &couponID
+	}
+	if u.AmountCent == nil && u.CoinAmount == nil && u.PointsAmount == nil && u.CouponTemplateID == nil && u.SortOrder == nil && u.Status == nil {
 		return RechargeProductView{}, apperr.Invalid("member: no recharge product fields to update")
 	}
 	if u.AmountCent != nil && *u.AmountCent <= 0 {
@@ -302,11 +382,16 @@ func (s *Service) ListRankings(ctx context.Context, period string) ([]RankingEnt
 	}
 	views := make([]RankingEntryView, 0, len(entries))
 	for _, e := range entries {
+		avatarURL := e.AvatarURL
+		if avatarURL == "" {
+			avatarURL = s.assetURL(ctx, e.AvatarAssetID)
+		}
 		views = append(views, RankingEntryView{
 			Rank:      e.Rank,
 			MemberID:  e.MemberID,
 			Nickname:  e.Nickname,
-			AvatarURL: s.assetURL(ctx, e.AvatarAssetID),
+			AvatarURL: avatarURL,
+			Gender:    e.Gender,
 			Score:     e.Score,
 		})
 	}
@@ -317,6 +402,7 @@ func (s *Service) memberView(ctx context.Context, m Member) MemberView {
 	return MemberView{
 		ID:         m.ID,
 		Nickname:   m.Nickname,
+		Gender:     m.Gender,
 		Phone:      maskPhone(m.Phone),
 		AvatarURL:  s.assetURL(ctx, m.AvatarAssetID),
 		InviteCode: m.InviteCode,
@@ -402,12 +488,13 @@ func (s *Service) baseTierView(ctx context.Context) (*MembershipTierView, error)
 
 func rechargeProductView(p RechargeProduct) RechargeProductView {
 	return RechargeProductView{
-		ID:           p.ID,
-		AmountCent:   p.AmountCent,
-		CoinAmount:   p.CoinAmount,
-		PointsAmount: p.PointsAmount,
-		SortOrder:    p.SortOrder,
-		Status:       p.Status,
+		ID:               p.ID,
+		AmountCent:       p.AmountCent,
+		CoinAmount:       p.CoinAmount,
+		PointsAmount:     p.PointsAmount,
+		CouponTemplateID: p.CouponTemplateID,
+		SortOrder:        p.SortOrder,
+		Status:           p.Status,
 	}
 }
 

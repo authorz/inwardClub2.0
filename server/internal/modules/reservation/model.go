@@ -35,6 +35,7 @@ type Seat struct {
 	MemberNickname  string
 	MemberAvatarURL string
 	MemberGender    string
+	BookedAsGuest   bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -45,6 +46,7 @@ type Reservation struct {
 	ReservationNo       string
 	StoreID             int64
 	MemberID            int64
+	BookedAsGuest       bool
 	TableID             *int64
 	SeatID              *int64
 	PartySize           int

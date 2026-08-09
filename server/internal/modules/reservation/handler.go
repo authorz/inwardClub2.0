@@ -68,10 +68,12 @@ func (h *Handler) CreateReservation(c *gin.Context) {
 	claims := authn.MustFromContext(c)
 	var req CreateReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		httpx.Fail(c, apperr.Invalid("请求内容格式不正确"))
 		return
 	}
-	view, err := h.svc.CreateReservation(c.Request.Context(), claims.SubjectID(), req)
+	view, err := h.svc.CreateReservationForActor(
+		c.Request.Context(), claims.SubjectID(), claims.SubjectType == authn.SubjectPreMember, req,
+	)
 	if err != nil {
 		httpx.Fail(c, err)
 		return

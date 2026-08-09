@@ -125,7 +125,7 @@
 .ic-ic-ticket::before { left: -8rpx; }
 .ic-ic-ticket::after { right: -8rpx; }
 
-.ic-ic-coupon { background: url("/assets/icons/coupon-gpt.png") center / contain no-repeat; }
+.ic-ic-coupon { background: url("https://assets.inwardclub.com/public/images/coupon-gpt.png") center / contain no-repeat; }
 
 .ic-ic-list::before { content: ""; position: absolute; left: 4rpx; right: 4rpx; top: 10rpx; height: 3rpx; background: currentColor; box-shadow: 0 11rpx 0 currentColor, 0 22rpx 0 currentColor; }
 

@@ -449,6 +449,13 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 			); err != nil {
 				return err
 			}
+			if storeID.Valid {
+				if _, err := wallet.GrantTimedLowSpendReward(
+					ctx, tx, businessID, in.MemberID, storeID.Int64, in.Now,
+				); err != nil {
+					return err
+				}
+			}
 		}
 		// A store-bound coin settlement (food / store activity) prints a receipt on
 		// the store's printer; a store-less order (recharge) prints nothing. Rides
@@ -462,6 +469,7 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 				OrderType:       orderType,
 				AmountCent:      amount,
 				PaidAt:          in.Now,
+				CoinBalance:     &newBalance,
 			}); err != nil {
 				return err
 			}

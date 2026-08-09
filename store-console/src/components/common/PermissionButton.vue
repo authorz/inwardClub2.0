@@ -19,8 +19,17 @@ const props = withDefaults(
     loading?: boolean
     disabled?: boolean
     text?: boolean
+    ariaLabel?: string
   }>(),
-  { fallback: 'hide', type: 'default', size: 'small', loading: false, disabled: false, text: false },
+  {
+    fallback: 'hide',
+    type: 'default',
+    size: 'small',
+    loading: false,
+    disabled: false,
+    text: false,
+    ariaLabel: undefined,
+  },
 )
 
 const emit = defineEmits<{ click: [] }>()
@@ -43,6 +52,7 @@ const isDisabled = computed(() => props.disabled || (!allowed.value && props.fal
         :disabled="isDisabled"
         :loading="loading"
         :text="text"
+        :aria-label="ariaLabel"
       >
         <slot />
       </NButton>
@@ -56,6 +66,7 @@ const isDisabled = computed(() => props.disabled || (!allowed.value && props.fal
     :disabled="isDisabled"
     :loading="loading"
     :text="text"
+    :aria-label="ariaLabel"
     @click="emit('click')"
   >
     <slot />

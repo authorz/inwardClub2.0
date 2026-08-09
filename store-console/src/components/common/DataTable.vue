@@ -20,6 +20,7 @@ const props = withDefaults(
     total?: number
     rowKey?: (row: T) => string | number
     emptyText?: string
+    scrollX?: number
   }>(),
   { loading: false, page: 1, pageSize: 20, total: 0, emptyText: '暂无数据' },
 )
@@ -61,7 +62,8 @@ const defaultRowKey = (row: T): string | number => {
     :pagination="total > 0 ? pagination : false"
     remote
     :bordered="false"
-    :single-line="false"
+    :single-line="true"
+    :scroll-x="scrollX"
     size="small"
     @update:page="emit('update:page', $event)"
     @update:page-size="emit('update:pageSize', $event)"

@@ -1,6 +1,6 @@
 <view class="spr">
   <view class="spr__search">
-    <input class="spr__search-input" value="{{keyword}}" placeholder="搜索昵称或手机号" placeholder-class="spr__search-ph" bindinput="onSearch" />
+    <input class="spr__search-input" maxlength="50" value="{{keyword}}" placeholder="搜索昵称或手机号" placeholder-class="spr__search-ph" bindinput="onSearch" />
   </view>
   <ic-loading wx:if="{{loading}}" />
   <ic-empty wx:elif="{{!list.length}}" text="暂无积分审核申请" />

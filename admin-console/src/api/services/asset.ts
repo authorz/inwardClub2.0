@@ -16,6 +16,7 @@ export interface UploadCredential {
   objectKey: string
   uploadToken: string
   uploadUrl: string
+  publicUrl: string
   expiresAt: string
   maxSizeBytes: number
 }
@@ -61,6 +62,10 @@ export const assetService = {
       throw new Error(`图片上传失败（${res.status}）`)
     }
 
-    return { assetId: cred.assetId, objectKey: cred.objectKey, publicUrl: resolvePublicUrl(cred.objectKey) }
+    return {
+      assetId: cred.assetId,
+      objectKey: cred.objectKey,
+      publicUrl: cred.publicUrl || resolvePublicUrl(cred.objectKey),
+    }
   },
 }

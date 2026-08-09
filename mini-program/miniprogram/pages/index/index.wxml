@@ -1,46 +1,109 @@
-<page-meta page-style="{{(showLoginSheet || showSignInSheet) ? 'overflow: hidden;' : ''}}"></page-meta>
+<page-meta page-style="{{showSignInSheet ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="ic-page ic-page--tab home">
   <!-- Custom navigation: white brand bar aligned to the WeChat capsule -->
   <view class="home__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="home__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
+      <view
+        class="home__nav-store"
+        aria-label="切换门店 {{store ? store.name : '请选择门店'}}{{store ? (storeDistanceText === '位置未配置' ? '，位置未配置' : (storeDistanceText ? ('，距离' + storeDistanceText) : '，距离未知')) : ''}}"
+        aria-role="button"
+        hover-class="home__nav-store--hover"
+        bindtap="switchStore"
+      >
+        <view class="home__nav-store-copy">
+          <text class="home__nav-store-name ic-ellipsis">{{store ? store.name : '选择门店'}}</text>
+          <text wx:if="{{store}}" class="home__nav-store-distance">· {{storeDistanceText}}</text>
+        </view>
+        <view class="ic-arrow home__nav-store-arrow"></view>
+      </view>
       <image class="home__nav-logo" src="/assets/brand/logo-wordmark.png" mode="heightFix" />
     </view>
   </view>
 
-  <!-- Banner: real store banner image, else a restrained lounge placeholder -->
-  <view class="home__banner" bindtap="onBannerTap">
-    <image wx:if="{{banner.imageUrl}}" class="home__banner-img" src="{{banner.imageUrl}}" mode="aspectFill" />
-    <view wx:else class="home__banner-ph">
+  <!-- Activity hero: the former advertising Banner API is intentionally disabled. -->
+  <swiper
+    wx:if="{{activities.length}}"
+    class="home__banner"
+    autoplay="{{activities.length > 1}}"
+    circular="{{activities.length > 1}}"
+    interval="5000"
+    duration="350"
+    indicator-dots="{{activities.length > 1}}"
+    indicator-color="rgba(255,255,255,0.45)"
+    indicator-active-color="#ffffff"
+  >
+    <swiper-item wx:for="{{activities}}" wx:key="id">
+      <view class="home__banner-item" data-id="{{item.id}}" bindtap="goActivity">
+        <image wx:if="{{item.imageUrl}}" class="home__banner-img" src="{{item.imageUrl}}" mode="aspectFill" />
+        <view wx:else class="home__banner-ph">
+          <text class="home__banner-title">{{item.title || 'INWARD CLUB'}}</text>
+        </view>
+        <view wx:if="{{item.imageUrl}}" class="home__banner-info">
+          <view class="home__banner-info-head">
+            <text class="home__banner-activity-title ic-ellipsis">{{item.title}}</text>
+            <view
+              class="home__banner-all"
+              aria-label="查看全部活动"
+              aria-role="button"
+              hover-class="home__banner-all--hover"
+              catchtap="goActivityList"
+            >
+              <text>全部活动</text>
+              <view class="ic-arrow home__banner-all-arrow"></view>
+            </view>
+          </view>
+          <view class="home__banner-meta">
+            <text wx:if="{{item.storeName}}" class="home__banner-store ic-ellipsis">{{item.storeName}}</text>
+            <text wx:if="{{item.timeText}}" class="home__banner-time ic-ellipsis">{{item.timeText}}</text>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+  </swiper>
+  <view wx:else class="home__banner">
+    <view class="home__banner-ph">
       <text class="home__banner-title">INWARD CLUB</text>
       <text class="home__banner-sub">BELONG TO YOUR BEST</text>
     </view>
   </view>
 
-  <!-- Member card, overlapping the banner's lower edge. After login the member's
-       VIP tier banner fills the card as its background (with a scrim so the light
-       identity text stays readable); guests keep the dark gradient. -->
-  <view class="home__card ic-card {{loggedIn && me.tierBannerUrl ? 'home__card--vip' : ''}}">
-    <block wx:if="{{loggedIn && me.tierBannerUrl}}">
-      <image class="home__card-bg" src="{{me.tierBannerUrl}}" mode="widthFix" />
-      <view class="home__card-scrim"></view>
-    </block>
+  <view
+    class="home__franchise"
+    aria-label="了解全国招商加盟详情"
+    aria-role="button"
+    hover-class="home__franchise--hover"
+    bindtap="goFranchiseInquiry"
+  >
+    <image
+      class="home__franchise-poster"
+      src="https://assets.inwardclub.com/public/images/franchise-poster-light-wide-v4.webp"
+      mode="widthFix"
+    />
+  </view>
+
+  <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
+  <view class="home__card">
     <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">
       <view class="home__avatar {{loggedIn ? '' : 'home__avatar--guest'}}">
         <image wx:if="{{loggedIn && me.avatarUrl}}" class="home__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
         <image wx:else class="home__avatar-logo" src="/assets/brand/logo-wordmark.png" mode="aspectFit" />
       </view>
 
-      <!-- Logged-in: real member identity -->
-      <view wx:if="{{loggedIn}}" class="home__ident">
-        <text class="home__hello">Hello</text>
-        <text class="home__name ic-ellipsis">{{me.nickname || '会员'}}</text>
-        <view class="home__idrow">
-          <view wx:if="{{me.tierName}}" class="home__vip">
-            <text class="home__vip-mark">◆</text>
-            <text class="home__vip-name ic-ellipsis">{{me.tierName}}</text>
+      <!-- Logged-in: identity and tier are one branch; the guest branch is mutually exclusive. -->
+      <block wx:if="{{loggedIn}}">
+        <view class="home__ident">
+          <view class="home__member-name-line">
+            <text class="home__member-greeting">Hi,</text>
+            <text class="home__member-name ic-ellipsis">{{me.nickname || '会员'}}</text>
           </view>
+          <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
         </view>
-      </view>
+        <view class="home__vip">
+          <text class="home__vip-mark">◇</text>
+          <text class="home__vip-name ic-ellipsis">{{me.tierName || '普卡'}}</text>
+          <view class="ic-arrow home__vip-arrow"></view>
+        </view>
+      </block>
 
       <!-- Guest: no fake data, offer a login entry -->
       <view wx:else class="home__ident home__ident--guest">
@@ -50,59 +113,31 @@
         </view>
         <view class="home__login" hover-class="home__login--hover" bindtap="onLogin">登录</view>
       </view>
-
-      <text wx:if="{{loggedIn}}" class="home__spade">♠</text>
-    </view>
-    <text wx:if="{{loggedIn && me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
-  </view>
-
-  <!-- Recent store -->
-  <view class="home__store">
-    <ic-store-bar
-      wx:if="{{store}}"
-      flat="{{true}}"
-      name="{{store.name}}"
-      distance-meters="{{store.distanceMeters}}"
-      show-switch="{{true}}"
-      show-nav="{{true}}"
-      bind:switch="switchStore"
-      bind:nav="navStore"
-    />
-    <view wx:else class="home__store-empty" bindtap="switchStore">
-      <text class="ic-body">选择门店</text>
-      <view class="ic-arrow"></view>
     </view>
   </view>
 
-  <!-- Latest activities -->
-  <view class="home__sec home__sec--between">
-    <text class="ic-h2">最新活动</text>
-    <view class="home__more" hover-class="home__entry--hover" bindtap="goActivities">
-      <text>查看全部</text>
-      <view class="ic-arrow"></view>
+  <!-- Current store: real store name, address and location-derived distance. -->
+  <view wx:if="{{store}}" class="home__store-section">
+    <view class="home__store-section-head">
+      <text class="home__store-section-title">地址</text>
     </view>
-  </view>
-
-  <scroll-view wx:if="{{activities.length}}" class="home__acts" scroll-x enable-flex>
     <view
-      class="home__act"
-      wx:for="{{activities}}"
-      wx:key="id"
-      data-id="{{item.id}}"
-      bindtap="goActivity"
-      hover-class="home__act--hover"
+      class="home__store-panel"
+      aria-label="当前门店 {{store.name}}，{{store.address || '暂未填写地址'}}，距离 {{storeDistanceText}}，点击打开地图导航"
+      aria-role="button"
+      hover-class="home__store-panel--hover"
+      bindtap="navigateStore"
     >
-      <view class="home__act-poster">
-        <ic-poster src="{{item.imageUrl}}" title="{{item.title}}" tone="{{item.tone}}" radius="18rpx" />
+      <image class="home__store-panel-map" src="/assets/illustrations/store-map-lines.svg" mode="aspectFill" />
+      <view class="home__store-panel-copy">
+        <text class="home__store-panel-name ic-ellipsis">{{store.name}}</text>
+        <text class="home__store-panel-address ic-ellipsis">{{store.address || '门店暂未填写地址'}}</text>
       </view>
-      <text class="home__act-title ic-ellipsis">{{item.title}}</text>
-      <text class="home__act-time ic-ellipsis">{{item.timeText}}</text>
+      <view class="home__store-panel-location">
+        <image class="home__store-panel-icon" src="/assets/icons/location.svg" mode="aspectFit" />
+        <text class="home__store-panel-distance">{{storeDistanceText || '距离未知'}}</text>
+      </view>
     </view>
-  </scroll-view>
-  <ic-loading wx:elif="{{loading}}" />
-  <view wx:else class="home__empty-acts">
-    <image class="home__empty-acts-icon" src="/assets/empty/activity-empty.png" mode="aspectFit" />
-    <text class="home__empty-acts-text">暂无活动</text>
   </view>
 
   <view
@@ -166,43 +201,4 @@
     </view>
   </view>
 
-  <ic-bottom-sheet show="{{showLoginSheet}}" title="{{loginMode === 'register' ? '注册会员' : '绑定手机号'}}" max-height="86vh" bind:close="closeLoginSheet">
-    <view class="login">
-      <text class="login__hint">{{loginMode === 'register' ? '请完善以下资料完成注册' : '根据网络安全法规定，需绑定手机号后使用'}}</text>
-
-      <!-- register-only: avatar + nickname -->
-      <button wx:if="{{loginMode === 'register'}}" class="login__avatar" open-type="chooseAvatar" bindchooseavatar="onChooseLoginAvatar">
-        <image wx:if="{{loginForm.avatarUrl}}" class="login__avatar-img" src="{{loginForm.avatarUrl}}" mode="aspectFill" />
-        <view wx:else class="login__avatar-ph">
-          <text>INWARD</text>
-          <text>CLUB</text>
-        </view>
-      </button>
-
-      <view wx:if="{{loginMode === 'register'}}" class="login__row">
-        <text class="login__label">昵称<text class="login__req">*</text></text>
-        <input class="login__input" type="nickname" value="{{loginForm.nickName}}" placeholder="点击填写昵称" placeholder-class="login__input-ph" bindinput="onLoginNickname" bindblur="onLoginNickname" />
-      </view>
-
-      <!-- both modes: phone (required). Authorize -> backend decrypt -> masked, read-only. -->
-      <view class="login__row">
-        <text class="login__label">手机<text class="login__req">*</text></text>
-        <view class="login__control login__control--phone">
-          <text wx:if="{{loginForm.phoneBound}}" class="login__phone-val">{{loginForm.phoneMasked}}</text>
-          <button wx:else class="login__pill" loading="{{loginForm.phoneBinding}}" open-type="getPhoneNumber" bindgetphonenumber="onGetLoginPhoneNumber"><text class="login__pill-text">获取手机号</text></button>
-        </view>
-      </view>
-
-      <!-- register-only: gender -->
-      <view wx:if="{{loginMode === 'register'}}" class="login__row">
-        <text class="login__label">性别<text class="login__req">*</text></text>
-        <radio-group class="login__gender" bindchange="onLoginGender">
-          <label class="login__gender-item"><radio class="login__gender-radio" color="#111111" value="male" checked="{{loginForm.gender === 'male'}}" /><image class="login__gender-icon" src="/assets/icons/gender-male.svg" mode="aspectFit" /><text class="login__gender-text">男</text></label>
-          <label class="login__gender-item"><radio class="login__gender-radio" color="#111111" value="female" checked="{{loginForm.gender === 'female'}}" /><image class="login__gender-icon" src="/assets/icons/gender-female.svg" mode="aspectFit" /><text class="login__gender-text">女</text></label>
-        </radio-group>
-      </view>
-    </view>
-
-    <button slot="footer" class="login__confirm" loading="{{loginSubmitting}}" bindtap="confirmLogin">{{loginMode === 'register' ? '完成注册' : '绑定'}}</button>
-  </ic-bottom-sheet>
 </view>

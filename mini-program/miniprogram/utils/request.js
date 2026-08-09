@@ -149,9 +149,8 @@ async function request(method, path, options) {
   }
 }
 
-// failExpired clears the dead session and signals the app once (app.onSessionExpired)
-// so it can drop any logged-in page UI and prompt a re-login, then rethrows so the
-// caller's own error handling (empty-state fallback, etc.) still runs.
+// failExpired clears the dead session and asks visible pages to silently fall
+// back to logged-out UI, then rethrows so each caller can finish its own cleanup.
 function failExpired(err) {
   auth.clear();
   const app = typeof getApp === 'function' ? getApp() : null;

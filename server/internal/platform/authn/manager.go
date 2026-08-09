@@ -106,9 +106,10 @@ type RegisterTicketClaims struct {
 
 // IssueRegisterTicket mints a short-lived ticket that authorizes a first-time
 // WeChat user to complete registration. It carries the openID (as the JWT
-// subject) and, once authorized, the phone number; no member exists yet, so it
-// is NOT an access token and authorizes nothing but the register endpoint. Pass
-// an empty phone at login time; re-issue with the phone after it is authorized.
+// subject) and, once authorized, the phone number. It is NOT an access token and
+// authorizes nothing but registration, whether or not an OpenID-only member row
+// already exists. Pass an empty phone at login time; re-issue with the phone
+// after it is authorized.
 func (m *Manager) IssueRegisterTicket(openID, phone string) (string, error) {
 	now := m.now().UTC()
 	claims := RegisterTicketClaims{

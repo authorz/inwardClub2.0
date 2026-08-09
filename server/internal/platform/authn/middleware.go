@@ -105,6 +105,48 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuth attaches valid access-token claims when the caller is logged in,
+// while keeping the endpoint available to anonymous callers. Invalid, expired
+// or stale tokens are treated as anonymous instead of turning a public request
+// into a 401 response.
+func (m *Middleware) OptionalAuth(allowed ...SubjectType) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		raw := bearerToken(c)
+		if raw == "" {
+			c.Next()
+			return
+		}
+		claims, err := m.manager.Parse(raw, m.audience)
+		if err != nil || claims.Kind != TokenAccess {
+			c.Next()
+			return
+		}
+		if len(allowed) > 0 && !slices.Contains(allowed, claims.SubjectType) {
+			c.Next()
+			return
+		}
+		if m.audience == AudienceStore && !claims.HasStore() {
+			c.Next()
+			return
+		}
+		if m.audience == AudienceAdmin && claims.SubjectType != SubjectSuperAdmin {
+			c.Next()
+			return
+		}
+		if m.versions != nil {
+			current, err := m.versions.CurrentTokenVersion(
+				c.Request.Context(), claims.SubjectType, claims.SubjectID(),
+			)
+			if err != nil || current != claims.TokenVersion {
+				c.Next()
+				return
+			}
+		}
+		c.Set(httpx.CtxClaims, claims)
+		c.Next()
+	}
+}
+
 // FromContext returns the authenticated claims from the context.
 func FromContext(c *gin.Context) (*Claims, bool) {
 	v, ok := c.Get(httpx.CtxClaims)

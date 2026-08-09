@@ -4,7 +4,16 @@
  * 商品图片通过统一资产服务上传，列表直接展示服务端解析后的图片地址。
  */
 import { computed, h, onMounted, reactive, ref, watch } from 'vue'
-import { NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NText } from 'naive-ui'
+import {
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NSelect,
+  NSpace,
+  NSwitch,
+  NText,
+} from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { FilterField, ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
@@ -94,6 +103,12 @@ const columns = [
   ),
   moneyColumn<CatalogItem>('价格', 'priceCent'),
   textColumn<CatalogItem>('库存', 'stockQuantity', { width: 90 }),
+  renderColumn<CatalogItem>(
+    '赠送积分',
+    'pointsReward',
+    (row) => ((row.pointsReward ?? 0) > 0 ? `${row.pointsReward} 积分/份` : '不赠送'),
+    110,
+  ),
   statusColumn<CatalogItem>('状态', 'status', RESOURCE_STATUS_OPTIONS),
   dateTimeColumn<CatalogItem>('创建时间', 'createdAt'),
   actionsColumn<CatalogItem>(
@@ -139,6 +154,8 @@ interface ItemForm {
   priceYuan: number
   stockQuantity: number
   payChannels: string[]
+  rewardPointsEnabled: boolean
+  pointsReward: number
   sortOrder: number
   status: string
 }
@@ -157,6 +174,8 @@ const form = reactive<ItemForm>({
   priceYuan: 0,
   stockQuantity: 0,
   payChannels: ['wechat'],
+  rewardPointsEnabled: false,
+  pointsReward: 0,
   sortOrder: 0,
   status: RESOURCE_STATUS.DRAFT,
 })
@@ -194,6 +213,8 @@ function resetForm(): void {
   form.priceYuan = 0
   form.stockQuantity = 0
   form.payChannels = ['wechat']
+  form.rewardPointsEnabled = false
+  form.pointsReward = 0
   form.sortOrder = 0
   form.status = RESOURCE_STATUS.DRAFT
   uploadKey.value += 1
@@ -218,6 +239,8 @@ function openEdit(row: CatalogItem): void {
   form.priceYuan = (row.priceCent ?? 0) / 100
   form.stockQuantity = row.stockQuantity ?? 0
   form.payChannels = row.payChannels?.length ? [...row.payChannels] : ['wechat']
+  form.rewardPointsEnabled = (row.pointsReward ?? 0) > 0
+  form.pointsReward = row.pointsReward ?? 0
   form.sortOrder = row.sortOrder ?? 0
   form.status = row.status ?? RESOURCE_STATUS.DRAFT
   drawerShow.value = true
@@ -240,6 +263,9 @@ async function submit(): Promise<void> {
   if (!form.name.trim()) return toastError('请填写商品名称')
   if (!form.assetId) return toastError('请上传商品图片')
   if (!form.payChannels.length) return toastError('请选择至少一种支付方式')
+  if (form.rewardPointsEnabled && form.pointsReward <= 0) {
+    return toastError('请填写每份商品赠送的积分')
+  }
 
   const payload: Partial<CatalogItem> = {
     storeId: Number(form.storeId),
@@ -251,7 +277,7 @@ async function submit(): Promise<void> {
     priceCent: Math.round(form.priceYuan * 100),
     stockQuantity: form.stockQuantity,
     payChannels: form.payChannels,
-    pointsReward: 0,
+    pointsReward: form.rewardPointsEnabled ? Math.floor(form.pointsReward) : 0,
     sortOrder: form.sortOrder,
     status: form.status,
   }
@@ -387,6 +413,29 @@ onMounted(loadReferences)
             multiple
             :options="onlinePayChannelOptions.map(({ label, value }) => ({ label, value }))"
             placeholder="请选择支付方式"
+          />
+        </NFormItem>
+        <NFormItem label="购买后赠送积分">
+          <NSwitch v-model:value="form.rewardPointsEnabled">
+            <template #checked>
+              赠送
+            </template>
+            <template #unchecked>
+              不赠送
+            </template>
+          </NSwitch>
+        </NFormItem>
+        <NFormItem
+          v-if="form.rewardPointsEnabled"
+          label="每份赠送积分"
+          required
+        >
+          <NInputNumber
+            v-model:value="form.pointsReward"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+            placeholder="请输入购买每份商品赠送的积分"
           />
         </NFormItem>
         <NFormItem label="排序">

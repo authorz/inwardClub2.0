@@ -273,6 +273,18 @@ func TestCreateFoodOrderValidatesInput(t *testing.T) {
 	}
 }
 
+func TestCreateFoodOrderRejectsUnsafeRemark(t *testing.T) {
+	svc := newService(newMemRepo())
+	_, err := svc.CreateFoodOrder(context.Background(), 10, "idem-unsafe", CreateFoodOrderRequest{
+		StoreID: 5, PayMethod: PayMethodWeChat,
+		Items:  []FoodLineItem{{ItemID: 7, Quantity: 1}},
+		Remark: `<script>alert(1)</script>`,
+	})
+	if code := codeOf(t, err); code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected unsafe remark rejection, got %s", code)
+	}
+}
+
 func TestCreateFoodOrderCombinesDuplicateLines(t *testing.T) {
 	svc := newService(newMemRepo())
 	view, err := svc.CreateFoodOrder(context.Background(), 10, "idem-duplicates", CreateFoodOrderRequest{

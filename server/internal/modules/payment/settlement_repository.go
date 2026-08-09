@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/inwardclub/server/internal/modules/printer"
@@ -137,6 +138,27 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			); err != nil {
 				return err
 			}
+			if storeID.Valid {
+				if _, err := wallet.GrantTimedLowSpendReward(
+					ctx, tx, businessID, memberID.Int64, storeID.Int64, now,
+				); err != nil {
+					return err
+				}
+			}
+		}
+		// Every successful member-bound WeChat payment earns growth at ¥1 = 1.
+		// Use the business payment-order amount rather than the provider callback
+		// amount so payment-debug mode never changes member entitlements.
+		if memberID.Valid {
+			growthBalance, err := creditGrowthValue(
+				ctx, tx, paymentID, businessID, memberID.Int64, wechatGrowthAmount(amount), now,
+			)
+			if err != nil {
+				return err
+			}
+			if err := applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now); err != nil {
+				return err
+			}
 		}
 		// A store-bound settled order (food / store activity) prints a receipt on
 		// the store's printer; a store-less order (recharge) prints nothing. The
@@ -165,62 +187,244 @@ const (
 	rechargeSourceType       = "recharge_order"
 	rechargeCoinsIdemPrefix  = "recharge_order"
 	rechargePointsIdemPrefix = "recharge_points"
+
+	firstRechargeRewardSettingKey = "first_recharge_double_points_enabled"
+	firstRechargeRewardReason     = "first_recharge_reward"
+	firstRechargeRewardSource     = "first_recharge_reward"
+	firstRechargeRewardIdemPrefix = "first_recharge_reward"
+
+	rechargeRewardThresholdSettingKey = "recharge_double_points_threshold_amount"
+	defaultRechargeRewardThreshold    = int64(1000)
+	highValueRechargeRewardReason     = "high_value_recharge_reward"
+	highValueRechargeRewardSource     = "high_value_recharge_reward"
+	highValueRechargeRewardIdem       = "high_value_recharge_reward"
+	rechargePointRewardMultiplier     = int64(2)
 )
+
+type rechargePointReward struct {
+	amount     int64
+	reason     string
+	sourceType string
+	idemPrefix string
+}
 
 // creditRechargeBenefit grants the top-up entitlement for a settled recharge
 // order inside the settlement transaction. It matches business_orders.total_amount_cent
 // against recharge_products.amount_cent to resolve the configured grant, then:
 //   - credits coin_amount into the member's coins wallet;
 //   - credits points_amount into the member's points wallet;
-//   - accrues growth_amount into the member's growth_value wallet;
-//   - advances the member's VIP tier for the new growth balance (upgrade-only).
 //
 // Each entitlement is anchored on its own ledger idem_key so a duplicate
 // settlement never double-credits, and all of it commits atomically with the
 // paid order. A custom amount without a configured tier credits ¥1 as 1 coin.
 //
-// TODO(recharge-benefit): tier downgrade, expiry, monthly benefits and growth from
-// non-recharge channels (offline collection post-process, 低消/消费) stay pending the
-// VIP rules in spec §13; the threshold unit (growth_value vs points) also awaits
-// confirmation — see docs/acceptance/server-not-implemented-audit-2026-07-18.md §1.C.
+// VIP growth is granted once per successful WeChat payment by SettleWeChat,
+// outside this recharge-only entitlement helper.
 func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessID int64, memberID sql.NullInt64, amount int64, now time.Time) error {
 	if !memberID.Valid {
 		// A recharge order without a member cannot be credited; nothing to grant.
 		return nil
 	}
 
-	// Resolve configured grants from the matching quick-recharge tier. Custom
-	// amounts retain the ¥1 = 1 coin rule and grant no points or growth value.
-	coins, points, growth := customRechargeCoinAmount(amount), int64(0), int64(0)
-	const selProduct = `SELECT coin_amount, points_amount, growth_amount FROM recharge_products
+	// Resolve configured coin/point grants from the matching quick-recharge tier.
+	coins, points := customRechargeCoinAmount(amount), int64(0)
+	var couponTemplateID sql.NullInt64
+	const selProduct = `SELECT coin_amount, points_amount, coupon_template_id FROM recharge_products
 		WHERE amount_cent = ? AND status = 'active' ORDER BY id ASC LIMIT 1`
-	switch err := tx.QueryRowContext(ctx, selProduct, amount).Scan(&coins, &points, &growth); {
+	switch err := tx.QueryRowContext(ctx, selProduct, amount).Scan(&coins, &points, &couponTemplateID); {
 	case errors.Is(err, sql.ErrNoRows):
 	case err != nil:
 		return apperr.Internal(err)
 	}
-
-	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, coinsAsset, coins, rechargeCoinsIdemPrefix, now); err != nil {
-		return err
-	}
-	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset, points, rechargePointsIdemPrefix, now); err != nil {
-		return err
-	}
-
-	// Growth accrual and the VIP tier upgrade ride the same settlement
-	// transaction as the wallet credits, so they can never diverge from them.
-	growthBalance, err := creditGrowthValue(ctx, tx, paymentID, businessID, memberID.Int64, growth, now)
+	firstRecharge, err := claimFirstSuccessfulRecharge(ctx, tx, memberID.Int64, businessID, now)
 	if err != nil {
 		return err
 	}
-	return applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now)
+	firstRechargeRewardEnabled, rewardThresholdCent, err := rechargeRewardSettings(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, coinsAsset, coins, "recharge", rechargeSourceType, rechargeCoinsIdemPrefix, now); err != nil {
+		return err
+	}
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset, points, "recharge", rechargeSourceType, rechargePointsIdemPrefix, now); err != nil {
+		return err
+	}
+	for _, reward := range rechargePointRewards(
+		coins, amount, rewardThresholdCent, firstRecharge && firstRechargeRewardEnabled,
+	) {
+		if err := creditRechargeAsset(
+			ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset,
+			reward.amount, reward.reason, reward.sourceType, reward.idemPrefix, now,
+		); err != nil {
+			return err
+		}
+	}
+	if couponTemplateID.Valid {
+		if err := grantRechargeCoupon(ctx, tx, paymentID, memberID.Int64, couponTemplateID.Int64, now); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func grantRechargeCoupon(ctx context.Context, tx *sql.Tx, paymentID, memberID, templateID int64, now time.Time) error {
+	idemKey := fmt.Sprintf("recharge_coupon:%d", paymentID)
+	var existingID int64
+	err := tx.QueryRowContext(ctx,
+		`SELECT id FROM coupon_entitlements WHERE idem_key = ?`, idemKey,
+	).Scan(&existingID)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return apperr.Internal(err)
+	}
+
+	var storeID sql.NullInt64
+	if err := tx.QueryRowContext(ctx,
+		`SELECT store_id FROM coupon_templates WHERE id = ? FOR UPDATE`, templateID,
+	).Scan(&storeID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.Conflict("充值档位绑定的优惠券不存在")
+		}
+		return apperr.Internal(err)
+	}
+
+	entitlementNo := fmt.Sprintf("RC%d-%d", paymentID, templateID)
+	const insertEntitlement = `INSERT INTO coupon_entitlements
+		(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
+		 granted_by_type, idem_key, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'active', '充值赠券', 'recharge', ?, ?, ?)`
+	if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, templateID, memberID, storeID, idemKey, now, now); err != nil {
+		if platdb.IsDuplicate(err) {
+			return nil
+		}
+		return apperr.Internal(err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE coupon_templates SET issued_quantity = issued_quantity + 1, updated_at = ? WHERE id = ?`,
+		now, templateID,
+	); err != nil {
+		return apperr.Internal(err)
+	}
+	return nil
 }
 
 func customRechargeCoinAmount(amountCent int64) int64 {
 	return amountCent / 100
 }
 
-func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID, memberID int64, asset string, grant int64, idemPrefix string, now time.Time) error {
+func rechargeRewardSettings(ctx context.Context, tx *sql.Tx) (bool, int64, error) {
+	var enabled string
+	const selectSetting = `SELECT setting_value FROM system_settings WHERE setting_key = ?`
+	switch err := tx.QueryRowContext(ctx, selectSetting, firstRechargeRewardSettingKey).Scan(&enabled); {
+	case errors.Is(err, sql.ErrNoRows):
+		enabled = "false"
+	case err != nil:
+		return false, 0, apperr.Internal(err)
+	}
+
+	thresholdAmount := defaultRechargeRewardThreshold
+	var rawThreshold string
+	switch err := tx.QueryRowContext(ctx, selectSetting, rechargeRewardThresholdSettingKey).Scan(&rawThreshold); {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return false, 0, apperr.Internal(err)
+	default:
+		parsed, err := strconv.ParseInt(rawThreshold, 10, 64)
+		if err != nil || parsed <= 0 {
+			return false, 0, apperr.Internal(fmt.Errorf("invalid recharge reward threshold %q", rawThreshold))
+		}
+		thresholdAmount = parsed
+	}
+	return enabled == "true", thresholdAmount * 100, nil
+}
+
+// claimFirstSuccessfulRecharge owns the platform-wide first-recharge decision.
+// member_recharge_history has one row per member and no store dimension, so a
+// member can only be first across the whole platform. The member-row lock plus
+// the primary key also serializes concurrent payment callbacks.
+//
+// The legacy_user_id lookup protects members who already recharged in v1 even
+// when those old orders were not transformed into v2 business_orders.
+func claimFirstSuccessfulRecharge(ctx context.Context, tx *sql.Tx, memberID, businessID int64, now time.Time) (bool, error) {
+	var legacyUserID sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT legacy_user_id FROM members WHERE id = ? FOR UPDATE`, memberID).Scan(&legacyUserID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, apperr.NotFound("member not found")
+		}
+		return false, apperr.Internal(err)
+	}
+
+	var existingMemberID int64
+	err := tx.QueryRowContext(ctx, `SELECT member_id FROM member_recharge_history WHERE member_id = ?`, memberID).Scan(&existingMemberID)
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, apperr.Internal(err)
+	}
+
+	if legacyUserID.Valid {
+		var firstPaidAt time.Time
+		err := tx.QueryRowContext(ctx,
+			`SELECT first_paid_at FROM legacy_recharge_members WHERE legacy_user_id = ?`,
+			legacyUserID.Int64,
+		).Scan(&firstPaidAt)
+		if err == nil {
+			const insertLegacyHistory = `INSERT INTO member_recharge_history
+				(member_id, first_business_order_id, first_paid_at, origin, created_at)
+				VALUES (?, NULL, ?, 'legacy_v1', ?)`
+			if _, err := tx.ExecContext(ctx, insertLegacyHistory, memberID, firstPaidAt, now); err != nil {
+				return false, apperr.Internal(err)
+			}
+			return false, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return false, apperr.Internal(err)
+		}
+	}
+
+	const insertCurrentHistory = `INSERT INTO member_recharge_history
+		(member_id, first_business_order_id, first_paid_at, origin, created_at)
+		VALUES (?, ?, ?, 'v2', ?)`
+	if _, err := tx.ExecContext(ctx, insertCurrentHistory, memberID, businessID, now, now); err != nil {
+		if platdb.IsDuplicate(err) {
+			return false, nil
+		}
+		return false, apperr.Internal(err)
+	}
+	return true, nil
+}
+
+func rechargePointRewards(coinAmount, amountCent, thresholdCent int64, firstRecharge bool) []rechargePointReward {
+	if coinAmount <= 0 {
+		return nil
+	}
+	rewardAmount := coinAmount * rechargePointRewardMultiplier
+	if amountCent >= thresholdCent {
+		return []rechargePointReward{{
+			amount:     rewardAmount,
+			reason:     highValueRechargeRewardReason,
+			sourceType: highValueRechargeRewardSource,
+			idemPrefix: highValueRechargeRewardIdem,
+		}}
+	}
+	if firstRecharge {
+		return []rechargePointReward{{
+			amount:     rewardAmount,
+			reason:     firstRechargeRewardReason,
+			sourceType: firstRechargeRewardSource,
+			idemPrefix: firstRechargeRewardIdemPrefix,
+		}}
+	}
+	return nil
+}
+
+func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID, memberID int64, asset string, grant int64, reason, sourceType, idemPrefix string, now time.Time) error {
 	if grant <= 0 {
 		return nil
 	}
@@ -248,8 +452,8 @@ func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID,
 	idemKey := fmt.Sprintf("%s:%d", idemPrefix, paymentID)
 	const insLedger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, ?, 'credit', ?, ?, 'recharge', ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, asset, grant, newBalance, rechargeSourceType, businessID, idemKey, now); err != nil {
+		VALUES (?, ?, ?, 'credit', ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, asset, grant, newBalance, reason, sourceType, businessID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			return nil
 		}
@@ -264,12 +468,12 @@ func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID,
 	return nil
 }
 
-// creditGrowthValue accrues the recharge growth grant into the member's
+// creditGrowthValue accrues a WeChat-payment growth grant into the member's
 // growth_value wallet inside the settlement transaction and returns the member's
 // authoritative growth balance afterwards. A non-positive grant credits nothing
 // but still reports the current balance so the tier can be re-resolved against
 // it. Idempotency is anchored on the ledger's unique idem_key
-// (recharge_growth:<paymentID>), independent of the coins credit, so a duplicate
+// (wechat_payment_growth:<paymentID>), independent of other credits, so a duplicate
 // settlement never double-accrues.
 func creditGrowthValue(ctx context.Context, tx *sql.Tx, paymentID, businessID, memberID, grant int64, now time.Time) (int64, error) {
 	var accountID, available int64
@@ -303,11 +507,11 @@ func creditGrowthValue(ctx context.Context, tx *sql.Tx, paymentID, businessID, m
 	}
 
 	newBalance := available + grant
-	idemKey := fmt.Sprintf("%s:%d", growthSourceType, paymentID)
+	idemKey := fmt.Sprintf("%s:%d", wechatGrowthSourceType, paymentID)
 	const insLedger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, ?, 'credit', ?, ?, 'recharge_growth', ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, growthAsset, grant, newBalance, growthSourceType, businessID, idemKey, now); err != nil {
+		VALUES (?, ?, ?, 'credit', ?, ?, 'wechat_payment_growth', ?, ?, ?, ?)`
+	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, growthAsset, grant, newBalance, wechatGrowthSourceType, businessID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			// A prior settlement already accrued this growth; return the current
 			// balance without re-applying it.

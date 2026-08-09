@@ -1,23 +1,30 @@
 package payment
 
-// This file holds the recharge VIP-growth settlement policy: the pure tier
-// resolution that maps a member's accumulated growth_value to the VIP tier they
-// qualify for. The amounts themselves are never hard-coded here — the growth
-// grant comes from recharge_products.growth_amount and the thresholds come from
-// membership_tiers, both admin-configured (spec §1). Keeping the decision pure
-// lets it be unit-tested without a live MySQL, matching the settlement spine
-// test convention.
+// This file holds the WeChat-payment VIP-growth settlement policy: ¥1 of the
+// business-order amount earns 1 growth value, and the accumulated balance
+// resolves the highest qualifying configured membership tier. Keeping the
+// calculations pure lets them be unit-tested without a live MySQL.
 
 const (
-	// growthAsset is the wallet_accounts.asset_type recharge growth credits into.
+	// growthAsset is the wallet_accounts.asset_type payment growth credits into.
 	// It mirrors wallet.AssetGrowthValue; the constant is duplicated locally to
 	// keep the settlement package free of a wallet import, as coinsAsset already is.
 	growthAsset = "growth_value"
-	// growthSourceType tags the growth credit on the wallet ledger; combined with
+	// wechatGrowthSourceType tags the growth credit on the wallet ledger; combined with
 	// the payment order id it forms the idempotency key, independent of the coins
 	// credit so the two entitlements settle (and replay) independently.
-	growthSourceType = "recharge_growth"
+	wechatGrowthSourceType = "wechat_payment_growth"
 )
+
+// wechatGrowthAmount applies the rule shared by settlement, member benefits and
+// rankings: ¥1 of a successful WeChat business-order amount earns 1 growth
+// value. Order amounts are stored in cents and growth values are integers.
+func wechatGrowthAmount(amountCent int64) int64 {
+	if amountCent <= 0 {
+		return 0
+	}
+	return amountCent / 100
+}
 
 // tierRow is the minimal membership_tiers projection the resolver needs: the id
 // to persist and the level/threshold to rank by.

@@ -87,6 +87,45 @@ func TestRequireAuth_HappyPath(t *testing.T) {
 	}
 }
 
+func TestOptionalAuth_AttachesValidMemberAndAllowsAnonymous(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mgr := NewManager("k", "inwardclub", time.Hour, time.Hour)
+	mw := NewMiddleware(mgr, AudienceMini)
+	r := gin.New()
+	r.GET("/optional", mw.OptionalAuth(SubjectMember), func(c *gin.Context) {
+		claims, ok := FromContext(c)
+		if !ok {
+			c.JSON(http.StatusOK, gin.H{"memberId": 0})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"memberId": claims.SubjectID()})
+	})
+
+	request := func(token string) string {
+		req := httptest.NewRequest(http.MethodGet, "/optional", nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		return w.Body.String()
+	}
+
+	if got := request(""); got != `{"memberId":0}` {
+		t.Fatalf("unexpected anonymous response: %s", got)
+	}
+	if got := request("invalid-token"); got != `{"memberId":0}` {
+		t.Fatalf("invalid token should remain anonymous: %s", got)
+	}
+	pair, _ := mgr.Issue(Identity{SubjectID: 9, SubjectType: SubjectMember, Role: RoleMember, Audience: AudienceMini})
+	if got := request(pair.AccessToken); got != `{"memberId":9}` {
+		t.Fatalf("valid member was not attached: %s", got)
+	}
+}
+
 // setupVersionedRouter mirrors setupRouter but wires a TokenVersionChecker so
 // the stale-token gate is exercised.
 func setupVersionedRouter(aud Audience, checker TokenVersionChecker, allowed ...SubjectType) (*gin.Engine, *Manager) {

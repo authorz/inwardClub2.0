@@ -45,6 +45,20 @@ export const BANNER_STATUS_OPTIONS: OptionItem[] = [
   { label: '不显示', value: 'inactive', tone: 'default' },
 ]
 
+/** 桌位预约状态（桌子和座位共用）。 */
+export const TABLE_SEAT_STATUS_OPTIONS: OptionItem[] = [
+  { label: '可预约', value: 'available', tone: 'success' },
+  { label: '暂停预约', value: 'paused', tone: 'warning' },
+  { label: '座位已满', value: 'full', tone: 'error' },
+  { label: '维护中', value: 'maintenance', tone: 'default' },
+]
+
+/** 加盟咨询处理状态。 */
+export const FRANCHISE_INQUIRY_STATUS_OPTIONS: OptionItem[] = [
+  { label: '未处理', value: 'unprocessed', tone: 'warning' },
+  { label: '已处理', value: 'processed', tone: 'success' },
+]
+
 /** 门店状态值 → 中文标签；未知值原样返回。 */
 export function storeStatusLabel(status?: string): string {
   return STORE_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status ?? ''
@@ -98,6 +112,7 @@ export const PAYMENT_STATUS = {
   PAID: 'paid',
   FAILED: 'failed',
   REFUNDING: 'refunding',
+  PARTIALLY_REFUNDED: 'partially_refunded',
   REFUNDED: 'refunded',
   CLOSED: 'closed',
 } as const
@@ -108,6 +123,7 @@ export const PAYMENT_STATUS_OPTIONS: OptionItem[] = [
   { label: '已支付', value: PAYMENT_STATUS.PAID, tone: 'success' },
   { label: '支付失败', value: PAYMENT_STATUS.FAILED, tone: 'error' },
   { label: '退款中', value: PAYMENT_STATUS.REFUNDING, tone: 'warning' },
+  { label: '部分退款', value: PAYMENT_STATUS.PARTIALLY_REFUNDED, tone: 'warning' },
   { label: '已退款', value: PAYMENT_STATUS.REFUNDED, tone: 'info' },
   { label: '已关闭', value: PAYMENT_STATUS.CLOSED, tone: 'default' },
 ]
@@ -130,22 +146,18 @@ export const ORDER_STATUS_OPTIONS: OptionItem[] = [
   { label: '待取', value: ORDER_STATUS.READY, tone: 'info' },
   { label: '已完成', value: ORDER_STATUS.COMPLETED, tone: 'success' },
   { label: '已取消', value: ORDER_STATUS.CANCELLED, tone: 'error' },
+  { label: '部分退款', value: 'partially_refunded', tone: 'warning' },
+  { label: '已退款', value: 'refunded', tone: 'info' },
 ]
 
 /** 退款单状态 */
 export const REFUND_STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
   SUCCEEDED: 'succeeded',
   FAILED: 'failed',
 } as const
 export type RefundStatus = (typeof REFUND_STATUS)[keyof typeof REFUND_STATUS]
 
 export const REFUND_STATUS_OPTIONS: OptionItem[] = [
-  { label: '待审批', value: REFUND_STATUS.PENDING, tone: 'warning' },
-  { label: '已通过', value: REFUND_STATUS.APPROVED, tone: 'info' },
-  { label: '已驳回', value: REFUND_STATUS.REJECTED, tone: 'error' },
   { label: '退款成功', value: REFUND_STATUS.SUCCEEDED, tone: 'success' },
   { label: '退款失败', value: REFUND_STATUS.FAILED, tone: 'error' },
 ]

@@ -17,7 +17,7 @@
     <ic-loading wx:if="{{loading}}" />
 
     <view wx:elif="{{!activities.length}}" class="al__empty">
-      <image class="al__empty-icon" src="/assets/empty/activity-empty.png" mode="aspectFit" />
+      <image class="al__empty-icon" src="https://assets.inwardclub.com/public/images/activity-empty.png" mode="aspectFit" />
       <text class="al__empty-text">还没有新的内容哦，请期待一下吧</text>
     </view>
 
@@ -46,7 +46,7 @@
     <ic-loading wx:if="{{reviewLoading}}" />
 
     <view wx:elif="{{!reviews.length}}" class="al__empty">
-      <image class="al__empty-icon" src="/assets/empty/activity-empty.png" mode="aspectFit" />
+      <image class="al__empty-icon" src="https://assets.inwardclub.com/public/images/activity-empty.png" mode="aspectFit" />
       <text class="al__empty-text">还没有已结束的活动哦</text>
     </view>
 

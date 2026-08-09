@@ -4,6 +4,6 @@ Component({
     text: { type: String, value: '暂无数据' },
     hint: { type: String, value: '' },
     compact: { type: Boolean, value: false },
-    icon: { type: String, value: '/assets/empty/activity-empty.png' },
+    icon: { type: String, value: 'https://assets.inwardclub.com/public/images/activity-empty.png' },
   },
 });

@@ -103,6 +103,7 @@ components:
         name: { type: string }
         logoUrl: { type: string }
         phone: { type: string }
+        customerServiceQrUrl: { type: string }
         address: { type: string }
         latitude: { type: number }
         longitude: { type: number }
@@ -571,6 +572,7 @@ components:
         amountCent: { type: integer, format: int64, description: 'Actual WeChat payment amount in cents' }
         coinAmount: { type: integer, format: int64, description: 'Total coins credited after successful payment' }
         pointsAmount: { type: integer, format: int64, description: 'Points credited after successful payment' }
+        couponTemplateId: { type: integer, format: int64, nullable: true, description: 'Published coupon template granted after successful payment' }
         sortOrder: { type: integer }
         status: { type: string }
     RechargeProductCreateRequest:
@@ -580,6 +582,7 @@ components:
         amountCent: { type: integer, format: int64, description: 'Actual WeChat payment amount in cents' }
         coinAmount: { type: integer, format: int64, description: 'Total coins credited after successful payment' }
         pointsAmount: { type: integer, format: int64, description: 'Points credited after successful payment; defaults to 0' }
+        couponTemplateId: { type: integer, format: int64, nullable: true, description: 'Published coupon template to grant; omit for no coupon' }
         sortOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     RechargeProductUpdateRequest:
@@ -588,6 +591,7 @@ components:
         amountCent: { type: integer, format: int64 }
         coinAmount: { type: integer, format: int64 }
         pointsAmount: { type: integer, format: int64 }
+        couponTemplateId: { type: integer, format: int64, nullable: true, description: 'Published coupon template to grant; use 0 to clear the binding' }
         sortOrder: { type: integer }
         status: { type: string }
     RankingEntryView:
@@ -1213,12 +1217,18 @@ components:
         scopeType: { type: string, enum: [global, store] }
         storeId: { type: integer, format: int64 }
         name: { type: string }
+        description: { type: string }
         couponType: { type: string, enum: [exchange, discount, cash] }
         valueCent: { type: integer, format: int64 }
+        pointsPrice: { type: integer, format: int64 }
         totalStock: { type: integer, format: int64 }
+        stockQuantity: { type: integer, format: int64 }
         issuedCount: { type: integer, format: int64 }
+        issuedQuantity: { type: integer, format: int64 }
+        perMemberLimit: { type: integer, format: int64 }
         status: { type: string }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     CouponTemplateInput:
       type: object
       required: [name, couponType]
@@ -1385,21 +1395,71 @@ components:
         coinPointsDivisor: { type: integer, format: int64, minimum: 1 }
     GlobalSettings:
       type: object
-      required: [tableDefaultBackgroundUrl]
+      required: [tableDefaultBackgroundUrl, firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, franchiseInquirySources, franchiseHotline]
       properties:
         tableDefaultBackgroundUrl:
           type: string
           format: uri
           description: 'Fallback image URL used when a table has no custom background; empty string disables the fallback'
+        firstRechargeDoublePointsEnabled:
+          type: boolean
+          description: 'Whether a member platform-wide first successful recharge grants points equal to twice the credited coins'
+        rechargeDoublePointsThresholdAmount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 'Recharge amount in yuan that activates the high-value double-points reward and excludes the first-recharge reward'
+        franchiseInquirySources:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, maxLength: 20 }
+          description: 'Source options rendered by the public franchise inquiry form'
+        franchiseHotline:
+          type: string
+          maxLength: 32
+          description: 'Headquarters franchise hotline rendered above the public form'
         updatedAt: { type: string, format: date-time }
     UpdateGlobalSettingsRequest:
       type: object
-      required: [tableDefaultBackgroundUrl]
+      required: [tableDefaultBackgroundUrl, firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, franchiseInquirySources, franchiseHotline]
       properties:
         tableDefaultBackgroundUrl:
           type: string
           maxLength: 2048
           description: 'HTTP(S) image URL, or an empty string to clear the default'
+        firstRechargeDoublePointsEnabled:
+          type: boolean
+        rechargeDoublePointsThresholdAmount:
+          type: integer
+          format: int64
+          minimum: 1
+        franchiseInquirySources:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, maxLength: 20 }
+        franchiseHotline: { type: string, maxLength: 32 }
+    FranchiseInquiry:
+      type: object
+      required: [id, contactName, phone, expectedRegion, source, status, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        contactName: { type: string }
+        phone: { type: string }
+        expectedRegion: { type: string }
+        source: { type: string }
+        status: { type: string, enum: [unprocessed, processed] }
+        processedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    CreateFranchiseInquiryRequest:
+      type: object
+      required: [contactName, phone, expectedRegion, source]
+      properties:
+        contactName: { type: string, maxLength: 50 }
+        phone: { type: string, minLength: 6, maxLength: 32 }
+        expectedRegion: { type: string, maxLength: 100 }
+        source: { type: string, maxLength: 20 }
     ReviewPointSavingRequest:
       type: object
       required: [decision]
@@ -1426,6 +1486,66 @@ components:
         reviewedAt: { type: string, format: date-time }
 
 paths:
+  /api/v2/mini/franchise-inquiries/config:
+    get:
+      tags: [mini]
+      summary: Get configurable franchise inquiry sources
+      responses:
+        '200':
+          description: franchise inquiry form configuration
+  /api/v2/mini/franchise-inquiries:
+    post:
+      tags: [mini]
+      summary: Submit a franchise inquiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFranchiseInquiryRequest' }
+      responses:
+        '201':
+          description: created inquiry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/FranchiseInquiry' }
+        '400': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/franchise-inquiries:
+    get:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: List franchise inquiries
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: keyword, in: query, description: 'Fuzzy search contact name, phone or expected region', schema: { type: string } }
+        - { name: source, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [unprocessed, processed] } }
+      responses:
+        '200': { description: paginated inquiry list }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v2/admin/franchise-inquiries/{inquiryID}/status:
+    patch:
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Update franchise inquiry processing status
+      parameters:
+        - { name: inquiryID, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [unprocessed, processed] }
+      responses:
+        '200': { description: status updated }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /api/v2/admin/global-settings:
     get:
       tags: [admin]
@@ -5749,6 +5869,28 @@ paths:
     get:
       tags: [admin]
       summary: Get a template's configured applicable item/category scope
+
+  /api/v2/admin/coupon-templates/{id}/publish:
+    post:
+      tags: [admin]
+      summary: Publish a coupon template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Published }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/v2/admin/coupon-templates/{id}/disable:
+    post:
+      tags: [admin]
+      summary: Disable a coupon template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Disabled }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
@@ -5936,6 +6078,30 @@ paths:
                 type: object
                 properties:
                   data: { type: object }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/v2/store/coupon-templates/{id}/publish:
+    post:
+      tags: [store]
+      summary: Publish this store's coupon template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+        - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Published }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/v2/store/coupon-templates/{id}/disable:
+    post:
+      tags: [store]
+      summary: Disable this store's coupon template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+        - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Disabled }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/v2/store/coupon-templates/{id}/applicable-items:

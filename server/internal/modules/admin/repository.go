@@ -204,7 +204,8 @@ func (r *sqlRepository) ListCouponTemplates(ctx context.Context, f ListFilter) (
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, name, coupon_type, value_cent, stock_quantity, issued_quantity, status, created_at
+	q := `SELECT id, scope_type, store_id, name, COALESCE(description, ''), coupon_type, value_cent,
+		points_price, stock_quantity, issued_quantity, per_member_limit, status, created_at, updated_at
 		FROM coupon_templates WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -215,8 +216,9 @@ func (r *sqlRepository) ListCouponTemplates(ctx context.Context, f ListFilter) (
 	out := make([]CouponTemplate, 0)
 	for rows.Next() {
 		var ct CouponTemplate
-		if err := rows.Scan(&ct.ID, &ct.ScopeType, &ct.StoreID, &ct.Name, &ct.CouponType,
-			&ct.ValueCent, &ct.TotalStock, &ct.IssuedCount, &ct.Status, &ct.CreatedAt); err != nil {
+		if err := rows.Scan(&ct.ID, &ct.ScopeType, &ct.StoreID, &ct.Name, &ct.Description, &ct.CouponType,
+			&ct.ValueCent, &ct.PointsPrice, &ct.TotalStock, &ct.IssuedCount, &ct.PerMemberLimit,
+			&ct.Status, &ct.CreatedAt, &ct.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, ct)
@@ -635,22 +637,26 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			wle.balance_after, 'completed' AS status, wle.reason,
 			wle.source_type, wle.source_id,
 			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
-				food_bo.store_id, point_saving.store_id) AS store_id,
+				food_bo.store_id, low_spend_bo.store_id, point_saving.store_id) AS store_id,
 			COALESCE(payment_bo.business_order_no, recharge_bo.business_order_no,
-				refund_bo.business_order_no, food_bo.business_order_no, '') AS related_order_no,
+				refund_bo.business_order_no, food_bo.business_order_no,
+				low_spend_bo.business_order_no, '') AS related_order_no,
 			wle.created_at
 		FROM wallet_ledger_entries wle
 		LEFT JOIN payment_orders po
 			ON wle.source_type = 'payment_order' AND po.id = wle.source_id
 		LEFT JOIN business_orders payment_bo ON payment_bo.id = po.business_order_id
 		LEFT JOIN business_orders recharge_bo
-			ON wle.source_type IN ('recharge_order', 'recharge_growth')
+			ON wle.source_type IN ('recharge_order', 'recharge_growth',
+				'first_recharge_reward', 'high_value_recharge_reward')
 			AND recharge_bo.id = wle.source_id
 		LEFT JOIN refund_orders ro
 			ON wle.source_type = 'refund_order' AND ro.id = wle.source_id
 		LEFT JOIN business_orders refund_bo ON refund_bo.id = ro.business_order_id
 		LEFT JOIN business_orders food_bo
 			ON wle.source_type = 'food_order' AND food_bo.id = wle.source_id
+		LEFT JOIN business_orders low_spend_bo
+			ON wle.source_type = 'low_spend_reward' AND low_spend_bo.id = wle.source_id
 		LEFT JOIN point_savings point_saving
 			ON wle.source_type = 'point_saving' AND point_saving.id = wle.source_id`
 	const pointRequestEntries = `

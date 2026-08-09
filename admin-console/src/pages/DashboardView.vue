@@ -26,7 +26,7 @@ const currencyFormatter = new Intl.NumberFormat('zh-CN', {
 const quickEntries = [
   { label: '门店管理', path: '/stores' },
   { label: '订单中心', path: '/orders' },
-  { label: '退款审批', path: '/payments/refunds' },
+  { label: '退款记录', path: '/payments/refunds' },
   { label: '完整报表', path: '/reports' },
 ]
 

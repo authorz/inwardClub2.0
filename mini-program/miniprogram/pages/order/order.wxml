@@ -75,13 +75,15 @@
 
   <!-- bottom cart bar -->
   <view class="ord__cart">
-    <view class="ord__cart-icon {{cartCount ? 'is-full' : ''}}">
-      <view class="ic-ic ic-ic-bag"></view>
-      <view wx:if="{{cartCount}}" class="ord__cart-badge">{{cartCount}}</view>
-    </view>
-    <view class="ord__cart-meta">
-      <text class="ord__cart-count">已选 {{cartCount}} 件</text>
-      <text class="ord__cart-hint">微信 / 金币可用</text>
+    <view class="ord__cart-summary" bindtap="openCartSheet" hover-class="ord__cart-summary--hover">
+      <view class="ord__cart-icon {{cartCount ? 'is-full' : ''}}">
+        <view class="ic-ic ic-ic-bag"></view>
+        <view wx:if="{{cartCount}}" class="ord__cart-badge">{{cartCount}}</view>
+      </view>
+      <view class="ord__cart-meta">
+        <text class="ord__cart-count">已选 {{cartCount}} 件</text>
+        <text class="ord__cart-hint">点击查看购物车</text>
+      </view>
     </view>
     <text class="ord__cart-total">¥{{totalText}}</text>
     <button class="ic-btn ic-btn-primary ord__cart-btn {{cartCount ? '' : 'ic-disabled'}}" bindtap="onCheckout">去结算</button>
@@ -104,4 +106,33 @@
       <text wx:if="{{store.id === item.id}}" class="ord-store__current">当前</text>
     </view>
   </view>
+</ic-bottom-sheet>
+
+<ic-bottom-sheet show="{{showCartSheet}}" title="购物车" max-height="72vh" bind:close="closeCartSheet">
+  <view class="ord-cart-sheet__bar">
+    <text class="ord-cart-sheet__count">已选 {{cartCount}} 件餐品</text>
+    <text class="ord-cart-sheet__clear" bindtap="onClearCart">清空</text>
+  </view>
+  <view class="ord-cart-sheet__list">
+    <view class="ord-cart-sheet__item" wx:for="{{cartItems}}" wx:key="id" wx:for-item="cartItem">
+      <image wx:if="{{cartItem.imageUrl}}" class="ord-cart-sheet__image" src="{{cartItem.imageUrl}}" mode="aspectFill" />
+      <view wx:else class="ord-cart-sheet__image ord-cart-sheet__image--empty">{{cartItem.initial}}</view>
+      <view class="ord-cart-sheet__info">
+        <text class="ord-cart-sheet__name ic-ellipsis">{{cartItem.name}}</text>
+        <text class="ord-cart-sheet__price">¥{{cartItem.priceText}}</text>
+      </view>
+      <view class="ord-cart-sheet__action">
+        <text class="ord-cart-sheet__subtotal">¥{{cartItem.lineTotalText}}</text>
+        <ic-stepper
+          value="{{cartItem.qty}}"
+          min="{{0}}"
+          max="{{cartItem.stock}}"
+          size="sm"
+          data-id="{{cartItem.id}}"
+          bind:change="onQtyChange"
+        />
+      </view>
+    </view>
+  </view>
+  <button slot="footer" class="ic-btn ic-btn-primary ord-cart-sheet__checkout" bindtap="onCheckout">去结算 · ¥{{totalText}}</button>
 </ic-bottom-sheet>

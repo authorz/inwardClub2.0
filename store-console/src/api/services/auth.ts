@@ -30,7 +30,10 @@ export const authService = {
     // 这里把裸资料归一为内部 {account,store} 形状：name ← displayName，store 仅由 storeId 得到
     // （门店名未知，留空由布局兜底占位）。permissions 服务端尚未下发，置空，由 auth store 的
     // hasPermission 放行导航（见 stores/auth.ts）；不在前端臆造 role→permission 矩阵（未确认业务规则）。
-    const profile = await get<AccountProfile>(API_PATHS.auth.me, { skipAuthRefresh: true })
+    const [profile, store] = await Promise.all([
+      get<AccountProfile>(API_PATHS.auth.me, { skipAuthRefresh: true }),
+      get<{ id: number | string; name?: string; status?: string; logoUrl?: string }>(API_PATHS.profile.get),
+    ])
     return {
       account: {
         id: profile.id,
@@ -42,7 +45,7 @@ export const authService = {
         status: profile.status,
         permissions: [],
       },
-      store: { id: profile.storeId ?? '' },
+      store: { id: profile.storeId ?? store.id, name: store.name, status: store.status, logoUrl: store.logoUrl },
     }
   },
 

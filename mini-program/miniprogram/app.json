@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/login/login",
     "pages/reservation/reservation",
     "pages/order/order",
     "pages/home/home",
@@ -13,6 +14,7 @@
     "pages/pay-result/pay-result",
     "pages/reservation-list/reservation-list",
     "pages/reservation-detail/reservation-detail",
+    "pages/tournament-detail/tournament-detail",
     "pages/waitlist/waitlist",
     "pages/profile/profile",
     "pages/wallet-ledger/wallet-ledger",
@@ -28,6 +30,8 @@
     "pages/invitations/invitations",
     "pages/rankings/rankings",
     "pages/benefits/benefits",
+    "pages/customer-service/customer-service",
+    "pages/franchise-inquiry/franchise-inquiry",
     "pages/staff/staff",
     "pages/staff-verify/staff-verify",
     "pages/staff-point-review/staff-point-review",

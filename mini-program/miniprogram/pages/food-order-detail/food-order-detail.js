@@ -2,7 +2,6 @@
 // Reference: design/mini-program/final/member-subpages/04-food-order-detail-v23.png
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
-const ui = require('../../utils/ui');
 const { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } = require('../../constants/index');
 
 function payChannelText(ch) {
@@ -21,6 +20,7 @@ Page({
       .then((res) => {
         const d = res.data || {};
         const items = (d.items || []).map((it) => ({
+          itemId: it.itemId,
           name: it.name,
           qty: it.qty,
           imageUrl: it.imageUrl || '',
@@ -39,6 +39,7 @@ Page({
             goodsText: fmt.centToYuan(d.totalCent),
             discountText: fmt.centToYuan(d.discountCent || 0),
             payText: fmt.centToYuan(d.payCent != null ? d.payCent : d.totalCent),
+            refundText: d.refundCent ? fmt.centToYuan(d.refundCent) : '',
             items,
           },
         });
@@ -48,9 +49,5 @@ Page({
 
   reorder() {
     wx.switchTab({ url: '/pages/order/order' });
-  },
-
-  viewReceipt() {
-    ui.toast('电子小票由服务端生成');
   },
 });

@@ -6,6 +6,9 @@
  */
 
 export const API_PATHS = {
+  assets: {
+    uploadCredentials: '/store/assets/upload-credentials',
+  },
   auth: {
     login: '/store/auth/login',
     refresh: '/store/auth/refresh',
@@ -17,7 +20,11 @@ export const API_PATHS = {
     get: '/store/profile',
     update: '/store/profile',
     status: '/store/profile/status',
-    settings: '/store/settings',
+  },
+
+  lowSpendRule: {
+    get: '/store/low-spend-reward-rule',
+    update: '/store/low-spend-reward-rule',
   },
 
   reports: {
@@ -31,6 +38,7 @@ export const API_PATHS = {
   orders: {
     list: '/store/orders',
     detail: (id: string | number) => `/store/orders/${id}`,
+    foodOrders: '/store/food-orders',
     paymentOrders: '/store/payment-orders',
     paymentOrderDetail: (id: string | number) => `/store/payment-orders/${id}`,
     paymentTransactions: '/store/payment-transactions',
@@ -50,8 +58,8 @@ export const API_PATHS = {
     unpublishItem: (id: string | number) => `/store/catalog/items/${id}/unpublish`,
     itemStock: (id: string | number) => `/store/catalog/items/${id}/stock`,
     itemPaymentRules: (id: string | number) => `/store/catalog/items/${id}/payment-rules`,
-    itemVariants: (id: string | number) => `/store/catalog/items/${id}/variants`,
-    variant: (id: string | number) => `/store/catalog/variants/${id}`,
+    itemVariants: (id: string | number) => `/store/catalog/variants/${id}`,
+    variant: (itemId: string | number, id: string | number) => `/store/catalog/variants/${itemId}/${id}`,
   },
 
   activities: {
@@ -65,9 +73,15 @@ export const API_PATHS = {
     sessions: (id: string | number) => `/store/activities/${id}/sessions`,
     session: (id: string | number) => `/store/activity-sessions/${id}`,
     ticketTypes: (id: string | number) => `/store/activities/${id}/ticket-types`,
-    ticketType: (id: string | number) => `/store/activity-ticket-types/${id}`,
+    ticketType: (activityId: string | number, id: string | number) =>
+      `/store/activities/${activityId}/ticket-types/${id}`,
     orders: '/store/activity-orders',
     today: '/store/activities/today',
+  },
+
+  tournamentEvents: {
+    list: '/store/tournament-events',
+    detail: (id: string | number) => `/store/tournament-events/${id}`,
   },
 
   tickets: {
@@ -83,9 +97,9 @@ export const API_PATHS = {
     templates: '/store/coupon-templates',
     template: (id: string | number) => `/store/coupon-templates/${id}`,
     publishTemplate: (id: string | number) => `/store/coupon-templates/${id}/publish`,
-    unpublishTemplate: (id: string | number) => `/store/coupon-templates/${id}/unpublish`,
+    disableTemplate: (id: string | number) => `/store/coupon-templates/${id}/disable`,
     applicableItems: (id: string | number) => `/store/coupon-templates/${id}/applicable-items`,
-    grant: '/store/coupon-entitlements/grant',
+    grant: '/store/coupon-grants',
     entitlements: '/store/coupon-entitlements',
     redemptions: '/store/coupon-redemptions',
     // 券核销/作废为独立扁平写端点（idempotent），非 /coupon-entitlements/:id/... 子路由。
@@ -101,7 +115,7 @@ export const API_PATHS = {
   reservations: {
     list: '/store/reservations',
     detail: (id: string | number) => `/store/reservations/${id}`,
-    arrive: (id: string | number) => `/store/reservations/${id}/arrive`,
+    cancel: (id: string | number) => `/store/reservations/${id}/cancel`,
   },
 
   tables: {

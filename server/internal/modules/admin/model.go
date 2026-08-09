@@ -40,16 +40,20 @@ type CatalogItem struct {
 
 // CouponTemplate is the console read model for a coupon template.
 type CouponTemplate struct {
-	ID          int64
-	ScopeType   string
-	StoreID     *int64
-	Name        string
-	CouponType  string
-	ValueCent   int64
-	TotalStock  int64
-	IssuedCount int64
-	Status      string
-	CreatedAt   time.Time
+	ID             int64
+	ScopeType      string
+	StoreID        *int64
+	Name           string
+	Description    string
+	CouponType     string
+	ValueCent      int64
+	PointsPrice    int64
+	TotalStock     int64
+	IssuedCount    int64
+	PerMemberLimit int64
+	Status         string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // Activity is the console read model for a marketing activity.

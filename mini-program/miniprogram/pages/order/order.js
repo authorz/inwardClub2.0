@@ -26,10 +26,12 @@ Page({
     activeCat: '',
     activeCatName: '',
     cartCount: 0,
+    cartItems: [],
     totalText: '0.00',
     selectedCoupon: null,
     stores: [],
     showStoreSheet: false,
+    showCartSheet: false,
     // custom navigation metrics (px)
     navStatusBar: 20,
     navContentHeight: 44,
@@ -47,7 +49,10 @@ Page({
 
   onShow() {
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      this.getTabBar().setData({ selected: 2 });
+      this.getTabBar().setData({ selected: 2, hidden: this.data.showStoreSheet });
+    }
+    if (draft.consumeCompletion('food')) {
+      this.clearCart();
     }
     this.syncSelectedCoupon();
     const s = storeCtx.get();
@@ -105,6 +110,7 @@ Page({
       this.setData({
         store,
         cartCount: 0,
+        cartItems: [],
         totalText: '0.00',
       });
     } else {
@@ -186,6 +192,7 @@ Page({
       id: it.id,
       categoryId: it.categoryId,
       name: it.name,
+      initial: (it.name || '餐').slice(0, 1),
       priceCent: it.priceCent,
       priceText,
       priceCompact: yuanDigits >= 3,
@@ -230,16 +237,57 @@ Page({
   recalc() {
     let count = 0;
     let totalCent = 0;
+    const cartItems = [];
     this.data.groups.forEach((g) =>
       g.items.forEach((it) => {
         if (it.qty > 0) {
           count += it.qty;
           totalCent += it.qty * it.priceCent;
+          cartItems.push(Object.assign({}, it, { lineTotalText: fmt.centToYuan(it.qty * it.priceCent) }));
         }
       })
     );
     this.totalCent = totalCent;
-    this.setData({ cartCount: count, totalText: fmt.centToYuan(totalCent) });
+    this.setData({ cartCount: count, cartItems, totalText: fmt.centToYuan(totalCent) });
+    if (!count && this.data.showCartSheet) this.setCartSheetVisible(false);
+  },
+
+  clearCart() {
+    this.qty = {};
+    this.totalCent = 0;
+    const resetItem = (item) => Object.assign({}, item, { qty: 0 });
+    const groups = this.data.groups.map((group) =>
+      Object.assign({}, group, { items: group.items.map(resetItem) })
+    );
+    const items = this.data.items.map(resetItem);
+    this.setData({ groups, items, cartCount: 0, cartItems: [], totalText: '0.00' });
+  },
+
+  openCartSheet() {
+    if (!this.data.cartCount) {
+      ui.toast('购物车还是空的');
+      return;
+    }
+    this.setCartSheetVisible(true);
+  },
+
+  closeCartSheet() {
+    this.setCartSheetVisible(false);
+  },
+
+  setCartSheetVisible(show) {
+    this.setData({ showCartSheet: show });
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({ hidden: show });
+      return;
+    }
+    const toggleTabBar = show ? wx.hideTabBar : wx.showTabBar;
+    if (typeof toggleTabBar === 'function') toggleTabBar({ animation: false });
+  },
+
+  onClearCart() {
+    this.clearCart();
+    this.setCartSheetVisible(false);
   },
 
   openStoreSheet() {
@@ -256,6 +304,10 @@ Page({
 
   setStoreSheetVisible(show) {
     this.setData({ showStoreSheet: show });
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({ hidden: show });
+      return;
+    }
     const toggleTabBar = show ? wx.hideTabBar : wx.showTabBar;
     if (typeof toggleTabBar === 'function') toggleTabBar({ animation: false });
   },
@@ -273,6 +325,7 @@ Page({
       ui.toast('请先选择商品');
       return;
     }
+    if (this.data.showCartSheet) this.setCartSheetVisible(false);
     const lines = [];
     this.data.groups.forEach((g) =>
       g.items.forEach((it) => {

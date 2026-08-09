@@ -46,12 +46,13 @@ export const ORDER_TYPE: Record<OrderType, EnumOption<OrderType>> = {
 /* 支付渠道（用户支付仅微信/金币；支付宝只用于线下聚合收款）          */
 /* ------------------------------------------------------------------ */
 
-export type PayChannel = 'wechat' | 'alipay' | 'coin'
+export type PayChannel = 'wechat' | 'alipay' | 'coin' | 'offline'
 
 export const PAY_CHANNEL: Record<PayChannel, EnumOption<PayChannel>> = {
   wechat: { value: 'wechat', label: '微信', tone: 'success' },
   alipay: { value: 'alipay', label: '支付宝', tone: 'info' },
   coin: { value: 'coin', label: '金币', tone: 'warning' },
+  offline: { value: 'offline', label: '线下收款', tone: 'default' },
 }
 
 /** 线下聚合收款允许的渠道（门店收单能力）。 */
@@ -61,13 +62,14 @@ export const COLLECTION_PAY_CHANNELS: PayChannel[] = ['wechat', 'alipay']
 /* 支付状态                                                            */
 /* ------------------------------------------------------------------ */
 
-export type PaymentStatus = 'unpaid' | 'paid' | 'refunding' | 'refunded' | 'closed' | 'failed'
+export type PaymentStatus = 'unpaid' | 'paid' | 'refunding' | 'refunded' | 'partially_refunded' | 'closed' | 'failed'
 
 export const PAYMENT_STATUS: Record<PaymentStatus, EnumOption<PaymentStatus>> = {
-  unpaid: { value: 'unpaid', label: '待支付', tone: 'warning' },
+  unpaid: { value: 'unpaid', label: '未支付', tone: 'warning' },
   paid: { value: 'paid', label: '已支付', tone: 'success' },
   refunding: { value: 'refunding', label: '退款中', tone: 'info' },
   refunded: { value: 'refunded', label: '已退款', tone: 'default' },
+  partially_refunded: { value: 'partially_refunded', label: '部分退款', tone: 'info' },
   closed: { value: 'closed', label: '已关闭', tone: 'default' },
   failed: { value: 'failed', label: '支付失败', tone: 'error' },
 }
@@ -177,6 +179,14 @@ export const PUBLISH_STATUS: Record<PublishStatus, EnumOption<PublishStatus>> = 
   archived: { value: 'archived', label: '已归档', tone: 'default' },
 }
 
+export type AvailabilityStatus = 'available' | 'paused' | 'full' | 'maintenance'
+export const AVAILABILITY_STATUS: Record<AvailabilityStatus, EnumOption<AvailabilityStatus>> = {
+  available: { value: 'available', label: '可预约', tone: 'success' },
+  paused: { value: 'paused', label: '暂停预约', tone: 'warning' },
+  full: { value: 'full', label: '座位已满', tone: 'info' },
+  maintenance: { value: 'maintenance', label: '维护中', tone: 'error' },
+}
+
 export type ActiveStatus = 'active' | 'disabled'
 
 export const ACTIVE_STATUS: Record<ActiveStatus, EnumOption<ActiveStatus>> = {
@@ -200,13 +210,11 @@ export const SCOPE_TYPE: Record<ScopeType, EnumOption<ScopeType>> = {
 /* ------------------------------------------------------------------ */
 
 // 状态值对齐服务端 reservation.model（booked/arrived/cancelled/expired）。
-export type ReservationStatus = 'booked' | 'arrived' | 'cancelled' | 'expired'
+export type ReservationStatus = 'booked' | 'arrived'
 
 export const RESERVATION_STATUS: Record<ReservationStatus, EnumOption<ReservationStatus>> = {
-  booked: { value: 'booked', label: '待到店', tone: 'warning' },
+  booked: { value: 'booked', label: '已预定', tone: 'warning' },
   arrived: { value: 'arrived', label: '已到店', tone: 'success' },
-  cancelled: { value: 'cancelled', label: '已取消', tone: 'error' },
-  expired: { value: 'expired', label: '已过期', tone: 'default' },
 }
 
 /* ------------------------------------------------------------------ */

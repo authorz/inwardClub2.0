@@ -12,6 +12,7 @@ import (
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 // Activity is an activity/event template or store instance.
@@ -68,6 +69,7 @@ type PublicTicketTypeView struct {
 	Name               string     `json:"name"`
 	PriceCent          int64      `json:"priceCent"`
 	Stock              int64      `json:"stock"`
+	SaleStartAt        *time.Time `json:"saleStartAt,omitempty"`
 	SaleEndAt          *time.Time `json:"saleEndAt,omitempty"`
 	PayChannels        []string   `json:"payChannels"`
 	MaxTicketsPerOrder int        `json:"maxTicketsPerOrder,omitempty"`
@@ -81,9 +83,11 @@ type AssetResolver interface {
 // Repository is the activity read persistence port.
 type Repository interface {
 	ListPublished(ctx context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error)
+	ListTodayPublished(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error)
 	GetByID(ctx context.Context, id int64) (Activity, error)
 	// ListSellableTicketTypes returns an activity's active ticket types for the
-	// buyer-facing detail page, cheapest first.
+	// buyer-facing detail page, including upcoming, ended and sold-out tiers so
+	// the client can show the complete configured tier list with availability.
 	ListSellableTicketTypes(ctx context.Context, activityID int64) ([]TicketType, error)
 }
 
@@ -142,6 +146,31 @@ func (r *sqlRepository) ListPublished(ctx context.Context, storeID *int64, limit
 	return out, total, rows.Err()
 }
 
+func (r *sqlRepository) ListTodayPublished(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error) {
+	const where = `a.status = 'published'
+		AND (a.scope_type = 'global' OR a.store_id = ?)
+		AND (a.start_at IS NULL OR a.start_at < ?)
+		AND (a.end_at IS NULL OR a.end_at >= ?)`
+	rows, err := r.db.QueryContext(ctx, `SELECT `+activityColumns+activityFrom+`WHERE `+where+
+		` ORDER BY a.start_at ASC, a.id ASC`, storeID, dayEnd, dayStart)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	var out []Activity
+	for rows.Next() {
+		a, err := scanActivity(rows)
+		if err != nil {
+			return nil, apperr.Internal(err)
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return out, nil
+}
+
 func (r *sqlRepository) GetByID(ctx context.Context, id int64) (Activity, error) {
 	const q = `SELECT ` + activityColumns + activityFrom + `WHERE a.id = ?`
 	a, err := scanActivity(r.db.QueryRowContext(ctx, q, id))
@@ -156,13 +185,11 @@ func (r *sqlRepository) GetByID(ctx context.Context, id int64) (Activity, error)
 
 // ListSellableTicketTypes reads the activity's active ticket types for the
 // public detail page. Reuses the console ticket-type columns/scanner (same
-// package); only active, in-sale and in-stock rows are exposed.
+// package). Inactive rows remain hidden, while timing and stock are returned so
+// the client can explain why an active tier is not currently purchasable.
 func (r *sqlRepository) ListSellableTicketTypes(ctx context.Context, activityID int64) ([]TicketType, error) {
 	const q = `SELECT ` + ticketTypeColumns + ` FROM activity_ticket_types
 		WHERE activity_id = ? AND status = 'active'
-		  AND (sale_start_at IS NULL OR sale_start_at <= UTC_TIMESTAMP())
-		  AND (sale_end_at IS NULL OR sale_end_at >= UTC_TIMESTAMP())
-		  AND (stock_quantity = 0 OR sold_quantity < stock_quantity)
 		ORDER BY price_cent ASC, id ASC`
 	rows, err := r.db.QueryContext(ctx, q, activityID)
 	if err != nil {
@@ -222,11 +249,32 @@ func normalizePayChannels(channels []string) ([]string, error) {
 type Service struct {
 	repo   Repository
 	assets AssetResolver
+	now    func() time.Time
 }
+
+var publicActivityLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 // NewService builds the activity service.
 func NewService(repo Repository, assets AssetResolver) *Service {
-	return &Service{repo: repo, assets: assets}
+	return &Service{repo: repo, assets: assets, now: time.Now}
+}
+
+// ListToday returns published global or store activities that overlap today's
+// China Standard Time business-day window. The list is intentionally small and ordered by the
+// activity start time for the reservation-page entry.
+func (s *Service) ListToday(ctx context.Context, storeID int64) ([]ActivityView, error) {
+	now := s.now().In(publicActivityLocation)
+	localDayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, publicActivityLocation)
+	dayStart := localDayStart.UTC()
+	acts, err := s.repo.ListTodayPublished(ctx, storeID, dayStart, localDayStart.Add(24*time.Hour).UTC())
+	if err != nil {
+		return nil, err
+	}
+	views := make([]ActivityView, 0, len(acts))
+	for _, activity := range acts {
+		views = append(views, s.view(ctx, activity))
+	}
+	return views, nil
 }
 
 // List returns published activities, optionally scoped to a store.
@@ -265,6 +313,7 @@ func publicTicketTypeView(t TicketType) PublicTicketTypeView {
 	return PublicTicketTypeView{
 		ID: t.ID, Name: t.Name, PriceCent: t.PriceCent,
 		Stock:              remainingStock(t.StockQuantity, t.SoldQuantity),
+		SaleStartAt:        t.SaleStartAt,
 		SaleEndAt:          t.SaleEndAt,
 		PayChannels:        t.PayChannels,
 		MaxTicketsPerOrder: t.MaxTicketsPerOrder,
@@ -288,7 +337,7 @@ func (s *Service) view(ctx context.Context, a Activity) ActivityView {
 	v := ActivityView{
 		ID: a.ID, ScopeType: a.ScopeType, StoreID: a.StoreID, StoreName: a.StoreName,
 		Address: a.StoreAddress, Latitude: a.StoreLatitude, Longitude: a.StoreLongitude,
-		Title: a.Title, Description: a.Description, Content: a.Content,
+		Title: a.Title, Description: a.Description, Content: inputvalidation.SanitizeRichHTML(a.Content),
 		StartAt: a.StartAt, EndAt: a.EndAt, PayChannels: a.PayChannels,
 		PurchaseLimit: a.PurchaseLimit, Status: a.Status,
 	}

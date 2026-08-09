@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -12,15 +13,16 @@ import (
 // fakeRepo is an in-memory Repository for exercising the service mapping and
 // invitation rules without a database.
 type fakeRepo struct {
-	members    map[int64]*Member
-	byCode     map[string]int64
-	invitees   map[int64][]Invitee
-	tiers      []MembershipTier
-	products   []RechargeProduct
-	rankings   []RankingEntry
-	notReady   bool // when true, catalogue reads return NOT_IMPLEMENTED
-	lastPhone  string
-	lastUpdate ProfileUpdate
+	members           map[int64]*Member
+	byCode            map[string]int64
+	invitees          map[int64][]Invitee
+	tiers             []MembershipTier
+	products          []RechargeProduct
+	rankings          []RankingEntry
+	notReady          bool // when true, catalogue reads return NOT_IMPLEMENTED
+	lastPhone         string
+	lastPhoneInterval int
+	lastUpdate        ProfileUpdate
 }
 
 func newFakeRepo() *fakeRepo {
@@ -41,16 +43,24 @@ func (r *fakeRepo) UpdateProfile(_ context.Context, id int64, p ProfileUpdate) e
 	if p.Nickname != nil {
 		m.Nickname = *p.Nickname
 	}
+	if p.Gender != nil {
+		m.Gender = *p.Gender
+	}
 	if p.AvatarAssetID != nil {
 		m.AvatarAssetID = p.AvatarAssetID
 	}
 	return nil
 }
 
-func (r *fakeRepo) UpdatePhone(_ context.Context, id int64, phone string) error {
+func (r *fakeRepo) UpdatePhone(_ context.Context, id int64, phone string, intervalDays int) (PhoneChangeResult, error) {
 	r.lastPhone = phone
+	r.lastPhoneInterval = intervalDays
+	changed := r.members[id].Phone != phone
 	r.members[id].Phone = phone
-	return nil
+	return PhoneChangeResult{
+		Changed:       changed,
+		NextAllowedAt: time.Now().UTC().AddDate(0, 0, intervalDays),
+	}, nil
 }
 
 func (r *fakeRepo) GetByInviteCode(_ context.Context, code string) (Member, error) {
@@ -186,12 +196,13 @@ func (r *fakeRepo) CreateRechargeProduct(_ context.Context, p RechargeProductCre
 		status = StatusActive
 	}
 	product := RechargeProduct{
-		ID:           int64(len(r.products) + 1),
-		AmountCent:   p.AmountCent,
-		CoinAmount:   p.CoinAmount,
-		PointsAmount: p.PointsAmount,
-		SortOrder:    p.SortOrder,
-		Status:       status,
+		ID:               int64(len(r.products) + 1),
+		AmountCent:       p.AmountCent,
+		CoinAmount:       p.CoinAmount,
+		PointsAmount:     p.PointsAmount,
+		CouponTemplateID: p.CouponTemplateID,
+		SortOrder:        p.SortOrder,
+		Status:           status,
 	}
 	r.products = append(r.products, product)
 	return product, nil
@@ -211,6 +222,9 @@ func (r *fakeRepo) UpdateRechargeProduct(_ context.Context, id int64, u Recharge
 		if u.PointsAmount != nil {
 			r.products[i].PointsAmount = *u.PointsAmount
 		}
+		if u.CouponTemplateID != nil {
+			r.products[i].CouponTemplateID = *u.CouponTemplateID
+		}
 		if u.SortOrder != nil {
 			r.products[i].SortOrder = *u.SortOrder
 		}
@@ -220,6 +234,13 @@ func (r *fakeRepo) UpdateRechargeProduct(_ context.Context, id int64, u Recharge
 		return r.products[i], nil
 	}
 	return RechargeProduct{}, ErrRechargeProductNotFound
+}
+
+func (r *fakeRepo) ValidateRechargeCouponTemplate(_ context.Context, id int64) error {
+	if id == 99 {
+		return apperr.Invalid("充值奖励只能绑定已发布的优惠券")
+	}
+	return nil
 }
 
 type fakeAssets struct{}
@@ -235,9 +256,16 @@ func (fakeAssets) PublicURL(objectKey string) string {
 	return "https://cdn.test/" + objectKey
 }
 
-type fakePhone struct{ phone string }
+type fakePhone struct {
+	phone string
+	err   error
+}
 
-func (f fakePhone) ResolvePhone(_ context.Context, _ string) (string, error) { return f.phone, nil }
+func (f fakePhone) ResolvePhone(_ context.Context, _ string) (string, error) { return f.phone, f.err }
+
+type fakePhonePolicy struct{ days int }
+
+func (p fakePhonePolicy) PhoneChangeIntervalDays(context.Context) (int, error) { return p.days, nil }
 
 func codeOf(err error) apperr.Code { return apperr.From(err).Code }
 
@@ -246,8 +274,8 @@ func TestUpdateProfileWritesAndMasksPhone(t *testing.T) {
 	repo.members[1] = &Member{ID: 1, Nickname: "old", Phone: "13800001111", Status: StatusActive}
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	nick := "new"
-	view, err := svc.UpdateProfile(context.Background(), 1, UpdateProfileRequest{Nickname: &nick})
+	nick, gender := "new", "female"
+	view, err := svc.UpdateProfile(context.Background(), 1, UpdateProfileRequest{Nickname: &nick, Gender: &gender})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -256,6 +284,35 @@ func TestUpdateProfileWritesAndMasksPhone(t *testing.T) {
 	}
 	if view.Phone != "138****1111" {
 		t.Fatalf("expected masked phone, got %q", view.Phone)
+	}
+	if view.Gender != "female" || repo.members[1].Gender != "female" {
+		t.Fatalf("expected gender updated, got view=%q stored=%q", view.Gender, repo.members[1].Gender)
+	}
+}
+
+func TestUpdateProfileRejectsInvalidGender(t *testing.T) {
+	repo := newFakeRepo()
+	repo.members[1] = &Member{ID: 1, Nickname: "old", Gender: "male", Status: StatusActive}
+	svc := NewService(repo, fakeAssets{}, nil)
+	gender := "unknown"
+	if _, err := svc.UpdateProfile(context.Background(), 1, UpdateProfileRequest{Gender: &gender}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid gender rejection, got %v", err)
+	}
+	if repo.members[1].Gender != "male" {
+		t.Fatal("invalid gender reached repository")
+	}
+}
+
+func TestUpdateProfileRejectsUnsafeNickname(t *testing.T) {
+	repo := newFakeRepo()
+	repo.members[1] = &Member{ID: 1, Nickname: "old", Status: StatusActive}
+	svc := NewService(repo, fakeAssets{}, nil)
+	nickname := `<img src=x onerror=alert(1)>`
+	if _, err := svc.UpdateProfile(context.Background(), 1, UpdateProfileRequest{Nickname: &nickname}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected unsafe nickname rejection, got %v", err)
+	}
+	if repo.members[1].Nickname != "old" {
+		t.Fatal("unsafe nickname reached repository")
 	}
 }
 
@@ -284,6 +341,34 @@ func TestBindPhoneWritesMaskedResult(t *testing.T) {
 	}
 	if repo.lastPhone != "13900002222" {
 		t.Fatalf("expected raw phone persisted, got %q", repo.lastPhone)
+	}
+}
+
+func TestBindPhoneUsesConfiguredInterval(t *testing.T) {
+	repo := newFakeRepo()
+	repo.members[1] = &Member{ID: 1, Status: StatusActive}
+	svc := NewService(repo, fakeAssets{}, fakePhone{phone: "13900002222"}, fakePhonePolicy{days: 45})
+
+	view, err := svc.BindPhone(context.Background(), 1, BindPhoneRequest{Code: "x"})
+	if err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if view.NextChangeAvailableAt == "" {
+		t.Fatal("expected the next change time in response")
+	}
+	if repo.lastPhoneInterval != 45 {
+		t.Fatalf("expected configured 45-day interval, got %d", repo.lastPhoneInterval)
+	}
+}
+
+func TestBindPhoneDoesNotInvalidateLoginOnWeChatFailure(t *testing.T) {
+	repo := newFakeRepo()
+	repo.members[1] = &Member{ID: 1, Status: StatusActive}
+	svc := NewService(repo, fakeAssets{}, fakePhone{err: fmt.Errorf("wechat errcode 40029")})
+
+	_, err := svc.BindPhone(context.Background(), 1, BindPhoneRequest{Code: "x"})
+	if codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT rather than UNAUTHENTICATED, got %v", err)
 	}
 }
 
@@ -348,7 +433,7 @@ func TestListRankingsMapsView(t *testing.T) {
 	repo := newFakeRepo()
 	avatar := int64(7)
 	repo.rankings = []RankingEntry{
-		{Rank: 1, MemberID: 42, Nickname: "top", AvatarAssetID: &avatar, Score: 500},
+		{Rank: 1, MemberID: 42, Nickname: "top", AvatarAssetID: &avatar, Gender: "female", Score: 500},
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -360,8 +445,24 @@ func TestListRankingsMapsView(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(views))
 	}
 	got := views[0]
-	if got.Rank != 1 || got.MemberID != 42 || got.Nickname != "top" || got.Score != 500 || got.AvatarURL == "" {
+	if got.Rank != 1 || got.MemberID != 42 || got.Nickname != "top" || got.Gender != "female" || got.Score != 500 || got.AvatarURL == "" {
 		t.Fatalf("unexpected ranking view: %+v", got)
+	}
+}
+
+func TestListRankingsPrefersStoredAvatarURL(t *testing.T) {
+	repo := newFakeRepo()
+	repo.rankings = []RankingEntry{
+		{Rank: 1, MemberID: 7, Nickname: "avatar", AvatarURL: "https://cdn.test/direct.png", Score: 100},
+	}
+	svc := NewService(repo, fakeAssets{}, nil)
+
+	views, err := svc.ListRankings(context.Background(), RankingAll)
+	if err != nil {
+		t.Fatalf("rankings: %v", err)
+	}
+	if len(views) != 1 || views[0].AvatarURL != "https://cdn.test/direct.png" {
+		t.Fatalf("expected direct avatar URL, got %+v", views)
 	}
 }
 
@@ -791,5 +892,46 @@ func TestListRechargeProductsMapsView(t *testing.T) {
 	got := views[0]
 	if got.ID != 1 || got.AmountCent != 50000 || got.CoinAmount != 588 || got.PointsAmount != 10000 || got.SortOrder != 1 {
 		t.Fatalf("unexpected recharge product view: %+v", got)
+	}
+}
+
+func TestCreateRechargeProductBindsPublishedCoupon(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, fakeAssets{}, fakePhone{})
+	couponID := int64(7)
+	view, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{
+		AmountCent: 20000, CoinAmount: 200, CouponTemplateID: &couponID,
+	})
+	if err != nil {
+		t.Fatalf("create recharge product: %v", err)
+	}
+	if view.CouponTemplateID == nil || *view.CouponTemplateID != couponID {
+		t.Fatalf("couponTemplateId = %v, want %d", view.CouponTemplateID, couponID)
+	}
+
+	invalidID := int64(99)
+	if _, err := svc.CreateRechargeProduct(context.Background(), RechargeProductCreateRequest{
+		AmountCent: 30000, CoinAmount: 300, CouponTemplateID: &invalidID,
+	}); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("invalid coupon error = %v, want INVALID_ARGUMENT", err)
+	}
+}
+
+func TestUpdateRechargeProductClearsCouponBinding(t *testing.T) {
+	couponID := int64(7)
+	repo := newFakeRepo()
+	repo.products = []RechargeProduct{{
+		ID: 1, AmountCent: 20000, CoinAmount: 200, CouponTemplateID: &couponID, Status: StatusActive,
+	}}
+	svc := NewService(repo, fakeAssets{}, fakePhone{})
+	clearID := int64(0)
+	view, err := svc.UpdateRechargeProduct(context.Background(), 1, RechargeProductUpdateRequest{
+		CouponTemplateID: &clearID,
+	})
+	if err != nil {
+		t.Fatalf("clear coupon binding: %v", err)
+	}
+	if view.CouponTemplateID != nil {
+		t.Fatalf("couponTemplateId = %v, want nil", view.CouponTemplateID)
 	}
 }

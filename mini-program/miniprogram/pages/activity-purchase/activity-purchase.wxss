@@ -58,6 +58,9 @@
   border-top: 1rpx solid var(--ic-line);
 }
 .ap__ticket:first-child { border-top: none; }
+.ap__ticket.is-disabled .ap__ticket-name,
+.ap__ticket.is-disabled .ap__ticket-price { color: var(--ic-text-3); }
+.ap__ticket.is-disabled .ap__radio { border-color: var(--ic-line-strong); }
 .ap__radio {
   display: flex;
   align-items: center;

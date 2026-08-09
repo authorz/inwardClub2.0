@@ -31,7 +31,7 @@
     </view>
     <view class="oc__note">
       <text class="oc__note-label">备注</text>
-      <input class="oc__note-input" value="{{note}}" placeholder="口味、冰块等需求" placeholder-class="oc__note-ph" bindinput="onNote" />
+      <input class="oc__note-input" maxlength="200" value="{{note}}" placeholder="口味、冰块等需求" placeholder-class="oc__note-ph" bindinput="onNote" />
     </view>
   </view>
 

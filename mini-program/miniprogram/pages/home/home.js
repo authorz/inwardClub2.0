@@ -10,6 +10,7 @@ const storeCtx = require('../../utils/store-context');
 const { amount } = require('../../utils/format');
 const { mergeCachedProfile } = require('../../utils/member-profile');
 const { POINT_SAVING } = require('../../constants/index');
+const validation = require('../../utils/validation');
 
 // 会员等级短标：优先按 tierCode 映射 VIP1-8，其次从 tierName 取 VIPn，兜底 VIP1
 const TIER_SHORT = { normal: 'VIP1', bronze: 'VIP2', silver: 'VIP3', gold: 'VIP4', platinum: 'VIP5', diamond: 'VIP6', star: 'VIP7', master: 'VIP8' };
@@ -43,9 +44,10 @@ Page({
       { label: '邀请有礼', icon: 'invite-gift', action: 'nav', url: '/pages/invitations/invitations' },
       { label: '交易记录', icon: 'transactions', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
       { label: '会员权益', icon: 'member-benefits', action: 'nav', url: '/pages/benefits/benefits' },
+      { label: '咨询客服', icon: 'customer-service', action: 'nav', url: '/pages/customer-service/customer-service' },
       { label: '加入社群', icon: 'community', action: 'toast' },
     ],
-    // 工作人员功能 grid — 仅 isStaff 时显示，直接进入对应页面
+    // 工作人员功能 grid — 仅员工选中自己的绑定门店时显示
     staffMenuEntries: [
       { label: '活动核销', icon: 'staff-verify', url: '/pages/staff-verify/staff-verify' },
       { label: '积分审核', icon: 'staff-point-review', url: '/pages/staff-point-review/staff-point-review' },
@@ -78,13 +80,18 @@ Page({
   },
 
   loadProfile() {
+    if (!auth.isLoggedIn()) {
+      this.onSessionExpired();
+      return;
+    }
     Promise.all([
       api.getMe().catch(() => ({ data: {} })),
       api.getWallet().catch(() => ({ data: {} })),
       // wallet has no couponCount field on the backend — derive it from the
       // real coupons list instead.
       api.getCoupons().catch(() => ({ data: [] })),
-    ]).then(([meRes, walletRes, couponsRes]) => {
+      storeCtx.ensureStore().catch(() => null),
+    ]).then(([meRes, walletRes, couponsRes, currentStore]) => {
       // Fall back to the cached avatar/nickname/gender when getMe returns them
       // empty, so a refresh still shows the WeChat avatar (not a black placeholder).
       const me = mergeCachedProfile(meRes.data || {});
@@ -93,13 +100,18 @@ Page({
       me.tierShort = tierShortOf(me);
       const couponCount = (couponsRes.data || []).filter((c) => c.status === 'unused').length;
       const wallet = Object.assign({ coins: 0, points: 0 }, walletRes.data, { couponCount });
+      const staffStoreId = auth.getStoreId();
+      const isStaffAtCurrentStore =
+        auth.isStaff() &&
+        currentStore &&
+        String(currentStore.id) === String(staffStoreId);
       this.setData({
         me,
         wallet,
         coinsText: amount(wallet.coins),
         pointsText: amount(wallet.points),
         genderIcon: this.genderIconOf(me.gender),
-        isStaff: !!me.isStaff || auth.isStaff(),
+        isStaff: !!isStaffAtCurrentStore,
       });
     });
   },
@@ -124,18 +136,19 @@ Page({
     });
   },
 
-  // Gate member-only actions: log in first (via a user tap), then run `next`.
+  // Gate member-only actions through the dedicated login/registration page.
   requireLogin(next) {
     if (auth.isLoggedIn()) return next();
-    getApp()
-      .loginWithWechat()
-      .then(() => {
-        this.loadProfile();
-        next();
-      })
-      .catch((err) => {
-        if (err && err.isApiError) ui.error(err.message || '登录失败');
-      });
+    wx.navigateTo({
+      url: '/pages/login/login',
+      success: (res) => {
+        if (!res.eventChannel) return;
+        res.eventChannel.on('loginSuccess', () => {
+          this.loadProfile();
+          next();
+        });
+      },
+    });
   },
 
   /* ---------- navigation ---------- */
@@ -175,6 +188,7 @@ Page({
 
   /* ---------- 工作人员功能 grid ---------- */
   goStaffMenu(e) {
+    if (!this.data.isStaff) return;
     const item = this.data.staffMenuEntries[e.currentTarget.dataset.index];
     if (item) wx.navigateTo({ url: item.url });
   },
@@ -221,8 +235,12 @@ Page({
     if (this.data.submitting) return;
     let payload;
     if (this.data.productId === 'custom') {
-      const yuan = Number(this.data.customAmount);
-      if (!yuan || yuan <= 0) return ui.toast('请输入充值金额');
+	  let yuan;
+	  try {
+	    yuan = validation.integer(this.data.customAmount, { label: '充值金额', min: 1, max: 1000000 });
+	  } catch (err) {
+	    return ui.toast(err.message);
+	  }
       payload = { productId: '', amountCent: yuan * 100, payChannel: 'wechat' };
     } else {
       const p = this.data.products.find((x) => x.id === this.data.productId);
@@ -276,11 +294,13 @@ Page({
     wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=points' });
   },
   confirmPoint() {
-    const points = Number(this.data.pointAmount);
-    if (!points || points <= 0) {
-      ui.toast('请输入积分数量');
-      return;
-    }
+	let points;
+	try {
+	  points = validation.integer(this.data.pointAmount, { label: '积分数量', min: 1, max: 1000000000 });
+	} catch (err) {
+	  ui.toast(err.message);
+	  return;
+	}
     if (this.data.submitting) return;
     const store = storeCtx.get();
     this.setData({ submitting: true });
@@ -293,7 +313,7 @@ Page({
       .then(() => {
         ui.hideLoading();
         this.setData({ submitting: false, showPoint: false });
-        ui.success('已提交，待工作人员审核');
+        ui.success(this.data.pointDir === 'withdraw' ? '取积分记录已提交' : '已提交，待工作人员审核');
       })
       .catch((err) => {
         ui.hideLoading();

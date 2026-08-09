@@ -1,0 +1,22 @@
+<view class="td">
+  <view class="td__nav" style="padding-top: {{navStatusBar}}px;">
+    <view class="td__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">
+      <view class="td__back" hover-class="td__back--hover" bindtap="goBack"><view class="td__back-arrow"></view></view>
+      <text class="td__nav-title">赛事详情</text>
+    </view>
+  </view>
+  <ic-loading wx:if="{{loading}}" />
+  <ic-empty wx:elif="{{loadError}}" text="{{loadError}}" />
+  <scroll-view wx:elif="{{event}}" class="td__scroll" scroll-y enhanced show-scrollbar="{{false}}">
+    <image wx:if="{{event.imageUrl}}" class="td__cover" src="{{event.imageUrl}}" mode="aspectFill"></image>
+    <view class="td__main">
+      <text class="td__title">{{event.title}}</text>
+      <text wx:if="{{event.summary}}" class="td__summary">{{event.summary}}</text>
+      <view class="td__meta">
+        <view wx:if="{{event.timeText}}" class="td__meta-row"><text class="td__meta-label">赛事时间</text><text class="td__meta-value">{{event.timeText}}</text></view>
+        <view wx:if="{{event.storeName}}" class="td__meta-row"><text class="td__meta-label">举办门店</text><text class="td__meta-value">{{event.storeName}}</text></view>
+      </view>
+      <view class="td__detail"><text class="td__section-title">赛事详情</text><rich-text wx:if="{{event.content}}" class="td__rich" nodes="{{event.content}}"></rich-text><text wx:else class="td__empty-text">暂无更多赛事说明</text></view>
+    </view>
+  </scroll-view>
+</view>

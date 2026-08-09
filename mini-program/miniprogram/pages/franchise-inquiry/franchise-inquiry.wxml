@@ -1,0 +1,67 @@
+<view class="ic-page franchise">
+  <view
+    wx:if="{{hotline}}"
+    class="franchise__hotline"
+  >
+    <text class="franchise__hotline-label">全国加盟热线</text>
+    <view class="franchise__hotline-value">
+      <text class="franchise__hotline-number">{{hotline}}</text>
+      <view class="franchise__hotline-actions">
+        <text
+          class="franchise__hotline-action"
+          aria-label="拨打全国加盟热线"
+          aria-role="button"
+          hover-class="franchise__hotline-action--hover"
+          bindtap="callHotline"
+        >点我拨打电话</text>
+        <view class="franchise__hotline-divider"></view>
+        <text
+          class="franchise__hotline-action"
+          aria-label="复制全国加盟热线"
+          aria-role="button"
+          hover-class="franchise__hotline-action--hover"
+          bindtap="copyHotline"
+        >点我复制</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="franchise__form">
+    <text class="franchise__title">加盟咨询</text>
+    <view class="franchise__field">
+      <text class="franchise__label">称呼</text>
+	  <input class="franchise__input {{errors.contactName ? 'franchise__input--error' : ''}}" value="{{form.contactName}}" maxlength="50" placeholder="请输入称呼" data-key="contactName" bindinput="onInput" bindblur="onBlur" />
+	  <text wx:if="{{errors.contactName}}" class="franchise__error">{{errors.contactName}}</text>
+    </view>
+    <view class="franchise__field">
+      <text class="franchise__label">联系电话</text>
+	  <input class="franchise__input {{errors.phone ? 'franchise__input--error' : ''}}" value="{{form.phone}}" maxlength="11" type="number" placeholder="请输入11位手机号" data-key="phone" bindinput="onInput" bindblur="onBlur" />
+	  <text wx:if="{{errors.phone}}" class="franchise__error">{{errors.phone}}</text>
+    </view>
+    <view class="franchise__field">
+      <text class="franchise__label">预期开设区域</text>
+	  <input class="franchise__input {{errors.expectedRegion ? 'franchise__input--error' : ''}}" value="{{form.expectedRegion}}" maxlength="100" placeholder="例如：重庆市渝中区" data-key="expectedRegion" bindinput="onInput" bindblur="onBlur" />
+	  <text wx:if="{{errors.expectedRegion}}" class="franchise__error">{{errors.expectedRegion}}</text>
+    </view>
+    <view class="franchise__field franchise__field--source">
+      <text class="franchise__label">信息渠道</text>
+      <ic-loading wx:if="{{loading}}" />
+      <view wx:elif="{{sources.length}}" class="franchise__sources">
+        <view
+          class="franchise__source {{form.source === item ? 'franchise__source--active' : ''}}"
+          wx:for="{{sources}}"
+          wx:key="*this"
+          data-source="{{item}}"
+          hover-class="franchise__source--hover"
+          bindtap="selectSource"
+        >
+          <text>{{item}}</text>
+        </view>
+      </view>
+      <text wx:else class="franchise__source-empty">信息渠道暂未配置，请稍后再试</text>
+	  <text wx:if="{{errors.source}}" class="franchise__error">{{errors.source}}</text>
+    </view>
+    <button class="franchise__submit" loading="{{submitting}}" disabled="{{submitting || loading || !sources.length}}" bindtap="submit">提交咨询</button>
+    <text class="franchise__privacy">提交后，工作人员将通过你填写的电话联系你</text>
+  </view>
+</view>

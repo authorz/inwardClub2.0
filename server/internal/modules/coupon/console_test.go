@@ -138,6 +138,34 @@ func (r *fakeConsoleRepo) DeleteTemplate(_ context.Context, scope ConsoleScope, 
 	return nil
 }
 
+func (r *fakeConsoleRepo) SetTemplateStatus(_ context.Context, scope ConsoleScope, id int64, status string) (Template, error) {
+	i := r.templateIndex(scope, id)
+	if i < 0 {
+		return Template{}, apperr.NotFound("coupon template not found")
+	}
+	r.templates[i].Status = status
+	return r.templates[i], nil
+}
+
+func TestConsoleServicePublishesAndDisablesTemplate(t *testing.T) {
+	repo := &fakeConsoleRepo{templates: []Template{{ID: 3, Name: "充值赠券", Status: "draft"}}}
+	svc := NewConsoleService(repo)
+	published, err := svc.PublishTemplate(context.Background(), ConsoleScope{}, 3)
+	if err != nil {
+		t.Fatalf("publish template: %v", err)
+	}
+	if published.Status != "published" {
+		t.Fatalf("published status = %q", published.Status)
+	}
+	disabled, err := svc.DisableTemplate(context.Background(), ConsoleScope{}, 3)
+	if err != nil {
+		t.Fatalf("disable template: %v", err)
+	}
+	if disabled.Status != "disabled" {
+		t.Fatalf("disabled status = %q", disabled.Status)
+	}
+}
+
 func (r *fakeConsoleRepo) GetApplicableScope(_ context.Context, scope ConsoleScope, _ int64) (ApplicableScope, error) {
 	r.scopes = append(r.scopes, scope)
 	return r.applic, nil

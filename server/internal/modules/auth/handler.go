@@ -35,8 +35,26 @@ func (h *Handler) MiniLogin(c *gin.Context) {
 	httpx.OK(c, resp)
 }
 
+// MiniPreRegister silently exchanges wx.login's code. Registered members
+// recover a full login session; new users receive an OpenID-backed,
+// reservation-only identity.
+func (h *Handler) MiniPreRegister(c *gin.Context) {
+	var req WeChatLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("请求内容格式不正确"))
+		return
+	}
+	resp, err := h.svc.MiniPreRegister(c.Request.Context(), req.Code)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, resp)
+}
+
 // MiniRegister handles POST /mini/auth/wechat/register — completing a first-time
-// member's profile form. This is what actually creates the member row.
+// member's profile form. It creates a new member or upgrades an OpenID-only
+// pre-registration in place.
 func (h *Handler) MiniRegister(c *gin.Context) {
 	var req WeChatRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

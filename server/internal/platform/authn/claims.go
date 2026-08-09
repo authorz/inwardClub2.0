@@ -21,6 +21,7 @@ type SubjectType string
 
 const (
 	SubjectMember     SubjectType = "member"
+	SubjectPreMember  SubjectType = "pre_member"
 	SubjectStaff      SubjectType = "staff"
 	SubjectStoreAdmin SubjectType = "store_admin"
 	SubjectCashier    SubjectType = "cashier"
@@ -33,6 +34,7 @@ type Role string
 
 const (
 	RoleMember     Role = "member"
+	RolePreMember  Role = "pre_member"
 	RoleStaff      Role = "staff"
 	RoleStoreAdmin Role = "store_admin"
 	RoleCashier    Role = "cashier"

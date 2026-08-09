@@ -37,8 +37,13 @@ type Receipt struct {
 	PaidAt     time.Time
 	StoreName  string
 	Member     string
+	VIPLevel   int
+	PayMethod  string
 	Points     int64
-	Items      []ReceiptItem
+	Remark     string
+	// CoinBalance is the member's available coin balance after this payment.
+	CoinBalance *int64
+	Items       []ReceiptItem
 }
 
 // ReceiptItem is one snapshotted food-order line rendered on the store slip.
@@ -83,14 +88,37 @@ func WriteReceipt(ctx context.Context, tx *sql.Tx, r Receipt) error {
 // so edits made after checkout cannot change the printed slip.
 func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, error) {
 	const header = `SELECT COALESCE(s.name, ''), COALESCE(m.phone, ''),
-			COALESCE(m.nickname, ''), fo.points_earned
+			COALESCE(m.nickname, ''),
+			COALESCE(mt.level, (
+				SELECT base.level FROM membership_tiers base
+				WHERE base.status = 'active'
+				ORDER BY base.level ASC, base.id ASC LIMIT 1
+			), 0),
+			COALESCE(po.pay_method, ''),
+			COALESCE(coins.available_amount, 0),
+			fo.points_earned, COALESCE(fo.remark, '')
 		FROM food_orders fo
 		JOIN stores s ON s.id = fo.store_id
 		JOIN members m ON m.id = fo.member_id
+		LEFT JOIN membership_tiers mt ON mt.id = m.current_tier_id
+		LEFT JOIN payment_orders po ON po.id = ? AND po.business_order_id = fo.business_order_id
+		LEFT JOIN wallet_accounts coins ON coins.member_id = fo.member_id AND coins.asset_type = 'coins'
 		WHERE fo.business_order_id = ?`
-	var phone, nickname string
-	err := tx.QueryRowContext(ctx, header, r.BusinessOrderID).
-		Scan(&r.StoreName, &phone, &nickname, &r.Points)
+	var (
+		phone, nickname string
+		coinBalance     int64
+	)
+	err := tx.QueryRowContext(ctx, header, r.PaymentOrderID, r.BusinessOrderID).
+		Scan(
+			&r.StoreName,
+			&phone,
+			&nickname,
+			&r.VIPLevel,
+			&r.PayMethod,
+			&coinBalance,
+			&r.Points,
+			&r.Remark,
+		)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, apperr.NotFound("food order not found")
 	}
@@ -98,6 +126,7 @@ func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, er
 		return Receipt{}, apperr.Internal(err)
 	}
 	r.Member = maskedMember(phone, nickname)
+	r.CoinBalance = &coinBalance
 
 	const lines = `SELECT name_snapshot, quantity, subtotal_cent
 		FROM food_order_items
@@ -194,7 +223,19 @@ func renderReceipt(r Receipt) string {
 	}
 	if r.OrderType == "food" {
 		b.WriteString(rule)
+		if r.VIPLevel > 0 {
+			fmt.Fprintf(&b, "会员等级                 VIP%d 会员下单\n", r.VIPLevel)
+		}
+		if payMethod := paymentMethodLabel(r.PayMethod); payMethod != "" {
+			fmt.Fprintf(&b, "消费方式                 %s\n", payMethod)
+		}
 		fmt.Fprintf(&b, "赠送积分                 %d\n", r.Points)
+		if r.CoinBalance != nil {
+			fmt.Fprintf(&b, "金币余额                 %d\n", *r.CoinBalance)
+		}
+		if remark := strings.TrimSpace(r.Remark); remark != "" {
+			fmt.Fprintf(&b, "订单备注：%s\n", remark)
+		}
 		b.WriteString(rule)
 		b.WriteString("商品名称          数量    金额\n")
 		for _, item := range r.Items {
@@ -207,6 +248,22 @@ func renderReceipt(r Receipt) string {
 	b.WriteString("谢谢惠顾！\n")
 	b.WriteString("<CUT>")
 	return b.String()
+}
+
+// paymentMethodLabel maps persisted payment channels to administrator-facing
+// receipt wording. coupon/voucher are accepted for forward compatibility with
+// food-order coupon settlement.
+func paymentMethodLabel(payMethod string) string {
+	switch strings.ToLower(strings.TrimSpace(payMethod)) {
+	case "wechat":
+		return "微信支付"
+	case "coin", "coins", "balance":
+		return "金币支付"
+	case "coupon", "voucher":
+		return "券兑换"
+	default:
+		return ""
+	}
 }
 
 // orderTypeLabel maps a business_orders.order_type to its printed heading.
