@@ -158,6 +158,17 @@
 }
 .home__login--hover { opacity: 0.7; }
 
+/* ---- homepage feature video ---- */
+.home__feature-video {
+  display: block;
+  width: calc(100% - 48rpx);
+  height: 395rpx;
+  margin: 8rpx 24rpx 0;
+  border-radius: 16rpx;
+  overflow: hidden;
+  background: #111;
+}
+
 /* ---- current store address ---- */
 .home__store-section {
   margin: 24rpx 24rpx 0;

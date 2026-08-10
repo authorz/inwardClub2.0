@@ -116,6 +116,20 @@
     </view>
   </view>
 
+  <video
+    class="home__feature-video"
+    src="https://assets.inwardclub.com/public/video/42ca55748bcd897e0ee731bf42de3f1b.mp4"
+    autoplay="{{true}}"
+    loop="{{true}}"
+    muted="{{true}}"
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-play-btn="{{false}}"
+    show-fullscreen-btn="{{false}}"
+    enable-progress-gesture="{{false}}"
+    object-fit="cover"
+  ></video>
+
   <!-- Current store: real store name, address and location-derived distance. -->
   <view wx:if="{{store}}" class="home__store-section">
     <view class="home__store-section-head">
