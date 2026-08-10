@@ -53,7 +53,6 @@ Page({
           direction: x.direction,
           timeText: fmt.dateTime(x.createdAt),
           deltaText: (x.delta > 0 ? '+' : '') + fmt.amount(x.delta),
-          income: x.delta >= 0,
         }));
         this.setData({ all, loading: false });
         this.applyFilter();

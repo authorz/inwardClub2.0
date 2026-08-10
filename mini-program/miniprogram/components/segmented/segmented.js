@@ -7,6 +7,7 @@ Component({
     options: { type: Array, value: [] }, // [{label, value}] or ["全部","收入"]
     value: { type: null, value: '' },
     variant: { type: String, value: 'block' },
+    quiet: { type: Boolean, value: false },
   },
   data: { items: [] },
   observers: {

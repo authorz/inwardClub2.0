@@ -1,23 +1,26 @@
 <view class="wl">
   <view class="wl__seg">
-    <ic-segmented options="{{assetOptions}}" value="{{asset}}" variant="block" bind:change="onAssetChange" />
+    <ic-segmented options="{{assetOptions}}" value="{{asset}}" variant="block" quiet="{{true}}" bind:change="onAssetChange" />
   </view>
 
   <view class="wl__dir">
-    <ic-segmented options="{{dirOptions}}" value="{{dir}}" variant="line" bind:change="onDirChange" />
+    <ic-segmented options="{{dirOptions}}" value="{{dir}}" variant="line" quiet="{{true}}" bind:change="onDirChange" />
   </view>
 
   <ic-loading wx:if="{{loading}}" />
   <ic-empty wx:elif="{{!list.length}}" text="暂无流水记录" />
 
-  <view wx:else class="wl__list ic-card">
+  <view wx:else class="wl__list">
     <view class="wl__row" wx:for="{{list}}" wx:key="id">
       <view class="wl__row-main">
         <text class="wl__row-title">{{item.title}}</text>
-        <text wx:if="{{item.note}}" class="wl__row-note">{{item.note}}</text>
-        <text class="wl__row-time">{{item.timeText}}</text>
+        <view class="wl__row-meta">
+          <text wx:if="{{item.note}}" class="wl__row-note">{{item.note}}</text>
+          <text wx:if="{{item.note}}" class="wl__row-separator">·</text>
+          <text class="wl__row-time">{{item.timeText}}</text>
+        </view>
       </view>
-      <text class="wl__row-delta {{item.income ? 'is-income' : ''}}">{{item.deltaText}}</text>
+      <text class="wl__row-delta">{{item.deltaText}}</text>
     </view>
   </view>
 

@@ -60,3 +60,6 @@
 .seg--line .seg__item.is-active { color: var(--ic-black); font-weight: 700; }
 .seg--line .seg__underline { width: 44rpx; height: 6rpx; border-radius: 6rpx; margin-top: 12rpx; background: transparent; }
 .seg--line .seg__item.is-active .seg__underline { background: var(--ic-black); }
+
+/* ---- quiet: reduced emphasis for dense, data-led pages ---- */
+.seg--quiet .seg__item.is-active { font-weight: 500; }
