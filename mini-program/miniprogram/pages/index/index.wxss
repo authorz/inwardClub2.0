@@ -127,7 +127,7 @@
 .home__banner-time { flex: 1; min-width: 0; }
 
 /* ---- member card ---- */
-.home__card { position: relative; box-sizing: border-box; min-height: 142rpx; margin: 20rpx 24rpx 0; padding: 22rpx 0 28rpx; background: var(--ic-white); }
+.home__card { position: relative; box-sizing: border-box; min-height: 142rpx; margin: 36rpx 24rpx 0; padding: 22rpx 0 28rpx; background: var(--ic-white); }
 .home__card-top { position: relative; z-index: 1; display: flex; align-items: center; }
 .home__card-top--guest { align-items: center; }
 .home__avatar {
