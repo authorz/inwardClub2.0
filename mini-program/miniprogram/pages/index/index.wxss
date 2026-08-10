@@ -126,8 +126,32 @@
 .home__banner-store { flex: none; max-width: 190rpx; }
 .home__banner-time { flex: 1; min-width: 0; }
 
+/* ---- video wall with franchise and member information in the foreground ---- */
+.home__feature-wall {
+  position: relative;
+  overflow: hidden;
+  padding-top: 40rpx;
+  background: #09090a;
+}
+.home__feature-wall-video {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: #09090a;
+}
+.home__feature-wall-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.08);
+}
+
 /* ---- member card ---- */
-.home__card { position: relative; box-sizing: border-box; min-height: 142rpx; margin: 36rpx 24rpx 0; padding: 22rpx 0 28rpx; background: var(--ic-white); }
+.home__card { position: relative; z-index: 2; box-sizing: border-box; min-height: 142rpx; margin: 20rpx 24rpx 24rpx; padding: 22rpx 24rpx 28rpx; border-radius: 16rpx; background: rgba(255, 255, 255, 0.86); }
 .home__card-top { position: relative; z-index: 1; display: flex; align-items: center; }
 .home__card-top--guest { align-items: center; }
 .home__avatar {
@@ -157,17 +181,6 @@
   background: var(--ic-black); color: var(--ic-white); font-size: 24rpx; font-weight: 600;
 }
 .home__login--hover { opacity: 0.7; }
-
-/* ---- homepage feature video ---- */
-.home__feature-video {
-  display: block;
-  width: calc(100% - 48rpx);
-  height: 395rpx;
-  margin: 8rpx 24rpx 0;
-  border-radius: 16rpx;
-  overflow: hidden;
-  background: #111;
-}
 
 /* ---- current store address ---- */
 .home__store-section {
@@ -256,7 +269,9 @@
 
 /* ---- global franchise inquiry ---- */
 .home__franchise {
-  margin: 40rpx 24rpx 0;
+  position: relative;
+  z-index: 2;
+  margin: 0 24rpx;
   border: 1px solid rgba(17, 17, 17, 0.1);
   border-radius: 16rpx;
   overflow: hidden;

@@ -67,68 +67,72 @@
     </view>
   </view>
 
-  <view
-    class="home__franchise"
-    aria-label="了解全国招商加盟详情"
-    aria-role="button"
-    hover-class="home__franchise--hover"
-    bindtap="goFranchiseInquiry"
-  >
-    <image
-      class="home__franchise-poster"
-      src="https://assets.inwardclub.com/public/images/franchise-poster-light-wide-v4.webp"
-      mode="widthFix"
-    />
-  </view>
+  <view class="home__feature-wall">
+    <video
+      class="home__feature-wall-video"
+      src="https://assets.inwardclub.com/public/video/42ca55748bcd897e0ee731bf42de3f1b.mp4"
+      autoplay="{{true}}"
+      loop="{{true}}"
+      muted="{{true}}"
+      controls="{{false}}"
+      show-center-play-btn="{{false}}"
+      show-play-btn="{{false}}"
+      show-fullscreen-btn="{{false}}"
+      enable-progress-gesture="{{false}}"
+      object-fit="cover"
+      aria-hidden="{{true}}"
+    ></video>
+    <view class="home__feature-wall-shade"></view>
 
-  <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
-  <view class="home__card">
-    <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">
-      <view class="home__avatar {{loggedIn ? '' : 'home__avatar--guest'}}">
-        <image wx:if="{{loggedIn && me.avatarUrl}}" class="home__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
-        <image wx:else class="home__avatar-logo" src="/assets/brand/logo-wordmark.png" mode="aspectFit" />
-      </view>
+    <view
+      class="home__franchise"
+      aria-label="了解全国招商加盟详情"
+      aria-role="button"
+      hover-class="home__franchise--hover"
+      bindtap="goFranchiseInquiry"
+    >
+      <image
+        class="home__franchise-poster"
+        src="https://assets.inwardclub.com/public/images/franchise-poster-light-wide-v4.webp"
+        mode="widthFix"
+      />
+    </view>
 
-      <!-- Logged-in: identity and tier are one branch; the guest branch is mutually exclusive. -->
-      <block wx:if="{{loggedIn}}">
-        <view class="home__ident">
-          <view class="home__member-name-line">
-            <text class="home__member-greeting">Hi,</text>
-            <text class="home__member-name ic-ellipsis">{{me.nickname || '会员'}}</text>
+    <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
+    <view class="home__card">
+      <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">
+        <view class="home__avatar {{loggedIn ? '' : 'home__avatar--guest'}}">
+          <image wx:if="{{loggedIn && me.avatarUrl}}" class="home__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
+          <image wx:else class="home__avatar-logo" src="/assets/brand/logo-wordmark.png" mode="aspectFit" />
+        </view>
+
+        <!-- Logged-in: identity and tier are one branch; the guest branch is mutually exclusive. -->
+        <block wx:if="{{loggedIn}}">
+          <view class="home__ident">
+            <view class="home__member-name-line">
+              <text class="home__member-greeting">Hi,</text>
+              <text class="home__member-name ic-ellipsis">{{me.nickname || '会员'}}</text>
+            </view>
+            <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
           </view>
-          <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
-        </view>
-        <view class="home__vip">
-          <text class="home__vip-mark">◇</text>
-          <text class="home__vip-name ic-ellipsis">{{me.tierName || '普卡'}}</text>
-          <view class="ic-arrow home__vip-arrow"></view>
-        </view>
-      </block>
+          <view class="home__vip">
+            <text class="home__vip-mark">◇</text>
+            <text class="home__vip-name ic-ellipsis">{{me.tierName || '普卡'}}</text>
+            <view class="ic-arrow home__vip-arrow"></view>
+          </view>
+        </block>
 
-      <!-- Guest: no fake data, offer a login entry -->
-      <view wx:else class="home__ident home__ident--guest">
-        <view class="home__guest-text">
-          <text class="home__hello">欢迎来到</text>
-          <text class="home__name">Inward Club</text>
+        <!-- Guest: no fake data, offer a login entry -->
+        <view wx:else class="home__ident home__ident--guest">
+          <view class="home__guest-text">
+            <text class="home__hello">欢迎来到</text>
+            <text class="home__name">Inward Club</text>
+          </view>
+          <view class="home__login" hover-class="home__login--hover" bindtap="onLogin">登录</view>
         </view>
-        <view class="home__login" hover-class="home__login--hover" bindtap="onLogin">登录</view>
       </view>
     </view>
   </view>
-
-  <video
-    class="home__feature-video"
-    src="https://assets.inwardclub.com/public/video/42ca55748bcd897e0ee731bf42de3f1b.mp4"
-    autoplay="{{true}}"
-    loop="{{true}}"
-    muted="{{true}}"
-    controls="{{false}}"
-    show-center-play-btn="{{false}}"
-    show-play-btn="{{false}}"
-    show-fullscreen-btn="{{false}}"
-    enable-progress-gesture="{{false}}"
-    object-fit="cover"
-  ></video>
 
   <!-- Current store: real store name, address and location-derived distance. -->
   <view wx:if="{{store}}" class="home__store-section">
