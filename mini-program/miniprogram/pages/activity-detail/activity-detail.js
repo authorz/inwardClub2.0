@@ -1,8 +1,21 @@
 // 活动详情 — 海报长页，预约操作跳转独立购票页面
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
+const storeCtx = require('../../utils/store-context');
 
 const STATUS_LABEL = { enrolling: '报名中', upcoming: '即将开始', ended: '已结束', soldout: '已售罄' };
+
+function displayStoreForActivity(activity, stores) {
+  const list = stores || [];
+  if (activity.storeId != null) {
+    return list.find((store) => Number(store.id) === Number(activity.storeId)) || null;
+  }
+  const current = storeCtx.get();
+  if (current && current.id != null) {
+    return list.find((store) => Number(store.id) === Number(current.id)) || current;
+  }
+  return list[0] || null;
+}
 
 Page({
   data: {
@@ -24,10 +37,10 @@ Page({
   onLoad(options) {
     this.measureNav();
     const id = options.id;
-    api
-      .getActivity(id)
-      .then((res) => {
+    Promise.all([api.getActivity(id), storeCtx.listNearby()])
+      .then(([res, stores]) => {
         const a = res.data || {};
+        const displayStore = displayStoreForActivity(a, stores);
         const activityPayChannels = a.payChannels && a.payChannels.length ? a.payChannels : [];
         const purchaseLimit = Math.max(0, Number(a.purchaseLimit) || 0);
         const tickets = (a.ticketTypes || []).map((t) => ({
@@ -52,17 +65,28 @@ Page({
         });
         const min = tickets.reduce((acc, ticket) => (acc === null || ticket.priceCent < acc.priceCent ? ticket : acc), null);
         const detailNodes = a.content || a.detailHtml || a.introHtml || a.detail || a.intro || '';
-        // 地址：仅当后端给出经纬度时才做地图卡片，否则退回文字地址行
-        const lat = a.latitude != null ? a.latitude : a.lat;
-        const lng = a.longitude != null ? a.longitude : a.lng;
-        const address = a.address || a.addressDetail || '';
+        // 单店活动使用绑定门店；全门店活动使用用户当前选择或最近的门店。
+        const lat = displayStore && displayStore.latitude != null
+          ? displayStore.latitude
+          : a.latitude != null ? a.latitude : a.lat;
+        const lng = displayStore && displayStore.longitude != null
+          ? displayStore.longitude
+          : a.longitude != null ? a.longitude : a.lng;
+        const storeName = (displayStore && displayStore.name) || a.storeName || 'Inward Club';
+        const address = (displayStore && displayStore.address) || a.address || a.addressDetail || '';
+        const distanceMeters = displayStore && displayStore.distanceMeters != null
+          ? displayStore.distanceMeters
+          : a.distanceMeters;
+        const distanceText = distanceMeters != null
+          ? Number(distanceMeters) === 0 ? '0m' : fmt.distance(distanceMeters)
+          : lat != null && lng != null ? '未定位' : '';
         const startDate = fmt.dotDay(a.startAt);
         const endDate = fmt.dotDay(a.endAt);
         const startTime = fmt.dateTime(a.startAt, { timeOnly: true });
         const endTime = fmt.dateTime(a.endAt, { timeOnly: true });
         const mapPoint =
           lat != null && lng != null
-            ? { latitude: Number(lat), longitude: Number(lng), name: a.storeName || '', address }
+            ? { latitude: Number(lat), longitude: Number(lng), name: storeName, address }
             : null;
         this.setData({
           loading: false,
@@ -74,12 +98,14 @@ Page({
             statusText: STATUS_LABEL[a.status] || '报名中',
             dateText: startDate && endDate ? `${startDate} - ${endDate}` : startDate || endDate,
             clockText: startTime && endTime ? `${startTime}-${endTime}` : startTime || endTime,
-            storeName: a.storeName,
+            storeName,
             address,
-            locationText: [a.storeName, address].filter(Boolean).join(' · '),
-            storeScopeText: a.scopeType === 'global' || a.storeId == null ? '' : '共1家',
+            locationText: [storeName, address].filter(Boolean).join(' · '),
+            storeScopeText: a.scopeType === 'global' || a.storeId == null
+              ? displayStore ? '当前门店' : '全部门店'
+              : '共1家',
             description: a.description || '',
-            distanceText: fmt.distance(a.distanceMeters),
+            distanceText,
             detailNodes,
             hasDetail: !!detailNodes,
             purchaseLimit,

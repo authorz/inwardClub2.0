@@ -51,7 +51,7 @@
           <view class="ad__venue-card {{mapPoint ? 'ad__venue-card--tap' : ''}}" bindtap="openLocation">
             <image class="ad__venue-map" src="/assets/icons/venue-map.svg" mode="aspectFill" />
             <view class="ad__venue-copy">
-              <text class="ad__venue-name">Inward Club</text>
+              <text class="ad__venue-name">{{activity.storeName}}</text>
               <text wx:if="{{activity.address}}" class="ad__venue-address">{{activity.address}}</text>
             </view>
             <view class="ad__venue-aside">
