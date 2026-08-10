@@ -21,7 +21,9 @@ const ICONS = ['home', 'reservation', 'order', 'me'];
 const SIZE = 81; // WeChat recommended tab icon size
 
 function recolor(svg, color) {
-  return svg.replace(/stroke="#[0-9a-fA-F]{3,6}"/g, `stroke="${color}"`);
+  return svg
+    .replace(/stroke="#[0-9a-fA-F]{3,6}"/g, `stroke="${color}"`)
+    .replace(/fill="#[0-9a-fA-F]{3,6}"/g, `fill="${color}"`);
 }
 
 async function render(svg, outFile) {
