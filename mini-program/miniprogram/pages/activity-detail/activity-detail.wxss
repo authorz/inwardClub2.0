@@ -58,13 +58,17 @@ button.ad__nav-share {
   background: #111; box-sizing: border-box;
 }
 .ad__venue-card--tap:active { opacity: 0.74; }
-.ad__venue-map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.ad__venue-map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.48; }
 .ad__venue-copy { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8rpx; flex: 1; min-width: 0; }
-.ad__venue-name { font-size: 31rpx; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ad__venue-address { font-size: 23rpx; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ad__venue-aside { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6rpx; flex: none; min-width: 76rpx; }
-.ad__venue-distance { font-size: 22rpx; font-weight: 600; color: #fff; }
-.ad__venue-pin { width: 42rpx; height: 42rpx; opacity: 0.42; }
+.ad__venue-name { font-size: 34rpx; font-weight: 700; line-height: 1.3; color: #fff; text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad__venue-address { font-size: 24rpx; line-height: 1.4; color: #fff; text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad__venue-aside { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; flex: none; min-width: 92rpx; }
+.ad__venue-distance { font-size: 24rpx; font-weight: 700; line-height: 1.2; color: #fff; text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.7); }
+.ad__venue-pin {
+  width: 48rpx; height: 48rpx;
+  filter: brightness(0) invert(1) drop-shadow(0 2rpx 6rpx rgba(0, 0, 0, 0.7));
+  opacity: 0.96;
+}
 
 /* Long-form sections */
 .ad__section { padding: 48rpx 0; border-top: 1rpx solid rgba(255, 255, 255, 0.18); }
