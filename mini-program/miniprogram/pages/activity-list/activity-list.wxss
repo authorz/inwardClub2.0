@@ -77,16 +77,17 @@
   padding: 40rpx 48rpx 36rpx;
 }
 .al__head-title {
-  font-size: 28rpx;
+  font-size: 34rpx;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.4);
   letter-spacing: 2rpx;
   transition: color 0.2s, font-size 0.2s;
 }
 .al__head-title.is-active {
-  font-size: 30rpx;
+  font-size: 38rpx;
   color: rgba(255, 255, 255, 0.95);
 }
+.al__body { margin-top: 20px; }
 
 /* ---- 精彩回顾 list ---- */
 .al__reviews { padding: 8rpx 32rpx 40rpx; }

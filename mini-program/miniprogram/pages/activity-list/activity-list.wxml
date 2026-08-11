@@ -19,6 +19,7 @@
     <text class="al__head-title {{mode === 'review' ? 'is-active' : ''}}" bindtap="onReview">精彩回顾</text>
   </view>
 
+  <view class="al__body">
   <!-- ===== 近期活动：塔式轮播 ===== -->
   <block wx:if="{{mode === 'current'}}">
     <ic-loading wx:if="{{loading}}" theme="dark" />
@@ -70,5 +71,6 @@
       </view>
     </view>
   </block>
+  </view>
   </view>
 </view>
