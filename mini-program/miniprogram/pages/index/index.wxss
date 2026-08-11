@@ -255,18 +255,39 @@
 .home__franchise {
   position: relative;
   z-index: 2;
+  min-height: 136rpx;
   margin: 0 24rpx;
-  border: 1px solid rgba(17, 17, 17, 0.1);
-  border-radius: 16rpx;
-  overflow: hidden;
-  background: transparent;
+  padding: 0 24rpx 0 32rpx;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  border-radius: 16rpx;
+  background: var(--ic-fill-2);
 }
-.home__franchise--hover { opacity: 0.88; }
-.home__franchise-poster {
+.home__franchise--hover { opacity: 0.72; }
+.home__franchise-title {
   display: block;
-  width: 100%;
-  height: auto;
+  min-width: 0;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ic-black);
+}
+.home__franchise-action {
+  flex: none;
+  min-width: 140rpx;
+  height: 56rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border-radius: 28rpx;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 56rpx;
+  text-align: center;
 }
 
 /* ---- daily sign-in ---- */

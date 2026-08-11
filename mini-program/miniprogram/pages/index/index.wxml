@@ -70,16 +70,13 @@
   <view class="home__feature-wall">
     <view
       class="home__franchise"
-      aria-label="了解全国招商加盟详情"
+      aria-label="了解城市合伙人招募详情"
       aria-role="button"
       hover-class="home__franchise--hover"
       bindtap="goFranchiseInquiry"
     >
-      <image
-        class="home__franchise-poster"
-        src="https://assets.inwardclub.com/public/images/franchise-poster-light-wide-v4.webp"
-        mode="widthFix"
-      />
+      <text class="home__franchise-title">城市合伙人招募中</text>
+      <text class="home__franchise-action">了解详情</text>
     </view>
 
     <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
