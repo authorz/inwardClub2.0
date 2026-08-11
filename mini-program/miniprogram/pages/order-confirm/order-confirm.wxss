@@ -11,8 +11,8 @@
 }
 .oc__context-unit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10rpx; }
 .oc__context-unit--store { flex: 0 1 44%; }
-.oc__context-label { flex: none; font-size: 22rpx; color: var(--ic-text-3); }
-.oc__context-value { min-width: 0; font-size: 26rpx; font-weight: 600; color: var(--ic-text-2); }
+.oc__context-label { flex: none; font-size: 20rpx; color: var(--ic-text-3); }
+.oc__context-value { min-width: 0; font-size: 24rpx; font-weight: 600; color: var(--ic-text-2); }
 .oc__context-value--muted { font-weight: 400; color: var(--ic-text-3); }
 .oc__context-divider { width: 1rpx; height: 32rpx; flex: none; background: var(--ic-line); }
 .oc__context .ic-arrow { flex: none; margin-left: 0; }
@@ -25,12 +25,12 @@
 .oc__item-thumb { width: 96rpx; height: 96rpx; border-radius: 12rpx; overflow: hidden; flex: none; background: var(--ic-fill); }
 .oc__item-pic { width: 100%; height: 100%; }
 .oc__item-ph { width: 100%; height: 100%; background: linear-gradient(160deg, #ececec, #dcdcdc); }
-.oc__item-name { flex: 1; min-width: 0; font-size: 30rpx; color: var(--ic-black); }
-.oc__item-qty { font-size: 24rpx; color: var(--ic-text-3); }
-.oc__item-amt { font-size: 30rpx; font-weight: 600; color: var(--ic-black); min-width: 120rpx; text-align: right; }
+.oc__item-name { flex: 1; min-width: 0; font-size: 26rpx; color: var(--ic-black); }
+.oc__item-qty { font-size: 22rpx; color: var(--ic-text-3); }
+.oc__item-amt { font-size: 26rpx; font-weight: 600; color: var(--ic-black); min-width: 120rpx; text-align: right; }
 .oc__note { display: flex; align-items: center; gap: 20rpx; margin-top: 12rpx; padding-top: 26rpx; border-top: 1rpx solid var(--ic-line); }
-.oc__note-label { font-size: 30rpx; color: var(--ic-text); }
-.oc__note-input { flex: 1; text-align: right; font-size: 28rpx; color: var(--ic-black); }
+.oc__note-label { font-size: 26rpx; color: var(--ic-text); }
+.oc__note-input { flex: 1; text-align: right; font-size: 24rpx; color: var(--ic-black); }
 .oc__note-ph { color: var(--ic-text-4); }
 
 /* payment（白底 + 分割线 + 紧凑列表，单选圆点） */
@@ -38,17 +38,17 @@
 .oc__pm:first-of-type { border-top: none; }
 .oc__pm-icon { width: 44rpx; height: 44rpx; flex: none; }
 .oc__pm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
-.oc__pm-name { font-size: 30rpx; color: var(--ic-black); }
-.oc__pm-desc { font-size: 24rpx; color: var(--ic-text-3); }
+.oc__pm-name { font-size: 26rpx; color: var(--ic-black); }
+.oc__pm-desc { font-size: 22rpx; color: var(--ic-text-3); }
 .oc__pm-radio { width: 40rpx; height: 40rpx; flex: none; border: 2rpx solid var(--ic-line); border-radius: 50%; position: relative; }
 .oc__pm-radio--on { border-color: var(--ic-black); }
 .oc__pm-radio--on::after { content: ''; position: absolute; left: 50%; top: 50%; width: 22rpx; height: 22rpx; background: var(--ic-black); border-radius: 50%; transform: translate(-50%, -50%); }
 .oc__pm--disabled { opacity: 0.4; }
 
 /* summary */
-.oc__sum-row { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; font-size: 28rpx; color: var(--ic-text-2); }
-.oc__sum-row--total { margin-top: 8rpx; padding-top: 22rpx; border-top: 1rpx solid var(--ic-line); font-size: 30rpx; color: var(--ic-black); font-weight: 600; }
-.oc__sum-total { font-size: 40rpx; font-weight: 700; font-variant-numeric: tabular-nums; }
+.oc__sum-row { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; font-size: 24rpx; color: var(--ic-text-2); }
+.oc__sum-row--total { margin-top: 8rpx; padding-top: 22rpx; border-top: 1rpx solid var(--ic-line); font-size: 26rpx; color: var(--ic-black); font-weight: 600; }
+.oc__sum-total { font-size: 30rpx; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* fixed bar */
 .oc__bar {
@@ -57,7 +57,7 @@
   padding: 14rpx 32rpx calc(14rpx + env(safe-area-inset-bottom));
   background: var(--ic-white); border-top: 1rpx solid var(--ic-line);
 }
-.oc__bar-amt { font-size: 40rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.oc__bar-amt { font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .oc__bar-btn {
   width: 252rpx !important;
   min-width: 252rpx;
@@ -66,5 +66,5 @@
   margin: 0 0 0 auto !important;
   padding: 0 28rpx;
   border-radius: 16rpx;
-  font-size: 28rpx;
+  font-size: 24rpx;
 }

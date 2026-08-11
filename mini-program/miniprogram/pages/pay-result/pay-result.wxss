@@ -5,8 +5,8 @@
 .pr__icon.is-ok .ic-ic-check::before { left: 18rpx; top: 20rpx; width: 42rpx; height: 22rpx; border-left-width: 6rpx; border-bottom-width: 6rpx; }
 .pr__icon.is-fail { background: var(--ic-fill); }
 .pr__fail-mark { font-size: 84rpx; font-weight: 700; color: var(--ic-text-3); }
-.pr__title { margin-top: 40rpx; font-size: 40rpx; font-weight: 700; color: var(--ic-black); }
-.pr__amount { margin-top: 20rpx; font-size: 48rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
-.pr__desc { margin-top: 20rpx; font-size: 24rpx; color: var(--ic-text-3); text-align: center; }
+.pr__title { margin-top: 40rpx; font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
+.pr__amount { margin-top: 20rpx; font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.pr__desc { margin-top: 20rpx; font-size: 22rpx; color: var(--ic-text-3); text-align: center; }
 .pr__actions { display: flex; gap: 20rpx; margin-top: 80rpx; width: 100%; }
 .pr__act { flex: 1; }

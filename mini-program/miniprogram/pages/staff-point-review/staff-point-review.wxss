@@ -1,15 +1,15 @@
 .spr { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
 .spr__search { background: var(--ic-white); border-radius: var(--ic-radius); padding: 20rpx 28rpx; margin-bottom: 20rpx; }
-.spr__search-input { font-size: 28rpx; color: var(--ic-black); }
+.spr__search-input { font-size: 24rpx; color: var(--ic-black); }
 .spr__search-ph { color: var(--ic-text-4); }
 .spr__card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 30rpx 32rpx; margin-bottom: 20rpx; }
 .spr__top { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
 .spr__head { display: flex; align-items: center; gap: 16rpx; }
-.spr__member { font-size: 30rpx; font-weight: 700; color: var(--ic-black); }
-.spr__dir { font-size: 22rpx; color: var(--ic-text-2); padding: 4rpx 14rpx; background: var(--ic-fill); border-radius: 8rpx; }
-.spr__points { font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.spr__member { font-size: 26rpx; font-weight: 700; color: var(--ic-black); }
+.spr__dir { font-size: 20rpx; color: var(--ic-text-2); padding: 4rpx 14rpx; background: var(--ic-fill); border-radius: 8rpx; }
+.spr__points { font-size: 26rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .spr__meta { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 14rpx; }
-.spr__store { font-size: 24rpx; color: var(--ic-text-2); min-width: 0; }
-.spr__time { font-size: 22rpx; color: var(--ic-text-4); flex: none; }
+.spr__store { font-size: 22rpx; color: var(--ic-text-2); min-width: 0; }
+.spr__time { font-size: 20rpx; color: var(--ic-text-4); flex: none; }
 .spr__actions { display: flex; justify-content: flex-end; gap: 16rpx; margin-top: 22rpx; }
-.spr__done { margin-top: 20rpx; text-align: right; font-size: 24rpx; color: var(--ic-text-3); }
+.spr__done { margin-top: 20rpx; text-align: right; font-size: 22rpx; color: var(--ic-text-3); }

@@ -4,12 +4,12 @@
 .sbar__thumb { width: 72rpx; height: 72rpx; border-radius: 14rpx; background: #111; color: #fff; font-size: 16rpx; letter-spacing: 1rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sbar__main { flex: 1; min-width: 0; margin: 0 18rpx; }
 .sbar__nameline { display: flex; align-items: center; gap: 10rpx; }
-.sbar__name { font-size: 30rpx; font-weight: 600; color: var(--ic-black); }
-.sbar__sub { font-size: 22rpx; color: var(--ic-text-3); margin-top: 2rpx; display: block; }
+.sbar__name { font-size: 26rpx; font-weight: 600; color: var(--ic-black); }
+.sbar__sub { font-size: 20rpx; color: var(--ic-text-3); margin-top: 2rpx; display: block; }
 .sbar__actions { display: flex; align-items: center; gap: 6rpx; flex-shrink: 0; }
 .sbar__vline { width: 1rpx; height: 44rpx; background: var(--ic-line-strong); margin: 0 12rpx; }
 .sbar__act { display: flex; flex-direction: column; align-items: center; gap: 6rpx; padding: 0 4rpx; }
-.sbar__act-text { font-size: 22rpx; color: var(--ic-text-2); }
+.sbar__act-text { font-size: 20rpx; color: var(--ic-text-2); }
 .sbar__act-ico { width: 36rpx; height: 36rpx; display: block; }
 .sbar__scan { width: 68rpx; height: 68rpx; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; }
 .sbar__scan-ico { width: 34rpx; height: 34rpx; border: 3rpx solid #333; border-radius: 6rpx; }

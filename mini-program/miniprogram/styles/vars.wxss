@@ -46,6 +46,6 @@ page {
   background: var(--ic-bg);
   color: var(--ic-text);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
-  font-size: 28rpx;
+  font-size: 24rpx;
   line-height: 1.5;
 }

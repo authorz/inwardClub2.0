@@ -17,7 +17,7 @@
 }
 .franchise__hotline-label {
   flex: none;
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 700;
   color: var(--ic-black);
 }
@@ -28,12 +28,12 @@
   align-items: flex-end;
   justify-content: flex-end;
   gap: 9rpx;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: var(--ic-black);
   font-variant-numeric: tabular-nums;
 }
 .franchise__hotline-number {
-  font-size: 28rpx;
+  font-size: 24rpx;
   line-height: 1.2;
   color: var(--ic-black);
 }
@@ -44,7 +44,7 @@
   gap: 12rpx;
 }
 .franchise__hotline-action {
-  font-size: 21rpx;
+  font-size: 20rpx;
   line-height: 1.5;
   color: var(--ic-text-3);
 }
@@ -62,7 +62,7 @@
   display: block;
   margin-bottom: 42rpx;
   text-align: center;
-  font-size: 40rpx;
+  font-size: 30rpx;
   font-weight: 750;
   line-height: 1.2;
   color: var(--ic-black);
@@ -73,7 +73,7 @@
 .franchise__label {
   display: block;
   margin-bottom: 16rpx;
-  font-size: 27rpx;
+  font-size: 24rpx;
   font-weight: 650;
   color: var(--ic-text-2);
 }
@@ -84,7 +84,7 @@
   box-sizing: border-box;
   border-radius: 12rpx;
   background: var(--ic-fill-2);
-  font-size: 28rpx;
+  font-size: 24rpx;
   color: var(--ic-black);
 }
 .franchise__input--error {
@@ -93,7 +93,7 @@
 .franchise__error {
   display: block;
   margin-top: 10rpx;
-  font-size: 22rpx;
+  font-size: 20rpx;
   line-height: 1.4;
   color: #d93025;
 }
@@ -113,7 +113,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: var(--ic-text-2);
 }
 .franchise__source--hover { opacity: 0.58; }
@@ -126,7 +126,7 @@
 .franchise__source-empty {
   display: block;
   padding: 24rpx 0;
-  font-size: 25rpx;
+  font-size: 22rpx;
   color: var(--ic-text-3);
 }
 .franchise__submit {
@@ -137,7 +137,7 @@
   border-radius: 8rpx;
   background: var(--ic-black);
   color: var(--ic-white);
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 700;
   line-height: 88rpx;
 }
@@ -147,6 +147,6 @@
   display: block;
   margin-top: 18rpx;
   text-align: center;
-  font-size: 21rpx;
+  font-size: 20rpx;
   color: var(--ic-text-3);
 }

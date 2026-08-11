@@ -30,12 +30,12 @@ page { background: #000; color: #fff; }
   gap: 10rpx;
 }
 .ap__title {
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1.4;
   color: #fff;
 }
-.ap__meta { font-size: 24rpx; color: #fff; }
+.ap__meta { font-size: 22rpx; color: #fff; }
 
 .ap__section {
   padding: 44rpx 0;
@@ -44,7 +44,7 @@ page { background: #000; color: #fff; }
 .ap__section-title {
   display: block;
   margin-bottom: 22rpx;
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
   color: #fff;
 }
@@ -75,9 +75,9 @@ page { background: #000; color: #fff; }
 .ap__radio-on { width: 18rpx; height: 18rpx; border-radius: 50%; background: #fff; }
 .ap__ticket-main { flex: 1; min-width: 0; }
 .ap__ticket-line { display: flex; align-items: baseline; justify-content: space-between; gap: 24rpx; }
-.ap__ticket-name { font-size: 30rpx; font-weight: 600; color: #fff; }
-.ap__ticket-price { flex: none; font-size: 32rpx; font-weight: 700; color: #fff; }
-.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 23rpx; color: #fff; }
+.ap__ticket-name { font-size: 26rpx; font-weight: 600; color: #fff; }
+.ap__ticket-price { flex: none; font-size: 28rpx; font-weight: 700; color: #fff; }
+.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 20rpx; color: #fff; }
 .ap__qty {
   display: flex;
   align-items: center;
@@ -88,12 +88,12 @@ page { background: #000; color: #fff; }
   border-top: 1rpx solid rgba(255, 255, 255, 0.18);
   box-sizing: border-box;
 }
-.ap__qty-label { font-size: 26rpx; color: #fff; }
-.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 26rpx; color: #fff; }
+.ap__qty-label { font-size: 24rpx; color: #fff; }
+.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 24rpx; color: #fff; }
 
 .ap__amount { display: flex; align-items: center; justify-content: space-between; }
-.ap__amount-label { font-size: 28rpx; color: #fff; }
-.ap__amount-value { font-size: 38rpx; font-weight: 700; color: #fff; }
+.ap__amount-label { font-size: 24rpx; color: #fff; }
+.ap__amount-value { font-size: 28rpx; font-weight: 700; color: #fff; }
 
 .ap__bar {
   position: fixed;
@@ -109,8 +109,8 @@ page { background: #000; color: #fff; }
   background: #000;
 }
 .ap__bar-total { display: flex; min-width: 180rpx; flex-direction: column; }
-.ap__bar-label { font-size: 22rpx; color: #fff; }
-.ap__bar-amount { margin-top: 2rpx; font-size: 40rpx; font-weight: 700; color: #fff; }
+.ap__bar-label { font-size: 20rpx; color: #fff; }
+.ap__bar-amount { margin-top: 2rpx; font-size: 30rpx; font-weight: 700; color: #fff; }
 .ap__submit {
   flex: 1;
   width: auto !important;

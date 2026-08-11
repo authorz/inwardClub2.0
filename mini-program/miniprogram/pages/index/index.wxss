@@ -31,8 +31,8 @@
 }
 .home__nav-store--hover { opacity: 0.68; }
 .home__nav-store-copy { display: flex; align-items: center; gap: 8rpx; min-width: 0; white-space: nowrap; }
-.home__nav-store-name { display: block; min-width: 0; max-width: 136rpx; font-size: 26rpx; font-weight: 650; line-height: 1.2; }
-.home__nav-store-distance { display: block; flex: none; font-size: 22rpx; font-weight: 500; line-height: 1.2; color: rgba(255, 255, 255, 0.9); }
+.home__nav-store-name { display: block; min-width: 0; max-width: 136rpx; font-size: 24rpx; font-weight: 650; line-height: 1.2; }
+.home__nav-store-distance { display: block; flex: none; font-size: 20rpx; font-weight: 500; line-height: 1.2; color: rgba(255, 255, 255, 0.9); }
 .home__nav-store-arrow { flex: none; width: 9rpx; height: 9rpx; margin-left: 0; border-color: currentColor; transform: rotate(45deg); }
 .home__nav-logo {
   height: 52rpx;
@@ -63,8 +63,8 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: linear-gradient(155deg, #3a3630 0%, #17161a 60%, #0c0b0d 100%);
 }
-.home__banner-title { color: #f4efe6; font-size: 52rpx; font-weight: 700; letter-spacing: 6rpx; }
-.home__banner-sub { margin-top: 16rpx; color: rgba(244, 239, 230, 0.55); font-size: 22rpx; letter-spacing: 6rpx; }
+.home__banner-title { color: #f4efe6; font-size: 30rpx; font-weight: 700; letter-spacing: 6rpx; }
+.home__banner-sub { margin-top: 16rpx; color: rgba(244, 239, 230, 0.55); font-size: 20rpx; letter-spacing: 6rpx; }
 .home__banner-info {
   position: absolute;
   left: 0;
@@ -86,7 +86,7 @@
   display: block;
   flex: 1;
   min-width: 0;
-  font-size: 36rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1.25;
   color: var(--ic-white);
@@ -99,7 +99,7 @@
   border-radius: 28rpx;
   background: rgba(255, 255, 255, 0.94);
   color: var(--ic-black);
-  font-size: 22rpx;
+  font-size: 20rpx;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -119,7 +119,7 @@
   min-width: 0;
   margin-top: 10rpx;
   padding-right: 120rpx;
-  font-size: 22rpx;
+  font-size: 20rpx;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.78);
 }
@@ -166,19 +166,19 @@
 .home__ident--guest { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
 .home__guest-text { min-width: 0; }
 .home__member-name-line { display: flex; align-items: baseline; min-width: 0; }
-.home__member-greeting { flex: none; font-size: 34rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
-.home__member-name { min-width: 0; font-size: 34rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
-.home__hello { display: block; font-size: 22rpx; color: var(--ic-text-3); }
-.home__name { display: block; margin-top: 2rpx; font-size: 30rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
-.home__no { display: block; margin-top: 6rpx; font-size: 22rpx; line-height: 1.2; color: var(--ic-text-3); white-space: nowrap; }
+.home__member-greeting { flex: none; font-size: 28rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
+.home__member-name { min-width: 0; font-size: 28rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
+.home__hello { display: block; font-size: 20rpx; color: var(--ic-text-3); }
+.home__name { display: block; margin-top: 2rpx; font-size: 26rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
+.home__no { display: block; margin-top: 6rpx; font-size: 20rpx; line-height: 1.2; color: var(--ic-text-3); white-space: nowrap; }
 .home__vip { display: inline-flex; align-items: center; gap: 8rpx; min-width: 0; max-width: 180rpx; height: 52rpx; margin-left: 20rpx; padding: 0 18rpx; border-radius: 26rpx; background: var(--ic-black); color: var(--ic-white); box-sizing: border-box; }
 .home__vip-mark { flex: none; font-size: 20rpx; line-height: 1; color: currentColor; }
-.home__vip-name { min-width: 0; font-size: 22rpx; font-weight: 600; color: currentColor; }
+.home__vip-name { min-width: 0; font-size: 20rpx; font-weight: 600; color: currentColor; }
 .home__vip-arrow { width: 9rpx; height: 9rpx; border-color: currentColor; }
 .home__login {
   display: inline-flex; align-items: center; justify-content: center;
   height: 52rpx; padding: 0 32rpx; border-radius: 26rpx;
-  background: var(--ic-black); color: var(--ic-white); font-size: 24rpx; font-weight: 600;
+  background: var(--ic-black); color: var(--ic-white); font-size: 22rpx; font-weight: 600;
 }
 .home__login--hover { opacity: 0.7; }
 
@@ -194,7 +194,7 @@
   margin-bottom: 12rpx;
 }
 .home__store-section-title {
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 400;
   line-height: 1.3;
   color: var(--ic-text-3);
@@ -230,7 +230,7 @@
 }
 .home__store-panel-name {
   display: block;
-  font-size: 36rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1.25;
   color: var(--ic-black);
@@ -238,7 +238,7 @@
 .home__store-panel-address {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
+  font-size: 22rpx;
   line-height: 1.45;
   color: var(--ic-text-2);
 }
@@ -260,7 +260,7 @@
   display: block;
   max-width: 150rpx;
   margin-top: 6rpx;
-  font-size: 25rpx;
+  font-size: 22rpx;
   font-weight: 600;
   line-height: 1.2;
   color: var(--ic-black);
@@ -326,7 +326,7 @@
   border-radius: 50%;
   background: var(--ic-black);
   color: var(--ic-white);
-  font-size: 15rpx;
+  font-size: 16rpx;
   font-weight: 600;
   line-height: 22rpx;
   text-align: center;
@@ -370,7 +370,7 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
-  font-size: 34rpx;
+  font-size: 28rpx;
   font-weight: 700;
   color: var(--ic-black);
 }
@@ -382,7 +382,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 54rpx;
+  font-size: 30rpx;
   font-weight: 300;
   line-height: 1;
   color: var(--ic-text-3);
@@ -411,14 +411,14 @@
   box-shadow: inset 0 0 0 2rpx var(--ic-black);
 }
 .home__sign-rule-day {
-  font-size: 21rpx;
+  font-size: 20rpx;
   line-height: 1.2;
   color: var(--ic-text-3);
   white-space: nowrap;
 }
 .home__sign-rule-points {
   margin-top: 12rpx;
-  font-size: 34rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1;
   color: var(--ic-text-2);
@@ -431,14 +431,14 @@
   display: block;
   padding: 90rpx 0;
   text-align: center;
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: var(--ic-text-3);
 }
 .home__sign-dialog-note {
   display: block;
   margin-top: 24rpx;
   text-align: center;
-  font-size: 21rpx;
+  font-size: 20rpx;
   line-height: 1.5;
   color: var(--ic-text-3);
 }
@@ -450,7 +450,7 @@
   border-radius: 8rpx;
   background: var(--ic-black);
   color: var(--ic-white);
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 700;
   line-height: 88rpx;
 }
@@ -499,13 +499,13 @@
   border-radius: 50%;
   background: var(--ic-black);
   color: var(--ic-white);
-  font-size: 38rpx;
+  font-size: 28rpx;
   line-height: 72rpx;
   text-align: center;
 }
-.home__reward-title { margin-top: 20rpx; font-size: 28rpx; font-weight: 600; color: var(--ic-black); }
-.home__reward-points { margin-top: 4rpx; font-size: 42rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
-.home__reward-streak { margin-top: 8rpx; font-size: 22rpx; color: var(--ic-text-3); }
+.home__reward-title { margin-top: 20rpx; font-size: 24rpx; font-weight: 600; color: var(--ic-black); }
+.home__reward-points { margin-top: 4rpx; font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.home__reward-streak { margin-top: 8rpx; font-size: 20rpx; color: var(--ic-text-3); }
 .home__reward-halo {
   position: absolute;
   width: 210rpx;

@@ -1,7 +1,7 @@
 .tc { min-height: 100vh; background: var(--ic-white); display: flex; flex-direction: column; align-items: center; padding: 60rpx 48rpx; box-sizing: border-box; }
-.tc__title { font-size: 40rpx; font-weight: 700; color: var(--ic-black); text-align: center; }
-.tc__sub { margin-top: 16rpx; font-size: 24rpx; color: var(--ic-text-3); text-align: center; }
+.tc__title { font-size: 30rpx; font-weight: 700; color: var(--ic-black); text-align: center; }
+.tc__sub { margin-top: 16rpx; font-size: 22rpx; color: var(--ic-text-3); text-align: center; }
 .tc__qr { margin-top: 60rpx; padding: 24rpx; border-radius: 24rpx; background: #fff; box-shadow: 0 12rpx 40rpx rgba(0,0,0,0.08); }
 .tc__code { display: flex; align-items: center; gap: 16rpx; margin-top: 56rpx; }
-.tc__code-num { font-size: 48rpx; font-weight: 700; color: var(--ic-black); letter-spacing: 4rpx; font-variant-numeric: tabular-nums; }
-.tc__hint { margin-top: 24rpx; font-size: 24rpx; color: var(--ic-text-3); }
+.tc__code-num { font-size: 30rpx; font-weight: 700; color: var(--ic-black); letter-spacing: 4rpx; font-variant-numeric: tabular-nums; }
+.tc__hint { margin-top: 24rpx; font-size: 22rpx; color: var(--ic-text-3); }
