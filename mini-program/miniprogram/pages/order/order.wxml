@@ -25,7 +25,7 @@
     <!-- left category rail -->
     <scroll-view class="ord__cats" scroll-y>
       <view
-        class="ord__cat {{activeCat === item.id ? 'is-active' : ''}} {{item.iconUrl ? 'has-icon' : ''}}"
+        class="ord__cat {{activeCat === item.id ? 'is-active' : ''}}"
         wx:for="{{groups}}"
         wx:key="id"
         data-id="{{item.id}}"

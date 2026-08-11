@@ -62,26 +62,29 @@
 /* ---- left category rail ---- */
 .ord__cats { width: 184rpx; flex: none; background: var(--ic-bg-2); height: 100%; box-sizing: border-box; border-right: 1rpx solid var(--ic-line); }
 .ord__cat {
-  height: 100rpx;
-  padding: 0 20rpx 0 24rpx;
+  height: 132rpx;
+  padding: 16rpx 12rpx;
   box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 10rpx;
   font-size: 24rpx;
   line-height: 1.35;
   color: #777777;
+  text-align: center;
   position: relative;
 }
-.ord__cat.has-icon { padding-left: 12rpx; padding-right: 12rpx; gap: 8rpx; }
-.ord__cat-icon { width: 32rpx; height: 32rpx; flex: none; }
-.ord__cat-name { display: block; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ord__cat-icon { width: 40rpx; height: 40rpx; flex: none; }
+.ord__cat-name { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ord__cat.is-active { background: var(--ic-line-strong); color: var(--ic-black); font-weight: 700; }
 .ord__cat.is-active::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 28rpx;
-  bottom: 28rpx;
+  top: 40rpx;
+  bottom: 40rpx;
   width: 5rpx;
   border-radius: 5rpx;
   background: var(--ic-black);
