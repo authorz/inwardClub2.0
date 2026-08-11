@@ -4,6 +4,6 @@ Component({
     show: { type: Boolean, value: true },
     text: { type: String, value: '' },
     theme: { type: String, value: 'light' },
-    fullscreen: { type: Boolean, value: false },
+    fullscreen: { type: Boolean, value: true },
   },
 });

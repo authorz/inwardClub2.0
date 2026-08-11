@@ -7,7 +7,14 @@
   padding: 110rpx 32rpx;
   background: transparent;
 }
-.loading--fullscreen { min-height: 100vh; }
+.loading--fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .loading__logo {
   display: block;
   width: 280rpx;
