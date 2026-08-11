@@ -68,22 +68,6 @@
   </view>
 
   <view class="home__feature-wall">
-    <video
-      class="home__feature-wall-video"
-      src="https://assets.inwardclub.com/public/video/42ca55748bcd897e0ee731bf42de3f1b.mp4"
-      autoplay="{{true}}"
-      loop="{{true}}"
-      muted="{{true}}"
-      controls="{{false}}"
-      show-center-play-btn="{{false}}"
-      show-play-btn="{{false}}"
-      show-fullscreen-btn="{{false}}"
-      enable-progress-gesture="{{false}}"
-      object-fit="cover"
-      aria-hidden="{{true}}"
-    ></video>
-    <view class="home__feature-wall-shade"></view>
-
     <view
       class="home__franchise"
       aria-label="了解全国招商加盟详情"
