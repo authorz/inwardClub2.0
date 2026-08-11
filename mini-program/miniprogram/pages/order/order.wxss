@@ -60,7 +60,7 @@
 .ord__body { flex: 1; display: flex; min-height: 0; }
 
 /* ---- left category rail ---- */
-.ord__cats { width: 184rpx; flex: none; background: #fafafa; height: 100%; box-sizing: border-box; border-right: 1rpx solid var(--ic-line); }
+.ord__cats { width: 184rpx; flex: none; background: var(--ic-bg-2); height: 100%; box-sizing: border-box; border-right: 1rpx solid var(--ic-line); }
 .ord__cat {
   height: 100rpx;
   padding: 0 20rpx 0 24rpx;
@@ -73,7 +73,7 @@
   position: relative;
 }
 .ord__cat-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ord__cat.is-active { background: var(--ic-white); color: var(--ic-black); font-weight: 700; }
+.ord__cat.is-active { background: var(--ic-line-strong); color: var(--ic-black); font-weight: 700; }
 .ord__cat.is-active::before {
   content: "";
   position: absolute;
