@@ -11,7 +11,10 @@
     </view>
   </view>
 
-  <ic-loading wx:if="{{loading}}" />
+  <view wx:if="{{loading}}" class="ad__loader" aria-label="活动加载中">
+    <image class="ad__loader-logo" src="/assets/brand/logo-loader.svg" mode="aspectFit" aria-hidden="{{true}}" />
+    <text class="ad__loader-text">活动加载中</text>
+  </view>
 
   <ic-empty wx:elif="{{loadError}}" text="{{loadError}}" />
 
