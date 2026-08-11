@@ -34,7 +34,7 @@ button.ad__nav-share {
 /* Poster-led editorial content sheet */
 .ad__content {
   position: relative; padding: 0 40rpx;
-  border-radius: 28rpx 28rpx 0 0; background: #000; overflow: hidden;
+  border-radius: 50rpx 50rpx 0 0; background: #000; overflow: hidden;
 }
 .ad__pull-hint {
   position: absolute; top: 16rpx; left: 50%;
