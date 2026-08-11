@@ -36,6 +36,20 @@ button.ad__nav-share {
   position: relative; padding: 0 40rpx;
   border-radius: 28rpx 28rpx 0 0; background: #000; overflow: hidden;
 }
+.ad__pull-hint {
+  position: absolute; top: 16rpx; left: 50%;
+  width: 76rpx; height: 8rpx; margin-left: -38rpx;
+  border-radius: 999rpx; background: rgba(255, 255, 255, 0.92);
+  transform-origin: center;
+  animation: ad-pull-hint-breathe 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes ad-pull-hint-breathe {
+  0%, 100% { opacity: 0.38; transform: scaleX(0.86); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  50% { opacity: 1; transform: scaleX(1); box-shadow: 0 0 12rpx rgba(255, 255, 255, 0.52); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ad__pull-hint { animation: none; opacity: 0.72; box-shadow: none; }
+}
 .ad__head { padding: 44rpx 0 40rpx; border-bottom: 1rpx solid rgba(255, 255, 255, 0.18); }
 .ad__title { display: block; font-size: 30rpx; font-weight: 700; color: #fff; line-height: 1.28; }
 .ad__description { display: block; margin-top: 18rpx; font-size: 24rpx; line-height: 1.65; color: #fff; }

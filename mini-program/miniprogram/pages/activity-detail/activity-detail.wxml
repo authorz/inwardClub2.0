@@ -30,6 +30,7 @@
     >
       <view class="ad__hero-spacer"></view>
       <view class="ad__content">
+        <view class="ad__pull-hint" aria-hidden="true"></view>
         <view class="ad__head">
           <text class="ad__title">{{activity.title}}</text>
           <text wx:if="{{activity.description}}" class="ad__description">{{activity.description}}</text>
