@@ -1,4 +1,11 @@
 <view class="al">
+  <!-- The active poster softly fills the upper half behind the page content. -->
+  <view wx:if="{{mode === 'current' && currentItem && currentItem.imageUrl}}" class="al__backdrop">
+    <image class="al__backdrop-image" src="{{currentItem.imageUrl}}" mode="aspectFill" />
+    <view class="al__backdrop-shade"></view>
+  </view>
+
+  <view class="al__foreground">
   <!-- Custom navigation: dark, back arrow left, capsule-safe right -->
   <view class="al__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="al__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">
@@ -63,4 +70,5 @@
       </view>
     </view>
   </block>
+  </view>
 </view>

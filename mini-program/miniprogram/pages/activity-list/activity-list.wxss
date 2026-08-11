@@ -1,5 +1,6 @@
 /* 近期活动 — 深色黑灰渐变，自定义导航，扇形相册堆叠卡片 */
 .al {
+  position: relative;
   min-height: 100vh;
   width: 100%;
   max-width: 100vw;
@@ -9,6 +10,40 @@
      peek off-screen instead of creating a scrollable strip / white edge. */
   overflow-x: hidden;
   background: linear-gradient(180deg, #303030 0%, #1c1c1c 42%, #0c0c0c 100%);
+}
+
+/* The selected poster supplies atmosphere only: it fills the viewport's upper
+   half, while the shade keeps navigation and content legible. */
+.al__backdrop {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 50vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+.al__backdrop-image {
+  position: absolute;
+  top: -5%;
+  left: -5%;
+  width: 110%;
+  height: 110%;
+  filter: blur(30rpx);
+  opacity: 0.58;
+}
+.al__backdrop-shade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(180deg, rgba(12, 12, 12, 0.28) 0%, rgba(12, 12, 12, 0.46) 58%, #1c1c1c 100%);
+}
+.al__foreground {
+  position: relative;
+  z-index: 1;
 }
 
 /* ---- custom navigation ---- */
