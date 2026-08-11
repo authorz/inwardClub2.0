@@ -1,19 +1,64 @@
-.tk { min-height: 100vh; background: var(--ic-bg); }
-.tk__seg { background: var(--ic-white); padding: 0 24rpx; }
-.tk__list { padding: 0 32rpx; background: var(--ic-white); }
+.tk {
+  --ic-black: #e8e8e8;
+  --ic-ink: #dedede;
+  --ic-text: #d2d2d2;
+  --ic-text-2: #b8b8b8;
+  --ic-text-3: #929292;
+  --ic-text-4: #929292;
+  --ic-line: #242424;
+  --ic-line-strong: #353535;
+  --ic-bg: #000000;
+  --ic-bg-soft: #0a0a0a;
+  --ic-bg-2: #111111;
+  --ic-fill: #151515;
+  --ic-fill-2: #1b1b1b;
+  --ic-white: #000000;
+  min-height: 100vh;
+  background: #000000;
+  color: #d2d2d2;
+}
+.tk__seg { padding: 0 24rpx; background: #000000; border-bottom: 1rpx solid #242424; }
+.tk__list { padding: 0 32rpx; background: #000000; }
+.tk__empty {
+  min-height: 760rpx;
+  padding: 248rpx 48rpx 160rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.tk__empty-image { width: 400rpx; height: 400rpx; display: block; opacity: 0.72; }
+.tk__empty-text { margin-top: 48rpx; font-size: 26rpx; line-height: 1.5; font-weight: 600; color: #a6a6a6; }
+.tk__empty-action {
+  min-width: 176rpx;
+  height: 72rpx;
+  margin-top: 36rpx;
+  padding: 0 36rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  background: #2d2d2d;
+  color: #dedede;
+  font-size: 26rpx;
+  line-height: 72rpx;
+}
+.tk__empty-action--hover { background: #3a3a3a; }
 .tk__card { display: flex; align-items: flex-start; gap: 24rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
 .tk__card:last-child { border-bottom: none; }
-.tk__card.is-dim { opacity: 0.6; }
+.tk__card.is-dim { opacity: 0.82; }
 .tk__poster { width: 168rpx; height: 168rpx; flex: none; overflow: hidden; background: var(--ic-fill); border-radius: 8rpx; display: flex; align-items: center; justify-content: center; }
 .tk__poster-img { width: 100%; height: 100%; display: block; }
-.tk__poster-ph { width: 100%; height: 100%; box-sizing: border-box; padding: 16rpx 10rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #111; color: #fff; }
-.tk__poster-ph--member { background: #e8e5dc; color: #111; }
+.tk__poster-ph { width: 100%; height: 100%; box-sizing: border-box; padding: 16rpx 10rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #111111; color: #e8e8e8; }
+.tk__poster-ph--member { background: #d8d5cc; color: #171717; }
 .tk__poster-sub { font-size: 16rpx; letter-spacing: 4rpx; opacity: 0.62; }
 .tk__poster-title { max-width: 100%; margin-top: 12rpx; font-size: 24rpx; line-height: 1.18; font-weight: 700; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .tk__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 11rpx; }
 .tk__title { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26rpx; font-weight: 700; color: var(--ic-black); }
 .tk__meta { display: flex; align-items: center; gap: 8rpx; min-width: 0; }
-.tk__meta-icon { width: 26rpx; height: 26rpx; flex: none; display: block; }
+.tk__meta-icon { width: 26rpx; height: 26rpx; flex: none; display: block; filter: invert(1); opacity: 0.64; }
 .tk__time { font-size: 22rpx; color: var(--ic-text-2); }
 .tk__store { flex: 1; min-width: 0; font-size: 20rpx; color: var(--ic-text-3); }
 .tk__ticket { margin-top: 4rpx; font-size: 22rpx; color: var(--ic-text); }
@@ -34,7 +79,7 @@
   color: var(--ic-black);
 }
 .tk__codebtn--hover { opacity: 0.72; }
-.tk__qricon { width: 48rpx; height: 48rpx; display: block; }
+.tk__qricon { width: 48rpx; height: 48rpx; display: block; filter: invert(1); opacity: 0.9; }
 .tk__codehint { display: block; width: 120rpx; font-size: 20rpx; line-height: 1.25; color: var(--ic-text-3); text-align: center; }
 
 .tk-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 48rpx; box-sizing: border-box; }

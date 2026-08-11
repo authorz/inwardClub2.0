@@ -3,8 +3,20 @@
     <ic-segmented options="{{statusOptions}}" value="{{bucket}}" variant="line" bind:change="onStatusChange" />
   </view>
 
-  <ic-loading wx:if="{{loading}}" />
-  <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
+  <ic-loading wx:if="{{loading}}" theme="dark" />
+  <view wx:elif="{{!list.length}}" class="tk__empty">
+    <image
+      class="tk__empty-image"
+      src="https://assets.inwardclub.com/public/images/activity-empty.png"
+      mode="aspectFit"
+    />
+    <text class="tk__empty-text">这里还是空空的</text>
+    <navigator
+      class="tk__empty-action"
+      url="/pages/activity-list/activity-list"
+      hover-class="tk__empty-action--hover"
+    >去探索</navigator>
+  </view>
 
   <view wx:else class="tk__list">
     <view class="tk__card {{item.usable ? '' : 'is-dim'}}" wx:for="{{list}}" wx:key="id">
