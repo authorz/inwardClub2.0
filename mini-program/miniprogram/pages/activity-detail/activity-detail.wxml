@@ -16,11 +16,19 @@
   <ic-empty wx:elif="{{loadError}}" text="{{loadError}}" />
 
   <block wx:elif="{{activity}}">
-    <scroll-view class="ad__scroll" scroll-y enhanced show-scrollbar="{{false}}" bindscroll="onScroll">
-      <view class="ad__hero">
-        <ic-poster src="{{activity.imageUrl}}" title="{{activity.title}}" tone="{{activity.tone}}" radius="0" />
-      </view>
+    <view class="ad__hero">
+      <ic-poster src="{{activity.imageUrl}}" title="{{activity.title}}" tone="{{activity.tone}}" radius="0" />
+    </view>
 
+    <scroll-view
+      class="ad__scroll"
+      scroll-y
+      enhanced
+      scroll-top="{{initialScrollTop}}"
+      show-scrollbar="{{false}}"
+      bindscroll="onScroll"
+    >
+      <view class="ad__hero-spacer"></view>
       <view class="ad__content">
         <view class="ad__head">
           <text class="ad__title">{{activity.title}}</text>

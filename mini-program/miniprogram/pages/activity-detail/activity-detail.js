@@ -29,6 +29,7 @@ Page({
     navContentHeight: 44,
     navRightGap: 96,
     navSolid: false,
+    initialScrollTop: 250,
 
     // 地址信息（后端暂无经纬度时仅展示文字，不开启导航）
     mapPoint: null,
@@ -126,11 +127,13 @@ Page({
       const cap = wx.getMenuButtonBoundingClientRect();
       const statusBar = win.statusBarHeight || 20;
       const gap = Math.max(cap.top - statusBar, 4);
+      const initialScrollTop = (win.windowWidth * 500) / 750;
       this._navRevealAt = (win.windowWidth * 680) / 750;
       this.setData({
         navStatusBar: statusBar,
         navContentHeight: cap.height + gap * 2,
         navRightGap: Math.max(win.windowWidth - cap.left + 8, 96),
+        initialScrollTop,
       });
     } catch {
       this._navRevealAt = 340;
