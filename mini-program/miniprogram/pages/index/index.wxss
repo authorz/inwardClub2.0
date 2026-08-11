@@ -64,6 +64,7 @@
   background: linear-gradient(155deg, #3a3630 0%, #17161a 60%, #0c0b0d 100%);
 }
 .home__banner-title { color: #f4efe6; font-size: 30rpx; font-weight: 700; letter-spacing: 6rpx; }
+.home__banner-item .home__banner-title { display: none; }
 .home__banner-sub { margin-top: 16rpx; color: rgba(244, 239, 230, 0.55); font-size: 20rpx; letter-spacing: 6rpx; }
 .home__banner-info {
   position: absolute;
@@ -79,17 +80,12 @@
 .home__banner-info-head {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 24rpx;
   min-width: 0;
 }
 .home__banner-activity-title {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  font-size: 28rpx;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--ic-white);
+  display: none;
 }
 .home__banner-all {
   flex: none;
@@ -113,15 +109,7 @@
   border-color: currentColor;
 }
 .home__banner-meta {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  min-width: 0;
-  margin-top: 10rpx;
-  padding-right: 120rpx;
-  font-size: 20rpx;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.78);
+  display: none;
 }
 .home__banner-store { flex: none; max-width: 190rpx; }
 .home__banner-time { flex: 1; min-width: 0; }
