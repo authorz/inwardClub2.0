@@ -10,3 +10,9 @@
 .stepper__plus::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 3rpx; height: 22rpx; background: #333; }
 .stepper--sm .stepper__btn { width: 44rpx; height: 44rpx; }
 .stepper--sm .stepper__val { min-width: 48rpx; font-size: 28rpx; }
+
+.stepper--dark .stepper__btn { border-color: rgba(255, 255, 255, 0.5); }
+.stepper--dark .stepper__val { color: #fff; }
+.stepper--dark .stepper__minus,
+.stepper--dark .stepper__plus,
+.stepper--dark .stepper__plus::after { background: #fff; }

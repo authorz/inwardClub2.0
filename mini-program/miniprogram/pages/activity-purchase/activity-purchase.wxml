@@ -34,7 +34,7 @@
         </view>
         <view wx:if="{{ticketId === item.id}}" class="ap__qty" catchtap="noop">
           <text class="ap__qty-label">购买数量</text>
-          <ic-stepper value="{{qty}}" min="{{1}}" max="{{ticket.maxQuantity}}" size="sm" bind:change="onQty" />
+          <ic-stepper value="{{qty}}" min="{{1}}" max="{{ticket.maxQuantity}}" size="sm" theme="dark" bind:change="onQty" />
         </view>
       </view>
     </view>
@@ -43,7 +43,7 @@
 
   <view wx:if="{{ticket}}" class="ap__section">
     <text class="ap__section-title">支付方式</text>
-    <ic-pay-methods methods="{{payMethods}}" value="{{payMethod}}" layout="list" bind:change="onPay" />
+    <ic-pay-methods methods="{{payMethods}}" value="{{payMethod}}" layout="list" theme="dark" bind:change="onPay" />
   </view>
 
   <view wx:if="{{ticket}}" class="ap__section ap__amount">

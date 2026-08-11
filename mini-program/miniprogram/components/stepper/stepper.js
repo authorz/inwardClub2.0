@@ -5,6 +5,7 @@ Component({
     min: { type: Number, value: 0 },
     max: { type: Number, value: 99 },
     size: { type: String, value: 'md' }, // md | sm
+    theme: { type: String, value: 'light' }, // light | dark
     hideZero: { type: Boolean, value: false }, // hide "−/value" when 0, show only +
   },
   methods: {

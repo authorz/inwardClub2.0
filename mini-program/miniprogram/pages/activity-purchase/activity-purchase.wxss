@@ -1,7 +1,10 @@
+page { background: #000; color: #fff; }
+
 .ap {
   min-height: 100vh;
-  padding: 24rpx 24rpx calc(152rpx + env(safe-area-inset-bottom));
-  background: var(--ic-bg);
+  padding: 0 40rpx calc(152rpx + env(safe-area-inset-bottom));
+  background: #000;
+  color: #fff;
   box-sizing: border-box;
 }
 .ap__empty { padding-top: 120rpx; }
@@ -10,17 +13,14 @@
   display: flex;
   align-items: center;
   gap: 24rpx;
-  padding: 28rpx;
-  margin-bottom: 24rpx;
-  border-radius: var(--ic-radius);
-  background: var(--ic-white);
+  padding: 40rpx 0;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 .ap__cover {
   width: 136rpx;
   height: 136rpx;
   flex: none;
-  border-radius: 12rpx;
-  background: var(--ic-fill);
+  background: #111;
 }
 .ap__summary-main {
   display: flex;
@@ -33,34 +33,32 @@
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.4;
-  color: var(--ic-black);
+  color: #fff;
 }
-.ap__meta { font-size: 24rpx; color: var(--ic-text-3); }
+.ap__meta { font-size: 24rpx; color: #fff; }
 
 .ap__section {
-  padding: 30rpx 28rpx;
-  margin-bottom: 24rpx;
-  border-radius: var(--ic-radius);
-  background: var(--ic-white);
+  padding: 44rpx 0;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 .ap__section-title {
   display: block;
   margin-bottom: 22rpx;
   font-size: 32rpx;
   font-weight: 700;
-  color: var(--ic-black);
+  color: #fff;
 }
 .ap__ticket {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   padding: 26rpx 0;
-  border-top: 1rpx solid var(--ic-line);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 .ap__ticket:first-child { border-top: none; }
 .ap__ticket.is-disabled .ap__ticket-name,
-.ap__ticket.is-disabled .ap__ticket-price { color: var(--ic-text-3); }
-.ap__ticket.is-disabled .ap__radio { border-color: var(--ic-line-strong); }
+.ap__ticket.is-disabled .ap__ticket-price { color: rgba(255, 255, 255, 0.45); }
+.ap__ticket.is-disabled .ap__radio { border-color: rgba(255, 255, 255, 0.28); }
 .ap__radio {
   display: flex;
   align-items: center;
@@ -68,18 +66,18 @@
   width: 38rpx;
   height: 38rpx;
   margin-right: 20rpx;
-  border: 3rpx solid #cfcfcf;
+  border: 3rpx solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
   box-sizing: border-box;
   flex: none;
 }
-.ap__ticket.is-active .ap__radio { border-color: var(--ic-black); }
-.ap__radio-on { width: 18rpx; height: 18rpx; border-radius: 50%; background: var(--ic-black); }
+.ap__ticket.is-active .ap__radio { border-color: #fff; }
+.ap__radio-on { width: 18rpx; height: 18rpx; border-radius: 50%; background: #fff; }
 .ap__ticket-main { flex: 1; min-width: 0; }
 .ap__ticket-line { display: flex; align-items: baseline; justify-content: space-between; gap: 24rpx; }
-.ap__ticket-name { font-size: 30rpx; font-weight: 600; color: var(--ic-black); }
-.ap__ticket-price { flex: none; font-size: 32rpx; font-weight: 700; color: var(--ic-black); }
-.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 23rpx; color: var(--ic-text-3); }
+.ap__ticket-name { font-size: 30rpx; font-weight: 600; color: #fff; }
+.ap__ticket-price { flex: none; font-size: 32rpx; font-weight: 700; color: #fff; }
+.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 23rpx; color: #fff; }
 .ap__qty {
   display: flex;
   align-items: center;
@@ -87,15 +85,15 @@
   width: 100%;
   margin-top: 24rpx;
   padding: 22rpx 0 0 58rpx;
-  border-top: 1rpx solid var(--ic-line);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.18);
   box-sizing: border-box;
 }
-.ap__qty-label { font-size: 26rpx; color: var(--ic-text-2); }
-.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 26rpx; color: var(--ic-text-3); }
+.ap__qty-label { font-size: 26rpx; color: #fff; }
+.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 26rpx; color: #fff; }
 
 .ap__amount { display: flex; align-items: center; justify-content: space-between; }
-.ap__amount-label { font-size: 28rpx; color: var(--ic-text-2); }
-.ap__amount-value { font-size: 38rpx; font-weight: 700; color: var(--ic-black); }
+.ap__amount-label { font-size: 28rpx; color: #fff; }
+.ap__amount-value { font-size: 38rpx; font-weight: 700; color: #fff; }
 
 .ap__bar {
   position: fixed;
@@ -107,16 +105,20 @@
   align-items: center;
   gap: 24rpx;
   padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid var(--ic-line);
-  background: var(--ic-white);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.22);
+  background: #000;
 }
 .ap__bar-total { display: flex; min-width: 180rpx; flex-direction: column; }
-.ap__bar-label { font-size: 22rpx; color: var(--ic-text-3); }
-.ap__bar-amount { margin-top: 2rpx; font-size: 40rpx; font-weight: 700; color: var(--ic-black); }
+.ap__bar-label { font-size: 22rpx; color: #fff; }
+.ap__bar-amount { margin-top: 2rpx; font-size: 40rpx; font-weight: 700; color: #fff; }
 .ap__submit {
   flex: 1;
   width: auto !important;
   height: 88rpx;
   margin-left: 0 !important;
   margin-right: 0 !important;
+  border: 1rpx solid #fff;
+  background: #000;
+  color: #fff;
 }
+.ap__submit.ic-disabled { border-color: #555; background: #222; color: #fff; }

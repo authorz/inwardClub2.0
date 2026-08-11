@@ -9,6 +9,7 @@ Component({
     methods: { type: Array, value: [PAY_METHOD.WECHAT, PAY_METHOD.COIN] },
     value: { type: String, value: PAY_METHOD.WECHAT },
     layout: { type: String, value: 'list' }, // list | grid
+    theme: { type: String, value: 'light' }, // light | dark
     coinDisabled: { type: Boolean, value: false },
   },
   data: { items: [] },

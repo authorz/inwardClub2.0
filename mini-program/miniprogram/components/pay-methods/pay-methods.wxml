@@ -1,4 +1,4 @@
-<view class="pm pm--{{layout}}">
+<view class="pm pm--{{layout}} pm--{{theme}}">
   <view
     wx:for="{{items}}"
     wx:key="code"

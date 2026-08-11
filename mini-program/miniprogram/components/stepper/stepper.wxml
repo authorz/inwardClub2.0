@@ -1,4 +1,4 @@
-<view class="stepper stepper--{{size}}">
+<view class="stepper stepper--{{size}} stepper--{{theme}}">
   <block wx:if="{{!(hideZero && value === 0)}}">
     <view class="stepper__btn {{value <= min ? 'is-disabled' : ''}}" catchtap="dec">
       <view class="stepper__minus"></view>

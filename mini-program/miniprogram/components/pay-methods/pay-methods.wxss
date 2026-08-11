@@ -23,3 +23,12 @@
 .pm--grid .pm__radio { width: 34rpx; height: 34rpx; }
 
 .pm__item.is-disabled { opacity: 0.4; }
+
+/* Dark pages keep the same interaction vocabulary with inverted contrast. */
+.pm--dark .pm__item { border-color: rgba(255, 255, 255, 0.18); }
+.pm--dark .pm__label { color: #fff; }
+.pm--dark .pm__radio { border-color: rgba(255, 255, 255, 0.5); }
+.pm--dark .pm__item.is-active .pm__radio { border-color: #fff; background: #fff; }
+.pm--dark .pm__radio-on { background: #000; }
+.pm--dark.pm--grid .pm__item { background: #000; }
+.pm--dark.pm--grid .pm__item.is-active { border-color: #fff; }
