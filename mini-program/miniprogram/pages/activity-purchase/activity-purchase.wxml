@@ -1,4 +1,4 @@
-<ic-loading wx:if="{{loading}}" />
+<ic-loading wx:if="{{loading}}" theme="dark" />
 
 <view wx:elif="{{loadError}}" class="ap__empty">
   <ic-empty text="{{loadError}}" />

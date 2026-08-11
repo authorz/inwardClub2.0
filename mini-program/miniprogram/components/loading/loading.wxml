@@ -1,8 +1,9 @@
-<view wx:if="{{show}}" class="loading">
-  <view class="loading__dots">
-    <view class="loading__dot"></view>
-    <view class="loading__dot"></view>
-    <view class="loading__dot"></view>
-  </view>
+<view
+  wx:if="{{show}}"
+  class="loading loading--{{theme}} {{fullscreen ? 'loading--fullscreen' : ''}}"
+  aria-label="加载中"
+  aria-role="status"
+>
+  <image class="loading__logo" src="/assets/brand/logo-loader.svg" mode="aspectFit" aria-hidden="{{true}}" />
   <text wx:if="{{text}}" class="loading__text">{{text}}</text>
 </view>

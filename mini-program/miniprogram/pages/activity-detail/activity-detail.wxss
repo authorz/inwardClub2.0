@@ -5,26 +5,6 @@ page { background: #000; color: rgba(255, 255, 255, 0.88); }
   --ad-text-muted: rgba(255, 255, 255, 0.58);
   position: relative; height: 100vh; overflow: hidden; background: #000; color: var(--ad-text-primary);
 }
-.ad__loader {
-  height: 100vh;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 48rpx;
-}
-.ad__loader-logo {
-  width: 360rpx;
-  height: 160rpx;
-  display: block;
-}
-.ad__loader-text {
-  margin-top: 18rpx;
-  font-size: 22rpx;
-  line-height: 1.4;
-  color: var(--ad-text-muted);
-}
 .ad__hero { position: absolute; top: 0; left: 0; width: 100%; height: 1000rpx; background: #000; }
 .ad__scroll {
   position: relative; z-index: 1; height: 100vh;

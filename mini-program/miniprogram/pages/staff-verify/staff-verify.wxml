@@ -1,4 +1,6 @@
-<view class="sv">
+<ic-loading wx:if="{{loading}}" />
+
+<view wx:else class="sv">
   <view class="sv__store">
     <text class="sv__store-label">当前门店</text>
     <text class="sv__store-name ic-ellipsis">{{storeName}}</text>

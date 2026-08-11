@@ -14,7 +14,7 @@
 
   <!-- ===== 近期活动：塔式轮播 ===== -->
   <block wx:if="{{mode === 'current'}}">
-    <ic-loading wx:if="{{loading}}" />
+    <ic-loading wx:if="{{loading}}" theme="dark" />
 
     <view wx:elif="{{!activities.length}}" class="al__empty">
       <image class="al__empty-icon" src="https://assets.inwardclub.com/public/images/activity-empty.png" mode="aspectFit" />
@@ -43,7 +43,7 @@
 
   <!-- ===== 精彩回顾：已结束活动列表 ===== -->
   <block wx:else>
-    <ic-loading wx:if="{{reviewLoading}}" />
+    <ic-loading wx:if="{{reviewLoading}}" theme="dark" />
 
     <view wx:elif="{{!reviews.length}}" class="al__empty">
       <image class="al__empty-icon" src="https://assets.inwardclub.com/public/images/activity-empty.png" mode="aspectFit" />
