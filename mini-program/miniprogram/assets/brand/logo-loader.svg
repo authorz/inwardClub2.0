@@ -2,36 +2,52 @@
   <style>
     .logo-ghost {
       fill: #fff;
-      opacity: 0.12;
+      opacity: 0.1;
     }
-    .logo-trace {
+    .logo-solid {
       fill: #fff;
-      fill-opacity: 0;
-      stroke: #fff;
-      stroke-width: 2;
-      stroke-linejoin: round;
-      stroke-linecap: round;
-      stroke-dasharray: 1;
-      stroke-dashoffset: 1;
-      vector-effect: non-scaling-stroke;
-      animation: logo-trace 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite,
-        logo-fill 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      animation: logo-solid-cycle 2s linear infinite;
     }
-    @keyframes logo-trace {
-      0%, 8% { stroke-dashoffset: 1; opacity: 0.25; }
-      62%, 88% { stroke-dashoffset: 0; opacity: 1; }
-      100% { stroke-dashoffset: -1; opacity: 0.2; }
+    .logo-reveal-window {
+      transform-box: fill-box;
+      transform-origin: left center;
+      animation: logo-reveal 2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
     }
-    @keyframes logo-fill {
-      0%, 54%, 100% { fill-opacity: 0; }
-      72%, 88% { fill-opacity: 1; }
+    .logo-scan-line {
+      transform-box: fill-box;
+      animation: logo-scan 2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    }
+    @keyframes logo-reveal {
+      0%, 8% { transform: scaleX(0); }
+      68%, 92% { transform: scaleX(1); }
+      100% { transform: scaleX(1); }
+    }
+    @keyframes logo-solid-cycle {
+      0%, 88% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes logo-scan {
+      0%, 8% { opacity: 0; transform: translateX(0); }
+      14% { opacity: 1; }
+      68% { opacity: 1; transform: translateX(565px); }
+      76%, 100% { opacity: 0; transform: translateX(565px); }
     }
     @media (prefers-reduced-motion: reduce) {
       .logo-ghost { opacity: 0; }
-      .logo-trace { animation: none; fill-opacity: 1; stroke-dashoffset: 0; }
+      .logo-solid { animation: none; opacity: 1; clip-path: none; }
+      .logo-reveal-window { animation: none; transform: none; }
+      .logo-scan-line { display: none; animation: none; }
     }
   </style>
   <defs>
+    <linearGradient id="scan-light" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="logo-reveal">
+      <rect class="logo-reveal-window" x="126.478" y="129.911" width="589.092" height="258.574"/>
+    </clipPath>
     <path id="logo-1" pathLength="1" transform="matrix(1 0 0 -1 179.3042 129.9115)" d="M0 0C0 0-23.006-22.795-37.359-92.989L-52.826-165.584H-13.131L2.336-92.989C-17.966-60.923 0 0 0 0"/>
     <path id="logo-2" pathLength="1" transform="matrix(1 0 0 -1 239.2158 252.8505)" d="M0 0-9.208 29.95H-48.367L-63.834-42.646H-27.715L-20.474-8.494-10.281-42.646H27.179L42.645 29.95H6.437Z"/>
     <path id="logo-3" pathLength="1" transform="matrix(1 0 0 -1 386.4624 222.90079)" d="M0 0-14.483-33.258-15.288 0H-44.701L-59.632-33.258-59.99 0H-100.042L-94.768-72.595H-54.089L-38.979-41.84-36.924-72.595H3.755L40.053 0Z"/>
@@ -43,8 +59,9 @@
     <use xlink:href="#logo-1"/><use xlink:href="#logo-2"/><use xlink:href="#logo-3"/><use xlink:href="#logo-4"/><use xlink:href="#logo-5"/>
     <use xlink:href="#logo-6"/>
   </g>
-  <g class="logo-trace">
+  <g class="logo-solid" clip-path="url(#logo-reveal)">
     <use xlink:href="#logo-1"/><use xlink:href="#logo-2"/><use xlink:href="#logo-3"/><use xlink:href="#logo-4"/><use xlink:href="#logo-5"/>
     <use xlink:href="#logo-6"/>
   </g>
+  <rect class="logo-scan-line" x="126.478" y="129.911" width="24" height="258.574" fill="url(#scan-light)"/>
 </svg>
