@@ -267,9 +267,7 @@ Page({
     const inviteCode = auth.isLoggedIn() ? me.inviteCode || '' : '';
     return {
       inviteCode,
-      title: inviteCode
-        ? (me.nickname || me.nickName || '会员') + '邀请你加入inwardClub会员'
-        : '邀请你加入inwardClub会员',
+      title: '欢迎加入INWARD',
     };
   },
 
