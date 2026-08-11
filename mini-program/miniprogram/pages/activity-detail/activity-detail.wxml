@@ -24,7 +24,6 @@
       class="ad__scroll"
       scroll-y
       enhanced
-      scroll-top="{{initialScrollTop}}"
       show-scrollbar="{{false}}"
       bindscroll="onScroll"
     >
