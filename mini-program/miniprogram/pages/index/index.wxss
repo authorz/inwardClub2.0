@@ -141,6 +141,14 @@
   background-size: cover;
   box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.07);
 }
+.home__feature-wall::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
 
 /* ---- member card ---- */
 .home__card { position: relative; z-index: 2; box-sizing: border-box; min-height: 142rpx; margin: 20rpx 24rpx 24rpx; padding: 22rpx 24rpx 28rpx; border-radius: 16rpx; }
