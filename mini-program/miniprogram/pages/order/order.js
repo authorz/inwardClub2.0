@@ -20,7 +20,7 @@ Page({
     loading: true,
     store: null,
     tableText: '',
-    groups: [], // [{ id, name, items: [{...item, qty, priceText, soldOut }] }]
+    groups: [], // [{ id, name, iconUrl, items: [{...item, qty, priceText, soldOut }] }]
     items: [],
     itemsLoading: false,
     activeCat: '',
@@ -145,6 +145,7 @@ Page({
         const groups = (catRes.data || []).map((category) => ({
           id: category.id,
           name: category.name,
+          iconUrl: category.imageUrl || '',
           items: [],
         }));
         const first = groups[0] || null;

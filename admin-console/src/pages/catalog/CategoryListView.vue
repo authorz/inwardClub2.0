@@ -4,11 +4,13 @@
  * 列表支持门店、名称和状态筛选；编辑旧全局数据时必须补齐门店。
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NText } from 'naive-ui'
+import { NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NText } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { FilterField, ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
+import AssetImage from '@/components/AssetImage.vue'
+import AssetUpload from '@/components/AssetUpload.vue'
 import { actionsColumn, renderColumn, statusColumn, textColumn } from '@/utils/columns'
 import { RESOURCE_STATUS_OPTIONS, type OptionItem } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
@@ -41,7 +43,17 @@ const fields = computed<FilterField[]>(() => [
 ])
 
 const columns = [
-  textColumn<CatalogCategory>('分类名称', 'name'),
+  renderColumn<CatalogCategory>(
+    '分类名称',
+    'name',
+    (row) =>
+      h(NSpace, { align: 'center', size: 10, wrap: false }, () => [
+        row.imageUrl
+          ? h(AssetImage, { src: row.imageUrl, width: 36, height: 36 })
+          : null,
+        h(NText, {}, () => row.name),
+      ]),
+  ),
   renderColumn<CatalogCategory>(
     '所属门店',
     'storeName',
@@ -69,9 +81,12 @@ const columns = [
 const drawerShow = ref(false)
 const submitting = ref(false)
 const editingId = ref<string | null>(null)
+const currentIconUrl = ref('')
+const uploadKey = ref(0)
 const form = reactive<Partial<CatalogCategory>>({
   storeId: null,
   name: '',
+  assetId: null,
   sortOrder: 0,
   status: 'active',
 })
@@ -92,8 +107,11 @@ function openCreate(): void {
   editingId.value = null
   form.storeId = null
   form.name = ''
+  form.assetId = null
   form.sortOrder = 0
   form.status = 'active'
+  currentIconUrl.value = ''
+  uploadKey.value += 1
   drawerShow.value = true
 }
 
@@ -101,9 +119,18 @@ function openEdit(row: CatalogCategory): void {
   editingId.value = row.id
   form.storeId = row.storeId == null ? null : String(row.storeId)
   form.name = row.name
+  form.assetId = row.assetId ?? null
   form.sortOrder = row.sortOrder ?? 0
   form.status = row.status ?? 'active'
+  currentIconUrl.value = row.imageUrl ?? ''
+  uploadKey.value += 1
   drawerShow.value = true
+}
+
+function clearIcon(): void {
+  form.assetId = null
+  currentIconUrl.value = ''
+  uploadKey.value += 1
 }
 
 async function submit(): Promise<void> {
@@ -113,6 +140,7 @@ async function submit(): Promise<void> {
   const payload = {
     storeId: Number(form.storeId),
     name: form.name.trim(),
+    assetId: form.assetId == null ? null : Number(form.assetId),
     sortOrder: form.sortOrder ?? 0,
     status: form.status ?? 'active',
   }
@@ -182,6 +210,33 @@ onMounted(loadStores)
             v-model:value="form.name"
             placeholder="请输入分类名称"
           />
+        </NFormItem>
+        <NFormItem label="分类图标">
+          <NSpace
+            vertical
+            style="width: 100%"
+          >
+            <AssetUpload
+              :key="uploadKey"
+              v-model:asset-id="form.assetId"
+              v-model:public-url="currentIconUrl"
+              purpose="category"
+              :preview-url="currentIconUrl || null"
+              :width="80"
+              :height="80"
+            />
+            <NButton
+              v-if="form.assetId || currentIconUrl"
+              text
+              type="error"
+              @click="clearIcon"
+            >
+              清除图标
+            </NButton>
+            <NText depth="3">
+              建议上传正方形 PNG、JPG 或 WebP 图片。
+            </NText>
+          </NSpace>
         </NFormItem>
         <NFormItem label="排序">
           <NInputNumber

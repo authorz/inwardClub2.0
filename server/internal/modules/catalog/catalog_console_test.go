@@ -57,6 +57,7 @@ func (r *fakeConsoleRepo) UpdateCategory(_ context.Context, scope ConsoleScope, 
 			r.categories[i].ScopeType = "store"
 			r.categories[i].StoreID = in.StoreID
 			r.categories[i].Name = in.Name
+			r.categories[i].AssetID = in.AssetID
 			r.categories[i].Status = in.Status
 			return r.categories[i], nil
 		}
@@ -170,10 +171,11 @@ func (r *fakeConsoleRepo) DeleteVariant(_ context.Context, scope ConsoleScope, i
 }
 
 func TestConsoleService_ListCategories_MapsAndPropagatesScope(t *testing.T) {
+	assetID := int64(18)
 	repo := &fakeConsoleRepo{categories: []Category{
-		{ID: 1, ScopeType: "store", Name: "Drinks", SortOrder: 1, Status: "active"},
+		{ID: 1, ScopeType: "store", Name: "Drinks", AssetID: &assetID, SortOrder: 1, Status: "active"},
 	}}
-	svc := NewConsoleService(repo)
+	svc := NewConsoleService(repo, fakeCatalogAssets{})
 	storeID := int64(42)
 	scope := ConsoleScope{StoreID: &storeID}
 
@@ -187,6 +189,9 @@ func TestConsoleService_ListCategories_MapsAndPropagatesScope(t *testing.T) {
 	}
 	if views[0].Name != "Drinks" {
 		t.Fatalf("unexpected view: %+v", views[0])
+	}
+	if views[0].ImageURL != "https://cdn.example.com/assets/18" {
+		t.Fatalf("expected resolved category icon, got %+v", views[0])
 	}
 	if repo.lastScope.StoreID == nil || *repo.lastScope.StoreID != storeID {
 		t.Fatalf("expected scope to propagate store id %d, got %+v", storeID, repo.lastScope)
@@ -305,17 +310,21 @@ func TestNormalizePayChannels(t *testing.T) {
 
 func TestConsoleService_CreateCategory_AdminRequiresAndBindsStore(t *testing.T) {
 	repo := &fakeConsoleRepo{}
-	svc := NewConsoleService(repo)
+	svc := NewConsoleService(repo, fakeCatalogAssets{})
 	storeID := int64(6)
+	assetID := int64(23)
 
 	view, err := svc.CreateCategory(context.Background(), adminScope(), CategoryInput{
-		StoreID: &storeID, Name: "Snacks", Status: "active",
+		StoreID: &storeID, Name: "Snacks", AssetID: &assetID, Status: "active",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if view.ScopeType != "store" || view.StoreID == nil || *view.StoreID != storeID {
 		t.Fatalf("admin create should bind store %d, got %+v", storeID, view)
+	}
+	if view.AssetID == nil || *view.AssetID != assetID || view.ImageURL != "https://cdn.example.com/assets/23" {
+		t.Fatalf("create should return the uploaded category icon, got %+v", view)
 	}
 	if _, err := svc.CreateCategory(context.Background(), adminScope(), CategoryInput{
 		Name: "Missing Store", Status: "active",
@@ -385,16 +394,20 @@ func TestConsoleService_CreateItem_RejectsNegativePointsReward(t *testing.T) {
 
 func TestConsoleService_UpdateAndDeleteCategory(t *testing.T) {
 	repo := &fakeConsoleRepo{categories: []Category{{ID: 1, ScopeType: "store", Name: "Old", Status: "active"}}}
-	svc := NewConsoleService(repo)
+	svc := NewConsoleService(repo, fakeCatalogAssets{})
 	storeID := int64(8)
+	assetID := int64(29)
 	scope := ConsoleScope{StoreID: &storeID}
 
-	view, err := svc.UpdateCategory(context.Background(), scope, 1, CategoryInput{Name: "New", Status: "inactive"})
+	view, err := svc.UpdateCategory(context.Background(), scope, 1, CategoryInput{Name: "New", AssetID: &assetID, Status: "inactive"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if view.Name != "New" || view.Status != "inactive" {
 		t.Fatalf("update did not apply: %+v", view)
+	}
+	if view.AssetID == nil || *view.AssetID != assetID || view.ImageURL != "https://cdn.example.com/assets/29" {
+		t.Fatalf("update should return the uploaded category icon, got %+v", view)
 	}
 	if repo.lastScope.StoreID == nil || *repo.lastScope.StoreID != storeID {
 		t.Fatalf("update should propagate scope, got %+v", repo.lastScope)

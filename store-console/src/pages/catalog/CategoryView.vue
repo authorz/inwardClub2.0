@@ -7,7 +7,7 @@ import { confirm } from '@/composables/useConfirm'
 import { feedback } from '@/utils/feedback'
 import { PERM } from '@/constants/permissions'
 import { ACTIVE_STATUS, toOptions } from '@/constants/enums'
-import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
+import { AssetImage, AssetUpload, DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
 import { statusColumn, textColumn } from '@/utils/columns'
 import type { CatalogCategory } from '@/types/models'
 
@@ -16,17 +16,44 @@ const statuses = toOptions(ACTIVE_STATUS)
 const selectStatuses = statuses.map(({ label, value }) => ({ label, value }))
 const show = ref(false)
 const saving = ref(false)
-const form = reactive({ id: null as string | number | null, name: '', sortOrder: 0, status: 'active' })
+const form = reactive({
+  id: null as string | number | null,
+  name: '',
+  assetId: null as string | null,
+  imageUrl: '',
+  sortOrder: 0,
+  status: 'active',
+})
 
 function open(row?: CatalogCategory): void {
-  Object.assign(form, row ? { id: row.id, name: row.name, sortOrder: row.sortOrder ?? 0, status: row.status ?? 'active' } : { id: null, name: '', sortOrder: 0, status: 'active' })
+  Object.assign(form, row ? {
+    id: row.id,
+    name: row.name,
+    assetId: row.assetId == null ? null : String(row.assetId),
+    imageUrl: row.imageUrl ?? '',
+    sortOrder: row.sortOrder ?? 0,
+    status: row.status ?? 'active',
+  } : {
+    id: null,
+    name: '',
+    assetId: null,
+    imageUrl: '',
+    sortOrder: 0,
+    status: 'active',
+  })
   show.value = true
 }
 async function save(): Promise<void> {
   if (!form.name.trim()) return void feedback.message.error('请填写分类名称')
   saving.value = true
   try {
-    const body = { name: form.name.trim(), parentId: null, assetId: null, sortOrder: form.sortOrder, status: form.status }
+    const body = {
+      name: form.name.trim(),
+      parentId: null,
+      assetId: form.assetId ? Number(form.assetId) : null,
+      sortOrder: form.sortOrder,
+      status: form.status,
+    }
     if (form.id == null) await catalogService.createCategory(body)
     else await catalogService.updateCategory(form.id, body)
     feedback.message.success('分类已保存'); show.value = false; list.refresh()
@@ -39,6 +66,12 @@ async function remove(row: CatalogCategory): Promise<void> {
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '删除失败') }
 }
 const columns = computed<DataTableColumns<CatalogCategory>>(() => [
+  {
+    title: '图标',
+    key: 'icon',
+    width: 72,
+    render: (row) => h(AssetImage, { src: row.imageUrl, assetId: row.assetId, width: 44, height: 44 }),
+  },
   textColumn<CatalogCategory>('分类名称', (row) => row.name),
   textColumn<CatalogCategory>('排序', (row) => row.sortOrder ?? 0, { width: 90 }),
   statusColumn<CatalogCategory>('状态', ACTIVE_STATUS, (row) => row.status, { width: 100 }),
@@ -99,7 +132,19 @@ const columns = computed<DataTableColumns<CatalogCategory>>(() => [
           required
         >
           <NInput v-model:value="form.name" />
-        </NFormItem><NFormItem label="排序">
+        </NFormItem>
+        <NFormItem label="分类图标">
+          <AssetUpload
+            v-model:asset-id="form.assetId"
+            v-model:preview-url="form.imageUrl"
+            purpose="category"
+            :width="64"
+            :height="64"
+            compact
+            clearable
+          />
+        </NFormItem>
+        <NFormItem label="排序">
           <NInputNumber
             v-model:value="form.sortOrder"
             :min="0"

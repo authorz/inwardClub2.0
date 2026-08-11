@@ -73,7 +73,8 @@ export interface CatalogCategory extends AuditableEntity {
   storeName?: string
   parentId?: string | null
   sortOrder?: number
-  assetId?: string | number
+  assetId?: string | number | null
+  imageUrl?: string
 }
 
 export interface CatalogItem extends AuditableEntity {

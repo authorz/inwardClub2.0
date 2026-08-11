@@ -83,6 +83,7 @@ type ConsoleCategoryView struct {
 	ParentID  *int64 `json:"parentId,omitempty"`
 	Name      string `json:"name"`
 	AssetID   *int64 `json:"assetId,omitempty"`
+	ImageURL  string `json:"imageUrl,omitempty"`
 	SortOrder int    `json:"sortOrder"`
 	Status    string `json:"status"`
 }
@@ -592,12 +593,16 @@ func NewConsoleService(repo ConsoleRepository, assets ...AssetResolver) *Console
 	return &ConsoleService{repo: repo, assets: resolver}
 }
 
-func categoryToView(c Category) ConsoleCategoryView {
-	return ConsoleCategoryView{
+func (s *ConsoleService) categoryToView(ctx context.Context, c Category) ConsoleCategoryView {
+	view := ConsoleCategoryView{
 		ID: c.ID, ScopeType: c.ScopeType, StoreID: c.StoreID, ParentID: c.ParentID,
 		StoreName: c.StoreName, Name: c.Name, AssetID: c.AssetID,
 		SortOrder: c.SortOrder, Status: c.Status,
 	}
+	if s.assets != nil && c.AssetID != nil {
+		view.ImageURL, _ = s.assets.PublicURLByID(ctx, *c.AssetID)
+	}
+	return view
 }
 
 func (s *ConsoleService) itemToView(ctx context.Context, it Item) ConsoleItemView {
@@ -677,7 +682,7 @@ func (s *ConsoleService) ListCategories(ctx context.Context, scope ConsoleScope,
 	}
 	views := make([]ConsoleCategoryView, 0, len(cats))
 	for _, c := range cats {
-		views = append(views, categoryToView(c))
+		views = append(views, s.categoryToView(ctx, c))
 	}
 	return views, total, nil
 }
@@ -688,7 +693,7 @@ func (s *ConsoleService) GetCategory(ctx context.Context, scope ConsoleScope, id
 	if err != nil {
 		return ConsoleCategoryView{}, err
 	}
-	return categoryToView(c), nil
+	return s.categoryToView(ctx, c), nil
 }
 
 // CreateCategory creates a category under scope.
@@ -706,7 +711,7 @@ func (s *ConsoleService) CreateCategory(ctx context.Context, scope ConsoleScope,
 	if err != nil {
 		return ConsoleCategoryView{}, err
 	}
-	return categoryToView(c), nil
+	return s.categoryToView(ctx, c), nil
 }
 
 // UpdateCategory updates a category under scope.
@@ -724,7 +729,7 @@ func (s *ConsoleService) UpdateCategory(ctx context.Context, scope ConsoleScope,
 	if err != nil {
 		return ConsoleCategoryView{}, err
 	}
-	return categoryToView(c), nil
+	return s.categoryToView(ctx, c), nil
 }
 
 // DeleteCategory deletes a category under scope.

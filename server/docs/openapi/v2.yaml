@@ -967,6 +967,7 @@ components:
         parentId: { type: integer, format: int64 }
         name: { type: string }
         assetId: { type: integer, format: int64 }
+        imageUrl: { type: string, format: uri }
         sortOrder: { type: integer }
         status: { type: string }
     CategoryInput:

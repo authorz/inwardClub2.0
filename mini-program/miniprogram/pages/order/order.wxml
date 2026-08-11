@@ -25,12 +25,13 @@
     <!-- left category rail -->
     <scroll-view class="ord__cats" scroll-y>
       <view
-        class="ord__cat {{activeCat === item.id ? 'is-active' : ''}}"
+        class="ord__cat {{activeCat === item.id ? 'is-active' : ''}} {{item.iconUrl ? 'has-icon' : ''}}"
         wx:for="{{groups}}"
         wx:key="id"
         data-id="{{item.id}}"
         bindtap="onPickCat"
       >
+        <image wx:if="{{item.iconUrl}}" class="ord__cat-icon" src="{{item.iconUrl}}" mode="aspectFit" />
         <text class="ord__cat-name">{{item.name}}</text>
       </view>
     </scroll-view>

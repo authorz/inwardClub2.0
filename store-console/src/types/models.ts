@@ -139,6 +139,7 @@ export interface CatalogCategory extends AuditFields {
   status?: string
   parentId?: number | string | null
   assetId?: number | string | null
+  imageUrl?: string
 }
 
 export interface StoreActivity extends AuditFields {

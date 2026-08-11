@@ -13,7 +13,8 @@ const props = withDefaults(defineProps<{
   width?: number
   height?: number
   compact?: boolean
-}>(), { assetId: null, previewUrl: null, width: 160, height: 80, compact: false })
+  clearable?: boolean
+}>(), { assetId: null, previewUrl: null, width: 160, height: 80, compact: false, clearable: false })
 
 const emit = defineEmits<{
   'update:assetId': [value: string | null]
@@ -36,6 +37,11 @@ async function upload({ file, onFinish, onError }: UploadCustomRequestOptions): 
     uploading.value = false
   }
 }
+
+function clear(): void {
+  emit('update:assetId', null)
+  emit('update:previewUrl', '')
+}
 </script>
 
 <template>
@@ -56,8 +62,17 @@ async function upload({ file, onFinish, onError }: UploadCustomRequestOptions): 
       accept="image/png,image/jpeg,image/webp"
     >
       <NButton :loading="uploading">
-        {{ assetId ? '重新上传' : '上传图片' }}
+        {{ assetId || previewUrl ? '重新上传' : '上传图片' }}
       </NButton>
     </NUpload>
+    <NButton
+      v-if="clearable && (assetId || previewUrl)"
+      secondary
+      type="error"
+      :disabled="uploading"
+      @click="clear"
+    >
+      清除
+    </NButton>
   </NSpace>
 </template>

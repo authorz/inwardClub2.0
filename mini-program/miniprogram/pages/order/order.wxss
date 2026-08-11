@@ -72,7 +72,9 @@
   color: #777777;
   position: relative;
 }
-.ord__cat-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ord__cat.has-icon { padding-left: 12rpx; padding-right: 12rpx; gap: 8rpx; }
+.ord__cat-icon { width: 32rpx; height: 32rpx; flex: none; }
+.ord__cat-name { display: block; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ord__cat.is-active { background: var(--ic-line-strong); color: var(--ic-black); font-weight: 700; }
 .ord__cat.is-active::before {
   content: "";
