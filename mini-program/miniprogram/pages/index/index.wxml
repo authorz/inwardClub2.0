@@ -34,13 +34,19 @@
   >
     <swiper-item wx:for="{{activities}}" wx:key="id">
       <view class="home__banner-item" data-id="{{item.id}}" bindtap="goActivity">
-        <image wx:if="{{item.imageUrl}}" class="home__banner-img" src="{{item.imageUrl}}" mode="aspectFill" />
-        <view wx:else class="home__banner-ph">
-          <text class="home__banner-title">{{item.title || 'INWARD CLUB'}}</text>
+        <image
+          wx:if="{{item.imageUrl}}"
+          class="home__banner-img"
+          src="{{item.imageUrl}}"
+          mode="aspectFill"
+          data-index="{{index}}"
+          bindload="onBannerImageLoad"
+        />
+        <view wx:if="{{!item.imageUrl || !item.imageLoaded}}" class="home__banner-loading">
+          <ic-loading theme="dark" fullscreen="{{false}}" />
         </view>
-        <view wx:if="{{item.imageUrl}}" class="home__banner-info">
+        <view class="home__banner-info">
           <view class="home__banner-info-head">
-            <text class="home__banner-activity-title ic-ellipsis">{{item.title}}</text>
             <view
               class="home__banner-all"
               aria-label="查看全部活动"
@@ -52,18 +58,27 @@
               <view class="ic-arrow home__banner-all-arrow"></view>
             </view>
           </view>
-          <view class="home__banner-meta">
-            <text wx:if="{{item.storeName}}" class="home__banner-store ic-ellipsis">{{item.storeName}}</text>
-            <text wx:if="{{item.timeText}}" class="home__banner-time ic-ellipsis">{{item.timeText}}</text>
-          </view>
         </view>
       </view>
     </swiper-item>
   </swiper>
-  <view wx:else class="home__banner">
-    <view class="home__banner-ph">
-      <text class="home__banner-title">INWARD CLUB</text>
-      <text class="home__banner-sub">BELONG TO YOUR BEST</text>
+  <view wx:else class="home__banner home__banner-empty">
+    <view class="home__banner-loading">
+      <ic-loading theme="dark" fullscreen="{{false}}" />
+    </view>
+    <view class="home__banner-info">
+      <view class="home__banner-info-head">
+        <view
+          class="home__banner-all"
+          aria-label="查看全部活动"
+          aria-role="button"
+          hover-class="home__banner-all--hover"
+          bindtap="goActivityList"
+        >
+          <text>全部活动</text>
+          <view class="ic-arrow home__banner-all-arrow"></view>
+        </view>
+      </view>
     </view>
   </view>
 

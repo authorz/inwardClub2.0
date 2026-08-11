@@ -302,6 +302,11 @@ Page({
   goFranchiseInquiry() {
     wx.navigateTo({ url: '/pages/franchise-inquiry/franchise-inquiry' });
   },
+  onBannerImageLoad(e) {
+    const index = Number(e.currentTarget.dataset.index);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.activities.length) return;
+    this.setData({ [`activities[${index}].imageLoaded`]: true });
+  },
   goActivity(e) {
     wx.navigateTo({ url: '/pages/activity-detail/activity-detail?id=' + e.currentTarget.dataset.id });
   },
