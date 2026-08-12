@@ -16,7 +16,7 @@
 .mine__invite-copy { width: 32rpx; height: 32rpx; color: var(--ic-text-3); transform: scale(0.62); transform-origin: center; }
 
 /* ---- assets: 三列大数字 ---- */
-.mine__assets { padding: 28rpx 24rpx; display: flex; align-items: center; background: var(--ic-white); border-top: 1rpx solid var(--ic-line); }
+.mine__assets { margin: 20rpx 24rpx; padding: 28rpx 24rpx; display: flex; align-items: center; }
 .mine__asset { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; padding: 4rpx 12rpx; }
 .mine__asset--hover { opacity: 0.6; }
 .mine__asset-ico { width: 28rpx; height: 28rpx; flex: none; }
@@ -26,9 +26,9 @@
 .mine__asset-div { width: 1rpx; height: 56rpx; background: var(--ic-line); flex: none; }
 
 /* ---- blocks (order center / menus) ---- */
-.mine__block { margin-top: 16rpx; padding: 30rpx 24rpx; background: var(--ic-white); }
+.mine__block { margin: 20rpx 24rpx; padding: 30rpx 12rpx; background: var(--ic-white); border-radius: var(--ic-radius); }
 /* 区块标题视觉减重：更小、更细、更浅、下边距更克制（局部覆盖 ic-h2） */
-.mine__block-title { padding: 0 4rpx 12rpx; font-size: 22rpx; font-weight: 400; color: var(--ic-text-3); }
+.mine__block-title { padding: 0 16rpx 12rpx; font-size: 22rpx; font-weight: 400; color: var(--ic-text-3); }
 .mine__grid { display: flex; }
 .mine__grid-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 16rpx; padding: 12rpx 0; }
 .mine__grid-item--hover { opacity: 0.55; }

@@ -21,7 +21,7 @@
   </view>
 
   <!-- assets: 金币 / 积分 / 券（大数字友好，三列） -->
-  <view class="mine__assets">
+  <view class="mine__assets ic-card">
     <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
       <text class="mine__asset-num">{{coinsText}}</text>
       <view class="mine__asset-label">
