@@ -25,7 +25,7 @@
     <image wx:if="{{tournamentEvent.imageUrl}}" class="rsv__activity-image" src="{{tournamentEvent.imageUrl}}" mode="aspectFill"></image>
     <view class="rsv__activity-shade"></view>
     <view class="rsv__activity-copy">
-      <text class="rsv__activity-label">今日活动</text>
+      <text class="rsv__activity-label">今日赛事</text>
       <text class="rsv__activity-title ic-ellipsis">{{tournamentEvent.title}}</text>
     </view>
     <view class="rsv__activity-more">

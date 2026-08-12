@@ -31,6 +31,9 @@ Page({
     pointsText: '0',
     genderIcon: '',
     isStaff: false,
+    navStatusBar: 20,
+    navContentHeight: 44,
+    navRightGap: 96,
     orderEntries: [
       { type: 'food', label: '点餐订单', icon: 'ic-ic-dining' },
       { type: 'activity', label: '活动订单', icon: 'ic-ic-calendar' },
@@ -45,7 +48,7 @@ Page({
       { label: '排行榜', icon: MINE_MENU_ASSET_BASE + 'rankings.png', action: 'nav', url: '/pages/rankings/rankings' },
       { label: '邀请有礼', icon: MINE_MENU_ASSET_BASE + 'invite-gift.png', action: 'nav', url: '/pages/invitations/invitations' },
       { label: '交易记录', icon: MINE_MENU_ASSET_BASE + 'transactions.png', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
-      { label: '会员权益', icon: MINE_MENU_ASSET_BASE + 'member-benefits.png', action: 'nav', url: '/pages/benefits/benefits' },
+      // { label: '会员权益', icon: MINE_MENU_ASSET_BASE + 'member-benefits.png', action: 'nav', url: '/pages/benefits/benefits' },
       { label: '咨询客服', icon: '/assets/mine-menu/customer-service.png', action: 'nav', url: '/pages/customer-service/customer-service' },
       { label: '加入社群', icon: MINE_MENU_ASSET_BASE + 'community.png', action: 'toast' },
     ],
@@ -54,7 +57,6 @@ Page({
       { label: '活动核销', icon: MINE_MENU_ASSET_BASE + 'staff-verify.png', url: '/pages/staff-verify/staff-verify' },
       { label: '积分审核', icon: MINE_MENU_ASSET_BASE + 'staff-point-review.png', url: '/pages/staff-point-review/staff-point-review' },
       { label: '核销记录', icon: MINE_MENU_ASSET_BASE + 'staff-records.png', url: '/pages/staff-verifications/staff-verifications' },
-      { label: '今日活动', icon: MINE_MENU_ASSET_BASE + 'staff-today.png', url: '/pages/staff-today/staff-today' },
     ],
 
     // recharge sheet
@@ -72,6 +74,26 @@ Page({
     pointAmount: '',
     pointStoreName: '',
     submitting: false,
+  },
+
+  onLoad() {
+    this.measureNav();
+  },
+
+  measureNav() {
+    try {
+      const win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+      const cap = wx.getMenuButtonBoundingClientRect();
+      const statusBar = win.statusBarHeight || 20;
+      const gap = Math.max(cap.top - statusBar, 4);
+      this.setData({
+        navStatusBar: statusBar,
+        navContentHeight: cap.height + gap * 2,
+        navRightGap: Math.max(win.windowWidth - cap.left + 8, 96),
+      });
+    } catch {
+      /* keep defaults */
+    }
   },
 
   onShow() {

@@ -1,81 +1,77 @@
 <page-meta page-style="{{ (showRecharge || showPoint) ? 'overflow: hidden;' : '' }}" />
 <view class="ic-page ic-page--tab mine">
-  <!-- profile header -->
-  <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
-    <view class="mine__avatar">
-      <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
-      <view wx:else class="mine__avatar-ph"><text>{{me.nickname}}</text></view>
-      <image wx:if="{{genderIcon}}" class="mine__gender" src="{{genderIcon}}" mode="aspectFit" />
-    </view>
-    <view class="mine__ident">
-      <view class="mine__nameline">
-        <text class="mine__name">{{me.nickname || '会员'}}</text>
-        <text wx:if="{{me.tierShort}}" class="ic-tag ic-tag-dark mine__tier">{{me.tierShort}}</text>
-      </view>
-      <view class="mine__invite" catchtap="copyInvite">
-        <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>
-        <view class="ic-ic ic-ic-copy mine__invite-copy"></view>
-      </view>
-    </view>
-    <view class="ic-arrow"></view>
+  <image class="mine__page-background" src="https://assets.inwardclub.com/public/brand/member-center-background-v1.svg" mode="aspectFill" />
+
+  <view class="mine__nav" style="padding-top: {{navStatusBar}}px;">
+    <view class="mine__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;"></view>
   </view>
 
-  <!-- assets: 金币 / 积分 / 券（大数字友好，三列） -->
-  <view class="mine__assets ic-card">
-    <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
-      <text class="mine__asset-num">{{coinsText}}</text>
-      <view class="mine__asset-label">
-        <image class="mine__asset-ico" src="/assets/payment/coin.png" mode="aspectFit" />
-        <text>金币</text>
+  <view class="mine__content">
+    <!-- Identity and assets share one continuous glass card. -->
+    <view class="mine__summary mine__glass">
+      <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
+        <view class="mine__avatar">
+          <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
+          <view wx:else class="mine__avatar-ph"><text>{{me.nickname || '会员'}}</text></view>
+          <image wx:if="{{genderIcon}}" class="mine__gender" src="{{genderIcon}}" mode="aspectFit" />
+        </view>
+        <view class="mine__ident">
+          <view class="mine__nameline">
+            <text class="mine__name">{{me.nickname || '会员'}}</text>
+            <text wx:if="{{me.tierShort}}" class="mine__tier">{{me.tierShort}}</text>
+          </view>
+          <view class="mine__invite" catchtap="copyInvite">
+            <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>
+            <view class="ic-ic ic-ic-copy mine__invite-copy"></view>
+          </view>
+        </view>
+        <view class="ic-arrow mine__profile-arrow"></view>
       </view>
-    </view>
-    <view class="mine__asset-div"></view>
-    <view class="mine__asset" data-asset="points" bindtap="onAsset" hover-class="mine__asset--hover">
-      <text class="mine__asset-num">{{pointsText}}</text>
-      <view class="mine__asset-label">
-        <image class="mine__asset-ico" src="/assets/mine-menu/save-points.png" mode="aspectFit" />
-        <text>积分</text>
-      </view>
-    </view>
-    <view class="mine__asset-div"></view>
-    <view class="mine__asset" data-asset="coupons" bindtap="onAsset" hover-class="mine__asset--hover">
-      <text class="mine__asset-num">{{wallet.couponCount || 0}}<text class="mine__asset-unit">张</text></text>
-      <view class="mine__asset-label">
-        <image class="mine__asset-ico" src="/assets/mine-menu/coupons.png" mode="aspectFit" />
-        <text>券</text>
-      </view>
-    </view>
-  </view>
 
-  <!-- order center -->
-  <view class="mine__block">
-    <text class="ic-h2 mine__block-title">订单中心</text>
-    <view class="mine__grid">
-      <view class="mine__grid-item" wx:for="{{orderEntries}}" wx:key="type" data-type="{{item.type}}" bindtap="goOrder" hover-class="mine__grid-item--hover">
-        <view class="mine__obox"><view class="ic-ic {{item.icon}} mine__oicon mine__oicon--{{item.type}}"></view></view>
-        <text class="mine__grid-label">{{item.label}}</text>
+      <!-- assets: 优惠券 / 金币余额 / 积分 -->
+      <view class="mine__assets">
+        <view class="mine__asset" data-asset="coupons" bindtap="onAsset" hover-class="mine__asset--hover">
+          <text class="mine__asset-num">{{wallet.couponCount || 0}}</text>
+          <text class="mine__asset-label">优惠券</text>
+        </view>
+        <!-- <view class="mine__asset-div"></view> -->
+        <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
+          <text class="mine__asset-num">{{coinsText}}</text>
+          <text class="mine__asset-label">金币余额</text>
+        </view>
+        <!-- <view class="mine__asset-div"></view> -->
+        <view class="mine__asset" data-asset="points" bindtap="onAsset" hover-class="mine__asset--hover">
+          <text class="mine__asset-num">{{pointsText}}</text>
+          <text class="mine__asset-label">积分</text>
+        </view>
       </view>
     </view>
-  </view>
 
-  <!-- 会员功能 -->
-  <view class="mine__block">
-    <text class="ic-h2 mine__block-title">会员功能</text>
-    <view class="mine__menu">
-      <view class="mine__menu-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__grid-item--hover">
-        <image class="mine__menu-ico" src="{{item.icon}}" mode="aspectFit" />
-        <text class="mine__grid-label">{{item.label}}</text>
+    <!-- The page-level silver linework sits behind the translucent panels. -->
+    <view class="mine__service-stage">
+      <!-- All primary actions share one continuous glass surface. -->
+      <view class="mine__services mine__glass">
+        <view class="mine__service-grid">
+          <view class="mine__service-item" wx:for="{{orderEntries}}" wx:key="type" data-type="{{item.type}}" bindtap="goOrder" hover-class="mine__service-item--hover">
+            <view class="mine__service-icon-box"><view class="ic-ic {{item.icon}} mine__service-icon mine__service-icon--{{item.type}}"></view></view>
+            <text class="mine__service-label">{{item.label}}</text>
+          </view>
+          <view class="mine__service-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__service-item--hover">
+            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
+            <text class="mine__service-label">{{item.label}}</text>
+          </view>
+        </view>
       </view>
-    </view>
-  </view>
 
-  <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
-  <view wx:if="{{isStaff}}" class="mine__block">
-    <text class="ic-h2 mine__block-title">工作人员功能</text>
-    <view class="mine__menu">
-      <view class="mine__menu-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__grid-item--hover">
-        <image class="mine__menu-ico" src="{{item.icon}}" mode="aspectFit" />
-        <text class="mine__grid-label">{{item.label}}</text>
+      <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
+      <view wx:if="{{isStaff}}" class="mine__services mine__services--staff mine__glass">
+        <text class="mine__staff-title">工作人员功能</text>
+        <view class="mine__service-grid">
+          <view class="mine__service-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__service-item--hover">
+            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
+            <text class="mine__service-label">{{item.label}}</text>
+          </view>
+        </view>
       </view>
     </view>
   </view>

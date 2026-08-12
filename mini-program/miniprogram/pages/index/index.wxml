@@ -84,6 +84,11 @@
 
   <view class="home__glass-zone">
     <view class="home__feature-wall">
+      <image
+        class="home__feature-gif"
+        src="https://assets.inwardclub.com/public/images/inward-logo.gif"
+        mode="aspectFill"
+      />
 
     <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
     <view class="home__card">
