@@ -380,8 +380,8 @@ func (r *sqlRepository) ListRechargeProducts(ctx context.Context) ([]RechargePro
 	defer rows.Close()
 	var out []RechargeProduct
 	for rows.Next() {
-		var p RechargeProduct
-		if err := rows.Scan(&p.ID, &p.AmountCent, &p.CoinAmount, &p.PointsAmount, &p.SortOrder, &p.Status); err != nil {
+		p, err := scanRechargeProduct(rows)
+		if err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, p)
