@@ -171,7 +171,7 @@
 .home__hello { display: block; font-size: 20rpx; color: var(--ic-text-3); }
 .home__name { display: block; margin-top: 2rpx; font-size: 26rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); }
 .home__no { display: block; margin-top: 6rpx; font-size: 20rpx; line-height: 1.2; color: var(--ic-text-3); white-space: nowrap; }
-.home__vip { display: inline-flex; align-items: center; gap: 8rpx; min-width: 0; max-width: 180rpx; height: 52rpx; margin-left: 20rpx; padding: 0 18rpx; border-radius: 26rpx; background: var(--ic-black); color: var(--ic-white); box-sizing: border-box; }
+.home__vip { display: inline-flex; align-items: center; gap: 8rpx; min-width: 0; max-width: 180rpx; height: 52rpx; margin-left: 20rpx; padding: 0 18rpx; border-radius: 26rpx; background: var(--ic-black); color: var(--ic-white); box-sizing: border-box; box-shadow: 0 0 0 4rpx #e2e5e9, 0 0 0 6rpx #9da4ad; }
 .home__vip-mark { flex: none; font-size: 20rpx; line-height: 1; color: currentColor; }
 .home__vip-name { min-width: 0; font-size: 20rpx; font-weight: 600; color: currentColor; }
 .home__vip-arrow { width: 9rpx; height: 9rpx; border-color: currentColor; }
@@ -298,6 +298,7 @@
   box-sizing: border-box;
   border-radius: 28rpx;
   background: var(--ic-black);
+  box-shadow: 0 0 0 4rpx #e2e5e9, 0 0 0 6rpx #9da4ad;
   color: var(--ic-white);
   font-size: 20rpx;
   font-weight: 600;
