@@ -239,9 +239,10 @@ func TestCreateOrdersReturnPayableViews(t *testing.T) {
 func TestListTicketsBuildsDisplayViews(t *testing.T) {
 	repo := newMemRepo()
 	start := time.Date(2026, 7, 20, 19, 30, 0, 0, time.UTC)
+	end := time.Date(2026, 7, 20, 21, 30, 0, 0, time.UTC)
 	repo.tickets[10] = []MemberTicket{
 		{ID: 1, ActivityID: 3, Title: "会员私享局", ScopeType: "global", AssetID: ptr(9),
-			StartAt: &start, StoreName: "三里屯店", TicketName: "双人票", Status: "active", PaymentStatus: "paid", Code: "5561 2200"},
+			StartAt: &start, EndAt: &end, StoreName: "三里屯店", TicketName: "双人票", Status: "active", PaymentStatus: "paid", Code: "5561 2200"},
 		{ID: 2, ActivityID: 4, Title: "城市夜赛", ScopeType: "store",
 			StoreName: "望京店", TicketName: "VIP票", Status: "used", PaymentStatus: "paid", Code: "2231 8890"},
 		{ID: 3, ActivityID: 5, Title: "未支付活动", ScopeType: "store",
@@ -258,7 +259,7 @@ func TestListTicketsBuildsDisplayViews(t *testing.T) {
 	}
 	v0 := views[0]
 	if v0.Tone != "member" || v0.ImageURL != "https://cdn/poster.png" || v0.Status != "unused" ||
-		v0.TimeText != "2026.07.20 19:30" || v0.Qty != 1 || v0.TicketName != "双人票" || v0.StoreName != "三里屯店" {
+		v0.TimeText != "2026.07.20 19:30-21:30" || v0.Qty != 1 || v0.TicketName != "双人票" || v0.StoreName != "三里屯店" {
 		t.Fatalf("unexpected first ticket view: %+v", v0)
 	}
 	if views[1].Tone != "" || views[1].ImageURL != "" || views[1].Status != "used" {

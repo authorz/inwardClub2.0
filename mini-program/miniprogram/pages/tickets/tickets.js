@@ -1,9 +1,6 @@
-// 我的入场券 — 待使用/已使用/已过期 分段 + 出示票码
+// 我的入场券 — 待使用/已使用/已过期分段
 // Reference: design/mini-program/final/member-subpages/09-my-tickets-v23.png
 const api = require('../../services/api');
-const fmt = require('../../utils/format');
-const ui = require('../../utils/ui');
-const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
 // bucket lifecycle statuses into the three visible tabs
@@ -24,8 +21,6 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
-    showCodeSheet: false,
-    ticketCode: { title: '', sub: '', code: '', codeRaw: '', qr: [] },
   },
 
   onLoad() {
@@ -66,33 +61,11 @@ Page({
   showCode(e) {
     const t = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
     if (!t) return;
-    const raw = t.code || '';
-    this.setData({
-      showCodeSheet: true,
-      ticketCode: {
-        title: t.title,
-        sub: (t.timeText || '') + ' · ' + (t.storeName || ''),
-        codeRaw: raw,
-        code: fmt.codeGroups(raw),
-        qr: codeart.grid(raw),
-      },
-    });
-    wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: true });
-  },
-
-  closeCodeSheet() {
-    this.setData({ showCodeSheet: false });
-    wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
-  },
-
-  copyCode() {
-    if (this.data.ticketCode.code) ui.copy(this.data.ticketCode.code, '核销码已复制');
+    wx.navigateTo({ url: `/pages/ticket-code/ticket-code?id=${t.id}` });
   },
 
   goDetail(e) {
     const t = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
     if (t && t.activityId) wx.navigateTo({ url: '/pages/activity-detail/activity-detail?id=' + t.activityId });
   },
-
-  noop() {},
 });

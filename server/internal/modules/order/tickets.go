@@ -92,7 +92,7 @@ func (s *Service) ListTickets(ctx context.Context, memberID int64) ([]MyTicketVi
 			ActivityID: t.ActivityID,
 			Title:      t.Title,
 			Tone:       ticketTone(t.ScopeType),
-			TimeText:   ticketTimeText(t.StartAt),
+			TimeText:   ticketTimeText(t.StartAt, t.EndAt),
 			StoreName:  t.StoreName,
 			TicketName: t.TicketName,
 			Qty:        1,
@@ -117,10 +117,17 @@ func ticketTone(scopeType string) string {
 	return ""
 }
 
-// ticketTimeText renders the activity start time for display, empty when unset.
-func ticketTimeText(startAt *time.Time) string {
+// ticketTimeText renders the activity date and time range for display, empty
+// when the start time is unset.
+func ticketTimeText(startAt, endAt *time.Time) string {
 	if startAt == nil {
 		return ""
+	}
+	if endAt != nil {
+		if startAt.Year() == endAt.Year() && startAt.YearDay() == endAt.YearDay() {
+			return startAt.Format("2006.01.02 15:04") + "-" + endAt.Format("15:04")
+		}
+		return startAt.Format("2006.01.02 15:04") + "-" + endAt.Format("2006.01.02 15:04")
 	}
 	return startAt.Format("2006.01.02 15:04")
 }

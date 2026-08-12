@@ -1,4 +1,8 @@
 {
   "usingComponents": {},
-  "navigationBarTitleText": "出示票码"
+  "navigationBarTitleText": "出示二维码",
+  "navigationBarBackgroundColor": "#000000",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#000000",
+  "backgroundTextStyle": "light"
 }

@@ -52,33 +52,10 @@
           hover-class="tk__codebtn--hover"
         >
           <image class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
-          <text class="tk__codehint">展示二维码</text>
+          <text class="tk__codehint">出示二维码</text>
         </view>
         <text wx:else class="tk__view" data-id="{{item.id}}" bindtap="goDetail">查看详情</text>
       </view>
     </view>
-  </view>
-</view>
-
-<view wx:if="{{showCodeSheet}}" class="tk-modal" catchtouchmove="noop">
-  <view class="tk-modal__mask" bindtap="closeCodeSheet"></view>
-  <view class="tk-modal__panel">
-    <view class="tk-modal__close" bindtap="closeCodeSheet">
-      <view class="tk-modal__x"></view>
-    </view>
-    <text class="tk-modal__title">{{ticketCode.title}}</text>
-    <text class="tk-modal__sub">{{ticketCode.sub}}</text>
-    <view class="tk-modal__qr">
-      <view class="ic-qr">
-        <view class="ic-qr__row" wx:for="{{ticketCode.qr}}" wx:for-item="row" wx:key="id">
-          <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
-        </view>
-      </view>
-    </view>
-    <view class="tk-modal__code" bindtap="copyCode">
-      <text class="tk-modal__code-num">{{ticketCode.code}}</text>
-      <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
-    </view>
-    <text class="tk-modal__hint">入场时向工作人员出示</text>
   </view>
 </view>

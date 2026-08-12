@@ -1,18 +1,64 @@
 <view class="tc">
-  <text class="tc__title">{{title}}</text>
-  <text class="tc__sub">{{sub}}</text>
+  <ic-loading wx:if="{{loading}}" theme="dark" />
 
-  <view class="tc__qr">
-    <view class="ic-qr">
-      <view class="ic-qr__row" wx:for="{{qr}}" wx:for-item="row" wx:key="id">
-        <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
+  <view wx:elif="{{missing}}" class="tc__empty">
+    <text class="tc__empty-title">暂时无法展示二维码</text>
+    <text class="tc__empty-desc">票券可能已失效，请返回刷新后重试</text>
+  </view>
+
+  <view wx:else class="tc__ticket">
+    <view class="tc__head">
+      <view class="tc__head-main">
+        <text class="tc__title">{{ticket.title}}</text>
+        <text class="tc__type">{{ticket.ticketName}} · {{ticket.qty}} 张</text>
+        <view class="tc__facts">
+          <view class="tc__fact">
+            <text class="tc__fact-label">日期</text>
+            <text class="tc__fact-value">{{ticket.dateText}}</text>
+          </view>
+          <view class="tc__fact tc__fact--wide">
+            <text class="tc__fact-label">活动时间</text>
+            <text class="tc__fact-value">{{ticket.clockText || '待定'}}</text>
+          </view>
+          <view class="tc__fact tc__fact--location">
+            <text class="tc__fact-label">活动地点</text>
+            <text class="tc__fact-value ic-ellipsis">{{ticket.storeName}}</text>
+          </view>
+        </view>
+      </view>
+      <view class="tc__poster">
+        <image wx:if="{{ticket.imageUrl}}" class="tc__poster-image" src="{{ticket.imageUrl}}" mode="aspectFill" />
+        <view wx:else class="tc__poster-placeholder tc__poster-placeholder--{{ticket.tone}}">
+          <text>INWARD</text>
+        </view>
       </view>
     </view>
-  </view>
 
-  <view class="tc__code" bindtap="copyCode">
-    <text class="tc__code-num">{{code}}</text>
-    <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+    <view class="tc__cut">
+      <view class="tc__cut-line"></view>
+    </view>
+
+    <view class="tc__body">
+      <view class="tc__body-head">
+        <text class="tc__body-title">扫码入场</text>
+        <text class="tc__status">{{ticket.statusLabel}}</text>
+      </view>
+
+      <view class="tc__qr {{ticket.usable ? '' : 'is-disabled'}}">
+        <view class="ic-qr">
+          <view class="ic-qr__row" wx:for="{{qr}}" wx:for-item="row" wx:key="id">
+            <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
+          </view>
+        </view>
+        <view wx:if="{{!ticket.usable}}" class="tc__stamp">{{ticket.statusLabel}}</view>
+      </view>
+
+      <view class="tc__code" bindtap="copyCode" hover-class="tc__code--hover">
+        <text class="tc__code-label">核销码</text>
+        <text class="tc__code-num">{{ticket.code}}</text>
+        <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+      </view>
+      <text class="tc__hint">请向工作人员出示此页面，核销前请勿关闭</text>
+    </view>
   </view>
-  <text class="tc__hint">入场时向工作人员出示</text>
 </view>
