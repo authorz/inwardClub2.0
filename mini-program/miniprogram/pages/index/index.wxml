@@ -84,16 +84,6 @@
 
   <view class="home__glass-zone">
     <view class="home__feature-wall">
-    <view
-      class="home__franchise"
-      aria-label="了解城市合伙人招募详情"
-      aria-role="button"
-      hover-class="home__franchise--hover"
-      bindtap="goFranchiseInquiry"
-    >
-      <text class="home__franchise-title">城市合伙人招募中</text>
-      <text class="home__franchise-action">了解详情</text>
-    </view>
 
     <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
     <view class="home__card">
@@ -110,7 +100,7 @@
               <text class="home__member-greeting">Hi,</text>
               <text class="home__member-name ic-ellipsis">{{me.nickname || '会员'}}</text>
             </view>
-            <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text>
+            <!-- <text wx:if="{{me.memberNo}}" class="home__no">NO.{{me.memberNo}}</text> -->
           </view>
           <view class="home__vip">
             <text class="home__vip-mark">◇</text>
@@ -129,31 +119,42 @@
         </view>
       </view>
     </view>
-  </view>
 
-  <!-- Current store: real store name, address and location-derived distance. -->
-  <view wx:if="{{store}}" class="home__store-section">
-    <view class="home__store-section-head">
-      <text class="home__store-section-title">地址</text>
-    </view>
     <view
-      class="home__store-panel"
-      aria-label="当前门店 {{store.name}}，{{store.address || '暂未填写地址'}}，距离 {{storeDistanceText}}，点击打开地图导航"
+      class="home__franchise"
+      aria-label="了解城市合伙人招募详情"
       aria-role="button"
-      hover-class="home__store-panel--hover"
-      bindtap="navigateStore"
+      hover-class="home__franchise--hover"
+      bindtap="goFranchiseInquiry"
     >
-      <image class="home__store-panel-map" src="/assets/illustrations/store-map-lines.svg" mode="aspectFill" />
-      <view class="home__store-panel-copy">
-        <text class="home__store-panel-name ic-ellipsis">{{store.name}}</text>
-        <text class="home__store-panel-address ic-ellipsis">{{store.address || '门店暂未填写地址'}}</text>
+      <text class="home__franchise-title">城市合伙人招募中</text>
+      <text class="home__franchise-action">了解详情</text>
+    </view>
+    </view>
+
+    <!-- Current store: real store name, address and location-derived distance. -->
+    <view wx:if="{{store}}" class="home__store-section">
+      <view class="home__store-section-head">
+        <text class="home__store-section-title">地址</text>
       </view>
-      <view class="home__store-panel-location">
-        <image class="home__store-panel-icon" src="/assets/icons/location.svg" mode="aspectFit" />
-        <text class="home__store-panel-distance">{{storeDistanceText || '距离未知'}}</text>
+      <view
+        class="home__store-panel"
+        aria-label="当前门店 {{store.name}}，{{store.address || '暂未填写地址'}}，距离 {{storeDistanceText}}，点击打开地图导航"
+        aria-role="button"
+        hover-class="home__store-panel--hover"
+        bindtap="navigateStore"
+      >
+        <image class="home__store-panel-map" src="/assets/illustrations/store-map-lines.svg" mode="aspectFill" />
+        <view class="home__store-panel-copy">
+          <text class="home__store-panel-name ic-ellipsis">{{store.name}}</text>
+          <text class="home__store-panel-address ic-ellipsis">{{store.address || '门店暂未填写地址'}}</text>
+        </view>
+        <view class="home__store-panel-location">
+          <image class="home__store-panel-icon" src="/assets/icons/location.svg" mode="aspectFit" />
+          <text class="home__store-panel-distance">{{storeDistanceText || '距离未知'}}</text>
+        </view>
       </view>
     </view>
-  </view>
   </view>
 
   <view
