@@ -864,7 +864,7 @@ components:
         ticketName: { type: string }
         qty: { type: integer }
         status: { type: string }
-        code: { type: string }
+        code: { type: string, pattern: '^[0-9]{6}$', description: Six-digit ticket verification code. }
     ReportOverviewView:
       type: object
       description: >

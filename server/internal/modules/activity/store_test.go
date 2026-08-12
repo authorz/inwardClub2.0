@@ -146,8 +146,11 @@ func newStoreTestService() (*StoreService, *storeMemRepo) {
 
 func TestVerifyTicketValidation(t *testing.T) {
 	svc, repo := newStoreTestService()
-	if _, err := svc.VerifyTicket(context.Background(), 1, "", 5); apperr.From(err).Code != apperr.CodeInvalidArgument {
-		t.Fatalf("expected INVALID_ARGUMENT for empty code, got %v", err)
+	for _, code := range []string{"", "12345", "TCK-1", "1234567"} {
+		_, err := svc.VerifyTicket(context.Background(), 1, code, 5)
+		if err == nil || apperr.From(err).Code != apperr.CodeInvalidArgument {
+			t.Fatalf("expected INVALID_ARGUMENT for code %q, got %v", code, err)
+		}
 	}
 	if repo.verifyCalledCode != "" {
 		t.Fatal("repo must not be called with an invalid code")
@@ -156,7 +159,7 @@ func TestVerifyTicketValidation(t *testing.T) {
 
 func TestVerifyTicketScopeAndStaff(t *testing.T) {
 	svc, repo := newStoreTestService()
-	view, err := svc.VerifyTicket(context.Background(), 7, "TCK-1", 5)
+	view, err := svc.VerifyTicket(context.Background(), 7, "012345", 5)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}

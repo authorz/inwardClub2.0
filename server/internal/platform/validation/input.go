@@ -16,7 +16,7 @@ var (
 	dangerousTextPattern = regexp.MustCompile(`(?i)(?:[<>]|&(?:lt|gt|#0*60|#0*62|#x0*3c|#x0*3e);|javascript\s*:|data\s*:\s*text/html|(?:^|[\s"'])on(?:abort|blur|change|click|error|focus|input|load|mouseover|submit)\s*=)`)
 	phonePattern         = regexp.MustCompile(`^1[3-9][0-9]{9}$`)
 	inviteCodePattern    = regexp.MustCompile(`^[A-Za-z0-9]{4,32}$`)
-	verificationPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{4,64}$`)
+	verificationPattern  = regexp.MustCompile(`^[0-9]{6}$`)
 )
 
 // TextOptions describes a plain-text field. Plain text deliberately rejects
@@ -86,7 +86,8 @@ func InviteCode(value string, allowEmpty bool) (string, error) {
 	return value, nil
 }
 
-// VerificationCode validates manually entered or scanned ticket codes.
+// VerificationCode validates the six-digit ticket code used by both manual
+// entry and QR scanning.
 func VerificationCode(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if !verificationPattern.MatchString(value) {

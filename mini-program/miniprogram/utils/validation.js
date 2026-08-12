@@ -3,7 +3,7 @@
 const DANGEROUS_TEXT = /(?:[<>]|&(?:lt|gt|#0*60|#0*62|#x0*3c|#x0*3e);|javascript\s*:|data\s*:\s*text\/html|(?:^|[\s"'])on(?:abort|blur|change|click|error|focus|input|load|mouseover|submit)\s*=)/i;
 const PHONE = /^1[3-9]\d{9}$/;
 const INVITE_CODE = /^[A-Za-z0-9]{4,32}$/;
-const VERIFICATION_CODE = /^[A-Za-z0-9_-]{4,64}$/;
+const VERIFICATION_CODE = /^\d{6}$/;
 
 function runeLength(value) {
   return Array.from(value).length;
@@ -54,7 +54,7 @@ function inviteCode(value, allowEmpty) {
 
 function verificationCode(value) {
   const text = String(value == null ? '' : value).trim();
-  if (!VERIFICATION_CODE.test(text)) throw new Error('核销码格式不正确');
+  if (!VERIFICATION_CODE.test(text)) throw new Error('请输入6位数字核销码');
   return text;
 }
 

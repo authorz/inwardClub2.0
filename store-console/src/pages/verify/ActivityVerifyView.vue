@@ -11,6 +11,7 @@ import { verificationService } from '@/api/services'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { PERM } from '@/constants/permissions'
 import { EmptyState, PageHeader, PermissionButton, VerifyDialog } from '@/components/common'
+import { feedback } from '@/utils/feedback'
 
 const action = useAsyncAction()
 const dialogShow = ref(false)
@@ -20,6 +21,10 @@ function openScan() {
 }
 
 function onConfirm(code: string) {
+  if (!/^\d{6}$/.test(code.trim())) {
+    feedback.message.warning('请输入6位数字核销码')
+    return
+  }
   void action.run(() => verificationService.verifyTicket(code), {
     successMessage: '核销成功',
     onSuccess: () => {
@@ -51,7 +56,7 @@ function onConfirm(code: string) {
     <VerifyDialog
       v-model:show="dialogShow"
       title="活动票核销"
-      placeholder="扫描或输入活动核销码"
+      placeholder="扫描或输入6位数字核销码"
       :loading="action.running.value"
       @confirm="onConfirm"
     >

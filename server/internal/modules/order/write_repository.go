@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	mrand "math/rand"
 	"time"
 
@@ -304,12 +304,21 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
 		tickets = tickets[:0]
 		for i := 0; i < in.Quantity; i++ {
-			ticketNo := newNo("TK", in.Now)
-			code := newCode()
-			res, err := tx.ExecContext(ctx, insTicket, ticketNo, code, activityOrderID, in.ActivityID,
-				in.TicketTypeID, sessPtr, storePtr, in.MemberID, price, in.Now, in.Now)
-			if err != nil {
-				return mapWriteErr(err)
+			var ticketNo string
+			for attempt := 0; attempt < 10; attempt++ {
+				ticketNo = newNo("TK", in.Now)
+				code, codeErr := newCode()
+				if codeErr != nil {
+					return apperr.Internal(codeErr)
+				}
+				res, err = tx.ExecContext(ctx, insTicket, ticketNo, code, activityOrderID, in.ActivityID,
+					in.TicketTypeID, sessPtr, storePtr, in.MemberID, price, in.Now, in.Now)
+				if err == nil {
+					break
+				}
+				if !platdb.IsDuplicate(err) || attempt == 9 {
+					return mapWriteErr(err)
+				}
 			}
 			id, err := res.LastInsertId()
 			if err != nil {
@@ -681,9 +690,12 @@ func newNo(prefix string, now time.Time) string {
 	return fmt.Sprintf("%s%s%04d", prefix, now.Format("20060102150405"), mrand.Intn(10000))
 }
 
-// newCode mints a random verification code for a ticket instance.
-func newCode() string {
-	var b [8]byte
-	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
+// newCode mints a zero-padded six-digit verification code. The database unique
+// index is authoritative; ticket insertion retries the rare random collision.
+func newCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }

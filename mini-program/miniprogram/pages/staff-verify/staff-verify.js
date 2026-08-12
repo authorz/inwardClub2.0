@@ -66,7 +66,7 @@ Page({
     wx.showModal({
       title: '输入核销码',
       editable: true,
-      placeholderText: '请输入核销码',
+      placeholderText: '请输入6位数字核销码',
       confirmColor: '#111111',
       success: (r) => {
         if (r.confirm && r.content) this.doVerify(r.content);
