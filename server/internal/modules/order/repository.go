@@ -27,8 +27,9 @@ type Repository interface {
 	ListActivityOrders(ctx context.Context, memberID int64, limit, offset int) ([]ActivityOrder, int64, error)
 	GetActivityOrder(ctx context.Context, memberID, id int64) (ActivityOrder, []Ticket, error)
 
-	// ListMemberTickets returns every issued ticket owned by the member, joined
-	// with its activity, ticket type and store for the "my tickets" screen.
+	// ListMemberTickets returns paid/refunded issued tickets owned by the member,
+	// joined with its activity, ticket type and store for the "my tickets" screen.
+	// Pending or otherwise unpaid ticket rows are never member-visible.
 	ListMemberTickets(ctx context.Context, memberID int64) ([]MemberTicket, error)
 
 	GetPaymentOrder(ctx context.Context, id int64) (PaymentOrder, error)

@@ -65,10 +65,14 @@ type ActivityView struct {
 // timestamps or scope. Stock is the remaining sellable quantity; -1 signals an
 // uncapped ticket type (stock_quantity 0).
 type PublicTicketTypeView struct {
-	ID                 int64      `json:"id"`
-	Name               string     `json:"name"`
-	PriceCent          int64      `json:"priceCent"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	PriceCent int64  `json:"priceCent"`
+	// Stock is retained for old clients: -1 means unlimited, otherwise it is the
+	// remaining finite quantity. New clients use the explicit fields below.
 	Stock              int64      `json:"stock"`
+	UnlimitedStock     bool       `json:"unlimitedStock"`
+	RemainingStock     *int64     `json:"remainingStock"`
 	SaleStartAt        *time.Time `json:"saleStartAt,omitempty"`
 	SaleEndAt          *time.Time `json:"saleEndAt,omitempty"`
 	PayChannels        []string   `json:"payChannels"`
@@ -310,9 +314,16 @@ func (s *Service) Get(ctx context.Context, id int64) (ActivityView, error) {
 }
 
 func publicTicketTypeView(t TicketType) PublicTicketTypeView {
+	stock := remainingStock(t.StockQuantity, t.SoldQuantity)
+	var remaining *int64
+	if t.StockQuantity > 0 {
+		remaining = &stock
+	}
 	return PublicTicketTypeView{
 		ID: t.ID, Name: t.Name, PriceCent: t.PriceCent,
-		Stock:              remainingStock(t.StockQuantity, t.SoldQuantity),
+		Stock:              stock,
+		UnlimitedStock:     t.StockQuantity == 0,
+		RemainingStock:     remaining,
 		SaleStartAt:        t.SaleStartAt,
 		SaleEndAt:          t.SaleEndAt,
 		PayChannels:        t.PayChannels,

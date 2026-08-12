@@ -16,6 +16,8 @@ func TestClientMessageKeepsChineseBusinessMessage(t *testing.T) {
 func TestClientMessageTranslatesKnownBusinessMessage(t *testing.T) {
 	tests := map[string]string{
 		"capacity cannot be lower than existing seat count": "座位数量不能小于该桌子已有的座位数",
+		"insufficient coin balance":                         "金币余额不足",
+		"insufficient ticket stock":                         "票档库存不足",
 		"seat is already reserved":                          "该座位已被预约，请选择其他座位",
 		"seat is not available":                             "该座位当前不可预约，请选择其他座位",
 		"reservation cannot be cancelled":                   "该预约已取消或不存在",

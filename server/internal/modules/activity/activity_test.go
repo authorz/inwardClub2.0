@@ -96,6 +96,9 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 || got.SaleStartAt == nil || !got.SaleStartAt.Equal(saleStart) {
 		t.Fatalf("unexpected limited ticket view: %+v", got)
 	}
+	if got := view.TicketTypes[0]; got.UnlimitedStock || got.RemainingStock == nil || *got.RemainingStock != 60 {
+		t.Fatalf("unexpected limited stock contract: %+v", got)
+	}
 	if view.ScopeType != "store" || view.StoreName != "南滨公园店" || view.Address != "滨江路 1 号" ||
 		view.Latitude == nil || *view.Latitude != lat || view.Longitude == nil || *view.Longitude != lng {
 		t.Fatalf("activity store details were not preserved: %+v", view)
@@ -103,6 +106,9 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 	// Uncapped tier (stock_quantity 0): -1 sentinel regardless of sold count.
 	if got := view.TicketTypes[1]; got.ID != 21 || got.Stock != -1 {
 		t.Fatalf("unexpected uncapped ticket view: %+v", got)
+	}
+	if got := view.TicketTypes[1]; !got.UnlimitedStock || got.RemainingStock != nil {
+		t.Fatalf("unexpected uncapped stock contract: %+v", got)
 	}
 }
 

@@ -7,6 +7,7 @@ const http = require('../../utils/request');
 const pay = require('../../utils/pay');
 const draft = require('../../utils/order-draft');
 const validation = require('../../utils/validation');
+const money = require('../../utils/money');
 
 // 商品缺失 payChannels 时的兼容默认（老数据视为两种都支持）
 const DEFAULT_CHANNELS = ['wechat', 'coin'];
@@ -60,11 +61,12 @@ Page({
       payText: fmt.centToYuan(d.totalCent),
     });
     api.getWallet().then((res) => {
-      const coins = (res.data && res.data.coins) || 0; // 1 金币 = 1 分
+      const coins = (res.data && res.data.coins) || 0;
+      const requiredCoins = money.coinsRequired(this.totalCent);
       // 金币不足以支付整单，或可用金币为 0，则金币不可选
       this.setData({
         coinBalance: coins,
-        coinDisabled: coins <= 0 || coins < this.totalCent,
+        coinDisabled: requiredCoins === null || coins < requiredCoins,
       });
       this.applyDefaults();
     });

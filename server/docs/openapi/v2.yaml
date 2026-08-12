@@ -266,7 +266,17 @@ components:
         stock:
           type: integer
           format: int64
-          description: Remaining sellable quantity; -1 signals an uncapped ticket type.
+          deprecated: true
+          description: Legacy compatibility field; -1 means unlimited, otherwise the remaining finite quantity. Use unlimitedStock and remainingStock.
+        unlimitedStock:
+          type: boolean
+          description: True when the configured stock quantity is 0 and sales are uncapped.
+        remainingStock:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+          description: Remaining finite quantity; null when unlimitedStock is true.
         saleEndAt: { type: string, format: date-time }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
         maxTicketsPerOrder: { type: integer }
@@ -274,8 +284,8 @@ components:
       type: object
       properties:
         assetType: { type: string, enum: [points, coins, cash_balance, growth_value] }
-        availableAmount: { type: integer, format: int64 }
-        heldAmount: { type: integer, format: int64 }
+        availableAmount: { type: integer, format: int64, description: 'Asset units; coins are integer coin counts, where 1 coin pays ¥1.' }
+        heldAmount: { type: integer, format: int64, description: 'Asset units; coins are integer coin counts, where 1 coin pays ¥1.' }
     LedgerEntry:
       type: object
       properties:
@@ -1135,7 +1145,7 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         priceCent: { type: integer, format: int64 }
-        stockQuantity: { type: integer, format: int64 }
+        stockQuantity: { type: integer, format: int64, description: 'Configured capacity; 0 means unlimited.' }
         soldQuantity: { type: integer, format: int64 }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
@@ -1151,7 +1161,7 @@ components:
         sessionId: { type: integer, format: int64, description: 'Optional; binds the ticket type to a session under the same activity' }
         name: { type: string }
         priceCent: { type: integer, format: int64, minimum: 0 }
-        stockQuantity: { type: integer, format: int64 }
+        stockQuantity: { type: integer, format: int64, description: 'Configured capacity; 0 means unlimited.' }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }

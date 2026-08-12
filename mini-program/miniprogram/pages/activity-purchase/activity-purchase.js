@@ -36,16 +36,17 @@ Page({
         const now = Date.now();
         const tickets = (a.ticketTypes || []).map((t) => {
           const maxTicketsPerOrder = Math.max(0, Number(t.maxTicketsPerOrder) || 0);
-          const stock = Number(t.stock);
+          const unlimitedStock = Boolean(t.unlimitedStock);
+          const remainingStock = unlimitedStock ? null : Math.max(0, Number(t.remainingStock) || 0);
           const saleStartAt = t.saleStartAt ? new Date(t.saleStartAt).getTime() : NaN;
           const saleEndAt = t.saleEndAt ? new Date(t.saleEndAt).getTime() : NaN;
           let disabledReason = '';
-          if (stock === 0) disabledReason = '已售罄';
+          if (!unlimitedStock && remainingStock === 0) disabledReason = '已售罄';
           else if (!isNaN(saleStartAt) && now < saleStartAt) {
             disabledReason = `${fmt.dateTime(t.saleStartAt, { relative: false })} 开售`;
           } else if (!isNaN(saleEndAt) && now > saleEndAt) disabledReason = '已停止售卖';
-          const limits = [purchaseLimit, maxTicketsPerOrder, stock].filter((value) => value > 0);
-          const stockText = stock < 0 ? '不限量' : `剩余 ${stock} 张`;
+          const limits = [purchaseLimit, maxTicketsPerOrder, remainingStock].filter((value) => value > 0);
+          const stockText = unlimitedStock ? '不限量' : `剩余 ${remainingStock} 张`;
           const limitText = maxTicketsPerOrder
             ? `单次限购 ${maxTicketsPerOrder} 张`
             : purchaseLimit

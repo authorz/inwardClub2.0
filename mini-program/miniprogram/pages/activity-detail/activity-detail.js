@@ -48,13 +48,14 @@ Page({
           name: t.name,
           priceCent: t.priceCent,
           priceText: fmt.centToYuan(t.priceCent),
-          stock: t.stock,
-          stockText: Number(t.stock) < 0 ? '不限量' : `剩余 ${t.stock} 张`,
+          unlimitedStock: t.unlimitedStock,
+          remainingStock: t.remainingStock,
+          stockText: t.unlimitedStock ? '不限量' : `剩余 ${t.remainingStock} 张`,
           payChannels: t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels,
           maxTicketsPerOrder: Math.max(0, Number(t.maxTicketsPerOrder) || 0),
         }));
         tickets.forEach((ticket) => {
-          const limits = [purchaseLimit, ticket.maxTicketsPerOrder, Number(ticket.stock)]
+          const limits = [purchaseLimit, ticket.maxTicketsPerOrder, Number(ticket.remainingStock)]
             .filter((value) => value > 0);
           ticket.maxQuantity = limits.length ? Math.min.apply(null, limits) : 99;
           ticket.limitText = ticket.maxTicketsPerOrder

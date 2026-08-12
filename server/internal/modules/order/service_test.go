@@ -241,9 +241,11 @@ func TestListTicketsBuildsDisplayViews(t *testing.T) {
 	start := time.Date(2026, 7, 20, 19, 30, 0, 0, time.UTC)
 	repo.tickets[10] = []MemberTicket{
 		{ID: 1, ActivityID: 3, Title: "会员私享局", ScopeType: "global", AssetID: ptr(9),
-			StartAt: &start, StoreName: "三里屯店", TicketName: "双人票", Status: "active", Code: "5561 2200"},
+			StartAt: &start, StoreName: "三里屯店", TicketName: "双人票", Status: "active", PaymentStatus: "paid", Code: "5561 2200"},
 		{ID: 2, ActivityID: 4, Title: "城市夜赛", ScopeType: "store",
-			StoreName: "望京店", TicketName: "VIP票", Status: "used", Code: "2231 8890"},
+			StoreName: "望京店", TicketName: "VIP票", Status: "used", PaymentStatus: "paid", Code: "2231 8890"},
+		{ID: 3, ActivityID: 5, Title: "未支付活动", ScopeType: "store",
+			StoreName: "望京店", TicketName: "待支付票", Status: "pending", PaymentStatus: "unpaid", Code: "0000 0000"},
 	}
 	svc := newService(repo)
 
@@ -252,7 +254,7 @@ func TestListTicketsBuildsDisplayViews(t *testing.T) {
 		t.Fatalf("list tickets: %v", err)
 	}
 	if len(views) != 2 {
-		t.Fatalf("expected 2 tickets, got %d", len(views))
+		t.Fatalf("expected only 2 paid tickets, got %d", len(views))
 	}
 	v0 := views[0]
 	if v0.Tone != "member" || v0.ImageURL != "https://cdn/poster.png" || v0.Status != "unused" ||
@@ -371,6 +373,19 @@ func TestPayByCoinValidatesThenSettles(t *testing.T) {
 	// Already-paid order is rejected as a conflict before settlement.
 	if code := codeOf(t, svc.PayByCoin(ctx, 10, 2, "idem-coin-2")); code != apperr.CodeConflict {
 		t.Fatalf("expected CONFLICT for paid order, got %s", code)
+	}
+}
+
+func TestCoinAmountForPaymentUsesWalletUnit(t *testing.T) {
+	coins, err := coinAmountForPayment(3900)
+	if err != nil {
+		t.Fatalf("3900 cents: %v", err)
+	}
+	if coins != 39 {
+		t.Fatalf("3900 cents requires %d coins, want 39", coins)
+	}
+	if _, err := coinAmountForPayment(3950); codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("fractional-yuan coin payment should be rejected, got %v", err)
 	}
 }
 

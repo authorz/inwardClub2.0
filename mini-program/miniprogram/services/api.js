@@ -293,6 +293,14 @@ function activityTimeText(a) {
   if (start && end) return `${start} 至 ${end}`;
   return start || end;
 }
+function normalizeActivityTicketType(ticket) {
+  const t = ticket || {};
+  const legacyStock = Number(t.stock);
+  const unlimitedStock = t.unlimitedStock != null ? Boolean(t.unlimitedStock) : legacyStock < 0;
+  const rawRemaining = t.remainingStock != null ? t.remainingStock : t.stock;
+  const remainingStock = unlimitedStock ? null : Math.max(0, Number(rawRemaining) || 0);
+  return Object.assign({}, t, { unlimitedStock, remainingStock });
+}
 function activityStatus(a) {
   if (a.status !== 'published') return ACTIVITY_STATUS_MAP[a.status] || a.status;
   const now = Date.now();
@@ -300,8 +308,8 @@ function activityStatus(a) {
   const end = a.endAt ? new Date(a.endAt).getTime() : NaN;
   if (!isNaN(end) && end < now) return 'ended';
   if (!isNaN(start) && start > now) return 'upcoming';
-  const tickets = a.ticketTypes || [];
-  if (tickets.length && tickets.every((ticket) => Number(ticket.stock) === 0)) return 'soldout';
+  const tickets = (a.ticketTypes || []).map(normalizeActivityTicketType);
+  if (tickets.length && tickets.every((ticket) => !ticket.unlimitedStock && ticket.remainingStock === 0)) return 'soldout';
   return 'enrolling';
 }
 function normalizeActivity(a) {
@@ -312,6 +320,7 @@ function normalizeActivity(a) {
     storeName: a.storeName || (a.scopeType === 'global' || a.storeId == null ? '全部门店' : ''),
     detailHtml: a.detailHtml || a.content || '',
     status: activityStatus(a),
+    ticketTypes: (a.ticketTypes || []).map(normalizeActivityTicketType),
   });
 }
 

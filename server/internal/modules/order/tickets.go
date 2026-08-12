@@ -14,17 +14,18 @@ import (
 // MemberTicket is one issued ticket joined with its activity, ticket type and
 // store — the row backing the mini-program "my tickets" screen.
 type MemberTicket struct {
-	ID         int64
-	ActivityID int64
-	Title      string
-	ScopeType  string
-	AssetID    *int64
-	StartAt    *time.Time
-	EndAt      *time.Time
-	StoreName  string
-	TicketName string
-	Status     string
-	Code       string
+	ID            int64
+	ActivityID    int64
+	Title         string
+	ScopeType     string
+	AssetID       *int64
+	StartAt       *time.Time
+	EndAt         *time.Time
+	StoreName     string
+	TicketName    string
+	Status        string
+	PaymentStatus string
+	Code          string
 }
 
 // MyTicketView is the mini-program ticket representation consumed directly by
@@ -45,12 +46,17 @@ type MyTicketView struct {
 
 func (r *sqlRepository) ListMemberTickets(ctx context.Context, memberID int64) ([]MemberTicket, error) {
 	const q = `SELECT t.id, t.activity_id, a.title, a.scope_type, a.asset_id,
-		a.start_at, a.end_at, COALESCE(s.name, ''), tt.name, t.status, t.verification_code
+		a.start_at, a.end_at, COALESCE(s.name, ''), tt.name, t.status, bo.payment_status, t.verification_code
 		FROM tickets t
+		JOIN activity_orders ao ON ao.id = t.activity_order_id
+		JOIN business_orders bo ON bo.id = ao.business_order_id
 		JOIN activities a ON a.id = t.activity_id
 		JOIN activity_ticket_types tt ON tt.id = t.ticket_type_id
 		LEFT JOIN stores s ON s.id = t.store_id
-		WHERE t.member_id = ? ORDER BY t.id DESC`
+		WHERE t.member_id = ?
+		  AND bo.payment_status IN ('paid', 'partially_refunded', 'refunded')
+		  AND t.status <> 'pending'
+		ORDER BY t.id DESC`
 	rows, err := r.db.QueryContext(ctx, q, memberID)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -60,7 +66,7 @@ func (r *sqlRepository) ListMemberTickets(ctx context.Context, memberID int64) (
 	for rows.Next() {
 		var t MemberTicket
 		if err := rows.Scan(&t.ID, &t.ActivityID, &t.Title, &t.ScopeType, &t.AssetID,
-			&t.StartAt, &t.EndAt, &t.StoreName, &t.TicketName, &t.Status, &t.Code); err != nil {
+			&t.StartAt, &t.EndAt, &t.StoreName, &t.TicketName, &t.Status, &t.PaymentStatus, &t.Code); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, t)
@@ -78,6 +84,9 @@ func (s *Service) ListTickets(ctx context.Context, memberID int64) ([]MyTicketVi
 	}
 	views := make([]MyTicketView, 0, len(tickets))
 	for _, t := range tickets {
+		if t.Status == "pending" || (t.PaymentStatus != "paid" && t.PaymentStatus != "partially_refunded" && t.PaymentStatus != "refunded") {
+			continue
+		}
 		v := MyTicketView{
 			ID:         t.ID,
 			ActivityID: t.ActivityID,
@@ -120,10 +129,12 @@ func ticketTimeText(startAt *time.Time) string {
 // mini-program's ticket screen understands (unused/used/expired/refunded).
 func ticketStatus(status string) string {
 	switch status {
+	case "active":
+		return "unused"
 	case "used", "expired", "refunded":
 		return status
-	default: // pending / active
-		return "unused"
+	default:
+		return "expired"
 	}
 }
 

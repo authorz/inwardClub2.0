@@ -18,10 +18,17 @@ import (
 	"github.com/inwardclub/server/internal/platform/idempotency"
 )
 
-// Coin wallet asset type (mirrors wallet.AssetCoins). The coin balance is held
-// in the same integer-cent unit as payment_orders.amount_cent, so a coin payment
-// debits amount_cent one-for-one.
+// Coin wallet asset type (mirrors wallet.AssetCoins). Wallet and ledger amounts
+// are integer coin counts; fiat payment amounts remain integer cents.
 const assetCoins = "coins"
+
+func coinAmountForPayment(amountCent int64) (int64, error) {
+	coins, err := wallet.CoinsRequired(amountCent)
+	if err != nil {
+		return 0, apperr.Invalid("金币支付仅支持整元金额")
+	}
+	return coins, nil
+}
 
 // ---- Create input structs ----
 
@@ -112,6 +119,11 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 				PointsReward:  points,
 				SubtotalCent:  subtotal,
 			})
+		}
+		if in.PayMethod == PayMethodCoin {
+			if _, err := coinAmountForPayment(total); err != nil {
+				return err
+			}
 		}
 		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeFood, &in.StoreID, in.MemberID, total, in.Now)
 		if err != nil {
@@ -259,6 +271,11 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		}
 
 		total := price * int64(in.Quantity)
+		if in.PayMethod == PayMethodCoin {
+			if _, err := coinAmountForPayment(total); err != nil {
+				return err
+			}
+		}
 		var storePtr *int64
 		if storeID.Valid {
 			storePtr = &storeID.Int64
@@ -366,6 +383,10 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 		if payMethod != PayMethodCoin {
 			return apperr.Invalid("payment order pay method mismatch")
 		}
+		coinAmount, err := coinAmountForPayment(amount)
+		if err != nil {
+			return err
+		}
 
 		// Lock the coin wallet and debit it.
 		var (
@@ -381,10 +402,10 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 		if err != nil {
 			return apperr.Internal(err)
 		}
-		if available < amount {
+		if available < coinAmount {
 			return apperr.New(apperr.CodeInsufficientBalance, "insufficient coin balance")
 		}
-		newBalance := available - amount
+		newBalance := available - coinAmount
 		const debit = `UPDATE wallet_accounts SET available_amount = ?, version = version + 1, updated_at = ?
 			WHERE id = ? AND available_amount = ?`
 		res, err := tx.ExecContext(ctx, debit, newBalance, in.Now, accountID, available)
@@ -398,7 +419,7 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 		const insLedger = `INSERT INTO wallet_ledger_entries
 			(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
 			VALUES (?, ?, ?, 'debit', ?, ?, 'order_payment', 'payment_order', ?, ?, ?)`
-		if _, err := tx.ExecContext(ctx, insLedger, accountID, in.MemberID, assetCoins, amount, newBalance,
+		if _, err := tx.ExecContext(ctx, insLedger, accountID, in.MemberID, assetCoins, coinAmount, newBalance,
 			in.PaymentOrderID, in.IdemKey, in.Now); err != nil {
 			return mapWriteErr(err)
 		}

@@ -85,6 +85,8 @@ var clientMessageTranslations = map[string]string{
 	"food order not found":                               "点餐订单不存在",
 	"payment order not found":                            "支付订单不存在",
 	"insufficient balance":                               "账户余额不足",
+	"insufficient coin balance":                          "金币余额不足",
+	"insufficient ticket stock":                          "票档库存不足",
 }
 
 func clientMessage(code apperr.Code, message string) string {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -286,6 +287,11 @@ func (r *storeSQLRepository) CreateRefundAdmin(ctx context.Context, in RefundCre
 		if orderType == orderTypeRecharge {
 			return apperr.Conflict("充值订单需先回收已发放权益，暂不支持直接退款")
 		}
+		if payMethod == "coin" {
+			if _, err := wallet.CoinsRequired(in.AmountCent); err != nil {
+				return apperr.Invalid("金币退款仅支持整元金额")
+			}
+		}
 		var duplicateCount int
 		const duplicate = `SELECT COUNT(*) FROM refund_orders
 			WHERE payment_order_id = ? AND status IN (?, ?)`
@@ -481,6 +487,10 @@ func creditCoinRefund(
 	refundID, memberID, amountCent int64,
 	now time.Time,
 ) error {
+	coinAmount, err := wallet.CoinsRequired(amountCent)
+	if err != nil {
+		return apperr.Invalid("金币退款仅支持整元金额")
+	}
 	var accountID, available int64
 	const lock = `SELECT id, available_amount FROM wallet_accounts
 		WHERE member_id = ? AND asset_type = 'coins' FOR UPDATE`
@@ -490,7 +500,7 @@ func creditCoinRefund(
 		}
 		return apperr.Internal(err)
 	}
-	newBalance := available + amountCent
+	newBalance := available + coinAmount
 	const update = `UPDATE wallet_accounts
 		SET available_amount = ?, version = version + 1, updated_at = ? WHERE id = ?`
 	if _, err := tx.ExecContext(ctx, update, newBalance, now, accountID); err != nil {
@@ -502,7 +512,7 @@ func creditCoinRefund(
 		VALUES (?, ?, 'coins', 'credit', ?, ?, 'refund', 'refund_order', ?, ?, ?)`
 	idemKey := fmt.Sprintf("refund_order:%d", refundID)
 	if _, err := tx.ExecContext(
-		ctx, ledger, accountID, memberID, amountCent, newBalance, refundID, idemKey, now,
+		ctx, ledger, accountID, memberID, coinAmount, newBalance, refundID, idemKey, now,
 	); err != nil {
 		return mapWriteErr(err)
 	}
