@@ -82,7 +82,8 @@
     </view>
   </view>
 
-  <view class="home__feature-wall">
+  <view class="home__glass-zone">
+    <view class="home__feature-wall">
     <view
       class="home__franchise"
       aria-label="了解城市合伙人招募详情"
@@ -152,6 +153,7 @@
         <text class="home__store-panel-distance">{{storeDistanceText || '距离未知'}}</text>
       </view>
     </view>
+  </view>
   </view>
 
   <view

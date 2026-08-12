@@ -126,28 +126,37 @@
 .home__banner-time { flex: 1; min-width: 0; }
 
 /* ---- franchise and member information ---- */
-.home__feature-wall {
+.home__glass-zone {
   position: relative;
   overflow: hidden;
-  margin: 20rpx 12rpx 16rpx;
-  padding: 20rpx 0 8rpx;
-  border: 1rpx solid rgba(17, 17, 17, 0.08);
-  border-radius: 16rpx;
+  margin: 14rpx 12rpx 18rpx;
+  padding: 8rpx 0 26rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.92);
+  border-radius: 20rpx;
   box-sizing: border-box;
-  background-color: var(--ic-white);
-  background-image: url("https://assets.inwardclub.com/public/images/inward-logo.gif");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.07);
+  background: #e7e9ec url("https://assets.inwardclub.com/public/images/inward-logo.gif") center / cover no-repeat;
+  box-shadow: 0 6rpx 14rpx rgba(22, 26, 31, 0.12);
 }
-.home__feature-wall::before {
+.home__glass-zone::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.72);
+  z-index: 0;
+  background: rgba(255, 255, 255, 0.58);
+  -webkit-backdrop-filter: blur(34rpx) saturate(125%);
+  backdrop-filter: blur(34rpx) saturate(125%);
   pointer-events: none;
+}
+.home__feature-wall {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 20rpx 0 8rpx;
+  box-sizing: border-box;
+  background: transparent;
+}
+.home__feature-wall::before {
+  display: none;
 }
 
 /* ---- member card ---- */
@@ -184,7 +193,9 @@
 
 /* ---- current store address ---- */
 .home__store-section {
-  margin: 24rpx 24rpx 0;
+  position: relative;
+  z-index: 1;
+  margin: 8rpx 24rpx 0;
 }
 .home__store-section-head {
   display: flex;
@@ -206,7 +217,10 @@
   box-sizing: border-box;
   border-radius: 16rpx;
   overflow: hidden;
-  background: #f2f3f4;
+  border: 1rpx solid rgba(255, 255, 255, 0.82);
+  background: rgba(242, 244, 247, 0.72);
+  -webkit-backdrop-filter: blur(18rpx) saturate(115%);
+  backdrop-filter: blur(18rpx) saturate(115%);
   color: var(--ic-black);
   display: flex;
   align-items: center;
