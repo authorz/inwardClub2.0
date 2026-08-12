@@ -80,10 +80,25 @@ function dotDay(input) {
   return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
 }
 
+/** dotted month and day: "2026-07-22T..." -> "07.22" */
+function dotMonthDay(input) {
+  const d = toDate(input);
+  if (!d) return '';
+  return `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
+}
+
 /** date range "2026.07.13 - 2026.07.25"; one side -> single date; none -> '' */
 function dateRange(start, end) {
   const s = dotDay(start);
   const e = dotDay(end);
+  if (s && e) return `${s} - ${e}`;
+  return s || e;
+}
+
+/** month/day range "07.13 - 07.25"; one side -> single date; none -> '' */
+function monthDayRange(start, end) {
+  const s = dotMonthDay(start);
+  const e = dotMonthDay(end);
   if (s && e) return `${s} - ${e}`;
   return s || e;
 }
@@ -105,6 +120,8 @@ module.exports = {
   dateTime,
   dateOnly,
   dotDay,
+  dotMonthDay,
   dateRange,
+  monthDayRange,
   distance,
 };

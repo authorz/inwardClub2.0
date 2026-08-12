@@ -36,7 +36,7 @@ Page({
             imageUrl: a.imageUrl || '',
             timeText: a.timeText,
             storeName: a.storeName,
-            dateRangeText: fmt.dateRange(a.startAt, a.endAt),
+            dateRangeText: fmt.monthDayRange(a.startAt, a.endAt),
           }));
         this.setData({
           activities,

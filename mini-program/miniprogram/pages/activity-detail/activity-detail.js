@@ -80,8 +80,8 @@ Page({
         const distanceText = distanceMeters != null
           ? Number(distanceMeters) === 0 ? '0m' : fmt.distance(distanceMeters)
           : lat != null && lng != null ? '未定位' : '';
-        const startDate = fmt.dotDay(a.startAt);
-        const endDate = fmt.dotDay(a.endAt);
+        const startDate = fmt.dotMonthDay(a.startAt);
+        const endDate = fmt.dotMonthDay(a.endAt);
         const startTime = fmt.dateTime(a.startAt, { timeOnly: true });
         const endTime = fmt.dateTime(a.endAt, { timeOnly: true });
         const mapPoint =
