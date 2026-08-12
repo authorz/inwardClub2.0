@@ -66,10 +66,10 @@ button.ad__nav-share {
 .ad__head-from { margin-left: 6rpx; font-size: 20rpx; color: var(--ad-text-muted); }
 .ad__head-empty { font-size: 22rpx; color: var(--ad-text-muted); }
 
-/* Date and compact venue card */
-.ad__schedule { display: flex; flex-direction: column; gap: 10rpx; padding: 38rpx 0 42rpx; }
+/* Date and time share one row, anchored to opposite edges. */
+.ad__schedule { display: flex; align-items: baseline; justify-content: space-between; gap: 24rpx; padding: 38rpx 0 42rpx; }
 .ad__schedule-date { font-size: 26rpx; font-weight: 600; color: var(--ad-text-primary); font-variant-numeric: tabular-nums; }
-.ad__schedule-time { font-size: 24rpx; color: var(--ad-text-secondary); font-variant-numeric: tabular-nums; }
+.ad__schedule-time { margin-left: auto; text-align: right; font-size: 24rpx; color: var(--ad-text-secondary); font-variant-numeric: tabular-nums; }
 .ad__venue { padding-bottom: 46rpx; }
 .ad__venue-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; }
 .ad__venue-label { font-size: 22rpx; font-weight: 600; color: var(--ad-text-primary); }
