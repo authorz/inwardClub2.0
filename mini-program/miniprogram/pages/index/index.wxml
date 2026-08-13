@@ -89,7 +89,6 @@
         src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif"
         mode="aspectFill"
       />
-      <image class="home__surface-noise home__surface-noise--feature" src="/assets/textures/frost-noise.png" mode="scaleToFill" />
 
     <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
     <view class="home__card">
@@ -151,7 +150,6 @@
         bindtap="navigateStore"
       >
         <image class="home__store-panel-map" src="/assets/illustrations/store-map-lines.svg" mode="aspectFill" />
-        <image class="home__surface-noise home__surface-noise--store" src="/assets/textures/frost-noise.png" mode="scaleToFill" />
         <view class="home__store-panel-copy">
           <text class="home__store-panel-name ic-ellipsis">{{store.name}}</text>
           <text class="home__store-panel-address ic-ellipsis">{{store.address || '门店暂未填写地址'}}</text>
