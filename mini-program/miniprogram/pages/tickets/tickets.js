@@ -1,6 +1,9 @@
 // 我的入场券 — 待使用/已使用/已过期分段
 // Reference: design/mini-program/final/member-subpages/09-my-tickets-v23.png
 const api = require('../../services/api');
+const fmt = require('../../utils/format');
+const ui = require('../../utils/ui');
+const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
 // bucket lifecycle statuses into the three visible tabs
@@ -8,6 +11,16 @@ function bucketOf(status) {
   if (status === 'used') return 'used';
   if (status === 'expired' || status === 'refunded') return 'expired';
   return 'pending'; // unused | pending_verify
+}
+
+function splitTicketTime(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^\d{4}[./-](\d{1,2})[./-](\d{1,2})(?:\s+(.+))?$/);
+  if (!match) return { dateText: text || '时间待定', clockText: '' };
+  return {
+    dateText: `${match[1].padStart(2, '0')}.${match[2].padStart(2, '0')}`,
+    clockText: match[3] || '',
+  };
 }
 
 Page({
@@ -21,6 +34,9 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
+    showCodeModal: false,
+    codeTicket: null,
+    qr: [],
   },
 
   onLoad() {
@@ -61,7 +77,54 @@ Page({
   showCode(e) {
     const t = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
     if (!t) return;
-    wx.navigateTo({ url: `/pages/ticket-code/ticket-code?id=${t.id}` });
+    const raw = String(t.code || '');
+    const time = splitTicketTime(t.timeText);
+    let qr;
+    try {
+      qr = codeart.grid(raw);
+    } catch {
+      ui.error('二维码生成失败，请刷新后重试');
+      return;
+    }
+    this.setData({
+      showCodeModal: true,
+      codeTicket: {
+        id: t.id,
+        title: t.title,
+        imageUrl: t.imageUrl || '',
+        tone: t.tone || '',
+        ticketName: t.ticketName,
+        qty: t.qty || 1,
+        storeName: t.storeName || '活动地点待定',
+        status: t.status,
+        statusLabel: t.statusLabel,
+        usable: t.status === 'unused' || t.status === 'pending_verify',
+        dateText: time.dateText,
+        clockText: time.clockText,
+        codeRaw: raw,
+        code: fmt.codeGroups(raw),
+      },
+      qr,
+    });
+    wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: true });
+  },
+
+  closeCode() {
+    this.setData({ showCodeModal: false, codeTicket: null, qr: [] });
+    wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
+  },
+
+  copyCode() {
+    const ticket = this.data.codeTicket;
+    if (ticket && ticket.codeRaw) ui.copy(ticket.codeRaw, '核销码已复制');
+  },
+
+  noop() {},
+
+  onUnload() {
+    if (this.data.showCodeModal) {
+      wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
+    }
   },
 
   goDetail(e) {

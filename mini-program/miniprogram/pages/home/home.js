@@ -34,12 +34,7 @@ Page({
     navStatusBar: 20,
     navContentHeight: 44,
     navRightGap: 96,
-    orderEntries: [
-      { type: 'food', label: '点餐订单', icon: 'ic-ic-dining' },
-      { type: 'activity', label: '活动订单', icon: 'ic-ic-calendar' },
-      { type: 'recharge', label: '充值订单', icon: 'ic-ic-wallet' },
-      { type: 'coupon', label: '兑换订单', icon: 'ic-ic-bag' },
-    ],
+    orderEntry: { label: '订单中心', icon: '/assets/mine-menu/order-center.svg' },
     // 菜单图标优先使用七牛公共资源，避免本地包资源被误删或增大主包体积。
     memberMenuEntries: [
       { label: '充值', icon: MINE_MENU_ASSET_BASE + 'recharge-coins.png', action: 'recharge' },
@@ -182,9 +177,8 @@ Page({
   copyInvite() {
     if (this.data.me.inviteCode) ui.copy(this.data.me.inviteCode, '邀请码已复制');
   },
-  goOrder(e) {
-    const type = e.currentTarget.dataset.type;
-    this.requireLogin(() => wx.navigateTo({ url: '/pages/order-center/order-center?type=' + type }));
+  goOrder() {
+    this.requireLogin(() => wx.navigateTo({ url: '/pages/order-center/order-center' }));
   },
 
   /* ---------- asset taps ---------- */
