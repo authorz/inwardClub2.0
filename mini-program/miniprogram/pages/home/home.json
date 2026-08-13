@@ -1,6 +1,8 @@
 {
   "navigationStyle": "custom",
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet"
+  },
   "navigationBarTitleText": "我的",
   "backgroundColor": "#ffffff",
   "backgroundColorTop": "#ffffff",

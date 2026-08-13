@@ -1,4 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading",
+    "ic-poster": "/components/poster/poster"
+  },
   "navigationBarTitleText": "活动订单详情"
 }

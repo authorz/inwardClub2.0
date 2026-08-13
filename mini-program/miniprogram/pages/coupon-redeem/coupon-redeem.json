@@ -1,5 +1,9 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-stepper": "/components/stepper/stepper"
+  },
   "navigationStyle": "custom",
   "navigationBarTitleText": "券兑换"
 }

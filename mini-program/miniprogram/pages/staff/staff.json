@@ -1,4 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading",
+    "ic-cell": "/components/cell/cell"
+  },
   "navigationBarTitleText": "工作人员"
 }

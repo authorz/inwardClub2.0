@@ -1,6 +1,7 @@
 {
   "usingComponents": {
-    "ic-tower-swiper": "/components/tower-swiper/tower-swiper"
+    "ic-tower-swiper": "/components/tower-swiper/tower-swiper",
+    "ic-loading": "/components/loading/loading"
   },
   "navigationStyle": "custom",
   "navigationBarTitleText": "近期活动",

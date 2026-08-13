@@ -40,7 +40,7 @@ Page({
     api
       .getBenefitsOverview()
       .then((res) => {
-        const d = res.data || {};
+        const d = /** @type {any} */ (res.data || {});
         const levels = d.levels || [];
         const currentIdx = Math.max(0, levels.findIndex((l) => l.code === d.current));
         const growthValue = d.growthValue || 0;

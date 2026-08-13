@@ -53,7 +53,7 @@
       <view class="mine__services mine__glass">
         <view class="mine__service-grid">
           <view class="mine__service-item" bindtap="goOrder" hover-class="mine__service-item--hover">
-            <view class="mine__service-icon-box"><image class="mine__service-image mine__service-image--order" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
+            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{orderEntry.label}}</text>
           </view>
           <view class="mine__service-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__service-item--hover">

@@ -88,7 +88,7 @@ function uploadFile(path, filePath, formData, options) {
         let body = {};
         try {
           body = JSON.parse(res.data || '{}');
-        } catch (e) {
+        } catch {
           /* non-JSON body -> treat as error below */
         }
         if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -137,7 +137,7 @@ async function request(method, path, options) {
       if (!opts._retried) {
         try {
           await doRefresh();
-        } catch (e) {
+        } catch {
           return failExpired(err);
         }
         return request(method, path, Object.assign({}, opts, { _retried: true }));

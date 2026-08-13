@@ -31,7 +31,7 @@ Component({
     },
     attached() {
       try {
-        const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+        const info = wx.getWindowInfo();
         this.unit = Math.max((info.windowWidth || 375) * 0.42, 120);
       } catch {
         /* keep default */

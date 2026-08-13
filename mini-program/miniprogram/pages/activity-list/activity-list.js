@@ -50,7 +50,7 @@ Page({
   // Size the custom nav bar to the status bar + WeChat capsule button.
   measureNav() {
     try {
-      const win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+      const win = wx.getWindowInfo();
       const cap = wx.getMenuButtonBoundingClientRect();
       const statusBar = win.statusBarHeight || 20;
       const gap = Math.max(cap.top - statusBar, 4);

@@ -1,4 +1,8 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-segmented": "/components/segmented/segmented"
+  },
   "navigationBarTitleText": "钱包流水"
 }

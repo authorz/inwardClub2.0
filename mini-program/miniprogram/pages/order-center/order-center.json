@@ -1,4 +1,9 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-segmented": "/components/segmented/segmented",
+    "ic-order-row": "/components/order-row/order-row"
+  },
   "navigationBarTitleText": "订单中心"
 }

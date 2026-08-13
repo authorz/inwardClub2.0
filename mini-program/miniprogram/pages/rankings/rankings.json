@@ -1,4 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading",
+    "ic-segmented": "/components/segmented/segmented"
+  },
   "navigationBarTitleText": "排行榜"
 }

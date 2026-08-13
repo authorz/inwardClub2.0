@@ -52,7 +52,7 @@ Page({
 
   measureNav() {
     try {
-      const win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+      const win = wx.getWindowInfo();
       const cap = wx.getMenuButtonBoundingClientRect();
       const statusBar = win.statusBarHeight || 20;
       const gap = Math.max(cap.top - statusBar, 4);

@@ -42,11 +42,29 @@ function toDate(input) {
   if (input instanceof Date) return input;
   if (typeof input === 'number') return new Date(input);
   if (typeof input === 'string') {
-    // RFC3339 / ISO
-    const d = new Date(input.replace(/-/g, '/').replace('T', ' ').replace(/\..*$/, ''));
-    if (!isNaN(d.getTime())) return d;
-    const d2 = new Date(input);
-    return isNaN(d2.getTime()) ? null : d2;
+    const text = input.trim();
+    // ISO/RFC3339 is the only string form parsed natively across iOS, Android
+    // and the developer tools. Parsing it before any replacement also keeps
+    // the timezone suffix intact and avoids iOS's non-standard-date warning.
+    if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+      const iso = new Date(text);
+      return isNaN(iso.getTime()) ? null : iso;
+    }
+    // Parse API-style local dates ourselves instead of relying on platform-
+    // specific support for "YYYY-MM-DD HH:mm:ss" or slash variants.
+    const local = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?)?$/);
+    if (local) {
+      const d = new Date(
+        Number(local[1]),
+        Number(local[2]) - 1,
+        Number(local[3]),
+        Number(local[4] || 0),
+        Number(local[5] || 0),
+        Number(local[6] || 0)
+      );
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
   }
   return null;
 }

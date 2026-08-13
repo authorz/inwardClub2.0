@@ -1,5 +1,8 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading",
+    "ic-segmented": "/components/segmented/segmented"
+  },
   "navigationStyle": "default",
   "navigationBarTitleText": "我的入场券",
   "navigationBarBackgroundColor": "#000000",

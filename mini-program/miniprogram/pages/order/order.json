@@ -1,5 +1,10 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet",
+    "ic-stepper": "/components/stepper/stepper"
+  },
   "navigationStyle": "custom",
   "navigationBarTitleText": "点餐"
 }

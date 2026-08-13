@@ -3,5 +3,8 @@
   "navigationBarTitleText": "Inward Club",
   "backgroundColor": "#ffffff",
   "backgroundColorTop": "#ffffff",
-  "backgroundColorBottom": "#ffffff"
+  "backgroundColorBottom": "#ffffff",
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading"
+  }
 }

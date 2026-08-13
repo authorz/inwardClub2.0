@@ -10,7 +10,7 @@ App({
   onLaunch(options) {
     this.syncPendingInvitation(options);
     try {
-      this.globalData.systemInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+      this.globalData.systemInfo = wx.getWindowInfo();
     } catch {}
     // Login starts from the dedicated login page after an explicit user action,
     // never automatically during app launch.

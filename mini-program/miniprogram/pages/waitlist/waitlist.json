@@ -1,4 +1,6 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading"
+  },
   "navigationBarTitleText": "排队等候"
 }

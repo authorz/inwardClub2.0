@@ -1,4 +1,6 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty"
+  },
   "navigationBarTitleText": "确认订单"
 }

@@ -1,4 +1,8 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-status-badge": "/components/status-badge/status-badge"
+  },
   "navigationBarTitleText": "我的预约"
 }

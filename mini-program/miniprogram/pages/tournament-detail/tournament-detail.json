@@ -1,5 +1,8 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading"
+  },
   "navigationStyle": "custom",
   "navigationBarTitleText": "赛事详情"
 }

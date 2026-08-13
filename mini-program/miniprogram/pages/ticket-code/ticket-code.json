@@ -1,5 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-loading": "/components/loading/loading"
+  },
   "navigationBarTitleText": "出示二维码",
   "navigationBarBackgroundColor": "#000000",
   "navigationBarTextStyle": "white",

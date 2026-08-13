@@ -66,21 +66,6 @@
       { "pagePath": "pages/home/home", "text": "我的", "iconPath": "assets/tab/me.png", "selectedIconPath": "assets/tab/me-active.png" }
     ]
   },
-  "usingComponents": {
-    "ic-empty": "/components/empty/empty",
-    "ic-loading": "/components/loading/loading",
-    "ic-cell": "/components/cell/cell",
-    "ic-segmented": "/components/segmented/segmented",
-    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet",
-    "ic-stepper": "/components/stepper/stepper",
-    "ic-asset-strip": "/components/asset-strip/asset-strip",
-    "ic-order-row": "/components/order-row/order-row",
-    "ic-ticket-row": "/components/ticket-row/ticket-row",
-    "ic-status-badge": "/components/status-badge/status-badge",
-    "ic-pay-methods": "/components/pay-methods/pay-methods",
-    "ic-poster": "/components/poster/poster",
-    "ic-store-bar": "/components/store-bar/store-bar"
-  },
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"

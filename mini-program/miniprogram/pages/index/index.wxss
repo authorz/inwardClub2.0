@@ -157,18 +157,16 @@
   filter: none;
   pointer-events: none;
 }
-.home__feature-wall::after,
-.home__store-panel::after {
-  content: "";
+.home__surface-noise {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: url("/assets/textures/frost-noise.png") repeat;
-  background-size: 72rpx 72rpx;
-  opacity: 0.68;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
-.home__feature-wall::after { opacity: 0.46; }
+.home__surface-noise--feature { opacity: 0.46; }
+.home__surface-noise--store { opacity: 0.68; }
 /* ---- member card ---- */
 .home__card { position: relative; z-index: 2; box-sizing: border-box; min-height: 142rpx; margin: 20rpx 24rpx 24rpx; padding: 22rpx 24rpx 28rpx; border-radius: 16rpx; }
 .home__card-top { position: relative; z-index: 1; display: flex; align-items: center; }

@@ -11,7 +11,7 @@ function load() {
   if (session) return session;
   try {
     session = wx.getStorageSync(STORAGE_KEY) || null;
-  } catch (e) {
+  } catch {
     session = null;
   }
   return session;
@@ -22,7 +22,7 @@ function save(next) {
   try {
     if (session) wx.setStorageSync(STORAGE_KEY, session);
     else wx.removeStorageSync(STORAGE_KEY);
-  } catch (e) {}
+  } catch {}
 }
 
 function getAccessToken() {

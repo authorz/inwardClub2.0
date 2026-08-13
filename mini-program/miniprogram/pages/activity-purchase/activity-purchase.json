@@ -1,5 +1,10 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-stepper": "/components/stepper/stepper",
+    "ic-pay-methods": "/components/pay-methods/pay-methods"
+  },
   "navigationBarTitleText": "确认购票",
   "navigationBarBackgroundColor": "#000000",
   "navigationBarTextStyle": "white",

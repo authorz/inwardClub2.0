@@ -14,7 +14,9 @@
       data-index="{{index}}"
       catchtap="onTap"
     >
-      <ic-poster src="{{item.imageUrl}}" title="{{item.title}}" tone="{{item.tone}}" radius="24rpx" />
+      <view class="ts__poster-frame">
+        <ic-poster src="{{item.imageUrl}}" title="{{item.title}}" tone="{{item.tone}}" radius="24rpx" />
+      </view>
     </view>
   </view>
 </view>

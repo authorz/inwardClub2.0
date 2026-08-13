@@ -1,5 +1,9 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-empty": "/components/empty/empty",
+    "ic-loading": "/components/loading/loading",
+    "ic-poster": "/components/poster/poster"
+  },
   "navigationStyle": "custom",
   "navigationBarTitleText": "活动详情",
   "backgroundColor": "#000000"

@@ -41,7 +41,7 @@
 
 /* Framed poster: pale border reads clearly on the black background; radius
    matches ic-poster. Border kept a touch thick per design. */
-.ts__card ic-poster {
+.ts__poster-frame {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -51,7 +51,7 @@
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.55);
 }
 /* The front card gets the brightest frame and deepest shadow for clear depth. */
-.ts__card.is-active ic-poster {
+.ts__card.is-active .ts__poster-frame {
   border-color: rgba(255, 255, 255, 0.55);
   box-shadow: 0 0 0 1rpx rgba(0, 0, 0, 0.4), 0 12rpx 34rpx rgba(0, 0, 0, 0.55);
 }
