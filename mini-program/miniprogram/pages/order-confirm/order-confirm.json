@@ -1,6 +1,8 @@
 {
   "usingComponents": {
-    "ic-empty": "/components/empty/empty"
+    "ic-empty": "/components/empty/empty",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "确认订单"
 }

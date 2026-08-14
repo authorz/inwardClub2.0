@@ -50,6 +50,7 @@
                     min="{{0}}"
                     max="{{it.stock}}"
                     size="sm"
+                    theme="dark"
                     hide-zero="{{true}}"
                     data-id="{{it.id}}"
                     bind:change="onQtyChange"
@@ -120,6 +121,7 @@
           min="{{0}}"
           max="{{cartItem.stock}}"
           size="sm"
+          theme="dark"
           data-id="{{cartItem.id}}"
           bind:change="onQtyChange"
         />

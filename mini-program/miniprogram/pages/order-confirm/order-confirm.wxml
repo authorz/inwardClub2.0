@@ -1,10 +1,12 @@
+<ic-page-nav title="确认订单" />
+
 <view wx:if="{{ready && !store}}" class="oc-empty">
   <ic-empty text="没有待确认的订单" hint="请先在点餐页选择商品" />
 </view>
 
 <view wx:elif="{{store}}" class="oc">
   <!-- store + table: compact secondary context -->
-  <view class="oc__context" bindtap="editStore">
+  <view class="oc__context ic-glass-recessed" bindtap="editStore">
     <view class="oc__context-unit oc__context-unit--store">
       <text class="oc__context-label">门店</text>
       <text class="oc__context-value ic-ellipsis">{{store.name}}</text>
@@ -18,7 +20,7 @@
   </view>
 
   <!-- item detail -->
-  <view class="oc__section oc__goods">
+  <view class="oc__section oc__goods ic-glass-recessed">
     <text class="ic-h2 oc__goods-title">商品明细</text>
     <view class="oc__item" wx:for="{{items}}" wx:key="name">
       <view class="oc__item-thumb">
@@ -36,7 +38,7 @@
   </view>
 
   <!-- payment（单选，不支持组合支付） -->
-  <view class="oc__section oc__pay">
+  <view class="oc__section oc__pay ic-glass-recessed">
     <text class="ic-h2 oc__pay-title">支付方式</text>
 
     <view
@@ -66,7 +68,7 @@
   </view>
 
   <!-- summary -->
-  <view class="oc__section oc__sum">
+  <view class="oc__section oc__sum ic-glass-recessed">
     <view class="oc__sum-row"><text>商品金额</text><text>¥{{goodsText}}</text></view>
     <view class="oc__sum-row oc__sum-row--total"><text>合计</text><text class="oc__sum-total">¥{{payText}}</text></view>
   </view>
@@ -74,6 +76,6 @@
   <!-- fixed pay bar -->
   <view class="oc__bar">
     <text class="oc__bar-amt">¥{{payText}}</text>
-    <button class="ic-btn ic-btn-primary oc__bar-btn" loading="{{submitting}}" bindtap="confirmPay">确认支付</button>
+    <button class="ic-btn ic-glass-recessed oc__bar-btn" loading="{{submitting}}" bindtap="confirmPay">确认支付</button>
   </view>
 </view>
