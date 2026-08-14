@@ -10,7 +10,7 @@ const TICKET_STACK_STEP_RPX = 116;
 const TICKET_SWIPE_THRESHOLD_PX = 48;
 const TICKET_SWIPE_EXIT_PX = 520;
 const TICKET_SWIPE_DURATION_MS = 280;
-const TICKET_ENTRANCE_START_DELAY_MS = 180;
+const TICKET_ENTRANCE_READY_DELAY_MS = 500;
 const TICKET_ENTRANCE_DURATION_MS = 720;
 const TICKET_ENTRANCE_STAGGER_MS = 120;
 const TICKET_ENTRANCE_MAX_STAGGER_MS = 360;
@@ -28,7 +28,7 @@ function buildTicketLayers(list, activeIndex) {
       ...ticket,
       stackTop: stackIndex * TICKET_STACK_STEP_RPX,
       stackZ: stackIndex + 1,
-      entranceDelay: TICKET_ENTRANCE_START_DELAY_MS + stackIndex * entranceStep,
+      entranceDelay: stackIndex * entranceStep,
     }));
 }
 
@@ -91,18 +91,31 @@ Page({
           bucket: bucketOf(t.status),
           usable: bucketOf(t.status) === 'pending',
         }));
-        this.setData({ all, loading: false });
-        this.applyFilter(true);
+        this.setData({ all }, () => {
+          this.applyFilter(() => {
+            this._ticketDataReady = true;
+            this.scheduleTicketEntrance();
+          });
+        });
       })
-      .catch(() => this.setData({ loading: false }));
+      .catch(() => {
+        this._ticketDataReady = true;
+        this.setData({ loading: false });
+      });
+  },
+
+  onReady() {
+    this._ticketPageReady = true;
+    this.scheduleTicketEntrance();
   },
 
   onStatusChange(e) {
+    this.finishTicketEntrance();
     this.setData({ bucket: e.detail.value });
-    this.applyFilter(false);
+    this.applyFilter();
   },
 
-  applyFilter(playEntrance) {
+  applyFilter(callback) {
     if (this._ticketEntranceTimer) {
       clearTimeout(this._ticketEntranceTimer);
       this._ticketEntranceTimer = null;
@@ -111,7 +124,6 @@ Page({
     const indexedTickets = list.map((ticket, ticketIndex) => ({ ...ticket, ticketIndex }));
     const currentTicketIndex = Math.max(list.length - 1, 0);
     const layers = buildTicketLayers(indexedTickets, currentTicketIndex);
-    const isTicketEntering = Boolean(playEntrance && layers.length);
     this.setData({
       list: indexedTickets,
       layers,
@@ -119,18 +131,34 @@ Page({
       dragTicketIndex: -1,
       dragOffset: 0,
       isTicketDragging: false,
-      isTicketEntering,
-    }, () => {
-      if (!isTicketEntering) return;
-      const lastDelay = layers[layers.length - 1].entranceDelay;
-      this._ticketEntranceTimer = setTimeout(() => {
-        this._ticketEntranceTimer = null;
-        this.setData({ isTicketEntering: false });
-      }, TICKET_ENTRANCE_DURATION_MS + lastDelay);
-    });
+      isTicketEntering: false,
+    }, callback);
+  },
+
+  scheduleTicketEntrance() {
+    if (!this._ticketPageReady || !this._ticketDataReady || this._ticketEntranceDelayTimer) return;
+    if (!this.data.layers.length) {
+      this.setData({ loading: false });
+      return;
+    }
+    this._ticketEntranceDelayTimer = setTimeout(() => {
+      this._ticketEntranceDelayTimer = null;
+      const layers = this.data.layers;
+      this.setData({ loading: false, isTicketEntering: true }, () => {
+        const lastDelay = layers[layers.length - 1].entranceDelay;
+        this._ticketEntranceTimer = setTimeout(() => {
+          this._ticketEntranceTimer = null;
+          this.setData({ isTicketEntering: false });
+        }, TICKET_ENTRANCE_DURATION_MS + lastDelay);
+      });
+    }, TICKET_ENTRANCE_READY_DELAY_MS);
   },
 
   finishTicketEntrance() {
+    if (this._ticketEntranceDelayTimer) {
+      clearTimeout(this._ticketEntranceDelayTimer);
+      this._ticketEntranceDelayTimer = null;
+    }
     if (this._ticketEntranceTimer) {
       clearTimeout(this._ticketEntranceTimer);
       this._ticketEntranceTimer = null;
@@ -267,6 +295,7 @@ Page({
 
   onUnload() {
     if (this._ticketSettleTimer) clearTimeout(this._ticketSettleTimer);
+    if (this._ticketEntranceDelayTimer) clearTimeout(this._ticketEntranceDelayTimer);
     if (this._ticketEntranceTimer) clearTimeout(this._ticketEntranceTimer);
     if (this.data.showCodeModal) {
       wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
