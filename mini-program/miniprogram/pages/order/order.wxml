@@ -1,3 +1,5 @@
+<image class="ord__page-background" src="https://assets.inwardclub.com/public/brand/member-center-background-v1.svg" mode="aspectFill" />
+
 <view class="ord">
   <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
   <view class="ord__nav" style="padding-top: {{navStatusBar}}px;">
