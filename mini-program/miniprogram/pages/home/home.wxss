@@ -27,15 +27,15 @@
 .mine__glass {
   position: relative;
   overflow: hidden;
-  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  border: 1rpx solid rgba(255, 255, 255, 0.36);
   border-radius: 24rpx;
-  background: rgba(20, 24, 30, 0.34);
-  -webkit-backdrop-filter: blur(40rpx) saturate(155%) brightness(0.94);
-  backdrop-filter: blur(40rpx) saturate(155%) brightness(0.94);
+  background: rgba(168, 180, 198, 0.18);
+  -webkit-backdrop-filter: blur(40rpx) saturate(150%) brightness(1.04);
+  backdrop-filter: blur(40rpx) saturate(150%) brightness(1.04);
   box-shadow:
-    0 4rpx 10rpx rgba(0, 0, 0, 0.18),
-    inset 0 1rpx 2rpx rgba(255, 255, 255, 0.3),
-    inset 0 -1rpx 2rpx rgba(0, 0, 0, 0.16);
+    0 4rpx 10rpx rgba(0, 0, 0, 0.14),
+    inset 0 1rpx 2rpx rgba(255, 255, 255, 0.42),
+    inset 0 -1rpx 2rpx rgba(0, 0, 0, 0.1);
 }
 
 /* ---- profile ---- */
@@ -117,7 +117,6 @@
   padding: 34rpx 6rpx 30rpx;
   display: flex;
   align-items: center;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.14);
 }
 .mine__asset {
   flex: 1;
