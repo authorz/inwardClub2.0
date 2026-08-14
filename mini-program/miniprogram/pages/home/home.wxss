@@ -173,6 +173,8 @@
   z-index: 1;
   display: flex;
   flex-wrap: wrap;
+  padding: 24rpx 16rpx;
+  box-sizing: border-box;
 }
 .mine__service-item {
   width: 33.333%;

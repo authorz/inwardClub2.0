@@ -60,7 +60,6 @@
     <!-- Primary actions share the same iOS glass material as the member summary. -->
     <view class="mine__service-stage">
       <view class="mine__services">
-        <text class="mine__services-title">常用服务</text>
         <view class="mine__service-grid mine__glass">
           <view class="mine__service-item" bindtap="goOrder" hover-class="mine__service-item--hover">
             <view class="mine__service-icon-box"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
