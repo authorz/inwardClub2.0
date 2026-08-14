@@ -7,6 +7,21 @@ const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
 const TICKET_STACK_STEP_RPX = 116;
+const TICKET_SWIPE_THRESHOLD_PX = 48;
+const TICKET_SWIPE_EXIT_PX = 520;
+
+function buildTicketLayers(list, activeIndex) {
+  const activeTicket = list[activeIndex];
+  if (!activeTicket) return [];
+  return list
+    .filter((ticket) => ticket.ticketIndex !== activeTicket.ticketIndex)
+    .concat(activeTicket)
+    .map((ticket, stackIndex) => ({
+      ...ticket,
+      stackTop: stackIndex * TICKET_STACK_STEP_RPX,
+      stackZ: stackIndex + 1,
+    }));
+}
 
 // bucket lifecycle statuses into the three visible tabs
 function bucketOf(status) {
@@ -36,8 +51,11 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
-    decks: [],
+    layers: [],
     currentTicketIndex: 0,
+    dragTicketIndex: -1,
+    dragOffset: 0,
+    isTicketDragging: false,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -77,41 +95,93 @@ Page({
   applyFilter() {
     const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
     const indexedTickets = list.map((ticket, ticketIndex) => ({ ...ticket, ticketIndex }));
-    const decks = indexedTickets.map((activeTicket) => {
-      const layers = indexedTickets
-        .filter((ticket) => ticket.ticketIndex !== activeTicket.ticketIndex)
-        .concat(activeTicket)
-        .map((ticket, stackIndex) => ({
-          ...ticket,
-          stackTop: stackIndex * TICKET_STACK_STEP_RPX,
-          stackZ: stackIndex + 1,
-        }));
-      return {
-        deckId: `deck-${activeTicket.id}`,
-        layers,
-      };
-    });
+    const currentTicketIndex = Math.max(list.length - 1, 0);
     this.setData({
-      list,
-      decks,
-      currentTicketIndex: Math.max(list.length - 1, 0),
+      list: indexedTickets,
+      layers: buildTicketLayers(indexedTickets, currentTicketIndex),
+      currentTicketIndex,
+      dragTicketIndex: -1,
+      dragOffset: 0,
+      isTicketDragging: false,
     });
   },
 
-  onTicketChange(e) {
-    const current = Number(e.detail.current);
-    if (!Number.isInteger(current) || current === this.data.currentTicketIndex) return;
-    this.setData({ currentTicketIndex: current });
+  activateTicket(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.list.length) return;
+    this.setData({
+      currentTicketIndex: index,
+      layers: buildTicketLayers(this.data.list, index),
+      dragTicketIndex: -1,
+      dragOffset: 0,
+      isTicketDragging: false,
+    });
+  },
+
+  onTicketTouchStart(e) {
+    if (this._ticketSettleTimer || this.data.list.length < 2) return;
+    const touch = e.touches && e.touches[0];
+    const index = Number(e.currentTarget.dataset.index);
+    if (!touch || !Number.isInteger(index)) return;
+    this._ticketGesture = { index, startY: touch.clientY };
+    this.setData({ dragTicketIndex: index, dragOffset: 0, isTicketDragging: true });
+  },
+
+  onTicketTouchMove(e) {
+    const gesture = this._ticketGesture;
+    const touch = e.touches && e.touches[0];
+    if (!gesture || !touch) return;
+    const offset = Math.max(-TICKET_SWIPE_EXIT_PX, Math.min(TICKET_SWIPE_EXIT_PX, touch.clientY - gesture.startY));
+    this.setData({ dragOffset: offset });
+  },
+
+  onTicketTouchEnd(e) {
+    const gesture = this._ticketGesture;
+    if (!gesture) return;
+    const touch = e.changedTouches && e.changedTouches[0];
+    const offset = touch
+      ? Math.max(-TICKET_SWIPE_EXIT_PX, Math.min(TICKET_SWIPE_EXIT_PX, touch.clientY - gesture.startY))
+      : this.data.dragOffset;
+    this._ticketGesture = null;
+
+    if (Math.abs(offset) < 6) {
+      this.setData({ dragTicketIndex: -1, dragOffset: 0, isTicketDragging: false });
+      return;
+    }
+    this._suppressTicketTapUntil = Date.now() + 250;
+    if (Math.abs(offset) < TICKET_SWIPE_THRESHOLD_PX) {
+      this.setData({ dragTicketIndex: -1, dragOffset: 0, isTicketDragging: false });
+      return;
+    }
+
+    let nextIndex = gesture.index;
+    if (gesture.index === this.data.currentTicketIndex) {
+      const direction = offset < 0 ? 1 : -1;
+      nextIndex = (gesture.index + direction + this.data.list.length) % this.data.list.length;
+    }
+    this.setData({
+      dragOffset: offset < 0 ? -TICKET_SWIPE_EXIT_PX : TICKET_SWIPE_EXIT_PX,
+      isTicketDragging: false,
+    });
+    this._ticketSettleTimer = setTimeout(() => {
+      this._ticketSettleTimer = null;
+      this.activateTicket(nextIndex);
+    }, 180);
+  },
+
+  onTicketTouchCancel() {
+    this._ticketGesture = null;
+    this.setData({ dragTicketIndex: -1, dragOffset: 0, isTicketDragging: false });
   },
 
   onTicketTap(e) {
+    if (this._suppressTicketTapUntil && Date.now() < this._suppressTicketTapUntil) return;
     const index = Number(e.currentTarget.dataset.index);
     if (!Number.isInteger(index) || index < 0 || index >= this.data.list.length) return;
     if (index === this.data.currentTicketIndex) {
       this.showCode(e);
       return;
     }
-    this.setData({ currentTicketIndex: index });
+    this.activateTicket(index);
   },
 
   showCode(e) {
@@ -162,6 +232,7 @@ Page({
   noop() {},
 
   onUnload() {
+    if (this._ticketSettleTimer) clearTimeout(this._ticketSettleTimer);
     if (this.data.showCodeModal) {
       wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
     }

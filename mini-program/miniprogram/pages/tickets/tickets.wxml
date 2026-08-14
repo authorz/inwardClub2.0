@@ -25,76 +25,67 @@
       <text class="tk__wallet-hint">{{list.length > 1 ? '上下滑动选择' : '轻触票券展开'}}</text>
     </view>
 
-    <swiper
-      class="tk__carousel"
-      current="{{currentTicketIndex}}"
-      vertical="{{true}}"
-      autoplay="{{false}}"
-      circular="{{decks.length > 1}}"
-      duration="220"
-      easing-function="easeOutCubic"
-      bindchange="onTicketChange"
-    >
-      <swiper-item wx:for="{{decks}}" wx:key="deckId" wx:for-item="deck" class="tk__slide">
-        <view class="tk__stack">
-          <view
-            class="tk__pass {{item.usable ? '' : 'is-dim'}}"
-            wx:for="{{deck.layers}}"
-            wx:key="id"
-            data-id="{{item.id}}"
-            data-index="{{item.ticketIndex}}"
-            bindtap="onTicketTap"
-            hover-class="tk__pass--pressed"
-            hover-stay-time="80"
-            style="top: {{item.stackTop}}rpx; z-index: {{item.stackZ}};"
-            role="button"
-            aria-label="{{item.ticketIndex === currentTicketIndex ? '打开' : '选择'}}{{item.title}}，{{item.statusLabel}}"
-          >
-            <view class="tk__pass-head tk__pass-head--{{item.tone}}">
-              <view class="tk__pass-heading">
-                <text class="tk__pass-brand">INWARD CLUB</text>
-                <text class="tk__pass-title ic-ellipsis">{{item.title}}</text>
+    <view class="tk__carousel">
+      <view class="tk__stack">
+        <view
+          class="tk__pass {{item.usable ? '' : 'is-dim'}} {{item.ticketIndex === dragTicketIndex && isTicketDragging ? 'is-dragging' : ''}}"
+          wx:for="{{layers}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          data-index="{{item.ticketIndex}}"
+          bindtap="onTicketTap"
+          bindtouchstart="onTicketTouchStart"
+          catchtouchmove="onTicketTouchMove"
+          bindtouchend="onTicketTouchEnd"
+          bindtouchcancel="onTicketTouchCancel"
+          style="top: {{item.stackTop}}rpx; z-index: {{item.ticketIndex === dragTicketIndex ? list.length + 2 : item.stackZ}}; transform: translate3d(0, {{item.ticketIndex === dragTicketIndex ? dragOffset : 0}}px, 0);"
+          role="button"
+          aria-label="{{item.ticketIndex === currentTicketIndex ? '打开' : '选择'}}{{item.title}}，{{item.statusLabel}}"
+        >
+          <view class="tk__pass-head tk__pass-head--{{item.tone}}">
+            <view class="tk__pass-heading">
+              <text class="tk__pass-brand">INWARD CLUB</text>
+              <text class="tk__pass-title ic-ellipsis">{{item.title}}</text>
+            </view>
+            <view class="tk__status tk__status--{{item.bucket}}">
+              <view class="tk__status-dot"></view>
+              <text class="tk__status-text">{{item.statusLabel}}</text>
+            </view>
+          </view>
+
+          <view class="tk__pass-body">
+            <view class="tk__pass-facts">
+              <view class="tk__pass-fact">
+                <text class="tk__pass-label">活动时间</text>
+                <text class="tk__pass-value">{{item.timeText}}</text>
               </view>
-              <view class="tk__status tk__status--{{item.bucket}}">
-                <view class="tk__status-dot"></view>
-                <text class="tk__status-text">{{item.statusLabel}}</text>
+              <view class="tk__pass-fact">
+                <text class="tk__pass-label">活动地点</text>
+                <text class="tk__pass-value ic-ellipsis">{{item.storeName}}</text>
               </view>
             </view>
-
-            <view class="tk__pass-body">
-              <view class="tk__pass-facts">
-                <view class="tk__pass-fact">
-                  <text class="tk__pass-label">活动时间</text>
-                  <text class="tk__pass-value">{{item.timeText}}</text>
-                </view>
-                <view class="tk__pass-fact">
-                  <text class="tk__pass-label">活动地点</text>
-                  <text class="tk__pass-value ic-ellipsis">{{item.storeName}}</text>
-                </view>
-              </view>
-              <view class="tk__poster">
-                <image wx:if="{{item.imageUrl}}" class="tk__poster-img" src="{{item.imageUrl}}" mode="aspectFill" />
-                <view wx:else class="tk__poster-ph tk__poster-ph--{{item.tone}}">
-                  <text class="tk__poster-sub">INWARD</text>
-                </view>
-              </view>
-            </view>
-
-            <view class="tk__pass-cut">
-              <view class="tk__pass-cutline"></view>
-            </view>
-
-            <view class="tk__pass-foot">
-              <text class="tk__ticket">{{item.ticketName}} ×{{item.qty}}</text>
-              <view class="tk__open">
-                <image wx:if="{{item.usable}}" class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
-                <text>{{item.usable ? '打开入场券' : '查看票券'}}</text>
+            <view class="tk__poster">
+              <image wx:if="{{item.imageUrl}}" class="tk__poster-img" src="{{item.imageUrl}}" mode="aspectFill" />
+              <view wx:else class="tk__poster-ph tk__poster-ph--{{item.tone}}">
+                <text class="tk__poster-sub">INWARD</text>
               </view>
             </view>
           </view>
+
+          <view class="tk__pass-cut">
+            <view class="tk__pass-cutline"></view>
+          </view>
+
+          <view class="tk__pass-foot">
+            <text class="tk__ticket">{{item.ticketName}} ×{{item.qty}}</text>
+            <view class="tk__open">
+              <image wx:if="{{item.usable}}" class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
+              <text>{{item.usable ? '打开入场券' : '查看票券'}}</text>
+            </view>
+          </view>
         </view>
-      </swiper-item>
-    </swiper>
+      </view>
+    </view>
   </view>
 </view>
 
