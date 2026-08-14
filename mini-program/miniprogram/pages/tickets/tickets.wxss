@@ -57,6 +57,7 @@
 .tk__wallet-index { font-size: 21rpx; line-height: 1.4; color: #d2d2d2; font-variant-numeric: tabular-nums; }
 .tk__wallet-hint { font-size: 21rpx; line-height: 1.4; color: #929292; }
 .tk__carousel { width: 100%; height: 450rpx; }
+.tk__carousel--multiple { height: 510rpx; }
 .tk__slide { box-sizing: border-box; padding: 0 8rpx 20rpx; }
 .tk__pass {
   position: relative;

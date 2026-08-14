@@ -24,14 +24,15 @@
       <text class="tk__wallet-count">{{list.length}} 张入场券</text>
       <view wx:if="{{list.length > 1}}" class="tk__wallet-nav">
         <text class="tk__wallet-index">{{currentTicketIndex + 1}} / {{list.length}}</text>
-        <text class="tk__wallet-hint">左右滑动选择</text>
+        <text class="tk__wallet-hint">上下滑动选择</text>
       </view>
       <text wx:else class="tk__wallet-hint">轻触票券展开</text>
     </view>
 
     <swiper
-      class="tk__carousel"
+      class="tk__carousel {{list.length > 1 ? 'tk__carousel--multiple' : ''}}"
       current="{{currentTicketIndex}}"
+      vertical="{{true}}"
       autoplay="{{false}}"
       circular="{{false}}"
       previous-margin="{{list.length > 1 ? '18rpx' : '0rpx'}}"
