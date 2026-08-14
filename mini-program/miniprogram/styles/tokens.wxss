@@ -10,6 +10,22 @@
 
 /* ---- layout helpers ---- */
 .ic-page { min-height: 100vh; box-sizing: border-box; }
+.ic-deep-glass-background {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 8% 14%, rgba(112, 38, 52, 0.52) 0%, rgba(66, 27, 37, 0.22) 30%, transparent 56%),
+    radial-gradient(circle at 92% 38%, rgba(38, 77, 116, 0.54) 0%, rgba(25, 49, 77, 0.22) 32%, transparent 58%),
+    radial-gradient(circle at 12% 80%, rgba(24, 89, 91, 0.42) 0%, rgba(18, 55, 59, 0.18) 30%, transparent 54%),
+    #080a0d;
+}
 .ic-safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx); }
 .ic-section { background: var(--ic-white); }
 .ic-band { height: 20rpx; background: var(--ic-bg); }

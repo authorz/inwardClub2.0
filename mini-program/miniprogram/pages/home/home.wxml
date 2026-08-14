@@ -1,6 +1,6 @@
 <page-meta page-style="{{ (showRecharge || showPoint) ? 'overflow: hidden;' : '' }}" />
 <view class="ic-page ic-page--tab mine">
-  <image class="mine__page-background" src="/assets/backgrounds/deep-glass-v1.webp" mode="aspectFill" />
+  <view class="ic-deep-glass-background" aria-hidden="true"></view>
 
   <view class="mine__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="mine__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;"></view>

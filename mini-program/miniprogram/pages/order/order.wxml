@@ -1,4 +1,4 @@
-<image class="ord__page-background" src="/assets/backgrounds/deep-glass-v1.webp" mode="aspectFill" />
+<view class="ic-deep-glass-background" aria-hidden="true"></view>
 
 <view class="ord">
   <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
