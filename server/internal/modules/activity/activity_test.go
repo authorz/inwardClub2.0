@@ -18,12 +18,16 @@ type publicMemRepo struct {
 	sellableCall int
 }
 
-func (r *publicMemRepo) ListPublished(_ context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error) {
+func (r *publicMemRepo) ListPublished(_ context.Context, storeID *int64, endedBefore *time.Time, limit, offset int) ([]Activity, int64, error) {
 	var all []Activity
 	for _, a := range r.activities {
-		if storeID == nil || (a.ScopeType == "global" || (a.StoreID != nil && *a.StoreID == *storeID)) {
-			all = append(all, a)
+		if storeID != nil && a.ScopeType != "global" && (a.StoreID == nil || *a.StoreID != *storeID) {
+			continue
 		}
+		if endedBefore != nil && (a.EndAt == nil || !a.EndAt.Before(*endedBefore)) {
+			continue
+		}
+		all = append(all, a)
 	}
 	total := int64(len(all))
 	if offset > len(all) {
@@ -116,7 +120,7 @@ func TestListDoesNotLoadTicketTypes(t *testing.T) {
 	svc, repo := newPublicTestService()
 	repo.activities = []Activity{{ID: 5, ScopeType: "global", Title: "Show", Status: "published"}}
 
-	views, _, err := svc.List(context.Background(), nil, httpx.Page{Page: 1, PageSize: 20})
+	views, _, err := svc.List(context.Background(), nil, httpx.Page{Page: 1, PageSize: 20}, false)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -125,6 +129,28 @@ func TestListDoesNotLoadTicketTypes(t *testing.T) {
 	}
 	if repo.sellableCall != 0 {
 		t.Fatalf("list path must not query ticket types, called %d times", repo.sellableCall)
+	}
+}
+
+func TestListHistoryFiltersBeforePagination(t *testing.T) {
+	svc, repo := newPublicTestService()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	endedEarlier := now.Add(-48 * time.Hour)
+	endedRecently := now.Add(-24 * time.Hour)
+	ongoing := now.Add(24 * time.Hour)
+	repo.activities = []Activity{
+		{ID: 1, ScopeType: "global", Title: "较早回顾", EndAt: &endedEarlier, Status: "published"},
+		{ID: 2, ScopeType: "global", Title: "近期回顾", EndAt: &endedRecently, Status: "published"},
+		{ID: 3, ScopeType: "global", Title: "进行中", EndAt: &ongoing, Status: "published"},
+	}
+	svc.now = func() time.Time { return now }
+
+	views, total, err := svc.List(context.Background(), nil, httpx.Page{Page: 1, PageSize: 1}, true)
+	if err != nil {
+		t.Fatalf("list history: %v", err)
+	}
+	if total != 2 || len(views) != 1 || views[0].ID != 1 {
+		t.Fatalf("unexpected history page: total=%d views=%+v", total, views)
 	}
 }
 

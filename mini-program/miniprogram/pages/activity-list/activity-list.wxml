@@ -51,15 +51,26 @@
 
   <!-- ===== 精彩回顾：已结束活动列表 ===== -->
   <block wx:else>
-    <ic-loading wx:if="{{reviewLoading}}" theme="dark" />
+    <ic-loading wx:if="{{reviewLoading && !reviewLoaded}}" theme="dark" />
 
-    <view wx:elif="{{!reviews.length}}" class="al__empty">
+    <view wx:elif="{{reviewLoadError && !reviews.length}}" class="al__empty al__empty--error">
+      <text class="al__empty-title">精彩回顾加载失败</text>
+      <button class="al__retry" bindtap="retryReviews">重新加载</button>
+    </view>
+
+    <view wx:elif="{{reviewLoaded && !reviews.length}}" class="al__empty">
       <image class="al__empty-icon" src="https://assets.inwardclub.com/public/images/activity-empty.png" mode="aspectFit" />
       <text class="al__empty-text">还没有已结束的活动哦</text>
     </view>
 
     <view wx:else class="al__reviews">
       <view class="al__review" wx:for="{{reviews}}" wx:key="id" data-id="{{item.id}}" bindtap="onReviewTap">
+        <view class="al__review-media">
+          <image wx:if="{{item.imageUrl}}" class="al__review-image" src="{{item.imageUrl}}" mode="aspectFill" lazy-load="{{true}}" />
+          <view wx:else class="al__review-placeholder">
+            <image class="al__review-placeholder-logo" src="{{reviewFallbackLogo}}" mode="aspectFit" />
+          </view>
+        </view>
         <view class="al__review-main">
           <text class="al__review-title ic-ellipsis">{{item.title}}</text>
           <view class="al__review-meta">
@@ -68,6 +79,11 @@
           </view>
         </view>
         <view class="al__review-arrow"></view>
+      </view>
+      <view class="al__review-footer">
+        <text wx:if="{{reviewLoading}}">正在加载更多...</text>
+        <text wx:elif="{{reviewLoadError}}" class="al__review-retry" bindtap="retryReviews">加载失败，点击重试</text>
+        <text wx:elif="{{!reviewHasMore}}">已经到底了</text>
       </view>
     </view>
   </block>

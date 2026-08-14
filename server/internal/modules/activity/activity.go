@@ -86,7 +86,7 @@ type AssetResolver interface {
 
 // Repository is the activity read persistence port.
 type Repository interface {
-	ListPublished(ctx context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error)
+	ListPublished(ctx context.Context, storeID *int64, endedBefore *time.Time, limit, offset int) ([]Activity, int64, error)
 	ListTodayPublished(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error)
 	GetByID(ctx context.Context, id int64) (Activity, error)
 	// ListSellableTicketTypes returns an activity's active ticket types for the
@@ -121,18 +121,26 @@ func scanActivity(row interface{ Scan(...any) error }) (Activity, error) {
 	return a, nil
 }
 
-func (r *sqlRepository) ListPublished(ctx context.Context, storeID *int64, limit, offset int) ([]Activity, int64, error) {
+func (r *sqlRepository) ListPublished(ctx context.Context, storeID *int64, endedBefore *time.Time, limit, offset int) ([]Activity, int64, error) {
 	where := `a.status = 'published'`
 	var args []any
 	if storeID != nil {
 		where += ` AND (a.scope_type = 'global' OR a.store_id = ?)`
 		args = append(args, *storeID)
 	}
+	if endedBefore != nil {
+		where += ` AND a.end_at IS NOT NULL AND a.end_at < ?`
+		args = append(args, *endedBefore)
+	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)`+activityFrom+`WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT ` + activityColumns + activityFrom + `WHERE ` + where + ` ORDER BY a.start_at DESC, a.id DESC LIMIT ? OFFSET ?`
+	orderBy := `a.start_at DESC, a.id DESC`
+	if endedBefore != nil {
+		orderBy = `a.end_at DESC, a.id DESC`
+	}
+	q := `SELECT ` + activityColumns + activityFrom + `WHERE ` + where + ` ORDER BY ` + orderBy + ` LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -281,9 +289,15 @@ func (s *Service) ListToday(ctx context.Context, storeID int64) ([]ActivityView,
 	return views, nil
 }
 
-// List returns published activities, optionally scoped to a store.
-func (s *Service) List(ctx context.Context, storeID *int64, page httpx.Page) ([]ActivityView, int64, error) {
-	acts, total, err := s.repo.ListPublished(ctx, storeID, page.Limit(), page.Offset())
+// List returns published activities, optionally scoped to a store or limited
+// to activities that ended before the current time.
+func (s *Service) List(ctx context.Context, storeID *int64, page httpx.Page, history bool) ([]ActivityView, int64, error) {
+	var endedBefore *time.Time
+	if history {
+		now := s.now()
+		endedBefore = &now
+	}
+	acts, total, err := s.repo.ListPublished(ctx, storeID, endedBefore, page.Limit(), page.Offset())
 	if err != nil {
 		return nil, 0, err
 	}

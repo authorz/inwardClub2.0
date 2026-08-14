@@ -1861,13 +1861,21 @@ paths:
     get:
       tags: [mini]
       summary: Activities for a store
-      parameters: [{ $ref: '#/components/parameters/StoreID' }]
+      parameters:
+        - { $ref: '#/components/parameters/StoreID' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: scope, in: query, schema: { type: string, enum: [history] }, description: Return activities whose end time is in the past }
       responses:
         '200': { description: activity list }
   /api/v2/mini/activities:
     get:
       tags: [mini]
       summary: List published activities
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: scope, in: query, schema: { type: string, enum: [history] }, description: Return activities whose end time is in the past }
       responses:
         '200': { description: activity list }
   /api/v2/mini/activities/{activityID}:

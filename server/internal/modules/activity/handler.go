@@ -20,7 +20,7 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 // List handles GET /mini/activities.
 func (h *Handler) List(c *gin.Context) {
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.List(c.Request.Context(), nil, page)
+	views, total, err := h.svc.List(c.Request.Context(), nil, page, c.Query("scope") == "history")
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -36,7 +36,7 @@ func (h *Handler) ListForStore(c *gin.Context) {
 		return
 	}
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.List(c.Request.Context(), &storeID, page)
+	views, total, err := h.svc.List(c.Request.Context(), &storeID, page, c.Query("scope") == "history")
 	if err != nil {
 		httpx.Fail(c, err)
 		return

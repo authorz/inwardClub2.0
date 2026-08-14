@@ -3,6 +3,19 @@
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
 
+const REVIEW_PAGE_SIZE = 10;
+const REVIEW_FALLBACK_LOGO = 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png';
+
+function reviewItem(a) {
+  return {
+    id: a.id,
+    title: a.title,
+    timeText: a.timeText,
+    storeName: a.storeName,
+    imageUrl: a.imageUrl || '',
+  };
+}
+
 Page({
   data: {
     loading: true,
@@ -14,6 +27,10 @@ Page({
     reviews: [],
     reviewLoaded: false,
     reviewLoading: false,
+    reviewLoadError: false,
+    reviewPage: 0,
+    reviewHasMore: true,
+    reviewFallbackLogo: REVIEW_FALLBACK_LOGO,
     // custom navigation metrics (px)
     navStatusBar: 20,
     navContentHeight: 44,
@@ -102,20 +119,65 @@ Page({
     if (this.data.mode === 'review') return;
     this.setData({ mode: 'review' });
     if (this.data.reviewLoaded || this.data.reviewLoading) return;
-    this.setData({ reviewLoading: true });
-    api
-      .getActivities({ scope: 'history' })
-      .catch(() => ({ data: [] }))
+    this.loadReviews({ refresh: true });
+  },
+
+  loadReviews({ refresh = false } = {}) {
+    if (this._reviewRequesting) {
+      if (refresh) wx.stopPullDownRefresh();
+      return;
+    }
+    if (!refresh && !this.data.reviewHasMore) return;
+
+    const page = refresh ? 1 : this.data.reviewPage + 1;
+    this._reviewRequesting = true;
+    this.setData({ reviewLoading: true, reviewLoadError: false });
+
+    return api
+      .getActivities({ scope: 'history', page, pageSize: REVIEW_PAGE_SIZE })
       .then((listRes) => {
-        const reviews = (listRes.data || []).map((a) => ({
-          id: a.id,
-          title: a.title,
-          timeText: a.timeText,
-          storeName: a.storeName,
-          imageUrl: a.imageUrl || '',
-        }));
-        this.setData({ reviews, reviewLoaded: true, reviewLoading: false });
+        const rows = (listRes.data || []).map(reviewItem);
+        const previous = refresh ? [] : this.data.reviews;
+        const seen = new Set(previous.map((item) => String(item.id)));
+        const appended = rows.filter((item) => !seen.has(String(item.id)));
+        const reviews = previous.concat(appended);
+        const meta = listRes.meta || {};
+        const total = Number(meta.total);
+        const hasTotal = meta.total != null && !Number.isNaN(total);
+        const hasMore = hasTotal ? page * REVIEW_PAGE_SIZE < total : rows.length === REVIEW_PAGE_SIZE;
+
+        this.setData({
+          reviews,
+          reviewLoaded: true,
+          reviewLoading: false,
+          reviewLoadError: false,
+          reviewPage: page,
+          reviewHasMore: hasMore,
+        });
+      })
+      .catch(() => {
+        this.setData({ reviewLoaded: true, reviewLoading: false, reviewLoadError: true });
+      })
+      .finally(() => {
+        this._reviewRequesting = false;
+        wx.stopPullDownRefresh();
       });
+  },
+
+  retryReviews() {
+    this.loadReviews({ refresh: !this.data.reviews.length });
+  },
+
+  onReachBottom() {
+    if (this.data.mode === 'review') this.loadReviews();
+  },
+
+  onPullDownRefresh() {
+    if (this.data.mode !== 'review') {
+      wx.stopPullDownRefresh();
+      return;
+    }
+    this.loadReviews({ refresh: true });
   },
 
   // 精彩回顾列表项点击 → 进入活动详情

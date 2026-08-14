@@ -5,5 +5,8 @@
   },
   "navigationStyle": "custom",
   "navigationBarTitleText": "近期活动",
-  "backgroundColor": "#171717"
+  "backgroundColor": "#171717",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 120
 }
