@@ -20,15 +20,16 @@
   padding: 4rpx 8rpx;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
   border-radius: 56rpx;
   background: rgba(22, 25, 30, 0.34);
   -webkit-backdrop-filter: blur(40rpx) saturate(155%) brightness(0.92);
   backdrop-filter: blur(40rpx) saturate(155%) brightness(0.92);
   box-shadow:
-    0 8rpx 16rpx rgba(0, 0, 0, 0.2),
-    inset 0 1rpx 2rpx rgba(255, 255, 255, 0.34),
-    inset 0 -1rpx 2rpx rgba(0, 0, 0, 0.18);
+    inset 0 5rpx 10rpx rgba(4, 7, 11, 0.32),
+    inset 0 -2rpx 3rpx rgba(255, 255, 255, 0.14),
+    inset 1rpx 0 2rpx rgba(0, 0, 0, 0.08),
+    inset -1rpx 0 2rpx rgba(255, 255, 255, 0.05);
 }
 
 .tabbar__glass::before {
@@ -39,7 +40,7 @@
   left: 20rpx;
   height: 48rpx;
   border-radius: 56rpx 56rpx 40% 40%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+  background: linear-gradient(180deg, rgba(4, 7, 11, 0.22), rgba(4, 7, 11, 0));
   pointer-events: none;
 }
 
