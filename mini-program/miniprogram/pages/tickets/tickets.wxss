@@ -88,7 +88,7 @@
 .tk__pass.is-dragging { transition: none; will-change: transform; }
 .tk__pass.is-settling { opacity: 0.08; will-change: transform, opacity; }
 .tk__pass.is-entering {
-  animation: tk-ticket-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: tk-ticket-enter 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
 }
 .tk__pass.is-dim { filter: saturate(0.25); }

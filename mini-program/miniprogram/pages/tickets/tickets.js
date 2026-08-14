@@ -10,9 +10,10 @@ const TICKET_STACK_STEP_RPX = 116;
 const TICKET_SWIPE_THRESHOLD_PX = 48;
 const TICKET_SWIPE_EXIT_PX = 520;
 const TICKET_SWIPE_DURATION_MS = 280;
-const TICKET_ENTRANCE_DURATION_MS = 460;
-const TICKET_ENTRANCE_STAGGER_MS = 72;
-const TICKET_ENTRANCE_MAX_STAGGER_MS = 280;
+const TICKET_ENTRANCE_START_DELAY_MS = 180;
+const TICKET_ENTRANCE_DURATION_MS = 720;
+const TICKET_ENTRANCE_STAGGER_MS = 120;
+const TICKET_ENTRANCE_MAX_STAGGER_MS = 360;
 
 function buildTicketLayers(list, activeIndex) {
   const activeTicket = list[activeIndex];
@@ -27,7 +28,7 @@ function buildTicketLayers(list, activeIndex) {
       ...ticket,
       stackTop: stackIndex * TICKET_STACK_STEP_RPX,
       stackZ: stackIndex + 1,
-      entranceDelay: stackIndex * entranceStep,
+      entranceDelay: TICKET_ENTRANCE_START_DELAY_MS + stackIndex * entranceStep,
     }));
 }
 
