@@ -69,12 +69,12 @@
 }
 .tk__wallet-count { font-size: 25rpx; line-height: 1.4; font-weight: 600; color: #e8e8e8; }
 .tk__wallet-hint { font-size: 21rpx; line-height: 1.4; color: #929292; }
-.tk__stack-scroll { width: 100%; height: 510rpx; max-height: 100%; flex: none; }
-.tk__stack { position: relative; width: 100%; }
+.tk__carousel { width: 100%; height: 610rpx; max-height: 100%; flex: none; }
+.tk__slide { box-sizing: border-box; }
+.tk__deck { position: relative; width: 100%; height: 100%; padding: 0 4rpx; box-sizing: border-box; }
 .tk__pass {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: relative;
+  z-index: 3;
   height: 430rpx;
   overflow: hidden;
   border-radius: 22rpx;
@@ -85,6 +85,24 @@
 }
 .tk__pass.is-dim { filter: saturate(0.25); }
 .tk__pass--pressed { transform: scale(0.99); }
+.tk__deck-preview {
+  position: absolute;
+  left: 4rpx;
+  right: 4rpx;
+  height: 96rpx;
+  padding: 20rpx 26rpx 12rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 22rpx 22rpx 12rpx 12rpx;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+  background: #1b1b1b;
+  color: #f5f5f5;
+  transition: opacity 160ms ease-out;
+}
+.tk__deck-preview--pressed { opacity: 0.72; }
 .tk__pass-head {
   height: 116rpx;
   padding: 22rpx 26rpx;

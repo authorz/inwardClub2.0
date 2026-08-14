@@ -6,9 +6,8 @@ const ui = require('../../utils/ui');
 const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
-const TICKET_CARD_HEIGHT_RPX = 430;
-const TICKET_STACK_STEP_RPX = 116;
-const TICKET_STACK_BOTTOM_GAP_RPX = 24;
+const STACK_PREVIEW_TOP_RPX = 414;
+const STACK_PREVIEW_STEP_RPX = 76;
 
 // bucket lifecycle statuses into the three visible tabs
 function bucketOf(status) {
@@ -38,7 +37,8 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
-    stackHeight: 0,
+    decks: [],
+    currentTicketIndex: 0,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -77,10 +77,28 @@ Page({
 
   applyFilter() {
     const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
-    const stackHeight = list.length
-      ? TICKET_CARD_HEIGHT_RPX + (list.length - 1) * TICKET_STACK_STEP_RPX + TICKET_STACK_BOTTOM_GAP_RPX
-      : 0;
-    this.setData({ list, stackHeight });
+    const decks = list.map((ticket, ticketIndex) => ({
+      ...ticket,
+      previews: list.slice(ticketIndex + 1, ticketIndex + 3).map((preview, previewIndex) => ({
+        ...preview,
+        targetIndex: ticketIndex + previewIndex + 1,
+        stackTop: STACK_PREVIEW_TOP_RPX + previewIndex * STACK_PREVIEW_STEP_RPX,
+        stackZ: 2 - previewIndex,
+      })),
+    }));
+    this.setData({ list, decks, currentTicketIndex: 0 });
+  },
+
+  onTicketChange(e) {
+    const current = Number(e.detail.current);
+    if (!Number.isInteger(current) || current === this.data.currentTicketIndex) return;
+    this.setData({ currentTicketIndex: current });
+  },
+
+  selectTicket(e) {
+    const index = Number(e.currentTarget.dataset.index);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.decks.length) return;
+    this.setData({ currentTicketIndex: index });
   },
 
   showCode(e) {

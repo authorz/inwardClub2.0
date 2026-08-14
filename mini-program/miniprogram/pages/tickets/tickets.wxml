@@ -25,23 +25,24 @@
       <text class="tk__wallet-hint">{{list.length > 1 ? '上下滑动选择' : '轻触票券展开'}}</text>
     </view>
 
-    <scroll-view
-      class="tk__stack-scroll"
-      scroll-y="{{true}}"
-      enhanced
-      bounces="{{false}}"
-      show-scrollbar="{{false}}"
+    <swiper
+      class="tk__carousel"
+      current="{{currentTicketIndex}}"
+      vertical="{{true}}"
+      autoplay="{{false}}"
+      circular="{{false}}"
+      duration="220"
+      easing-function="easeOutCubic"
+      bindchange="onTicketChange"
     >
-      <view class="tk__stack" style="height: {{stackHeight}}rpx;">
+      <swiper-item wx:for="{{decks}}" wx:key="id" class="tk__slide">
+        <view class="tk__deck">
         <view
           class="tk__pass {{item.usable ? '' : 'is-dim'}}"
-          wx:for="{{list}}"
-          wx:key="id"
           data-id="{{item.id}}"
           bindtap="showCode"
           hover-class="tk__pass--pressed"
           hover-stay-time="80"
-          style="top: {{index * 116}}rpx; z-index: {{index + 1}};"
           role="button"
           aria-label="打开{{item.title}}，{{item.statusLabel}}"
         >
@@ -87,8 +88,30 @@
           </view>
         </view>
         </view>
-      </view>
-    </scroll-view>
+          <view
+            class="tk__deck-preview tk__pass-head--{{preview.tone}}"
+            wx:for="{{item.previews}}"
+            wx:key="id"
+            wx:for-item="preview"
+            style="top: {{preview.stackTop}}rpx; z-index: {{preview.stackZ}};"
+            data-index="{{preview.targetIndex}}"
+            bindtap="selectTicket"
+            hover-class="tk__deck-preview--pressed"
+            role="button"
+            aria-label="选择{{preview.title}}"
+          >
+            <view class="tk__pass-heading">
+              <text class="tk__pass-brand">INWARD CLUB</text>
+              <text class="tk__pass-title ic-ellipsis">{{preview.title}}</text>
+            </view>
+            <view class="tk__status tk__status--{{preview.bucket}}">
+              <view class="tk__status-dot"></view>
+              <text class="tk__status-text">{{preview.statusLabel}}</text>
+            </view>
+          </view>
+        </view>
+      </swiper-item>
+    </swiper>
   </view>
 </view>
 
