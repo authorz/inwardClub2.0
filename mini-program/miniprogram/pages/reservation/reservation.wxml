@@ -19,7 +19,7 @@
       <view class="rsv__store-meta">
         <text class="rsv__store-address ic-ellipsis">{{store.address || '地址请咨询门店'}}</text>
         <view class="rsv__store-hours">
-          <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
+          <image class="rsv__hours-icon" src="/assets/icons/business-hours.svg" mode="aspectFit"></image>
           <text class="ic-ellipsis">{{store.hours || '营业时间请咨询门店'}}</text>
         </view>
       </view>

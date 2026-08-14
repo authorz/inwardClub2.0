@@ -50,7 +50,7 @@
 .rsv__store-meta { display: flex; align-items: center; gap: 20rpx; margin-top: 10rpx; min-width: 0; }
 .rsv__store-address { flex: 1; min-width: 0; color: var(--ic-text-2); font-size: 20rpx; }
 .rsv__store-hours { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7rpx; color: var(--ic-text-2); font-size: 20rpx; }
-.rsv__store-hours .ic-ic { width: 24rpx; height: 24rpx; flex: none; }
+.rsv__hours-icon { width: 24rpx; height: 24rpx; flex: none; display: block; }
 .rsv__caret { width: 13rpx; height: 13rpx; flex: none; border-right: 2rpx solid var(--ic-text-3); border-bottom: 2rpx solid var(--ic-text-3); transform: rotate(-45deg); }
 
 .rsv__sec { min-height: 96rpx; padding: 18rpx 8rpx 8rpx; display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }
@@ -65,15 +65,15 @@
 .rsv__tseats { font-size: 22rpx; color: var(--ic-text-2); }
 .rsv__seat-line { display: flex; align-items: center; gap: 18rpx; margin-top: 26rpx; }
 .rsv__reserve {
-  width: 136rpx;
-  min-width: 136rpx;
-  height: 52rpx;
+  width: 116rpx;
+  min-width: 116rpx;
+  height: 60rpx;
   margin: 0;
-  padding: 0 20rpx;
+  padding: 0 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 26rpx;
+  border-radius: 12rpx;
   background: var(--ic-black);
   color: var(--ic-white);
   font-size: 21rpx;
