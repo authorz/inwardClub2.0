@@ -7,23 +7,70 @@
 
 /* 会员身份面只保留品牌 LOGO 与 VIP 等级。 */
 .bf__identity {
+  position: relative;
   height: 300rpx;
   padding: 34rpx 38rpx 30rpx;
   border-radius: 16rpx;
+  overflow: hidden;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
-.bf__identity-logo { width: 238rpx; height: 106rpx; align-self: flex-start; }
+.bf__identity::before {
+  content: "";
+  position: absolute;
+  top: -238rpx;
+  right: -98rpx;
+  width: 410rpx;
+  height: 410rpx;
+  border: 1rpx solid currentColor;
+  border-radius: 50%;
+  opacity: 0.14;
+}
+.bf__identity::after {
+  content: "";
+  position: absolute;
+  right: -154rpx;
+  bottom: -190rpx;
+  width: 368rpx;
+  height: 368rpx;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.045;
+}
+.bf__identity-logo { position: relative; z-index: 1; width: 238rpx; height: 106rpx; align-self: flex-start; }
 .bf__identity-logo.is-light { filter: brightness(0) invert(1); }
 .bf__identity-logo.is-dark { filter: brightness(0); }
 .bf__identity-vip {
+  position: relative;
+  z-index: 1;
   align-self: flex-end;
-  font-size: 64rpx;
+  display: flex;
+  align-items: center;
+  min-width: 168rpx;
+  justify-content: flex-end;
+}
+.bf__identity-vip-label {
+  font-size: 22rpx;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -1rpx;
+  letter-spacing: 3rpx;
+}
+.bf__identity-vip-rule {
+  width: 1rpx;
+  height: 42rpx;
+  margin: 0 18rpx;
+  background: currentColor;
+  opacity: 0.4;
+}
+.bf__identity-vip-number {
+  min-width: 46rpx;
+  text-align: right;
+  font-size: 76rpx;
+  font-weight: 500;
+  line-height: 0.82;
+  letter-spacing: -2rpx;
   font-variant-numeric: tabular-nums;
 }
 
@@ -33,7 +80,7 @@
 .bf__label { display: block; font-size: 22rpx; line-height: 1.4; color: var(--ic-text-3); }
 .bf__member-line { display: flex; align-items: center; gap: 12rpx; margin-top: 8rpx; min-width: 0; }
 .bf__member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34rpx; font-weight: 650; line-height: 1.25; color: var(--ic-black); }
-.bf__member-vip { flex: none; padding: 4rpx 10rpx; border-radius: 6rpx; background: var(--ic-black); color: var(--ic-white); font-size: 18rpx; font-weight: 650; line-height: 1.25; }
+.bf__member-vip { flex: none; padding: 3rpx 9rpx; border: 1rpx solid var(--ic-black); border-radius: 5rpx; color: var(--ic-black); font-size: 17rpx; font-weight: 650; line-height: 1.25; }
 .bf__growth-value { flex: none; text-align: right; }
 .bf__growth-num { display: block; margin-top: 4rpx; font-size: 38rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .bf__bar { height: 10rpx; margin-top: 28rpx; overflow: hidden; border-radius: 999rpx; background: var(--ic-fill); }

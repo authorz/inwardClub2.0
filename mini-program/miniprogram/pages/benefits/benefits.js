@@ -50,6 +50,7 @@ Page({
           loading: false,
           tier: {
             currentVer,
+            currentNo: String(Number(currentLevel.level || d.currentLevel) || currentIdx + 1),
             currentName: memberName(currentLevel.name, currentVer),
             growthValue,
             growthTarget,
