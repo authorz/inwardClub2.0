@@ -2,6 +2,21 @@
 @import "./styles/tokens.wxss";
 
 /*
+ * Shared app backdrop. Individual pages only define content surfaces; the
+ * index page keeps its own full-screen, carousel-driven ambient layer above
+ * this fallback.
+ */
+page {
+  background:
+    radial-gradient(circle at 8% 14%, rgba(112, 38, 52, 0.52) 0%, rgba(66, 27, 37, 0.22) 30%, transparent 56%),
+    radial-gradient(circle at 92% 38%, rgba(38, 77, 116, 0.54) 0%, rgba(25, 49, 77, 0.22) 32%, transparent 58%),
+    radial-gradient(circle at 12% 80%, rgba(24, 89, 91, 0.42) 0%, rgba(18, 55, 59, 0.18) 30%, transparent 54%),
+    #080a0d;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+/*
  * No global tag-name reset here. Every page uses components (global
  * usingComponents in app.json), so WeChat compiles page styles with
  * component-level scoping, where tag / id / attribute selectors are

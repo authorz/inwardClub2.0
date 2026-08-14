@@ -1,7 +1,5 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
-<view class="ic-deep-glass-background" aria-hidden="true"></view>
-
 <view class="ic-page ic-page--tab rsv">
   <view class="rsv__store" hover-class="rsv__field--hover" bindtap="switchStore">
     <view class="rsv__store-icon">

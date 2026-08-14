@@ -1,6 +1,5 @@
 .mine {
   position: relative;
-  background: #080a0d;
 }
 .mine__nav {
   position: relative;

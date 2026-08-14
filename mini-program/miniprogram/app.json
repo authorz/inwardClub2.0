@@ -43,8 +43,8 @@
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Inward Club",
-    "backgroundColor": "#f5f5f5",
-    "backgroundTextStyle": "dark",
+    "backgroundColor": "#080a0d",
+    "backgroundTextStyle": "light",
     "enablePullDownRefresh": false
   },
   "permission": {

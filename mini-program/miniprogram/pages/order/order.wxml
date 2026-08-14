@@ -1,5 +1,3 @@
-<view class="ic-deep-glass-background" aria-hidden="true"></view>
-
 <view class="ord">
   <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
   <view class="ord__nav" style="padding-top: {{navStatusBar}}px;">
