@@ -32,12 +32,21 @@
 .tabbar__glass::before {
   content: "";
   position: absolute;
-  top: 2rpx;
-  left: 48rpx;
-  right: 48rpx;
-  height: 2rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.94);
+  top: -22rpx;
+  left: 7%;
+  width: 48%;
+  height: 58rpx;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.24) 46%,
+    rgba(255, 255, 255, 0) 74%
+  );
+  -webkit-filter: blur(7rpx);
+  filter: blur(7rpx);
+  opacity: 0.78;
+  transform: rotate(-3deg);
 }
 
 .tabbar__item {
