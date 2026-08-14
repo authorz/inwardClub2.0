@@ -139,7 +139,7 @@
   padding: 0 18rpx;
   border-radius: 28rpx;
   background: rgba(255, 255, 255, 0.94);
-  color: var(--ic-black);
+  color: var(--ic-white);
   font-size: 20rpx;
   font-weight: 600;
   display: flex;
