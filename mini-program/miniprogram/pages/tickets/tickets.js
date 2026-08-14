@@ -36,8 +36,8 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
-    stackTravel: 0,
-    stackViewportHeight: 430,
+    decks: [],
+    currentTicketIndex: 0,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -69,10 +69,6 @@ Page({
       .catch(() => this.setData({ loading: false }));
   },
 
-  onReady() {
-    this.measureTicketViewport();
-  },
-
   onStatusChange(e) {
     this.setData({ bucket: e.detail.value });
     this.applyFilter();
@@ -80,30 +76,42 @@ Page({
 
   applyFilter() {
     const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
-    const stackTravel = Math.max(list.length - 1, 0) * TICKET_STACK_STEP_RPX;
-    this.setData({ list, stackTravel }, () => this.measureTicketViewport());
-  },
-
-  measureTicketViewport() {
-    if (!wx.createSelectorQuery || !wx.getWindowInfo) return;
-    wx.nextTick(() => {
-      wx.createSelectorQuery()
-        .select('.tk__stack-scroll')
-        .boundingClientRect((rect) => {
-          if (!rect || !rect.height) return;
-          const windowWidth = wx.getWindowInfo().windowWidth;
-          if (!windowWidth) return;
-          const stackViewportHeight = Math.max(Math.round((rect.height * 750) / windowWidth), 430);
-          if (stackViewportHeight !== this.data.stackViewportHeight) {
-            this.setData({ stackViewportHeight });
-          }
-        })
-        .exec();
+    const indexedTickets = list.map((ticket, ticketIndex) => ({ ...ticket, ticketIndex }));
+    const decks = indexedTickets.map((activeTicket) => {
+      const layers = indexedTickets
+        .filter((ticket) => ticket.ticketIndex !== activeTicket.ticketIndex)
+        .concat(activeTicket)
+        .map((ticket, stackIndex) => ({
+          ...ticket,
+          stackTop: stackIndex * TICKET_STACK_STEP_RPX,
+          stackZ: stackIndex + 1,
+        }));
+      return {
+        deckId: `deck-${activeTicket.id}`,
+        layers,
+      };
+    });
+    this.setData({
+      list,
+      decks,
+      currentTicketIndex: Math.max(list.length - 1, 0),
     });
   },
 
-  onResize() {
-    this.measureTicketViewport();
+  onTicketChange(e) {
+    const current = Number(e.detail.current);
+    if (!Number.isInteger(current) || current === this.data.currentTicketIndex) return;
+    this.setData({ currentTicketIndex: current });
+  },
+
+  onTicketTap(e) {
+    const index = Number(e.currentTarget.dataset.index);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.list.length) return;
+    if (index === this.data.currentTicketIndex) {
+      this.showCode(e);
+      return;
+    }
+    this.setData({ currentTicketIndex: index });
   },
 
   showCode(e) {
