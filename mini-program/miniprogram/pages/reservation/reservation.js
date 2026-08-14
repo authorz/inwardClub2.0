@@ -7,6 +7,27 @@ const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
 const { saveProfile } = require('../../utils/member-profile');
 
+const RESERVATION_DAY_START_HOUR = 4;
+
+function isCurrentReservationDay(value) {
+  const timestamp = Date.parse(value || '');
+  if (!Number.isFinite(timestamp)) return false;
+  const now = new Date();
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    RESERVATION_DAY_START_HOUR,
+    0,
+    0,
+    0
+  );
+  if (now.getTime() < start.getTime()) start.setDate(start.getDate() - 1);
+  const end = new Date(start.getTime());
+  end.setDate(end.getDate() + 1);
+  return timestamp >= start.getTime() && timestamp < end.getTime();
+}
+
 Page({
   data: {
     loading: true,
@@ -80,7 +101,8 @@ Page({
     Promise.all([api.getTables(storeId), api.getSeats(storeId), ownReservations])
       .then(([tRes, sRes, rRes]) => {
         const activeReservations = (rRes.data || []).filter((reservation) =>
-          reservation.status === 'booked' || reservation.status === 'arrived'
+          (reservation.status === 'booked' || reservation.status === 'arrived') &&
+          isCurrentReservationDay(reservation.createdAt || reservation.reservedAt)
         );
         const ownReservationsBySeat = new Map();
         activeReservations
