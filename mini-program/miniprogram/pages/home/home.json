@@ -4,7 +4,8 @@
     "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet"
   },
   "navigationBarTitleText": "我的",
-  "backgroundColor": "#ffffff",
-  "backgroundColorTop": "#ffffff",
-  "backgroundColorBottom": "#ffffff"
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#080a0d",
+  "backgroundColorTop": "#080a0d",
+  "backgroundColorBottom": "#080a0d"
 }

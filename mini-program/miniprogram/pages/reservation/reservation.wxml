@@ -1,6 +1,6 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
-<image class="rsv__page-background" src="https://assets.inwardclub.com/public/brand/member-center-background-v1.svg" mode="aspectFill" />
+<image class="rsv__page-background" src="/assets/backgrounds/deep-glass-v1.webp" mode="aspectFill" />
 
 <view class="ic-page ic-page--tab rsv">
   <view class="rsv__store" hover-class="rsv__field--hover" bindtap="switchStore">

@@ -1,4 +1,4 @@
-<image class="ord__page-background" src="https://assets.inwardclub.com/public/brand/member-center-background-v1.svg" mode="aspectFill" />
+<image class="ord__page-background" src="/assets/backgrounds/deep-glass-v1.webp" mode="aspectFill" />
 
 <view class="ord">
   <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
