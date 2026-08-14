@@ -1,16 +1,7 @@
 <view class="ord">
-  <!-- Custom navigation: store selector left, title centered, no scan-order entry -->
-  <view class="ord__nav" style="padding-top: {{navStatusBar}}px;">
-    <view class="ord__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
-      <view class="ord__nav-store" bindtap="openStoreSheet">
-        <image class="ord__nav-loc" src="/assets/icons/location.svg" mode="aspectFit" />
-        <text class="ord__nav-name ic-ellipsis">{{store.name || '选择门店'}}</text>
-      </view>
-      <text class="ord__nav-title">点餐</text>
-    </view>
-  </view>
+  <ic-page-nav title="点餐" back="{{false}}" left-text="{{store.name || '选择门店'}}" bind:lefttap="openStoreSheet" />
 
-  <view wx:if="{{selectedCoupon}}" class="ord__coupon-tip">
+  <view wx:if="{{selectedCoupon}}" class="ord__coupon-tip ic-glass-recessed">
     <view class="ord__coupon-main">
       <text class="ord__coupon-name">{{selectedCoupon.name}}</text>
       <text class="ord__coupon-desc">{{selectedCoupon.desc}}</text>
@@ -43,7 +34,7 @@
       <block wx:else>
         <view class="ord__group-title">{{activeCatName}}</view>
         <view class="ord__grid">
-          <view class="ord__item" wx:for="{{items}}" wx:key="id" wx:for-item="it">
+          <view class="ord__item ic-glass-recessed" wx:for="{{items}}" wx:key="id" wx:for-item="it">
             <view class="ord__item-img">
               <image wx:if="{{it.imageUrl}}" class="ord__item-pic" src="{{it.imageUrl}}" mode="aspectFill" />
               <view wx:else class="ord__item-ph"><text>{{it.name}}</text></view>
@@ -75,7 +66,7 @@
   </view>
 
   <!-- bottom cart bar -->
-  <view class="ord__cart">
+  <view class="ord__cart ic-glass-recessed">
     <view class="ord__cart-summary" bindtap="openCartSheet" hover-class="ord__cart-summary--hover">
       <view class="ord__cart-icon {{cartCount ? 'is-full' : ''}}">
         <view class="ic-ic ic-ic-bag"></view>

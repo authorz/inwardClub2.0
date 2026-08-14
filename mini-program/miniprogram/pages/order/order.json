@@ -3,7 +3,8 @@
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading",
     "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet",
-    "ic-stepper": "/components/stepper/stepper"
+    "ic-stepper": "/components/stepper/stepper",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
   "navigationStyle": "custom",
   "navigationBarTitleText": "点餐"

@@ -1,7 +1,9 @@
 {
   "usingComponents": {
     "ic-empty": "/components/empty/empty",
-    "ic-loading": "/components/loading/loading"
+    "ic-loading": "/components/loading/loading",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "邀请好友"
 }

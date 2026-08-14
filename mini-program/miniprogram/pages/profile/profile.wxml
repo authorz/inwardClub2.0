@@ -1,5 +1,7 @@
+<ic-page-nav title="个人资料" />
+
 <view class="pf">
-  <view class="pf__section">
+  <view class="pf__section ic-glass-recessed">
     <view class="pf__row pf__row--avatar" hover-class="pf__row--hover" bindtap="chooseAvatar">
       <text class="pf__label">头像</text>
       <view class="pf__avatar">

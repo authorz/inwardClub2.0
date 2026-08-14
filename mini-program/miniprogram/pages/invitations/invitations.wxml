@@ -1,7 +1,9 @@
+<ic-page-nav title="邀请好友" />
+
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{info}}" class="iv">
-  <view class="iv__code-card">
+  <view class="iv__code-card ic-glass-recessed">
     <text class="iv__code-label">我的邀请码</text>
     <view class="iv__code-row">
       <view class="iv__code-main">
@@ -21,7 +23,7 @@
     </button>
   </view>
 
-  <view wx:if="{{info.rules.length}}" class="iv__rules ic-card">
+  <view wx:if="{{info.rules.length}}" class="iv__rules ic-glass-recessed">
     <view class="iv__rule" wx:for="{{info.rules}}" wx:key="title">
       <view class="ic-ic {{item.icon}} ic-ic--sm"></view>
       <view class="iv__rule-main">
@@ -31,7 +33,7 @@
     </view>
   </view>
 
-  <view wx:if="{{!info.inviterBound}}" class="iv__bind ic-card">
+  <view wx:if="{{!info.inviterBound}}" class="iv__bind ic-glass-recessed">
     <view class="iv__bind-copy">
       <text class="iv__bind-title">绑定邀请码</text>
       <text class="iv__bind-desc">填写邀请人的邀请码，绑定后不可更改</text>
@@ -58,7 +60,7 @@
 
   <view class="iv__records">
     <text class="ic-h2 iv__records-title">邀请记录</text>
-    <view class="iv__record ic-card" wx:if="{{info.records.length}}">
+    <view class="iv__record ic-glass-recessed" wx:if="{{info.records.length}}">
       <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">
         <view class="iv__record-avatar">
           <image wx:if="{{item.avatarUrl}}" class="iv__record-avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />

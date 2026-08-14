@@ -1,3 +1,5 @@
+<ic-page-nav title="会员权益" />
+
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{tier}}" class="bf">
@@ -15,7 +17,7 @@
     </view>
   </view>
 
-  <view class="bf__status">
+  <view class="bf__status ic-glass-recessed">
     <view class="bf__status-head">
       <view class="bf__member">
         <text class="bf__label">会员等级</text>

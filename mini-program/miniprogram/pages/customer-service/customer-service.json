@@ -1,8 +1,9 @@
 {
   "usingComponents": {
     "ic-empty": "/components/empty/empty",
-    "ic-loading": "/components/loading/loading"
+    "ic-loading": "/components/loading/loading",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
-  "navigationBarTitleText": "咨询客服",
-  "backgroundColor": "#f5f5f5"
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "咨询客服"
 }

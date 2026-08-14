@@ -1,5 +1,7 @@
+<ic-page-nav title="排行榜" />
+
 <view class="rk">
-  <view class="rk__seg">
+  <view class="rk__seg ic-glass-recessed">
     <ic-segmented options="{{scopeOptions}}" value="{{scope}}" variant="pill" bind:change="onScopeChange" />
   </view>
 
@@ -7,7 +9,7 @@
 
   <block wx:elif="{{board}}">
     <block wx:if="{{board.hasEntries}}">
-    <view class="rk__arena">
+    <view class="rk__arena ic-glass-recessed">
       <view class="rk__arena-head">
         <view>
           <text class="rk__arena-title">{{board.scopeLabel}}巅峰榜</text>
@@ -41,7 +43,7 @@
       </view>
     </view>
 
-    <view wx:if="{{board.myRank}}" class="rk__chase">
+    <view wx:if="{{board.myRank}}" class="rk__chase ic-glass-recessed">
       <view class="rk__chase-main">
         <view class="rk__me-avatar">
           <image wx:if="{{board.myAvatarUrl}}" class="rk__avatar-img" src="{{board.myAvatarUrl}}" mode="aspectFill" />
@@ -70,12 +72,12 @@
       </view>
     </view>
 
-    <view wx:elif="{{loggedIn}}" class="rk__chase rk__chase--outside">
+    <view wx:elif="{{loggedIn}}" class="rk__chase rk__chase--outside ic-glass-recessed">
       <text class="rk__outside-title">暂未进入前 50 名</text>
       <text class="rk__outside-sub">使用微信完成充值或消费即可获得成长值</text>
     </view>
 
-    <view wx:else class="rk__login-note">
+    <view wx:else class="rk__login-note ic-glass-recessed">
       <text>登录后可查看自己的实时名次与冲榜差距</text>
     </view>
 
@@ -87,7 +89,7 @@
       <text class="rk__count-tag">当前上榜 {{board.total}} 人</text>
     </view>
 
-    <view class="rk__list">
+    <view class="rk__list ic-glass-recessed">
       <view class="rk__row {{item.isMe ? 'is-me' : ''}}" wx:for="{{board.list}}" wx:key="rank">
         <view class="rk__rank-wrap">
           <text class="rk__rank">{{item.rankText}}</text>

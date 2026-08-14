@@ -585,3 +585,81 @@
 .tone-3 { background: #f0f0f0; }
 .tone-4 { background: #e5e5e5; }
 .tone-5 { background: #ededed; }
+
+/* Dark-background glass treatment. Podium medal colors stay semantic. */
+.rk {
+  min-height: calc(100vh - 88rpx);
+  background: transparent;
+}
+
+.rk__seg {
+  margin-bottom: 24rpx;
+  padding: 16rpx 18rpx;
+}
+
+.rk__arena,
+.rk__chase,
+.rk__login-note,
+.rk__list {
+  background: rgba(168, 180, 198, 0.18);
+}
+
+.rk__chase {
+  margin-top: 24rpx;
+}
+
+.rk__arena-title,
+.rk__arena-value,
+.rk__podium-name,
+.rk__podium-score,
+.rk__outside-title,
+.rk__chase-rank,
+.rk__goal-value,
+.rk__list-title,
+.rk__name,
+.rk__rank-arrow,
+.rk__score,
+.rk__empty-title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.rk__arena-sub,
+.rk__arena-label,
+.rk__podium-unit,
+.rk__outside-sub,
+.rk__login-note,
+.rk__chase-kicker,
+.rk__chase-score,
+.rk__goal-label,
+.rk__list-sub,
+.rk__rank,
+.rk__gap,
+.rk__foot,
+.rk__empty-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.rk__list {
+  padding: 6rpx 26rpx;
+}
+
+.rk__row {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.rk__row.is-me {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rk__count-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.rk__progress {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.rk__progress-value {
+  background: rgba(255, 255, 255, 0.86);
+}

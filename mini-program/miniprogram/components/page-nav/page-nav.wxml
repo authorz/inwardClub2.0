@@ -1,0 +1,15 @@
+<view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
+  <view class="page-nav__bar" style="height: {{contentHeight}}px; padding-left: {{sideGap}}px; padding-right: {{sideGap}}px;">
+    <view wx:if="{{back}}" class="page-nav__back" bindtap="onBack" hover-class="page-nav__back--pressed" aria-role="button" aria-label="返回">
+      <view class="page-nav__back-icon"></view>
+    </view>
+    <view wx:elif="{{leftText}}" class="page-nav__left page-nav__left--action" bindtap="onLeftTap" hover-class="page-nav__left--pressed" aria-role="button" aria-label="切换门店 {{leftText}}">
+      <image class="page-nav__left-icon" src="/assets/icons/location.svg" mode="aspectFit"></image>
+      <text class="page-nav__left-text">{{leftText}}</text>
+    </view>
+    <view wx:else class="page-nav__left">
+      <slot name="left"></slot>
+    </view>
+    <text class="page-nav__title">{{title}}</text>
+  </view>
+</view>

@@ -1,4 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "ic-page-nav": "/components/page-nav/page-nav"
+  },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "个人资料"
 }

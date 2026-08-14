@@ -1,18 +1,18 @@
-.pf { min-height: 100vh; background: var(--ic-white); padding-bottom: calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.pf__section { padding: 0 32rpx; border-top: 1rpx solid var(--ic-line); border-bottom: 1rpx solid var(--ic-line); }
-.pf__row { display: flex; align-items: center; gap: 20rpx; min-height: 112rpx; border-bottom: 1rpx solid var(--ic-line); }
+.pf { min-height: calc(100vh - 88rpx); background: transparent; padding: 32rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.pf__section { padding: 12rpx 32rpx; }
+.pf__row { display: flex; align-items: center; gap: 20rpx; min-height: 112rpx; border-bottom: 1rpx solid rgba(255, 255, 255, 0.12); }
 .pf__row--avatar { min-height: 144rpx; }
 .pf__row--last { border-bottom: none; }
 .pf__row--hover { opacity: 0.7; }
-.pf__label { font-size: 26rpx; color: var(--ic-text); flex: none; }
-.pf__value { flex: 1; text-align: right; font-size: 26rpx; color: var(--ic-black); }
-.pf__hint { flex: 1; text-align: right; font-size: 24rpx; color: var(--ic-text-3); }
-.pf__input { flex: 1; text-align: right; font-size: 26rpx; color: var(--ic-black); }
-.pf__ph { color: var(--ic-text-4); }
+.pf__label { font-size: 26rpx; color: rgba(255, 255, 255, 0.82); flex: none; }
+.pf__value { flex: 1; text-align: right; font-size: 26rpx; color: rgba(255, 255, 255, 0.94); }
+.pf__hint { flex: 1; text-align: right; font-size: 24rpx; color: rgba(255, 255, 255, 0.52); }
+.pf__input { flex: 1; text-align: right; font-size: 26rpx; color: rgba(255, 255, 255, 0.94); }
+.pf__ph { color: rgba(255, 255, 255, 0.4); }
 .pf__phone-number { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf__phone-button { flex: none; min-width: 104rpx; height: 56rpx; margin: 0; padding: 0 20rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 8rpx; background: var(--ic-white); color: var(--ic-text); font-size: 22rpx; line-height: 54rpx; }
+.pf__phone-button { flex: none; min-width: 104rpx; height: 56rpx; margin: 0; padding: 0 20rpx; border: 1rpx solid rgba(255, 255, 255, 0.28); border-radius: 999rpx; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.9); font-size: 22rpx; line-height: 54rpx; }
 .pf__phone-button::after { border: none; }
-.pf__phone-button--hover { background: var(--ic-bg-soft); }
+.pf__phone-button--hover { background: rgba(255, 255, 255, 0.18); }
 .pf__phone-button--loading { opacity: 0.55; }
 .pf__picker { flex: 1; min-width: 0; }
 .pf__picker-value { min-height: 72rpx; display: flex; align-items: center; justify-content: flex-end; }
@@ -20,8 +20,8 @@
 .pf__avatar { width: 88rpx; height: 88rpx; border-radius: 50%; overflow: hidden; background: #111; }
 .pf__avatar-img { width: 100%; height: 100%; }
 .pf__avatar-ph { width: 100%; height: 100%; background: linear-gradient(160deg, #444, #111); }
-.pf__note { display: block; margin: 24rpx 32rpx; font-size: 22rpx; color: var(--ic-text-3); }
-.pf__save { display: flex; margin: 40rpx 32rpx 0; box-sizing: border-box; }
+.pf__note { display: block; margin: 24rpx 12rpx; font-size: 22rpx; color: rgba(255, 255, 255, 0.5); }
+.pf__save { display: flex; margin: 40rpx 8rpx 0; box-sizing: border-box; }
 .pf__save-btn {
   flex: 1;
   width: 100% !important;

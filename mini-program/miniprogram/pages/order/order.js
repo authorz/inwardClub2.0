@@ -32,10 +32,6 @@ Page({
     stores: [],
     showStoreSheet: false,
     showCartSheet: false,
-    // custom navigation metrics (px)
-    navStatusBar: 20,
-    navContentHeight: 44,
-    navRightGap: 96,
   },
 
   onLoad() {
@@ -43,7 +39,6 @@ Page({
     this._catalogRequestId = 0;
     this._itemRequestId = 0;
     this._catalogStoreId = '';
-    this.measureNav();
     this.load();
   },
 
@@ -72,23 +67,6 @@ Page({
       wx.removeStorageSync(SELECTED_COUPON_KEY);
     } catch {}
     this.setData({ selectedCoupon: null });
-  },
-
-  // Size the custom nav bar to the status bar + WeChat capsule button.
-  measureNav() {
-    try {
-      const win = wx.getWindowInfo();
-      const cap = wx.getMenuButtonBoundingClientRect();
-      const statusBar = win.statusBarHeight || 20;
-      const gap = Math.max(cap.top - statusBar, 4);
-      this.setData({
-        navStatusBar: statusBar,
-        navContentHeight: cap.height + gap * 2,
-        navRightGap: Math.max(win.windowWidth - cap.left + 8, 96),
-      });
-    } catch {
-      /* keep defaults */
-    }
   },
 
   load() {

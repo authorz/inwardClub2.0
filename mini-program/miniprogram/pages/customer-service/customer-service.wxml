@@ -1,3 +1,5 @@
+<ic-page-nav title="咨询客服" />
+
 <ic-loading wx:if="{{loading}}" show text="正在匹配最近门店" />
 
 <view wx:elif="{{store}}" class="cs">
@@ -7,7 +9,7 @@
     <text class="cs__subtitle">当前门店客服将为你提供帮助</text>
   </view>
 
-  <view class="cs__store">
+  <view class="cs__store ic-glass-recessed">
     <view class="cs__store-logo-wrap">
       <image
         class="cs__store-logo"
@@ -22,7 +24,7 @@
     <text wx:if="{{distanceText}}" class="cs__distance">距您 {{distanceText}}</text>
   </view>
 
-  <view class="cs__section cs__qr-section">
+  <view class="cs__section cs__qr-section ic-glass-recessed">
     <text class="cs__section-title">客服微信</text>
     <text class="cs__section-desc">点击二维码可放大查看，长按可识别或保存</text>
     <view wx:if="{{store.customerServiceQrUrl}}" class="cs__qr-wrap" bindtap="onPreviewQR">
@@ -39,7 +41,7 @@
     </view>
   </view>
 
-  <view class="cs__section cs__phone-section">
+  <view class="cs__section cs__phone-section ic-glass-recessed">
     <text class="cs__section-title">电话联系</text>
     <view class="cs__phone-row" bindtap="onCopyPhone">
       <view class="ic-ic ic-ic-phone cs__phone-icon"></view>

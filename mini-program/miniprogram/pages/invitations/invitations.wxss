@@ -1,14 +1,14 @@
-.iv { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.iv { min-height: calc(100vh - 88rpx); background: transparent; padding: 28rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 
-.iv__code-card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 40rpx 32rpx; }
-.iv__code-label { font-size: 22rpx; color: var(--ic-text-3); }
+.iv__code-card { padding: 40rpx 32rpx; }
+.iv__code-label { font-size: 22rpx; color: rgba(255, 255, 255, 0.58); }
 .iv__code-row { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; margin-top: 8rpx; }
 .iv__code-main { display: flex; align-items: center; flex: 1; min-width: 0; }
-.iv__code { font-size: 30rpx; font-weight: 700; color: var(--ic-black); letter-spacing: 6rpx; font-variant-numeric: tabular-nums; }
+.iv__code { font-size: 30rpx; font-weight: 700; color: rgba(255, 255, 255, 0.96); letter-spacing: 6rpx; font-variant-numeric: tabular-nums; }
 .iv__copy { width: 88rpx; height: 88rpx; margin-left: -8rpx; display: flex; align-items: center; justify-content: center; color: var(--ic-text-2); }
 .iv__invited { flex: none; min-width: 128rpx; display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
-.iv__invited-num { font-size: 30rpx; line-height: 1; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
-.iv__invited-label { font-size: 22rpx; color: var(--ic-text-3); }
+.iv__invited-num { font-size: 30rpx; line-height: 1; font-weight: 700; color: rgba(255, 255, 255, 0.96); font-variant-numeric: tabular-nums; }
+.iv__invited-label { font-size: 22rpx; color: rgba(255, 255, 255, 0.58); }
 .iv__share {
   width: 100%;
   height: 88rpx;
@@ -19,16 +19,16 @@
 .iv__share-ico { color: #fff; margin-right: 12rpx; }
 
 .iv__rules { margin-top: 24rpx; padding: 8rpx 32rpx; }
-.iv__rule { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.iv__rule { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 0; border-bottom: 1rpx solid rgba(255, 255, 255, 0.12); }
 .iv__rule:last-child { border-bottom: none; }
 .iv__rule-main { display: flex; flex-direction: column; gap: 6rpx; }
-.iv__rule-title { font-size: 26rpx; color: var(--ic-black); }
-.iv__rule-desc { font-size: 22rpx; color: var(--ic-text-3); }
+.iv__rule-title { font-size: 26rpx; color: rgba(255, 255, 255, 0.92); }
+.iv__rule-desc { font-size: 22rpx; color: rgba(255, 255, 255, 0.56); }
 
 .iv__bind { margin-top: 24rpx; padding: 32rpx; }
 .iv__bind-copy { display: flex; flex-direction: column; gap: 8rpx; }
-.iv__bind-title { font-size: 26rpx; font-weight: 600; color: var(--ic-black); }
-.iv__bind-desc { font-size: 22rpx; color: var(--ic-text-3); }
+.iv__bind-title { font-size: 26rpx; font-weight: 600; color: rgba(255, 255, 255, 0.94); }
+.iv__bind-desc { font-size: 22rpx; color: rgba(255, 255, 255, 0.56); }
 .iv__bind-row { display: flex; align-items: center; gap: 16rpx; margin-top: 24rpx; }
 .iv__bind-input {
   flex: 1;
@@ -38,11 +38,12 @@
   padding: 0 24rpx;
   box-sizing: border-box;
   border-radius: 12rpx;
-  background: var(--ic-fill);
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 8, 12, 0.22);
   font-size: 24rpx;
-  color: var(--ic-black);
+  color: rgba(255, 255, 255, 0.94);
 }
-.iv__bind-placeholder { color: var(--ic-text-3); }
+.iv__bind-placeholder { color: rgba(255, 255, 255, 0.42); }
 .iv__bind-btn {
   flex: 0 0 128rpx;
   width: 128rpx;
@@ -54,13 +55,13 @@
 }
 
 .iv__records { margin-top: 32rpx; }
-.iv__records-title { display: block; padding: 0 8rpx 20rpx; }
+.iv__records-title { display: block; padding: 0 8rpx 20rpx; color: rgba(255, 255, 255, 0.9); }
 .iv__record { padding: 0 32rpx; }
-.iv__record-row { display: flex; align-items: center; gap: 20rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
+.iv__record-row { display: flex; align-items: center; gap: 20rpx; padding: 28rpx 0; border-bottom: 1rpx solid rgba(255, 255, 255, 0.12); }
 .iv__record-row:last-child { border-bottom: none; }
 .iv__record-avatar { flex: none; width: 72rpx; height: 72rpx; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--ic-black); }
 .iv__record-avatar-img { width: 100%; height: 100%; }
 .iv__record-avatar-text { font-size: 24rpx; font-weight: 600; color: var(--ic-white); }
 .iv__record-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
-.iv__record-name { font-size: 26rpx; color: var(--ic-black); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iv__record-date { font-size: 22rpx; color: var(--ic-text-3); }
+.iv__record-name { font-size: 26rpx; color: rgba(255, 255, 255, 0.92); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iv__record-date { font-size: 22rpx; color: rgba(255, 255, 255, 0.54); }

@@ -1,6 +1,8 @@
 {
   "usingComponents": {
-    "ic-loading": "/components/loading/loading"
+    "ic-loading": "/components/loading/loading",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "会员权益"
 }

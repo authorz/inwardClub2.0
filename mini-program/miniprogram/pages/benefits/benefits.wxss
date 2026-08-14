@@ -1,8 +1,8 @@
 .bf {
-  min-height: 100vh;
+  min-height: calc(100vh - 88rpx);
   padding: 28rpx 36rpx calc(52rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-  background: var(--ic-white);
+  background: transparent;
 }
 
 /* 会员身份面只保留品牌 LOGO 与 VIP 等级。 */
@@ -74,17 +74,17 @@
   font-variant-numeric: tabular-nums;
 }
 
-.bf__status { padding: 34rpx 4rpx 38rpx; }
+.bf__status { margin-top: 28rpx; padding: 36rpx 32rpx 38rpx; }
 .bf__status-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28rpx; }
 .bf__member { min-width: 0; }
-.bf__label { display: block; font-size: 22rpx; line-height: 1.4; color: var(--ic-text-3); }
+.bf__label { display: block; font-size: 22rpx; line-height: 1.4; color: rgba(255, 255, 255, 0.62); }
 .bf__member-line { display: flex; align-items: center; gap: 12rpx; margin-top: 8rpx; min-width: 0; }
-.bf__member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34rpx; font-weight: 650; line-height: 1.25; color: var(--ic-black); }
-.bf__member-vip { flex: none; padding: 3rpx 9rpx; border: 1rpx solid var(--ic-black); border-radius: 5rpx; color: var(--ic-black); font-size: 17rpx; font-weight: 650; line-height: 1.25; }
+.bf__member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34rpx; font-weight: 650; line-height: 1.25; color: rgba(255, 255, 255, 0.96); }
+.bf__member-vip { flex: none; padding: 3rpx 9rpx; border: 1rpx solid rgba(255, 255, 255, 0.72); border-radius: 5rpx; color: rgba(255, 255, 255, 0.9); font-size: 17rpx; font-weight: 650; line-height: 1.25; }
 .bf__growth-value { flex: none; text-align: right; }
-.bf__growth-num { display: block; margin-top: 4rpx; font-size: 38rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); font-variant-numeric: tabular-nums; }
-.bf__bar { height: 10rpx; margin-top: 28rpx; overflow: hidden; border-radius: 999rpx; background: var(--ic-fill); }
-.bf__bar-fill { height: 100%; border-radius: 999rpx; background: var(--ic-black); }
+.bf__growth-num { display: block; margin-top: 4rpx; font-size: 38rpx; font-weight: 700; line-height: 1.2; color: rgba(255, 255, 255, 0.96); font-variant-numeric: tabular-nums; }
+.bf__bar { height: 10rpx; margin-top: 28rpx; overflow: hidden; border-radius: 999rpx; background: rgba(255, 255, 255, 0.14); }
+.bf__bar-fill { height: 100%; border-radius: 999rpx; background: rgba(255, 255, 255, 0.88); }
 .bf__growth-foot { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; margin-top: 12rpx; }
-.bf__growth-hint, .bf__growth-target { font-size: 20rpx; line-height: 1.4; color: var(--ic-text-3); }
+.bf__growth-hint, .bf__growth-target { font-size: 20rpx; line-height: 1.4; color: rgba(255, 255, 255, 0.58); }
 .bf__growth-target { flex: none; font-variant-numeric: tabular-nums; }
