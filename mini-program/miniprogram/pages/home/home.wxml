@@ -18,7 +18,14 @@
         <view class="mine__ident">
           <view class="mine__nameline">
             <text class="mine__name">{{me.nickname || '会员'}}</text>
-            <text wx:if="{{me.tierShort}}" class="mine__tier">{{me.tierShort}}</text>
+            <view
+              wx:if="{{me.tierShort}}"
+              class="mine__tier"
+              hover-class="mine__tier--hover"
+              catchtap="goBenefits"
+              aria-role="button"
+              aria-label="查看会员权益"
+            >{{me.tierShort}}</view>
           </view>
           <view class="mine__invite" catchtap="copyInvite">
             <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>

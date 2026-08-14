@@ -174,6 +174,9 @@ Page({
   goProfile() {
     this.requireLogin(() => wx.navigateTo({ url: '/pages/profile/profile' }));
   },
+  goBenefits() {
+    this.requireLogin(() => wx.navigateTo({ url: '/pages/benefits/benefits' }));
+  },
   copyInvite() {
     if (this.data.me.inviteCode) ui.copy(this.data.me.inviteCode, '邀请码已复制');
   },
