@@ -28,7 +28,7 @@
     <view class="tk__carousel">
       <view class="tk__stack">
         <view
-          class="tk__pass {{item.usable ? '' : 'is-dim'}} {{item.ticketIndex === dragTicketIndex && isTicketDragging ? 'is-dragging' : ''}} {{item.ticketIndex === dragTicketIndex && !isTicketDragging ? 'is-settling' : ''}}"
+          class="tk__pass {{item.usable ? '' : 'is-dim'}} {{isTicketEntering ? 'is-entering' : ''}} {{item.ticketIndex === dragTicketIndex && isTicketDragging ? 'is-dragging' : ''}} {{item.ticketIndex === dragTicketIndex && !isTicketDragging ? 'is-settling' : ''}}"
           wx:for="{{layers}}"
           wx:key="id"
           data-id="{{item.id}}"
@@ -38,7 +38,7 @@
           catchtouchmove="onTicketTouchMove"
           bindtouchend="onTicketTouchEnd"
           bindtouchcancel="onTicketTouchCancel"
-          style="top: {{item.stackTop}}rpx; z-index: {{item.ticketIndex === dragTicketIndex ? list.length + 2 : item.stackZ}}; transform: translate3d(0, {{item.ticketIndex === dragTicketIndex ? dragOffset : 0}}px, 0);"
+          style="top: {{item.stackTop}}rpx; z-index: {{item.ticketIndex === dragTicketIndex ? list.length + 2 : item.stackZ}}; transform: translate3d(0, {{item.ticketIndex === dragTicketIndex ? dragOffset : 0}}px, 0); animation-delay: {{item.entranceDelay}}ms;"
           role="button"
           aria-label="{{item.ticketIndex === currentTicketIndex ? '打开' : '选择'}}{{item.title}}，{{item.statusLabel}}"
         >

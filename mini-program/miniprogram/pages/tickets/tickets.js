@@ -10,10 +10,16 @@ const TICKET_STACK_STEP_RPX = 116;
 const TICKET_SWIPE_THRESHOLD_PX = 48;
 const TICKET_SWIPE_EXIT_PX = 520;
 const TICKET_SWIPE_DURATION_MS = 280;
+const TICKET_ENTRANCE_DURATION_MS = 460;
+const TICKET_ENTRANCE_STAGGER_MS = 72;
+const TICKET_ENTRANCE_MAX_STAGGER_MS = 280;
 
 function buildTicketLayers(list, activeIndex) {
   const activeTicket = list[activeIndex];
   if (!activeTicket) return [];
+  const entranceStep = list.length > 1
+    ? Math.min(TICKET_ENTRANCE_STAGGER_MS, Math.floor(TICKET_ENTRANCE_MAX_STAGGER_MS / (list.length - 1)))
+    : 0;
   return list
     .filter((ticket) => ticket.ticketIndex !== activeTicket.ticketIndex)
     .concat(activeTicket)
@@ -21,6 +27,7 @@ function buildTicketLayers(list, activeIndex) {
       ...ticket,
       stackTop: stackIndex * TICKET_STACK_STEP_RPX,
       stackZ: stackIndex + 1,
+      entranceDelay: stackIndex * entranceStep,
     }));
 }
 
@@ -57,6 +64,7 @@ Page({
     dragTicketIndex: -1,
     dragOffset: 0,
     isTicketDragging: false,
+    isTicketEntering: false,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -83,28 +91,50 @@ Page({
           usable: bucketOf(t.status) === 'pending',
         }));
         this.setData({ all, loading: false });
-        this.applyFilter();
+        this.applyFilter(true);
       })
       .catch(() => this.setData({ loading: false }));
   },
 
   onStatusChange(e) {
     this.setData({ bucket: e.detail.value });
-    this.applyFilter();
+    this.applyFilter(false);
   },
 
-  applyFilter() {
+  applyFilter(playEntrance) {
+    if (this._ticketEntranceTimer) {
+      clearTimeout(this._ticketEntranceTimer);
+      this._ticketEntranceTimer = null;
+    }
     const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
     const indexedTickets = list.map((ticket, ticketIndex) => ({ ...ticket, ticketIndex }));
     const currentTicketIndex = Math.max(list.length - 1, 0);
+    const layers = buildTicketLayers(indexedTickets, currentTicketIndex);
+    const isTicketEntering = Boolean(playEntrance && layers.length);
     this.setData({
       list: indexedTickets,
-      layers: buildTicketLayers(indexedTickets, currentTicketIndex),
+      layers,
       currentTicketIndex,
       dragTicketIndex: -1,
       dragOffset: 0,
       isTicketDragging: false,
+      isTicketEntering,
+    }, () => {
+      if (!isTicketEntering) return;
+      const lastDelay = layers[layers.length - 1].entranceDelay;
+      this._ticketEntranceTimer = setTimeout(() => {
+        this._ticketEntranceTimer = null;
+        this.setData({ isTicketEntering: false });
+      }, TICKET_ENTRANCE_DURATION_MS + lastDelay);
     });
+  },
+
+  finishTicketEntrance() {
+    if (this._ticketEntranceTimer) {
+      clearTimeout(this._ticketEntranceTimer);
+      this._ticketEntranceTimer = null;
+    }
+    if (this.data.isTicketEntering) this.setData({ isTicketEntering: false });
   },
 
   activateTicket(index) {
@@ -120,6 +150,7 @@ Page({
 
   onTicketTouchStart(e) {
     if (this._ticketSettleTimer || this.data.list.length < 2) return;
+    this.finishTicketEntrance();
     const touch = e.touches && e.touches[0];
     const index = Number(e.currentTarget.dataset.index);
     if (!touch || !Number.isInteger(index)) return;
@@ -176,6 +207,7 @@ Page({
 
   onTicketTap(e) {
     if (this._suppressTicketTapUntil && Date.now() < this._suppressTicketTapUntil) return;
+    this.finishTicketEntrance();
     const index = Number(e.currentTarget.dataset.index);
     if (!Number.isInteger(index) || index < 0 || index >= this.data.list.length) return;
     if (index === this.data.currentTicketIndex) {
@@ -234,6 +266,7 @@ Page({
 
   onUnload() {
     if (this._ticketSettleTimer) clearTimeout(this._ticketSettleTimer);
+    if (this._ticketEntranceTimer) clearTimeout(this._ticketEntranceTimer);
     if (this.data.showCodeModal) {
       wx.setKeepScreenOn && wx.setKeepScreenOn({ keepScreenOn: false });
     }
