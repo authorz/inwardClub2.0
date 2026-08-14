@@ -37,6 +37,17 @@
     inset 0 1rpx 2rpx rgba(255, 255, 255, 0.42),
     inset 0 -1rpx 2rpx rgba(0, 0, 0, 0.1);
 }
+.mine__glass::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 20rpx;
+  left: 20rpx;
+  height: 48rpx;
+  border-radius: 24rpx 24rpx 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
 
 /* ---- profile ---- */
 .mine__summary { padding: 12rpx 6rpx 20rpx; }
@@ -162,8 +173,6 @@
   z-index: 1;
   display: flex;
   flex-wrap: wrap;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.14);
-  border-bottom: 1rpx solid rgba(255, 255, 255, 0.14);
 }
 .mine__service-item {
   width: 33.333%;
