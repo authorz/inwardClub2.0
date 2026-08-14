@@ -246,10 +246,48 @@ func (r *sqlRepository) CreateReservation(
 			return apperr.Internal(err)
 		}
 
+		var tableStoreID int64
+		var tableStatus string
+		queryErr = tx.QueryRowContext(ctx,
+			`SELECT store_id, status FROM tables WHERE id = ? FOR UPDATE`,
+			*res.TableID,
+		).Scan(&tableStoreID, &tableStatus)
+		if errors.Is(queryErr, sql.ErrNoRows) {
+			return apperr.NotFound("table not found")
+		}
+		if queryErr != nil {
+			return apperr.Internal(queryErr)
+		}
+		if tableStoreID != res.StoreID {
+			return apperr.Invalid("table does not belong to store")
+		}
+		if tableStatus != AvailabilityAvailable {
+			return apperr.Conflict("该桌暂不可预约")
+		}
+
 		if res.SeatID == nil {
-			var err error
-			id, err = insertReservation(ctx, tx, res)
-			return err
+			var seatID int64
+			queryErr = tx.QueryRowContext(ctx,
+				`SELECT s.id
+				 FROM seats s
+				 WHERE s.store_id = ? AND s.table_id = ? AND s.status = ?
+				   AND NOT EXISTS (
+				     SELECT 1 FROM reservations r
+				     WHERE r.seat_id = s.id AND r.status IN (?, ?)
+				       AND r.created_at >= ? AND r.created_at < ?
+				   )
+				 ORDER BY s.id ASC
+				 LIMIT 1 FOR UPDATE`,
+				res.StoreID, *res.TableID, AvailabilityAvailable,
+				StatusBooked, StatusArrived, dailyStart.UTC(), dailyEnd.UTC(),
+			).Scan(&seatID)
+			if errors.Is(queryErr, sql.ErrNoRows) {
+				return apperr.Conflict("该桌暂时没有空位")
+			}
+			if queryErr != nil {
+				return apperr.Internal(queryErr)
+			}
+			res.SeatID = &seatID
 		}
 
 		var seatStoreID int64
@@ -277,8 +315,12 @@ func (r *sqlRepository) CreateReservation(
 
 		var occupied bool
 		if err := tx.QueryRowContext(ctx,
-			`SELECT EXISTS(SELECT 1 FROM reservations WHERE seat_id = ? AND status IN (?, ?))`,
-			*res.SeatID, StatusBooked, StatusArrived,
+			`SELECT EXISTS(
+				SELECT 1 FROM reservations
+				WHERE seat_id = ? AND status IN (?, ?)
+				  AND created_at >= ? AND created_at < ?
+			)`,
+			*res.SeatID, StatusBooked, StatusArrived, dailyStart.UTC(), dailyEnd.UTC(),
 		).Scan(&occupied); err != nil {
 			return apperr.Internal(err)
 		}

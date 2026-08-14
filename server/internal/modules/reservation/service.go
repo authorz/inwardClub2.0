@@ -148,9 +148,6 @@ func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64,
 	if req.TableID == nil || *req.TableID <= 0 {
 		return ReservationView{}, apperr.Invalid("tableId is required")
 	}
-	if req.SeatID == nil || *req.SeatID <= 0 {
-		return ReservationView{}, apperr.Invalid("seatId is required")
-	}
 	dailyStart, dailyEnd := s.reservationDay()
 	exists, err := s.repo.HasMemberReservation(ctx, memberID, dailyStart, dailyEnd)
 	if err != nil {
@@ -166,8 +163,11 @@ func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64,
 		MemberID:      memberID,
 		BookedAsGuest: bookedAsGuest,
 		TableID:       req.TableID,
-		SeatID:        req.SeatID,
-		PartySize:     req.PartySize,
+		// Seat selection is no longer exposed to members. Keep the request field
+		// backward-compatible, but always let the repository allocate a current
+		// free seat atomically so stale clients cannot submit an occupied seat.
+		SeatID:    nil,
+		PartySize: req.PartySize,
 		// reserved_at is retained for schema/API compatibility. A seat booking has
 		// no member-selected arrival time; it mirrors the server creation time.
 		ReservedAt: now,
@@ -180,8 +180,11 @@ func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64,
 	if err != nil {
 		return ReservationView{}, err
 	}
-	res.ID = id
-	return reservationView(res), nil
+	persisted, err := s.repo.GetReservation(ctx, id)
+	if err != nil {
+		return ReservationView{}, err
+	}
+	return reservationView(persisted), nil
 }
 
 func (s *Service) reservationDay() (time.Time, time.Time) {

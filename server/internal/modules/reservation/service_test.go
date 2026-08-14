@@ -115,10 +115,37 @@ func (r *memRepo) CreateReservation(
 	if exists, _ := r.HasMemberReservation(context.Background(), res.MemberID, dailyStart, dailyEnd); exists {
 		return 0, apperr.Conflict("你今天已经预约座位了")
 	}
+	if res.SeatID == nil {
+		for i := range r.seats {
+			seat := r.seats[i]
+			if seat.StoreID != res.StoreID || seat.TableID == nil || res.TableID == nil ||
+				*seat.TableID != *res.TableID || seat.Status != AvailabilityAvailable {
+				continue
+			}
+			occupied := false
+			for _, existing := range r.reservations {
+				if existing.SeatID != nil && *existing.SeatID == seat.ID &&
+					(existing.Status == StatusBooked || existing.Status == StatusArrived) &&
+					!existing.CreatedAt.Before(dailyStart) && existing.CreatedAt.Before(dailyEnd) {
+					occupied = true
+					break
+				}
+			}
+			if !occupied {
+				seatID := seat.ID
+				res.SeatID = &seatID
+				break
+			}
+		}
+		if res.SeatID == nil {
+			return 0, apperr.Conflict("该桌暂时没有空位")
+		}
+	}
 	if res.SeatID != nil {
 		for _, existing := range r.reservations {
 			if existing.SeatID != nil && *existing.SeatID == *res.SeatID &&
-				(existing.Status == StatusBooked || existing.Status == StatusArrived) {
+				(existing.Status == StatusBooked || existing.Status == StatusArrived) &&
+				!existing.CreatedAt.Before(dailyStart) && existing.CreatedAt.Before(dailyEnd) {
 				return 0, apperr.Conflict("seat is already reserved")
 			}
 		}
@@ -187,7 +214,13 @@ func (r *memRepo) ArriveReservation(_ context.Context, reservationID, storeID in
 }
 
 func newTestService() (*Service, *memRepo) {
-	repo := &memRepo{dailyClaims: make(map[string]bool)}
+	tableID := int64(1)
+	repo := &memRepo{
+		dailyClaims: make(map[string]bool),
+		seats: []Seat{{
+			ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable,
+		}},
+	}
 	svc := NewService(repo, fakeAssetResolver{}, nil, time.UTC)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
@@ -309,6 +342,8 @@ func validCreateReq() CreateReservationRequest {
 	}
 }
 
+func ptrInt64(value int64) *int64 { return &value }
+
 func TestCreateReservationBooks(t *testing.T) {
 	svc, repo := newTestService()
 	view, err := svc.CreateReservation(context.Background(), 42, validCreateReq())
@@ -352,19 +387,89 @@ func TestCreateGuestReservationPreservesGenericSeatIdentity(t *testing.T) {
 	}
 }
 
-func TestCreateReservationRejectsOccupiedSeat(t *testing.T) {
-	svc, _ := newTestService()
-	seatID := int64(9)
-	first := validCreateReq()
-	first.SeatID = &seatID
-	if _, err := svc.CreateReservation(context.Background(), 42, first); err != nil {
-		t.Fatalf("first reservation: %v", err)
-	}
+func TestCreateReservationIgnoresStaleClientSeatSelection(t *testing.T) {
+	svc, repo := newTestService()
+	tableID := int64(1)
+	repo.seats = append(repo.seats, Seat{
+		ID: 2, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable,
+	})
+	repo.reservations = []Reservation{{
+		ID: 1, StoreID: 1, MemberID: 7, TableID: &tableID, SeatID: ptrInt64(1),
+		Status: StatusBooked, CreatedAt: svc.now().UTC(),
+	}}
+	repo.nextID = 1
 
-	second := validCreateReq()
-	second.SeatID = &seatID
-	if _, err := svc.CreateReservation(context.Background(), 43, second); apperr.From(err).Code != apperr.CodeConflict {
-		t.Fatalf("expected conflict for occupied seat, got %v", err)
+	req := validCreateReq()
+	req.SeatID = ptrInt64(1)
+	view, err := svc.CreateReservation(context.Background(), 42, req)
+	if err != nil {
+		t.Fatalf("create with stale requested seat: %v", err)
+	}
+	if view.SeatID == nil || *view.SeatID != 2 {
+		t.Fatalf("expected automatic assignment to seat 2, got %+v", view.SeatID)
+	}
+}
+
+func TestCreateReservationAutomaticallyAssignsAvailableSeat(t *testing.T) {
+	svc, repo := newTestService()
+	tableID := int64(1)
+	repo.seats = []Seat{
+		{ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable},
+		{ID: 2, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable},
+	}
+	repo.reservations = []Reservation{{
+		ID: 1, StoreID: 1, MemberID: 7, TableID: &tableID, SeatID: ptrInt64(1),
+		Status: StatusBooked, CreatedAt: svc.now().UTC(),
+	}}
+	repo.nextID = 1
+
+	req := validCreateReq()
+	req.SeatID = nil
+	view, err := svc.CreateReservation(context.Background(), 42, req)
+	if err != nil {
+		t.Fatalf("create with automatic seat: %v", err)
+	}
+	if view.SeatID == nil || *view.SeatID != 2 {
+		t.Fatalf("expected seat 2, got %+v", view.SeatID)
+	}
+}
+
+func TestCreateReservationIgnoresOldSeatBooking(t *testing.T) {
+	svc, repo := newTestService()
+	tableID := int64(1)
+	repo.seats = []Seat{{ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable}}
+	repo.reservations = []Reservation{{
+		ID: 1, StoreID: 1, MemberID: 7, TableID: &tableID, SeatID: ptrInt64(1),
+		Status: StatusBooked, CreatedAt: svc.now().Add(-24 * time.Hour),
+	}}
+	repo.nextID = 1
+
+	req := validCreateReq()
+	req.SeatID = nil
+	view, err := svc.CreateReservation(context.Background(), 42, req)
+	if err != nil {
+		t.Fatalf("create with historical booking: %v", err)
+	}
+	if view.SeatID == nil || *view.SeatID != 1 {
+		t.Fatalf("expected historical booking to release seat 1, got %+v", view.SeatID)
+	}
+}
+
+func TestCreateReservationAutomaticAssignmentReturnsFull(t *testing.T) {
+	svc, repo := newTestService()
+	tableID := int64(1)
+	repo.seats = []Seat{{ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable}}
+	repo.reservations = []Reservation{{
+		ID: 1, StoreID: 1, MemberID: 7, TableID: &tableID, SeatID: ptrInt64(1),
+		Status: StatusBooked, CreatedAt: svc.now().UTC(),
+	}}
+
+	req := validCreateReq()
+	req.SeatID = nil
+	_, err := svc.CreateReservation(context.Background(), 42, req)
+	appErr := apperr.From(err)
+	if appErr.Code != apperr.CodeConflict || appErr.Message != "该桌暂时没有空位" {
+		t.Fatalf("unexpected full-table error: code=%s message=%q", appErr.Code, appErr.Message)
 	}
 }
 
@@ -387,10 +492,6 @@ func TestCreateReservationValidation(t *testing.T) {
 		"missing store": {PartySize: 2},
 		"zero party":    {StoreID: 1},
 		"missing table": {StoreID: 1, PartySize: 1},
-		"missing seat": func() CreateReservationRequest {
-			tableID := int64(1)
-			return CreateReservationRequest{StoreID: 1, TableID: &tableID, PartySize: 1}
-		}(),
 	}
 	for name, req := range cases {
 		if _, err := svc.CreateReservation(context.Background(), 1, req); apperr.From(err).Code != apperr.CodeInvalidArgument {

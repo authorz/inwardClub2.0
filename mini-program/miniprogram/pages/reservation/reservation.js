@@ -37,7 +37,7 @@ Page({
     submitting: false,
     cancellingReservationId: '',
     hasDailyReservation: false,
-    selected: null, // { tableId, tableName, seatNo }
+    selected: null, // { tableId, tableName }
     navStatusBar: 20,
     navContentHeight: 44,
     navRightGap: 96,
@@ -206,20 +206,15 @@ Page({
       ui.toast('一天只能预约一个座位');
       return;
     }
-    const target = table.seats.find((seat) => seat.state === 'free');
-    if (!target) {
+    if (!table.canReserve) {
       ui.toast('该桌暂时没有空位');
       return;
     }
     this.clearSelection();
-    target.state = 'selected';
     this.setData({
-      tables,
       selected: {
         tableId: table.id,
         tableName: table.name,
-        seatNo: target.no,
-        seatId: target.seatId,
       },
       showConfirm: true,
     });
@@ -252,18 +247,6 @@ Page({
   },
 
   clearSelection() {
-    const sel = this.data.selected;
-    if (sel) {
-      const tables = this.data.tables;
-      const t = tables.find((x) => x.id === sel.tableId);
-      if (t) {
-        const seat = t.seats.find((s) => s.no === sel.seatNo);
-        if (seat && seat.state === 'selected') {
-          seat.state = 'free';
-        }
-      }
-      this.setData({ tables });
-    }
     this.setData({ selected: null, showConfirm: false });
   },
 
@@ -278,7 +261,6 @@ Page({
 	try {
 	  validation.integer(store && store.id, { label: '门店', min: 1 });
 	  validation.integer(sel.tableId, { label: '桌子', min: 1 });
-	  validation.integer(sel.seatId, { label: '座位', min: 1 });
 	} catch (err) {
 	  ui.toast(err.message);
 	  return;
@@ -290,8 +272,6 @@ Page({
         storeId: store && store.id,
         tableId: sel.tableId,
         tableName: sel.tableName,
-        seatNo: sel.seatNo,
-        seatId: sel.seatId,
       }))
       .then(() => {
         ui.hideLoading();

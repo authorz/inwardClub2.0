@@ -255,7 +255,6 @@ function couponRedemptionBody(data) {
 function reservationBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
-    seatId: d.seatId,
     partySize: d.partySize != null ? d.partySize : 1,
     remark: d.remark != null ? d.remark : '',
   });

@@ -84,7 +84,7 @@
   <view class="rsvc">
     <view class="rsvc__row">
       <view class="ic-ic ic-ic-person ic-ic--sm"></view>
-      <text class="rsvc__val">{{selected.tableName}} · {{selected.seatNo}}号座位</text>
+      <text class="rsvc__val">{{selected.tableName}} · 系统自动分配空闲座位</text>
     </view>
     <view class="ic-divider"></view>
     <view class="rsvc__row">
