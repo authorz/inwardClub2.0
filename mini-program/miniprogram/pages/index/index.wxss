@@ -253,7 +253,9 @@
   z-index: 0;
   width: 58%;
   height: 100%;
-  opacity: 0.48;
+  opacity: 0.72;
+  -webkit-filter: grayscale(1) brightness(0.72) contrast(1.12);
+  filter: grayscale(1) brightness(0.72) contrast(1.12);
 }
 .home__store-panel-copy {
   position: relative;
