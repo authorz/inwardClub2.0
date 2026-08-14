@@ -21,7 +21,7 @@
     </view>
 
     <scroll-view
-      class="ad__scroll"
+      class="ad__scroll {{activity.isExpired ? 'ad__scroll--no-action' : ''}}"
       scroll-y
       enhanced
       show-scrollbar="{{false}}"
@@ -87,9 +87,9 @@
       </view>
     </scroll-view>
 
-    <view class="ad__bar">
+    <view wx:if="{{!activity.isExpired}}" class="ad__bar">
       <button
-        class="ic-btn ic-btn-primary ad__bar-btn {{activity.hasTickets ? '' : 'ic-disabled'}}"
+        class="ic-btn ic-glass-recessed ad__bar-btn {{activity.hasTickets ? '' : 'ic-disabled'}}"
         disabled="{{!activity.hasTickets}}"
         bindtap="openPurchase"
       >立即预约</button>

@@ -5,6 +5,13 @@ const storeCtx = require('../../utils/store-context');
 
 const STATUS_LABEL = { enrolling: '报名中', upcoming: '即将开始', ended: '已结束', soldout: '已售罄' };
 
+function isActivityExpired(activity) {
+  if (!activity) return false;
+  if (activity.status === 'ended') return true;
+  const endAt = activity.endAt ? new Date(activity.endAt).getTime() : NaN;
+  return Number.isFinite(endAt) && endAt <= Date.now();
+}
+
 function displayStoreForActivity(activity, stores) {
   const list = stores || [];
   if (activity.storeId != null) {
@@ -89,6 +96,7 @@ Page({
           lat != null && lng != null
             ? { latitude: Number(lat), longitude: Number(lng), name: storeName, address }
             : null;
+        const isExpired = isActivityExpired(a);
         this.setData({
           loading: false,
           activity: {
@@ -113,6 +121,7 @@ Page({
             purchaseLimitText: purchaseLimit ? `每人限购 ${purchaseLimit} 张` : '不限购',
             tickets,
             hasTickets: tickets.length > 0,
+            isExpired,
           },
           mapPoint,
           minPriceText: min ? min.priceText : '',
@@ -174,7 +183,7 @@ Page({
 
   openPurchase() {
     const a = this.data.activity;
-    if (!a || !a.id || !a.hasTickets) return;
+    if (!a || !a.id || !a.hasTickets || a.isExpired) return;
     wx.navigateTo({ url: `/pages/activity-purchase/activity-purchase?id=${a.id}` });
   },
 });

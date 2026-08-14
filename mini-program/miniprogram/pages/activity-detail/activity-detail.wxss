@@ -11,6 +11,7 @@ page { background: #000; color: rgba(255, 255, 255, 0.88); }
   padding-bottom: calc(152rpx + env(safe-area-inset-bottom));
   background: transparent; box-sizing: border-box;
 }
+.ad__scroll--no-action { padding-bottom: env(safe-area-inset-bottom); }
 .ad__hero-spacer { width: 100%; height: 1000rpx; }
 
 /* Custom navigation stays transparent; scrolling only reveals the title and share action. */
@@ -107,13 +108,34 @@ button.ad__nav-share {
 .ad__bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: center;
-  padding: 18rpx 48rpx calc(18rpx + env(safe-area-inset-bottom));
-  background: #000;
+  padding: 28rpx 48rpx calc(18rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.92) 44%);
 }
 .ad__bar-btn {
   flex: 1; width: 100% !important; height: 104rpx;
   margin-left: 0 !important; margin-right: 0 !important;
-  border: 1rpx solid #fff; border-radius: 999rpx;
-  background: #000; color: var(--ad-text-primary); font-size: 28rpx;
+  border-radius: 999rpx;
+  color: rgba(255, 255, 255, 0.94); font-size: 28rpx;
 }
-.ad__bar-btn.ic-disabled { border-color: #666; background: #333; color: var(--ad-text-muted); }
+.ad__bar-btn.ic-glass-recessed {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(168, 180, 198, 0.2);
+  -webkit-backdrop-filter: blur(40rpx) saturate(155%) brightness(0.98);
+  backdrop-filter: blur(40rpx) saturate(155%) brightness(0.98);
+  box-shadow:
+    inset 0 5rpx 10rpx rgba(4, 7, 11, 0.3),
+    inset 0 -2rpx 3rpx rgba(255, 255, 255, 0.17),
+    inset 1rpx 0 2rpx rgba(0, 0, 0, 0.08),
+    inset -1rpx 0 2rpx rgba(255, 255, 255, 0.06);
+}
+.ad__bar-btn.ic-glass-recessed::before {
+  right: 24rpx;
+  left: 24rpx;
+  height: 42rpx;
+  border-radius: 999rpx 999rpx 45% 45%;
+}
+.ad__bar-btn.ic-disabled {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(168, 180, 198, 0.09);
+  color: rgba(255, 255, 255, 0.46);
+}
