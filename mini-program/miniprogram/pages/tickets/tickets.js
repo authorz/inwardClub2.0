@@ -6,6 +6,10 @@ const ui = require('../../utils/ui');
 const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
+const TICKET_CARD_HEIGHT_RPX = 430;
+const TICKET_STACK_STEP_RPX = 116;
+const TICKET_STACK_BOTTOM_GAP_RPX = 24;
+
 // bucket lifecycle statuses into the three visible tabs
 function bucketOf(status) {
   if (status === 'used') return 'used';
@@ -34,6 +38,7 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
+    stackHeight: 0,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -71,7 +76,11 @@ Page({
   },
 
   applyFilter() {
-    this.setData({ list: this.data.all.filter((t) => t.bucket === this.data.bucket) });
+    const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
+    const stackHeight = list.length
+      ? TICKET_CARD_HEIGHT_RPX + (list.length - 1) * TICKET_STACK_STEP_RPX + TICKET_STACK_BOTTOM_GAP_RPX
+      : 0;
+    this.setData({ list, stackHeight });
   },
 
   showCode(e) {

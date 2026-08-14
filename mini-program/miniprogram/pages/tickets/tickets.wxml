@@ -25,19 +25,26 @@
       <text class="tk__wallet-hint">{{list.length > 1 ? '上下滑动选择' : '轻触票券展开'}}</text>
     </view>
 
-    <view class="tk__stack">
-      <view
-        class="tk__pass {{item.usable ? '' : 'is-dim'}}"
-        wx:for="{{list}}"
-        wx:key="id"
-        data-id="{{item.id}}"
-        bindtap="showCode"
-        hover-class="tk__pass--pressed"
-        hover-stay-time="80"
-        style="z-index: {{index + 1}};"
-        role="button"
-        aria-label="打开{{item.title}}，{{item.statusLabel}}"
-      >
+    <scroll-view
+      class="tk__stack-scroll"
+      scroll-y="{{true}}"
+      enhanced
+      bounces="{{false}}"
+      show-scrollbar="{{false}}"
+    >
+      <view class="tk__stack" style="height: {{stackHeight}}rpx;">
+        <view
+          class="tk__pass {{item.usable ? '' : 'is-dim'}}"
+          wx:for="{{list}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="showCode"
+          hover-class="tk__pass--pressed"
+          hover-stay-time="80"
+          style="top: {{index * 116}}rpx; z-index: {{index + 1}};"
+          role="button"
+          aria-label="打开{{item.title}}，{{item.statusLabel}}"
+        >
         <view class="tk__pass-head tk__pass-head--{{item.tone}}">
           <view class="tk__pass-heading">
             <text class="tk__pass-brand">INWARD CLUB</text>
@@ -79,8 +86,9 @@
             <text>{{item.usable ? '打开入场券' : '查看票券'}}</text>
           </view>
         </view>
+        </view>
       </view>
-    </view>
+    </scroll-view>
   </view>
 </view>
 

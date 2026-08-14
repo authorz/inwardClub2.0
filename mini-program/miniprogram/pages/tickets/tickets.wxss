@@ -13,18 +13,24 @@
   --ic-fill: #151515;
   --ic-fill-2: #1b1b1b;
   --ic-white: #000000;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #000000;
   color: #d2d2d2;
 }
-.tk__seg { padding: 0 24rpx; background: #000000; border-bottom: 1rpx solid #242424; }
+.tk__seg { flex: none; padding: 0 24rpx; background: #000000; border-bottom: 1rpx solid #242424; }
 .tk__empty {
-  min-height: 760rpx;
-  padding: 248rpx 48rpx 160rpx;
+  flex: 1;
+  min-height: 0;
+  padding: 80rpx 48rpx 120rpx;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
 }
 .tk__empty-image { width: 400rpx; height: 400rpx; display: block; opacity: 0.72; }
@@ -45,8 +51,17 @@
   line-height: 72rpx;
 }
 .tk__empty-action--hover { background: #3a3a3a; }
-.tk__wallet { padding: 38rpx 28rpx calc(56rpx + env(safe-area-inset-bottom)); }
+.tk__wallet {
+  flex: 1;
+  min-height: 0;
+  padding: 38rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .tk__wallet-head {
+  flex: none;
   padding: 0 4rpx 26rpx;
   display: flex;
   align-items: baseline;
@@ -54,9 +69,12 @@
 }
 .tk__wallet-count { font-size: 25rpx; line-height: 1.4; font-weight: 600; color: #e8e8e8; }
 .tk__wallet-hint { font-size: 21rpx; line-height: 1.4; color: #929292; }
-.tk__stack { position: relative; }
+.tk__stack-scroll { width: 100%; height: 510rpx; max-height: 100%; flex: none; }
+.tk__stack { position: relative; width: 100%; }
 .tk__pass {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
   height: 430rpx;
   overflow: hidden;
   border-radius: 22rpx;
@@ -65,7 +83,6 @@
   box-shadow: 0 -4rpx 0 rgba(255, 255, 255, 0.16);
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out;
 }
-.tk__pass + .tk__pass { margin-top: -314rpx; }
 .tk__pass.is-dim { filter: saturate(0.25); }
 .tk__pass--pressed { transform: scale(0.99); }
 .tk__pass-head {
