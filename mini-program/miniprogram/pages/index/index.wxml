@@ -16,7 +16,7 @@
         </view>
         <view class="ic-arrow home__nav-store-arrow"></view>
       </view>
-      <image class="home__nav-logo" src="/assets/brand/logo-wordmark.png" mode="heightFix" />
+      <image class="home__nav-logo" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="heightFix" />
     </view>
   </view>
 
@@ -95,7 +95,7 @@
       <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">
         <view class="home__avatar {{loggedIn ? '' : 'home__avatar--guest'}}">
           <image wx:if="{{loggedIn && me.avatarUrl}}" class="home__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
-          <image wx:else class="home__avatar-logo" src="/assets/brand/logo-wordmark.png" mode="aspectFit" />
+          <image wx:else class="home__avatar-logo" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="aspectFit" />
         </view>
 
         <!-- Logged-in: identity and tier are one branch; the guest branch is mutually exclusive. -->

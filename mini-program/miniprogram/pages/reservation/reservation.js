@@ -154,7 +154,7 @@ Page({
       label: SEAT_STATE_LABEL[state] || '',
       style: SEAT_POS[i] || '',
       labelTop: i < 3,
-      avatarUrl: isGuest ? '/assets/brand/logo-wordmark.png' : s.avatarUrl || '',
+      avatarUrl: isGuest ? 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png' : s.avatarUrl || '',
       nickname,
       displayName: isMine ? '我' : nickname || '已预约',
       isMine,

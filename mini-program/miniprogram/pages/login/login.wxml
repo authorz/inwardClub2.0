@@ -1,6 +1,6 @@
 <view class="login-page">
   <view class="login-page__hero">
-    <image class="login-page__logo" src="/assets/brand/logo-wordmark.png" mode="widthFix" />
+    <image class="login-page__logo" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="widthFix" />
     <text class="login-page__title">{{mode === 'login' ? '登录 Inward Club' : mode === 'register' ? '完善会员资料' : '绑定手机号'}}</text>
     <text class="login-page__desc">{{mode === 'login' ? '登录后可使用预约、点餐及会员权益' : mode === 'register' ? '首次登录，请完成以下资料注册会员' : '完成手机号绑定后即可继续使用会员功能'}}</text>
   </view>

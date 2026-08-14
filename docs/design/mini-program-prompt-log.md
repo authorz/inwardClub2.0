@@ -16,7 +16,7 @@
 ### 实现提示词（高保真还原要点）
 - **自定义导航**：`home.js` 中 `measureNav()` 用 `wx.getWindowInfo()` + `wx.getMenuButtonBoundingClientRect()` 计算 `navStatusBar`（状态栏高）、`navContentHeight`（胶囊高 + 上下间距×2）、`navRightGap`（窗口宽 − 胶囊 left + 8，为胶囊留白）。
   - WXML：`.home__nav`（白底，`padding-top = navStatusBar px`）> `.home__nav-bar`（`height = navContentHeight px`，`padding-right = navRightGap px`，左内边距 32rpx）> `.home__nav-logo` image。
-  - logo 资源：`/assets/brand/logo-wordmark.png`（800×353 裁剪 wordmark），`mode="heightFix"`，`height: 52rpx`。
+  - logo 资源：`https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png`（七牛透明静态 PNG），`mode="heightFix"`，`height: 52rpx`。
 - **banner**：保持原彩色 `aspectFill` 图片，无 filter；位于自定义 nav 之后正常流式排布。
 - **入口图标**：改为 `<image class="home__entry-ic" src="/assets/icons/home-*.png" mode="aspectFit" />`，尺寸 48rpx。
   - 资源：`assets/icons/home-ticket.png` / `home-coupon.png` / `home-activity.png`，黑白线性风格（#111 描边、透明背景），用 PIL 生成（避免微信对 SVG 的兼容风险）。
@@ -27,7 +27,7 @@
 - `mini-program/miniprogram/pages/home/home.{json,wxml,wxss,js}`
 - `mini-program/miniprogram/components/store-bar/store-bar.wxss`
 - `mini-program/miniprogram/assets/icons/home-{ticket,coupon,activity}.png`（新增）
-- `mini-program/miniprogram/assets/brand/logo-wordmark.png`（复用）
+- `https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png`（复用）
 
 ---
 

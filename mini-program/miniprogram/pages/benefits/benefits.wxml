@@ -7,7 +7,7 @@
     aria-role="img"
     aria-label="{{tier.currentVer}} {{tier.currentName}}"
   >
-    <image class="bf__identity-logo {{tier.logoClass}}" src="/assets/brand/logo-wordmark.png" mode="aspectFit"></image>
+    <image class="bf__identity-logo {{tier.logoClass}}" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="aspectFit"></image>
     <view class="bf__identity-vip" aria-hidden="true">
       <text class="bf__identity-vip-label">VIP</text>
       <view class="bf__identity-vip-rule"></view>

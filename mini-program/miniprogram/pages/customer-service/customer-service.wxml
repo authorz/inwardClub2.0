@@ -11,7 +11,7 @@
     <view class="cs__store-logo-wrap">
       <image
         class="cs__store-logo"
-        src="{{store.logoUrl || '/assets/brand/logo-wordmark.png'}}"
+        src="{{store.logoUrl || 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png'}}"
         mode="aspectFit"
       />
     </view>
