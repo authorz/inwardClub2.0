@@ -129,6 +129,8 @@ Page({
 
   goDetail(e) {
     const t = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
-    if (t && t.activityId) wx.navigateTo({ url: '/pages/activity-detail/activity-detail?id=' + t.activityId });
+    if (!t || !t.activityId) return;
+    if (this.data.showCodeModal) this.closeCode();
+    wx.navigateTo({ url: '/pages/activity-detail/activity-detail?id=' + t.activityId });
   },
 });

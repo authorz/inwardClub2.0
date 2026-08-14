@@ -19,56 +19,77 @@
     >去探索</navigator>
   </view>
 
-  <view wx:else class="tk__list">
-    <view class="tk__card {{item.usable ? '' : 'is-dim'}}" wx:for="{{list}}" wx:key="id">
-      <view class="tk__poster" data-id="{{item.id}}" bindtap="goDetail">
-        <image wx:if="{{item.imageUrl}}" class="tk__poster-img" src="{{item.imageUrl}}" mode="aspectFit" />
-        <view wx:else class="tk__poster-ph tk__poster-ph--{{item.tone}}">
-          <text class="tk__poster-sub">INWARD CLUB</text>
-          <text class="tk__poster-title">{{item.title}}</text>
+  <view wx:else class="tk__wallet">
+    <view class="tk__wallet-head">
+      <text class="tk__wallet-count">{{list.length}} 张入场券</text>
+      <text class="tk__wallet-hint">轻触票券展开</text>
+    </view>
+
+    <view class="tk__stack">
+      <view
+        class="tk__pass {{item.usable ? '' : 'is-dim'}}"
+        wx:for="{{list}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="showCode"
+        hover-class="tk__pass--pressed"
+        hover-stay-time="80"
+        style="z-index: {{index + 1}};"
+        role="button"
+        aria-label="打开{{item.title}}，{{item.statusLabel}}"
+      >
+        <view class="tk__pass-head tk__pass-head--{{item.tone}}">
+          <view class="tk__pass-heading">
+            <text class="tk__pass-brand">INWARD CLUB</text>
+            <text class="tk__pass-title ic-ellipsis">{{item.title}}</text>
+          </view>
+          <view class="tk__status tk__status--{{item.bucket}}">
+            <view class="tk__status-dot"></view>
+            <text class="tk__status-text">{{item.statusLabel}}</text>
+          </view>
         </view>
-      </view>
-      <view class="tk__main">
-        <text class="tk__title">{{item.title}}</text>
-        <view class="tk__meta">
-          <image class="tk__meta-icon" src="/assets/icons/ticket-time.svg" mode="aspectFit" />
-          <text class="tk__time">{{item.timeText}}</text>
+
+        <view class="tk__pass-body">
+          <view class="tk__pass-facts">
+            <view class="tk__pass-fact">
+              <text class="tk__pass-label">活动时间</text>
+              <text class="tk__pass-value">{{item.timeText}}</text>
+            </view>
+            <view class="tk__pass-fact">
+              <text class="tk__pass-label">活动地点</text>
+              <text class="tk__pass-value ic-ellipsis">{{item.storeName}}</text>
+            </view>
+          </view>
+          <view class="tk__poster">
+            <image wx:if="{{item.imageUrl}}" class="tk__poster-img" src="{{item.imageUrl}}" mode="aspectFill" />
+            <view wx:else class="tk__poster-ph tk__poster-ph--{{item.tone}}">
+              <text class="tk__poster-sub">INWARD</text>
+            </view>
+          </view>
         </view>
-        <view class="tk__meta">
-          <image class="tk__meta-icon" src="/assets/icons/location.svg" mode="aspectFit" />
-          <text class="tk__store ic-ellipsis">{{item.storeName}}</text>
+
+        <view class="tk__pass-cut">
+          <view class="tk__pass-cutline"></view>
         </view>
-        <text class="tk__ticket">{{item.ticketName}} x{{item.qty}}</text>
-      </view>
-      <view class="tk__action">
-        <view class="tk__status tk__status--{{item.bucket}}">
-          <view class="tk__status-dot"></view>
-          <text class="tk__status-text">{{item.statusLabel}}</text>
+
+        <view class="tk__pass-foot">
+          <text class="tk__ticket">{{item.ticketName}} ×{{item.qty}}</text>
+          <view class="tk__open">
+            <image wx:if="{{item.usable}}" class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
+            <text>{{item.usable ? '打开入场券' : '查看票券'}}</text>
+          </view>
         </view>
-        <view
-          wx:if="{{item.usable}}"
-          class="tk__codebtn"
-          data-id="{{item.id}}"
-          bindtap="showCode"
-          hover-class="tk__codebtn--hover"
-        >
-          <image class="tk__qricon" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
-          <text class="tk__codehint">出示二维码</text>
-        </view>
-        <text wx:else class="tk__view" data-id="{{item.id}}" bindtap="goDetail">查看详情</text>
       </view>
     </view>
   </view>
 </view>
 
 <view wx:if="{{showCodeModal}}" class="tc-modal">
-  <view class="tc-modal__mask"></view>
+  <view class="tc-modal__mask" bindtap="closeCode"></view>
   <scroll-view class="tc-modal__scroll" scroll-y enhanced show-scrollbar="{{false}}">
     <view class="tc-modal__chrome">
-      <text class="tc-modal__label">出示二维码</text>
-      <view class="tc-modal__close" bindtap="closeCode" hover-class="tc-modal__close--hover" aria-label="关闭二维码弹窗">
-        <view class="tc-modal__x"></view>
-      </view>
+      <text class="tc-modal__label">INWARD CLUB</text>
+      <text class="tc-modal__close" bindtap="closeCode" hover-class="tc-modal__close--hover" aria-label="关闭入场券">完成</text>
     </view>
 
     <view class="tc tc--modal">
@@ -125,6 +146,7 @@
             <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
           </view>
           <text class="tc__hint">请向工作人员出示此页面，核销前请勿关闭</text>
+          <view class="tc__detail" data-id="{{codeTicket.id}}" bindtap="goDetail" hover-class="tc__detail--hover">查看活动详情</view>
         </view>
       </view>
     </view>

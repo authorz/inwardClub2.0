@@ -18,7 +18,6 @@
   color: #d2d2d2;
 }
 .tk__seg { padding: 0 24rpx; background: #000000; border-bottom: 1rpx solid #242424; }
-.tk__list { padding: 0 32rpx; background: #000000; }
 .tk__empty {
   min-height: 760rpx;
   padding: 248rpx 48rpx 160rpx;
@@ -46,78 +45,163 @@
   line-height: 72rpx;
 }
 .tk__empty-action--hover { background: #3a3a3a; }
-.tk__card { display: flex; align-items: flex-start; gap: 24rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
-.tk__card:last-child { border-bottom: none; }
-.tk__card.is-dim { opacity: 0.82; }
-.tk__poster { width: 168rpx; height: 168rpx; flex: none; overflow: hidden; background: var(--ic-fill); border-radius: 8rpx; display: flex; align-items: center; justify-content: center; }
-.tk__poster-img { width: 100%; height: 100%; display: block; }
-.tk__poster-ph { width: 100%; height: 100%; box-sizing: border-box; padding: 16rpx 10rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #111111; color: #e8e8e8; }
-.tk__poster-ph--member { background: #d8d5cc; color: #171717; }
-.tk__poster-sub { font-size: 16rpx; letter-spacing: 4rpx; opacity: 0.62; }
-.tk__poster-title { max-width: 100%; margin-top: 12rpx; font-size: 24rpx; line-height: 1.18; font-weight: 700; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.tk__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 11rpx; }
-.tk__title { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26rpx; font-weight: 700; color: var(--ic-black); }
-.tk__meta { display: flex; align-items: center; gap: 8rpx; min-width: 0; }
-.tk__meta-icon { width: 26rpx; height: 26rpx; flex: none; display: block; filter: invert(1); opacity: 0.64; }
-.tk__time { font-size: 22rpx; color: var(--ic-text-2); }
-.tk__store { flex: 1; min-width: 0; font-size: 20rpx; color: var(--ic-text-3); }
-.tk__ticket { margin-top: 4rpx; font-size: 22rpx; color: var(--ic-text); }
-.tk__action { width: 136rpx; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 18rpx; align-self: stretch; padding-top: 0; }
-.tk__status { display: flex; align-items: center; justify-content: center; gap: 8rpx; height: 34rpx; line-height: 34rpx; color: var(--ic-black); }
-.tk__status--used { color: var(--ic-text-2); }
-.tk__status--expired { color: var(--ic-text-4); }
-.tk__status-dot { width: 12rpx; height: 12rpx; border-radius: 50%; background: currentColor; flex: none; }
-.tk__status-text { font-size: 22rpx; color: currentColor; white-space: nowrap; }
-.tk__view { font-size: 22rpx; color: var(--ic-text-3); }
-.tk__codebtn {
+.tk__wallet { padding: 38rpx 28rpx calc(56rpx + env(safe-area-inset-bottom)); }
+.tk__wallet-head {
+  padding: 0 4rpx 26rpx;
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.tk__wallet-count { font-size: 25rpx; line-height: 1.4; font-weight: 600; color: #e8e8e8; }
+.tk__wallet-hint { font-size: 21rpx; line-height: 1.4; color: #929292; }
+.tk__stack { position: relative; }
+.tk__pass {
+  position: relative;
+  height: 430rpx;
+  overflow: hidden;
+  border-radius: 22rpx;
+  background: #f7f7f7;
+  color: #171717;
+  box-shadow: 0 -4rpx 0 rgba(255, 255, 255, 0.16);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out;
+}
+.tk__pass + .tk__pass { margin-top: -314rpx; }
+.tk__pass.is-dim { filter: saturate(0.25); }
+.tk__pass--pressed { transform: translateY(-8rpx); }
+.tk__pass-head {
+  height: 116rpx;
+  padding: 22rpx 26rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  background: #1b1b1b;
+  color: #f5f5f5;
+}
+.tk__pass-head--poker { background: #1b1916; color: #eadbc3; }
+.tk__pass-head--coast { background: #dfe8e8; color: #182122; }
+.tk__pass-head--city { background: #303944; color: #f4f5f6; }
+.tk__pass-head--member { background: #d9d4c8; color: #171717; }
+.tk__pass-heading { flex: 1; min-width: 0; }
+.tk__pass-brand {
+  display: block;
+  font-size: 15rpx;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 3rpx;
+  opacity: 0.66;
+}
+.tk__pass-title {
+  display: block;
+  margin-top: 7rpx;
+  font-size: 28rpx;
+  line-height: 1.2;
+  font-weight: 700;
+  color: currentColor;
+}
+.tk__status { flex: none; display: flex; align-items: center; gap: 8rpx; color: currentColor; }
+.tk__status--used,
+.tk__status--expired { opacity: 0.66; }
+.tk__status-dot { width: 10rpx; height: 10rpx; border-radius: 50%; background: currentColor; flex: none; }
+.tk__status-text { font-size: 20rpx; line-height: 1.3; color: currentColor; white-space: nowrap; }
+.tk__pass-body {
+  height: 200rpx;
+  padding: 28rpx 26rpx 20rpx;
+  box-sizing: border-box;
+  display: flex;
+  gap: 24rpx;
+  background: #f7f7f7;
+}
+.tk__pass-facts { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22rpx; }
+.tk__pass-fact { min-width: 0; display: flex; flex-direction: column; gap: 5rpx; }
+.tk__pass-label { font-size: 18rpx; line-height: 1.35; color: #777777; }
+.tk__pass-value {
+  max-width: 100%;
+  font-size: 24rpx;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #222222;
+}
+.tk__poster {
+  width: 116rpx;
+  height: 150rpx;
+  flex: none;
+  overflow: hidden;
+  border-radius: 8rpx;
+  background: #e7e7e7;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
-  width: 136rpx;
-  color: var(--ic-black);
 }
-.tk__codebtn--hover { opacity: 0.72; }
-.tk__qricon { width: 48rpx; height: 48rpx; display: block; filter: invert(1); opacity: 0.9; }
-.tk__codehint { display: block; width: 120rpx; font-size: 20rpx; line-height: 1.25; color: var(--ic-text-3); text-align: center; }
+.tk__poster-img { width: 100%; height: 100%; display: block; }
+.tk__poster-ph { width: 100%; height: 100%; box-sizing: border-box; padding: 16rpx 10rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #111111; color: #e8e8e8; }
+.tk__poster-ph--coast { background: #dfe8e8; color: #182122; }
+.tk__poster-ph--city { background: #303944; color: #f4f5f6; }
+.tk__poster-ph--member { background: #d8d5cc; color: #171717; }
+.tk__poster-sub { font-size: 15rpx; font-weight: 700; letter-spacing: 3rpx; opacity: 0.68; }
+.tk__pass-cut { position: relative; height: 28rpx; background: #f7f7f7; }
+.tk__pass-cut::before,
+.tk__pass-cut::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: #000000;
+}
+.tk__pass-cut::before { left: -14rpx; }
+.tk__pass-cut::after { right: -14rpx; }
+.tk__pass-cutline { position: absolute; left: 28rpx; right: 28rpx; top: 13rpx; border-top: 2rpx dashed #d8d8d8; }
+.tk__pass-foot {
+  height: 86rpx;
+  padding: 0 26rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  background: #f7f7f7;
+}
+.tk__ticket { flex: 1; min-width: 0; font-size: 23rpx; line-height: 1.3; font-weight: 600; color: #252525; }
+.tk__open { flex: none; display: flex; align-items: center; gap: 9rpx; font-size: 21rpx; line-height: 1.3; font-weight: 600; color: #555555; }
+.tk__qricon { width: 30rpx; height: 30rpx; display: block; opacity: 0.78; }
 
-/* 出示二维码弹窗：内部票券内容与原 ticket-code 页面保持一致。 */
+/* 卡包展开态：票券业务信息与原 ticket-code 页面保持一致。 */
 .tc-modal { position: fixed; inset: 0; z-index: 1000; }
-.tc-modal__mask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.92); }
-.tc-modal__scroll { position: relative; z-index: 1; width: 100%; height: 100%; }
+.tc-modal__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.94);
+  animation: wallet-fade-in 180ms ease-out both;
+}
+.tc-modal__scroll {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  animation: wallet-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 .tc-modal__chrome {
-  height: 88rpx;
-  padding: 0 28rpx;
+  height: 96rpx;
+  padding: 0 32rpx;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.tc-modal__label { font-size: 26rpx; font-weight: 600; color: #f2f2f2; }
+.tc-modal__label { font-size: 17rpx; font-weight: 600; letter-spacing: 3rpx; color: #8c8c8c; }
 .tc-modal__close {
-  width: 64rpx;
-  height: 64rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #202020;
+  min-width: 80rpx;
+  padding: 18rpx 0 18rpx 24rpx;
+  font-size: 25rpx;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #f2f2f2;
+  text-align: right;
 }
-.tc-modal__close--hover { background: #303030; }
-.tc-modal__x { position: relative; width: 26rpx; height: 26rpx; }
-.tc-modal__x::before,
-.tc-modal__x::after {
-  content: "";
-  position: absolute;
-  top: 12rpx;
-  left: 0;
-  width: 26rpx;
-  height: 2rpx;
-  background: #f2f2f2;
-}
-.tc-modal__x::before { transform: rotate(45deg); }
-.tc-modal__x::after { transform: rotate(-45deg); }
+.tc-modal__close--hover { opacity: 0.62; }
 
 .tc {
   min-height: 100vh;
@@ -135,18 +219,6 @@
   overflow: hidden;
   border-radius: 16rpx;
   background: #ffffff;
-}
-.tc__ticket::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  top: -34rpx;
-  left: 50%;
-  width: 68rpx;
-  height: 68rpx;
-  margin-left: -34rpx;
-  border-radius: 50%;
-  background: #000000;
 }
 
 .tc__head {
@@ -263,3 +335,32 @@
 .tc__code-num { font-size: 28rpx; font-weight: 700; color: #202020; letter-spacing: 3rpx; font-variant-numeric: tabular-nums; }
 .tc__code .ic-ic { color: #777777; }
 .tc__hint { margin-top: 22rpx; font-size: 21rpx; line-height: 1.5; color: #777777; text-align: center; }
+.tc__detail {
+  min-height: 76rpx;
+  margin-top: 26rpx;
+  padding: 0 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 23rpx;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #3f3f3f;
+}
+.tc__detail--hover { color: #777777; }
+
+@keyframes wallet-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wallet-rise {
+  from { opacity: 0.65; transform: translateY(44rpx) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tk__pass { transition: none; }
+  .tc-modal__mask,
+  .tc-modal__scroll { animation: none; }
+}
