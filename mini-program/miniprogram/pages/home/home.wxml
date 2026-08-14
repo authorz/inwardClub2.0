@@ -10,6 +10,12 @@
     <!-- Identity and assets share one continuous glass card. -->
     <view class="mine__summary mine__glass">
       <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
+        <image
+          class="mine__profile-brand"
+          src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png"
+          mode="aspectFit"
+          aria-hidden="true"
+        />
         <view class="mine__avatar">
           <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
           <view wx:else class="mine__avatar-ph"><text>{{me.nickname || '会员'}}</text></view>

@@ -43,6 +43,7 @@
 /* ---- profile ---- */
 .mine__summary { padding: 12rpx 6rpx 20rpx; }
 .mine__profile {
+  position: relative;
   min-height: 166rpx;
   padding: 18rpx 30rpx;
   display: flex;
@@ -50,8 +51,21 @@
   box-sizing: border-box;
 }
 .mine__profile--hover { opacity: 0.72; }
+.mine__profile-brand {
+  position: absolute;
+  top: 50%;
+  right: 70rpx;
+  z-index: 0;
+  width: 214rpx;
+  height: 92rpx;
+  opacity: 0.08;
+  filter: brightness(0);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 .mine__avatar {
   position: relative;
+  z-index: 1;
   width: 112rpx;
   height: 112rpx;
   flex: none;
@@ -84,7 +98,7 @@
   box-sizing: border-box;
   background: var(--ic-white);
 }
-.mine__ident { flex: 1; min-width: 0; margin-left: 28rpx; }
+.mine__ident { position: relative; z-index: 1; flex: 1; min-width: 0; margin-left: 28rpx; }
 .mine__nameline { display: flex; align-items: center; gap: 14rpx; min-width: 0; }
 .mine__name {
   min-width: 0;
@@ -111,7 +125,7 @@
 .mine__invite { display: inline-flex; align-items: center; gap: 4rpx; margin-top: 12rpx; }
 .mine__invite-text { font-size: 20rpx; color: var(--ic-text-3); line-height: 1; }
 .mine__invite-copy { width: 28rpx; height: 28rpx; color: var(--ic-text-3); transform: translateY(-4rpx) scale(0.58); transform-origin: center; }
-.mine__profile-arrow { flex: none; margin-left: 18rpx; border-color: rgba(17, 17, 17, 0.54); }
+.mine__profile-arrow { position: relative; z-index: 1; flex: none; margin-left: 18rpx; border-color: rgba(17, 17, 17, 0.54); }
 
 /* ---- assets ---- */
 .mine__assets {
