@@ -108,9 +108,9 @@
   color: var(--ic-white);
 }
 .mine__tier--hover { opacity: 0.72; }
-.mine__invite { width: 100%; display: flex; align-items: center; justify-content: center; gap: 2rpx; margin-top: 12rpx; }
+.mine__invite { display: inline-flex; align-items: center; gap: 4rpx; margin-top: 12rpx; }
 .mine__invite-text { font-size: 20rpx; color: var(--ic-text-3); line-height: 1; }
-.mine__invite-copy { width: 28rpx; height: 28rpx; color: var(--ic-text-3); transform: scale(0.58); transform-origin: center; }
+.mine__invite-copy { width: 28rpx; height: 28rpx; color: var(--ic-text-3); transform: translateY(-4rpx) scale(0.58); transform-origin: center; }
 .mine__profile-arrow { flex: none; margin-left: 18rpx; border-color: rgba(17, 17, 17, 0.54); }
 
 /* ---- assets ---- */
