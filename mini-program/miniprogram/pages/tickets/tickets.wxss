@@ -81,11 +81,17 @@
   background: #f7f7f7;
   color: #171717;
   box-shadow: 0 -4rpx 0 rgba(255, 255, 255, 0.16);
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out;
-  will-change: transform;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms cubic-bezier(0.25, 1, 0.5, 1);
 }
-.tk__pass.is-dragging { transition: none; }
+.tk__pass.is-dragging { transition: none; will-change: transform; }
+.tk__pass.is-settling { opacity: 0.08; will-change: transform, opacity; }
 .tk__pass.is-dim { filter: saturate(0.25); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tk__pass { transition-duration: 0.01ms; }
+}
 .tk__pass-head {
   height: 116rpx;
   padding: 22rpx 26rpx;

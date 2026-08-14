@@ -9,6 +9,7 @@ const { TICKET_STATUS_LABEL } = require('../../constants/index');
 const TICKET_STACK_STEP_RPX = 116;
 const TICKET_SWIPE_THRESHOLD_PX = 48;
 const TICKET_SWIPE_EXIT_PX = 520;
+const TICKET_SWIPE_DURATION_MS = 280;
 
 function buildTicketLayers(list, activeIndex) {
   const activeTicket = list[activeIndex];
@@ -147,7 +148,7 @@ Page({
       this.setData({ dragTicketIndex: -1, dragOffset: 0, isTicketDragging: false });
       return;
     }
-    this._suppressTicketTapUntil = Date.now() + 250;
+    this._suppressTicketTapUntil = Date.now() + TICKET_SWIPE_DURATION_MS + 80;
     if (Math.abs(offset) < TICKET_SWIPE_THRESHOLD_PX) {
       this.setData({ dragTicketIndex: -1, dragOffset: 0, isTicketDragging: false });
       return;
@@ -165,7 +166,7 @@ Page({
     this._ticketSettleTimer = setTimeout(() => {
       this._ticketSettleTimer = null;
       this.activateTicket(nextIndex);
-    }, 180);
+    }, TICKET_SWIPE_DURATION_MS);
   },
 
   onTicketTouchCancel() {

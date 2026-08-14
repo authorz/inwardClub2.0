@@ -28,7 +28,7 @@
     <view class="tk__carousel">
       <view class="tk__stack">
         <view
-          class="tk__pass {{item.usable ? '' : 'is-dim'}} {{item.ticketIndex === dragTicketIndex && isTicketDragging ? 'is-dragging' : ''}}"
+          class="tk__pass {{item.usable ? '' : 'is-dim'}} {{item.ticketIndex === dragTicketIndex && isTicketDragging ? 'is-dragging' : ''}} {{item.ticketIndex === dragTicketIndex && !isTicketDragging ? 'is-settling' : ''}}"
           wx:for="{{layers}}"
           wx:key="id"
           data-id="{{item.id}}"
