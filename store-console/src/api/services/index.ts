@@ -3,7 +3,6 @@
 export { authService } from './auth'
 export { orderService } from './orders'
 export { catalogService } from './catalog'
-export { activityService } from './activities'
 export { tournamentEventService } from './tournamentEvents'
 export { verificationService } from './verification'
 export { pointSavingService } from './pointSavings'

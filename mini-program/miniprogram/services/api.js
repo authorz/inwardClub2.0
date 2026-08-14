@@ -477,8 +477,6 @@ const api = {
     http.get(m('/activities') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
   getStoreActivities: (storeId, params) =>
     http.get(m(`/stores/${storeId}/activities`) + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
-  getTodayStoreActivities: (storeId) =>
-    http.get(m(`/stores/${storeId}/activities/today`)).then((res) => ({ data: (res.data || []).map(normalizeActivity), meta: res.meta })),
   getActivity: (id) => http.get(m(`/activities/${id}`)).then((res) => ({ data: normalizeActivity(res.data), meta: res.meta })),
   getTournamentEvents: (storeId) => http.get(m(`/stores/${storeId}/tournament-events`)),
   getTournamentEvent: (id) => http.get(m(`/tournament-events/${id}`)),

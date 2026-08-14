@@ -52,7 +52,6 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	g.GET("/stores/:storeID/catalog/categories", a.catalogHandler.Categories)
 	g.GET("/stores/:storeID/catalog/items", a.catalogHandler.Items)
 	g.GET("/stores/:storeID/activities", a.activityHandler.ListForStore)
-	g.GET("/stores/:storeID/activities/today", a.activityHandler.TodayForStore)
 	g.GET("/stores/:storeID/tournament-events", a.tournamentHandler.PublicList)
 	g.GET("/stores/:storeID/tables", a.reservationHandler.Tables)
 	g.GET("/stores/:storeID/seats", a.reservationHandler.Seats)
@@ -232,9 +231,9 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 // coupons) onto the authenticated admin group. High-risk coupon entitlement
 // actions (grant/void/verify) additionally require an Idempotency-Key.
 //
-// The full activity console (activity, session and ticket-type CRUD) is mounted;
-// session and ticket-type writes additionally require an Idempotency-Key (they
-// hang off the idem group below). Catalog variants are mounted under their own
+// Activity management is intentionally absent. The admin activity list remains
+// read-only outside this function so Banner configuration can resolve legacy
+// activity links. Catalog variants are mounted under their own
 // /catalog/variants/:itemID prefix because the variant handler reads the parent
 // id as :itemID, which would collide with the :id wildcard used by the item
 // routes if nested under /catalog/items.
@@ -285,12 +284,6 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.PUT("/catalog/variants/:itemID/:id", a.catalogConsoleHandler.UpdateVariant)
 	p.DELETE("/catalog/variants/:itemID/:id", a.catalogConsoleHandler.DeleteVariant)
 
-	// Activities (list read already registered as adminHandler.Activities).
-	p.GET("/activities/:activityID", a.activityConsoleHandler.ActivityDetail)
-	p.POST("/activities", a.activityConsoleHandler.CreateActivity)
-	p.PUT("/activities/:activityID", a.activityConsoleHandler.UpdateActivity)
-	p.DELETE("/activities/:activityID", a.activityConsoleHandler.DeleteActivity)
-
 	// Tournament events are store-bound informational competitions, separate
 	// from ticketed activities.
 	p.GET("/tournament-events", a.tournamentHandler.AdminList)
@@ -298,12 +291,6 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.POST("/tournament-events", a.tournamentHandler.AdminCreate)
 	p.PUT("/tournament-events/:eventID", a.tournamentHandler.AdminUpdate)
 	p.DELETE("/tournament-events/:eventID", a.tournamentHandler.AdminDelete)
-
-	// Activity sessions and ticket types (reads).
-	p.GET("/activities/:activityID/sessions", a.activityConsoleHandler.Sessions)
-	p.GET("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.SessionDetail)
-	p.GET("/activities/:activityID/ticket-types", a.activityConsoleHandler.TicketTypes)
-	p.GET("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.TicketTypeDetail)
 
 	// Coupon templates (list read already registered as adminHandler.CouponTemplates).
 	p.GET("/coupon-templates/:id", a.couponConsoleHandler.Get)
@@ -321,13 +308,6 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	idem.POST("/coupon-voids", a.couponConsoleHandler.Void)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.Verify)
 
-	// Activity sessions and ticket types (writes).
-	idem.POST("/activities/:activityID/sessions", a.activityConsoleHandler.CreateSession)
-	idem.PUT("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.UpdateSession)
-	idem.DELETE("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.DeleteSession)
-	idem.POST("/activities/:activityID/ticket-types", a.activityConsoleHandler.CreateTicketType)
-	idem.PUT("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.UpdateTicketType)
-	idem.DELETE("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.DeleteTicketType)
 }
 
 // registerStore wires the store console (aud=store, store scope from token).
@@ -345,7 +325,6 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/profile", a.storeConsoleHandler.GetOwnProfile)
 	p.GET("/catalog/items", a.catalogConsoleHandler.StoreItems)
 	p.GET("/coupon-templates", a.adminHandler.StoreCouponTemplates)
-	p.GET("/activities", a.adminHandler.StoreActivities)
 	p.GET("/orders", a.adminHandler.StoreOrders)
 	p.GET("/payment-transactions", a.adminHandler.StorePaymentTransactions)
 	p.GET("/payment-orders", a.paymentStoreHandler.ListPaymentOrders)
@@ -359,13 +338,12 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/cashiers", a.adminHandler.StoreCashiers)
 	p.GET("/staff-accounts", a.adminHandler.StoreStaffAccounts)
 
-	// Store operational reads (offline collection orders, point savings review,
-	// activities and verification history).
+	// Store operational reads (offline collection orders, point savings review
+	// and verification history).
 	p.GET("/offline-collection-orders/:collectionOrderID", a.paymentStoreHandler.GetCollectionOrder)
 	p.GET("/staff/home", a.activityStoreHandler.StaffHome)
 	p.GET("/point-savings", a.activityStoreHandler.ListPointSavings)
 	p.GET("/point-savings/:requestID", a.activityStoreHandler.GetPointSaving)
-	p.GET("/activities/today", a.activityStoreHandler.TodayActivities)
 	p.GET("/verifications", a.activityStoreHandler.ListVerifications)
 	p.GET("/reservations", a.reservationHandler.StoreList)
 	p.GET("/reservations/:reservationID", a.reservationHandler.StoreGet)
@@ -453,30 +431,12 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.PUT("/catalog/variants/:itemID/:id", a.catalogConsoleHandler.StoreUpdateVariant)
 	idem.DELETE("/catalog/variants/:itemID/:id", a.catalogConsoleHandler.StoreDeleteVariant)
 
-	// Activities (list read already registered as adminHandler.StoreActivities).
-	p.GET("/activities/:activityID", a.activityConsoleHandler.StoreActivityDetail)
-	idem.POST("/activities", a.activityConsoleHandler.StoreCreateActivity)
-	idem.PUT("/activities/:activityID", a.activityConsoleHandler.StoreUpdateActivity)
-	idem.DELETE("/activities/:activityID", a.activityConsoleHandler.StoreDeleteActivity)
-
 	// Own-store tournament events.
 	p.GET("/tournament-events", a.tournamentHandler.StoreList)
 	p.GET("/tournament-events/:eventID", a.tournamentHandler.StoreGet)
 	idem.POST("/tournament-events", a.tournamentHandler.StoreCreate)
 	idem.PUT("/tournament-events/:eventID", a.tournamentHandler.StoreUpdate)
 	idem.DELETE("/tournament-events/:eventID", a.tournamentHandler.StoreDelete)
-
-	// Activity sessions and ticket types.
-	p.GET("/activities/:activityID/sessions", a.activityConsoleHandler.StoreSessions)
-	p.GET("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.StoreSessionDetail)
-	idem.POST("/activities/:activityID/sessions", a.activityConsoleHandler.StoreCreateSession)
-	idem.PUT("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.StoreUpdateSession)
-	idem.DELETE("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.StoreDeleteSession)
-	p.GET("/activities/:activityID/ticket-types", a.activityConsoleHandler.StoreTicketTypes)
-	p.GET("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreTicketTypeDetail)
-	idem.POST("/activities/:activityID/ticket-types", a.activityConsoleHandler.StoreCreateTicketType)
-	idem.PUT("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreUpdateTicketType)
-	idem.DELETE("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreDeleteTicketType)
 
 	// Coupon templates (list read already registered as adminHandler.StoreCouponTemplates).
 	p.GET("/coupon-templates/:id", a.couponConsoleHandler.StoreGet)

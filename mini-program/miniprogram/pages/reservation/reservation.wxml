@@ -7,46 +7,24 @@
 </view>
 
 <view class="ic-page ic-page--tab rsv">
-  <!-- compact store + time selectors -->
-  <view class="rsv__filters">
-    <view class="rsv__filter rsv__filter--store" hover-class="rsv__field--hover" bindtap="switchStore">
+  <view class="rsv__store" hover-class="rsv__field--hover" bindtap="switchStore">
+    <view class="rsv__store-icon">
       <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
-      <text class="rsv__filter-text ic-ellipsis">{{store.name || '选择门店'}}</text>
-      <view class="rsv__caret"></view>
     </view>
-    <view class="rsv__filter-divider"></view>
-    <view class="rsv__filter rsv__filter--hours">
-      <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
-      <text class="rsv__filter-text ic-ellipsis">营业时间 {{store.hours || '请咨询门店'}}</text>
+    <view class="rsv__store-copy">
+      <view class="rsv__store-name-line">
+        <text class="rsv__store-name ic-ellipsis">{{store.name || '选择门店'}}</text>
+        <text class="rsv__store-current">当前门店</text>
+      </view>
+      <view class="rsv__store-meta">
+        <text class="rsv__store-address ic-ellipsis">{{store.address || '地址请咨询门店'}}</text>
+        <view class="rsv__store-hours">
+          <view class="ic-ic ic-ic-clock ic-ic--sm"></view>
+          <text class="ic-ellipsis">{{store.hours || '营业时间请咨询门店'}}</text>
+        </view>
+      </view>
     </view>
-  </view>
-
-  <view wx:if="{{tournamentEvent}}" class="rsv__activity-banner" hover-class="rsv__activity-banner--hover" bindtap="openTournamentEvent">
-    <image wx:if="{{tournamentEvent.imageUrl}}" class="rsv__activity-image" src="{{tournamentEvent.imageUrl}}" mode="aspectFill"></image>
-    <view class="rsv__activity-shade"></view>
-    <view class="rsv__activity-copy">
-      <text class="rsv__activity-label">今日赛事</text>
-      <text class="rsv__activity-title ic-ellipsis">{{tournamentEvent.title}}</text>
-    </view>
-    <view class="rsv__activity-more">
-      <text>了解详情</text>
-      <view class="rsv__activity-arrow"></view>
-    </view>
-  </view>
-  <view wx:else class="rsv__activity-empty">
-    <view class="rsv__activity-copy">
-      <text class="rsv__activity-label">今日活动</text>
-      <text class="rsv__activity-empty-text">今日暂无赛事</text>
-    </view>
-    <text class="rsv__activity-empty-text">敬请期待</text>
-  </view>
-
-  <!-- legend -->
-  <view class="rsv__legend">
-    <view class="rsv__legend-item" wx:for="{{legend}}" wx:key="state">
-      <view class="rseat__dot rseat__dot--{{item.state}}"></view>
-      <text class="rsv__legend-text">{{item.label}}</text>
-    </view>
+    <view class="rsv__caret"></view>
   </view>
 
   <view class="rsv__sec">
@@ -62,51 +40,33 @@
 
   <block wx:else>
     <view class="rsv__table ic-card" wx:for="{{tables}}" wx:key="id" data-tid="{{item.id}}">
-      <view class="rsv__thead" data-id="{{item.id}}" bindtap="onToggleTable">
-        <text class="rsv__tname">{{item.name}}</text>
-        <text class="rsv__ttype">{{item.type}}</text>
-        <text class="rsv__tseats">座位 {{item.reservedText}}</text>
-        <text wx:if="{{expandedId === item.id}}" class="rsv__tupdated">更新 {{item.updatedText}}</text>
-        <text wx:else class="rsv__tmore">查看座位</text>
-        <view class="rsv__tcaret {{expandedId === item.id ? 'is-open' : ''}}"></view>
+      <view class="rsv__thead">
+        <view class="rsv__table-title">
+          <text class="rsv__tname">{{item.name}}</text>
+          <text class="rsv__tseats">座位 {{item.reservedText}}</text>
+        </view>
+        <button
+          class="rsv__reserve {{!item.canReserve ? 'rsv__reserve--disabled' : ''}}"
+          disabled="{{!item.canReserve}}"
+          data-id="{{item.id}}"
+          bindtap="onReserveTable"
+        >{{item.canReserve ? '预约座位' : '已满'}}</button>
       </view>
 
-      <!-- expanded: full 9-seat Texas Hold'em table -->
-      <view wx:if="{{expandedId === item.id}}" class="rtable">
-        <image wx:if="{{item.layoutUrl}}" class="rtable__layout-bg" src="{{item.layoutUrl}}" mode="aspectFit"></image>
-        <view wx:else class="rtable__felt">
-          <view class="rtable__suits">
-            <text>♠</text><text>♥</text><text>♦</text><text>♣</text>
-          </view>
-          <text class="rtable__brand">TEXAS HOLD'EM</text>
-        </view>
+      <view class="rsv__seat-row">
         <view
-          class="rseat rseat--{{seat.state}} {{seat.labelTop ? 'rseat--label-top' : ''}}"
+          class="rsv__seat rsv__seat--{{seat.state}} {{seat.isMine ? 'rsv__seat--mine' : ''}}"
           wx:for="{{item.seats}}"
           wx:for-item="seat"
           wx:key="no"
-          style="{{seat.style}}"
-          data-tid="{{item.id}}"
-          data-no="{{seat.no}}"
-          bindtap="onSeatTap"
+          aria-label="{{seat.accessibilityLabel}}"
         >
-          <view class="rseat__circle">
-            <block wx:if="{{seat.state === 'reserved'}}">
-              <image wx:if="{{seat.avatarUrl}}" class="rseat__avatar {{seat.isGuest ? 'rseat__avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
-              <text wx:else class="rseat__initial">{{seat.initial}}</text>
-              <image wx:if="{{seat.genderIcon}}" class="rseat__gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
-            </block>
-            <block wx:elif="{{seat.state === 'selected'}}">{{seat.no}}</block>
-            <image wx:else class="rseat__free-icon" src="/assets/icons/seat-sofa.svg" mode="aspectFit"></image>
-          </view>
-          <text wx:if="{{seat.state === 'reserved'}}" class="rseat__nickname {{seat.isMine ? 'rseat__nickname--mine' : ''}}">{{seat.displayName}}</text>
-          <text wx:else class="rseat__label">{{seat.no + '号 · ' + seat.label}}</text>
+          <block wx:if="{{seat.state === 'reserved'}}">
+            <image wx:if="{{seat.avatarUrl}}" class="rsv__seat-avatar {{seat.isGuest ? 'rsv__seat-avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
+            <text wx:else class="rsv__seat-initial">{{seat.initial}}</text>
+            <image wx:if="{{seat.genderIcon}}" class="rsv__seat-gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
+          </block>
         </view>
-      </view>
-
-      <!-- collapsed: compact 9-dot summary -->
-      <view wx:else class="rsv__dots" data-id="{{item.id}}" bindtap="onToggleTable">
-        <view class="rseat__dot rseat__dot--{{seat.state}}" wx:for="{{item.seats}}" wx:for-item="seat" wx:key="no"></view>
       </view>
     </view>
   </block>

@@ -62,23 +62,6 @@ export const API_PATHS = {
     variant: (itemId: string | number, id: string | number) => `/store/catalog/variants/${itemId}/${id}`,
   },
 
-  activities: {
-    globalActivities: '/store/activities/global-activities',
-    adoptGlobal: (id: string | number) => `/store/activities/global-activities/${id}/adopt`,
-    list: '/store/activities',
-    detail: (id: string | number) => `/store/activities/${id}`,
-    publish: (id: string | number) => `/store/activities/${id}/publish`,
-    unpublish: (id: string | number) => `/store/activities/${id}/unpublish`,
-    generateShareAssets: (id: string | number) => `/store/activities/${id}/generate-share-assets`,
-    sessions: (id: string | number) => `/store/activities/${id}/sessions`,
-    session: (id: string | number) => `/store/activity-sessions/${id}`,
-    ticketTypes: (id: string | number) => `/store/activities/${id}/ticket-types`,
-    ticketType: (activityId: string | number, id: string | number) =>
-      `/store/activities/${activityId}/ticket-types/${id}`,
-    orders: '/store/activity-orders',
-    today: '/store/activities/today',
-  },
-
   tournamentEvents: {
     list: '/store/tournament-events',
     detail: (id: string | number) => `/store/tournament-events/${id}`,

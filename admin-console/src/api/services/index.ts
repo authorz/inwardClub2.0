@@ -13,7 +13,6 @@ import { createResource } from '@/api/resource'
 import { http } from '@/api/http'
 import type {
   Activity,
-  ActivityTicketType,
   ActivityReportRow,
   AccountEntity,
   AuditLog,
@@ -88,33 +87,9 @@ export const catalogItemService = createResource<CatalogItem>({
   updateMethod: 'put',
 })
 
-const activityResource = createResource<Activity>({
-  base: API_PATHS.activities.list,
-  idempotentWrites: true,
-  updateMethod: 'put',
-})
 export const activityService = {
-  ...activityResource,
-  ticketTypes: (activityId: string) =>
-    http.get<ActivityTicketType[]>(API_PATHS.activities.ticketTypes(activityId)),
-  createTicketType: (activityId: string, payload: Partial<ActivityTicketType>) =>
-    http.post<ActivityTicketType>(API_PATHS.activities.ticketTypes(activityId), payload, {
-      idempotent: true,
-    }),
-  updateTicketType: (
-    activityId: string,
-    ticketTypeId: string,
-    payload: Partial<ActivityTicketType>,
-  ) =>
-    http.put<ActivityTicketType>(
-      API_PATHS.activities.ticketTypeDetail(activityId, ticketTypeId),
-      payload,
-      { idempotent: true },
-    ),
-  removeTicketType: (activityId: string, ticketTypeId: string) =>
-    http.delete<void>(API_PATHS.activities.ticketTypeDetail(activityId, ticketTypeId), {
-      idempotent: true,
-    }),
+  list: (query?: Record<string, unknown>) =>
+    http.getList<Activity>(API_PATHS.activities.list, query),
 }
 export const tournamentEventService = createResource<TournamentEvent>({
   base: API_PATHS.tournamentEvents.list,

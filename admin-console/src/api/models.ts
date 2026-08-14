@@ -121,20 +121,6 @@ export interface TournamentEvent extends AuditableEntity {
   endAt?: string
 }
 
-export interface ActivityTicketType {
-  id: string | number
-  activityId: string | number
-  name: string
-  priceCent: number
-  stockQuantity: number
-  soldQuantity?: number
-  saleStartAt?: string
-  saleEndAt?: string
-  payChannels: string[]
-  maxTicketsPerOrder: number
-  status: string
-}
-
 export interface CouponTemplate extends AuditableEntity {
   name: string
   description?: string

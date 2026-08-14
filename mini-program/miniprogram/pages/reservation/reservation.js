@@ -1,44 +1,18 @@
-// 预约 — 多桌 · 每张德州扑克桌 9 座 · 座位确认弹层
-// Reference: design/mini-program/final/reservation/05-reservation-final-multi-table.png
-//            design/mini-program/final/reservation/05-reservation-final-confirm-sheet.png
+// 预约 — 固定桌台列表 · 预约用户头像 · 座位确认弹层
 const api = require('../../services/api');
 const validation = require('../../utils/validation');
 const auth = require('../../utils/auth');
-const http = require('../../utils/request');
 const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
-const fmt = require('../../utils/format');
 const { saveProfile } = require('../../utils/member-profile');
-const { SEAT_STATE_LABEL } = require('../../constants/index');
-
-// Fixed 9-seat ring positions around the full table background, clockwise from top-left.
-const SEAT_POS = [
-  'left:28.4%;top:11.5%;',
-  'left:50%;top:11.5%;',
-  'left:71.6%;top:11.5%;',
-  'left:91.5%;top:49%;',
-  'left:73.5%;top:86%;',
-  'left:58.6%;top:86%;',
-  'left:41.4%;top:86%;',
-  'left:26%;top:86%;',
-  'left:8.5%;top:49%;',
-];
 
 Page({
   data: {
     loading: true,
     store: null,
-    tournamentEvent: null,
     tables: [],
-    expandedId: '',
-    legend: [
-      { state: 'free', label: '空闲' },
-      { state: 'reserved', label: '已预约' },
-      { state: 'selected', label: '已选择' },
-    ],
     showConfirm: false,
     submitting: false,
-    cancellingReservationId: '',
     selected: null, // { tableId, tableName, seatNo }
     navStatusBar: 20,
     navContentHeight: 44,
@@ -74,10 +48,8 @@ Page({
     if (s && this.data.store && s.id !== this.data.store.id) {
       this.setData({ store: s });
       this.loadTables(s.id);
-      this.loadTournamentEvent(s.id);
     } else if (s && this.data.store) {
       this.loadTables(s.id);
-      this.loadTournamentEvent(s.id);
     }
   },
 
@@ -88,19 +60,9 @@ Page({
       this.setData({ store });
       if (store) {
         this.loadTables(store.id);
-        this.loadTournamentEvent(store.id);
       }
       else this.setData({ loading: false });
     });
-  },
-
-  loadTournamentEvent(storeId) {
-    api.getTournamentEvents(storeId)
-      .then((res) => {
-        const events = res.data || [];
-        this.setData({ tournamentEvent: events[0] || null });
-      })
-      .catch(() => this.setData({ tournamentEvent: null }));
   },
 
   loadTables(storeId) {
@@ -132,7 +94,6 @@ Page({
         );
         this.setData({
           tables,
-          expandedId: tables.length ? tables[0].id : '',
           loading: false,
         });
       })
@@ -140,7 +101,7 @@ Page({
   },
 
   /** Attach display fields for a real SeatView, including the current occupant. */
-  decorateSeat(s, i, ownReservationsBySeat) {
+  decorateSeat(s, ownReservationsBySeat) {
     const state = s.status === 'available' ? 'free' : 'reserved';
     const isGuest = Boolean(s.isGuest);
     const nickname = isGuest ? 'inward会员' : s.nickname || '';
@@ -151,99 +112,58 @@ Page({
       no: s.name,
       seatId: s.id,
       state,
-      label: SEAT_STATE_LABEL[state] || '',
-      style: SEAT_POS[i] || '',
-      labelTop: i < 3,
       avatarUrl: isGuest ? 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png' : s.avatarUrl || '',
       nickname,
-      displayName: isMine ? '我' : nickname || '已预约',
+      accessibilityLabel: state === 'reserved' ? nickname || '已预约用户' : '空位',
       isMine,
-      reservationId: ownReservation ? ownReservation.id : '',
       isGuest,
-      initial: nickname.trim().charAt(0).toUpperCase(),
+      initial: (nickname || '会').trim().charAt(0).toUpperCase(),
       gender,
       genderIcon: gender ? '/assets/icons/gender-' + gender + '.svg' : '',
     };
   },
 
-  /** attach display fields + ring positions to a table */
+  /** Attach fixed-row display fields to a table. */
   decorate(t, realSeats, ownReservationsBySeat) {
-    const seats = (realSeats || []).map((s, i) =>
-      this.decorateSeat(s, i, ownReservationsBySeat)
+    const seats = (realSeats || []).map((s) =>
+      this.decorateSeat(s, ownReservationsBySeat)
     );
     const cap = t.capacity || seats.length;
     const free = seats.filter((s) => s.state === 'free').length;
     return {
       id: t.id,
       name: t.name,
-      type: t.type,
-      layoutUrl: t.layoutUrl || '',
       reservedText: (t.reserved != null ? t.reserved : cap - free) + '/' + cap,
-      updatedText: fmt.dateTime(t.updatedAt, { timeOnly: true }),
+      canReserve: free > 0,
       seats,
     };
   },
 
-  onToggleTable(e) {
+  onReserveTable(e) {
     const id = e.currentTarget.dataset.id;
-    this.clearSelection();
-    this.setData({ expandedId: this.data.expandedId === id ? '' : id });
-  },
-
-  onSeatTap(e) {
-    const { tid, no } = e.currentTarget.dataset;
-    const t = this.data.tables.find((x) => x.id === tid);
-    if (!t) return;
-    const seat = t.seats.find((s) => s.no === no);
-    if (!seat) return;
-    if (seat.state === 'reserved') {
-      if (seat.isMine && seat.reservationId) this.cancelOwnReservation(seat, t);
-      return;
-    }
-    if (seat.state === 'selected') {
-      this.clearSelection();
-      return;
-    }
-    this.clearSelection(false); // revert any prior selection, keep sheet handling below
     const tables = this.data.tables;
-    const tt = tables.find((x) => x.id === tid);
-    const target = tt.seats.find((s) => s.no === no);
+    const table = tables.find((item) => String(item.id) === String(id));
+    if (!table) return;
+    const target = table.seats.find((seat) => seat.state === 'free');
+    if (!target) {
+      ui.toast('该桌暂时没有空位');
+      return;
+    }
+    this.clearSelection();
     target.state = 'selected';
-    target.label = SEAT_STATE_LABEL.selected;
     this.setData({
       tables,
-      selected: { tableId: tid, tableName: tt.name, seatNo: no, seatId: target.seatId },
+      selected: {
+        tableId: table.id,
+        tableName: table.name,
+        seatNo: target.no,
+        seatId: target.seatId,
+      },
       showConfirm: true,
     });
   },
 
-  cancelOwnReservation(seat, table) {
-    const reservationId = seat && seat.reservationId;
-    if (!reservationId || this.data.cancellingReservationId) return;
-    ui.confirm({
-      title: '取消预约',
-      content: `确认取消 ${table.name} · ${seat.no}号座位的预约？`,
-      confirmText: '取消预约',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      this.setData({ cancellingReservationId: reservationId });
-      ui.showLoading('取消中');
-      api.cancelReservation(reservationId, http.uuid())
-        .then(() => {
-          ui.hideLoading();
-          this.setData({ cancellingReservationId: '' });
-          this.loadTables(this.data.store.id);
-          ui.success('预约已取消');
-        })
-        .catch((err) => {
-          ui.hideLoading();
-          this.setData({ cancellingReservationId: '' });
-          ui.error((err && err.message) || '取消预约失败');
-        });
-    });
-  },
-
-  clearSelection(commit) {
+  clearSelection() {
     const sel = this.data.selected;
     if (sel) {
       const tables = this.data.tables;
@@ -252,12 +172,11 @@ Page({
         const seat = t.seats.find((s) => s.no === sel.seatNo);
         if (seat && seat.state === 'selected') {
           seat.state = 'free';
-          seat.label = SEAT_STATE_LABEL.free;
         }
       }
       this.setData({ tables });
     }
-    if (commit !== false) this.setData({ selected: null, showConfirm: false });
+    this.setData({ selected: null, showConfirm: false });
   },
 
   onCloseConfirm() {
@@ -360,14 +279,5 @@ Page({
 
   switchStore() {
     wx.navigateTo({ url: '/pages/store-select/store-select' });
-  },
-
-  openTournamentEvent() {
-    const event = this.data.tournamentEvent;
-    if (!event || !event.id) {
-      ui.toast('今日暂无赛事');
-      return;
-    }
-    wx.navigateTo({ url: `/pages/tournament-detail/tournament-detail?id=${event.id}` });
   },
 });
