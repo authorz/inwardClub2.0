@@ -88,14 +88,18 @@ export const API_PATHS = {
 
   activities: {
     list: '/admin/activities',
+    create: '/admin/activities',
+    detail: (id: string) => `/admin/activities/${id}`,
+    assignStores: (id: string) => `/admin/activities/${id}/assign-stores`,
+    generateShareAssets: (id: string) => `/admin/activities/${id}/generate-share-assets`,
+    sessions: (id: string) => `/admin/activities/${id}/sessions`,
+    sessionDetail: (sessionId: string) => `/admin/activity-sessions/${sessionId}`,
+    ticketTypes: (id: string) => `/admin/activities/${id}/ticket-types`,
+    ticketTypeDetail: (activityId: string, ticketTypeId: string) =>
+      `/admin/activities/${activityId}/ticket-types/${ticketTypeId}`,
     orders: '/admin/activity-orders',
     tickets: '/admin/tickets',
     verifications: '/admin/verifications',
-  },
-
-  tournamentEvents: {
-    list: '/admin/tournament-events',
-    detail: (id: string) => `/admin/tournament-events/${id}`,
   },
 
   coupons: {

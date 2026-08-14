@@ -108,17 +108,18 @@ export interface Activity extends AuditableEntity {
   purchaseLimitPerMember?: number
 }
 
-/** 门店赛事宣传活动；不包含票档、支付或报名。 */
-export interface TournamentEvent extends AuditableEntity {
-  storeId: string | number
-  storeName?: string
-  title: string
-  summary?: string
-  content?: string
-  assetId?: string | number | null
-  imageUrl?: string
-  startAt?: string
-  endAt?: string
+export interface ActivityTicketType {
+  id: string | number
+  activityId: string | number
+  name: string
+  priceCent: number
+  stockQuantity: number
+  soldQuantity?: number
+  saleStartAt?: string
+  saleEndAt?: string
+  payChannels: string[]
+  maxTicketsPerOrder: number
+  status: string
 }
 
 export interface CouponTemplate extends AuditableEntity {

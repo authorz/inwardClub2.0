@@ -105,9 +105,9 @@ export const MENU: MenuGroup[] = [
         permissions: [PERM.catalogRead, PERM.catalogWrite],
       },
       {
-        name: 'tournament-events',
-        path: '/tournament-events',
-        title: '赛事活动',
+        name: 'activities',
+        path: '/activities',
+        title: '本店活动',
         icon: 'activity',
         permissions: [PERM.activityRead, PERM.activityWrite],
       },

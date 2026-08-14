@@ -89,9 +89,9 @@ export const MENU: MenuNode[] = [
     ],
   },
   {
-    key: 'tournament-events',
-    label: '赛事活动',
-    path: '/tournament-events',
+    key: 'activities',
+    label: '活动管理',
+    path: '/activities',
     permission: PERMISSIONS.ACTIVITY_READ,
     icon: CalendarEvent,
   },

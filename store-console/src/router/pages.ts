@@ -15,7 +15,7 @@ export const pageComponents: Record<string, () => Promise<Component>> = {
   verifications: () => import('@/pages/records/VerificationsView.vue'),
   catalog: () => import('@/pages/catalog/CatalogView.vue'),
   'catalog-categories': () => import('@/pages/catalog/CategoryView.vue'),
-  'tournament-events': () => import('@/pages/tournaments/TournamentEventsView.vue'),
+  activities: () => import('@/pages/activities/ActivitiesView.vue'),
   coupons: () => import('@/pages/coupons/CouponsView.vue'),
   banners: () => import('@/pages/banners/BannersView.vue'),
   reservations: () => import('@/pages/reservations/ReservationsView.vue'),

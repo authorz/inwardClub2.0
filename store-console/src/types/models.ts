@@ -142,19 +142,35 @@ export interface CatalogCategory extends AuditFields {
   imageUrl?: string
 }
 
-/** 本店赛事宣传活动；不包含票档、支付或报名。 */
-export interface TournamentEvent extends AuditFields {
+export interface StoreActivity extends AuditFields {
   id: number | string
-  storeId: number | string
-  storeName?: string
   title: string
-  summary?: string
-  content?: string
-  assetId?: number | string | null
-  imageUrl?: string
+  scopeType: ScopeType
+  status: PublishStatus
   startAt?: string
   endAt?: string
-  status: PublishStatus
+  soldCount?: number
+  verifiedCount?: number
+  imageUrl?: string
+  description?: string
+  content?: string
+  assetId?: number | string
+  payChannels?: PayChannel[]
+  purchaseLimitPerMember?: number
+}
+
+export interface ActivityTicketType extends AuditFields {
+  id: number | string
+  activityId: number | string
+  name: string
+  priceCent: number
+  stockQuantity: number
+  soldQuantity?: number
+  saleStartAt?: string
+  saleEndAt?: string
+  payChannels: PayChannel[]
+  maxTicketsPerOrder: number
+  status: string
 }
 
 export interface Ticket extends AuditFields {
