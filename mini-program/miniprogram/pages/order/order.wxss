@@ -65,11 +65,11 @@
   flex: none;
   height: 100%;
   box-sizing: border-box;
-  border-right: 1rpx solid rgba(255, 255, 255, 0.3);
-  background: rgba(18, 22, 28, 0.34);
-  -webkit-backdrop-filter: blur(42rpx) saturate(145%) brightness(0.96);
-  backdrop-filter: blur(42rpx) saturate(145%) brightness(0.96);
-  box-shadow: inset -1rpx 0 0 rgba(255, 255, 255, 0.2);
+  border-right: 1rpx solid rgba(255, 255, 255, 0.24);
+  background: rgba(18, 22, 28, 0.24);
+  -webkit-backdrop-filter: blur(32rpx) saturate(138%) brightness(0.98);
+  backdrop-filter: blur(32rpx) saturate(138%) brightness(0.98);
+  box-shadow: inset -1rpx 0 0 rgba(255, 255, 255, 0.14);
 }
 .ord__cat {
   height: 132rpx;
@@ -88,7 +88,7 @@
 }
 .ord__cat-icon { width: 40rpx; height: 40rpx; flex: none; }
 .ord__cat-name { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ord__cat.is-active { background: rgba(255, 255, 255, 0.18); color: var(--ic-white); font-weight: 700; }
+.ord__cat.is-active { background: rgba(255, 255, 255, 0.14); color: var(--ic-white); font-weight: 700; }
 .ord__cat.is-active::before {
   content: "";
   position: absolute;
@@ -110,15 +110,15 @@
   padding: 12rpx 12rpx 16rpx;
   box-sizing: border-box;
   overflow: hidden;
-  border: 1rpx solid rgba(255, 255, 255, 0.58);
+  border: 1rpx solid rgba(255, 255, 255, 0.44);
   border-radius: 24rpx;
-  background: rgba(232, 237, 244, 0.46);
-  -webkit-backdrop-filter: blur(42rpx) saturate(145%) brightness(1.04);
-  backdrop-filter: blur(42rpx) saturate(145%) brightness(1.04);
+  background: rgba(232, 237, 244, 0.36);
+  -webkit-backdrop-filter: blur(32rpx) saturate(138%) brightness(1.03);
+  backdrop-filter: blur(32rpx) saturate(138%) brightness(1.03);
   box-shadow:
-    inset 0 2rpx 0 rgba(255, 255, 255, 0.78),
-    inset 2rpx 0 0 rgba(255, 255, 255, 0.14),
-    inset 0 -2rpx 0 rgba(0, 0, 0, 0.18);
+    inset 0 2rpx 0 rgba(255, 255, 255, 0.62),
+    inset 2rpx 0 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2rpx 0 rgba(0, 0, 0, 0.14);
 }
 .ord__item-img { position: relative; width: 100%; height: 240rpx; border-radius: 16rpx; overflow: hidden; background: #111; }
 .ord__item-pic { width: 100%; height: 100%; display: block; }
@@ -158,7 +158,7 @@
   margin-top: 4rpx;
   font-size: 20rpx;
   line-height: 1.25;
-  color: var(--ic-text-2);
+  color: #2c2c2c;
   white-space: nowrap;
 }
 .ord__grid-gap { height: 20rpx; }
