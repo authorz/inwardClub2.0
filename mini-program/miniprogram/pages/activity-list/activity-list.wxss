@@ -104,13 +104,19 @@
 .al__review:active { background: rgba(255, 255, 255, 0.1); }
 .al__review-media {
   width: 184rpx;
-  height: 160rpx;
+  height: 196rpx;
   flex: none;
   overflow: hidden;
   border-radius: 12rpx;
   background: rgba(255, 255, 255, 0.06);
 }
-.al__review-image { display: block; width: 100%; height: 100%; }
+.al__review-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scale(1.35);
+  transform-origin: center top;
+}
 .al__review-placeholder {
   width: 100%;
   height: 100%;
