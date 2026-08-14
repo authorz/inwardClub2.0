@@ -1,27 +1,56 @@
-.bf { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.bf {
+  min-height: 100vh;
+  padding: 28rpx 36rpx calc(52rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: var(--ic-white);
+}
 
-/* 全部等级卡横向 swiper：初始定位当前等级，可滑动预览更高等级 */
-.bf__cards { height: 320rpx; }
-.bf__card-item { box-sizing: border-box; padding: 0 12rpx; }
-.bf__card { position: relative; height: 100%; border-radius: 20rpx; overflow: hidden; opacity: 0.72; transition: opacity 0.3s; }
-.bf__card.is-current { opacity: 1; }
-.bf__card-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* 顶部/底部压暗渐变保证叠加文字可读 */
-.bf__card-body { position: absolute; inset: 0; padding: 30rpx 32rpx; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.6) 100%); }
-.bf__card-top { display: flex; align-items: center; justify-content: space-between; }
-.bf__card-no { font-size: 20rpx; letter-spacing: 1rpx; color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; }
-.bf__card-tag { font-size: 20rpx; color: #fff; padding: 2rpx 14rpx; border: 1rpx solid rgba(255,255,255,0.6); border-radius: 999rpx; }
-.bf__card-name { display: block; font-size: 30rpx; font-weight: 700; color: #fff; text-shadow: 0 2rpx 8rpx rgba(0,0,0,0.35); }
-.bf__card-hint { display: block; margin-top: 14rpx; font-size: 22rpx; color: rgba(255,255,255,0.8); }
+/* 会员身份面只保留品牌 LOGO 与 VIP 等级。 */
+.bf__identity {
+  height: 300rpx;
+  padding: 34rpx 38rpx 30rpx;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.bf__identity.needs-border, .bf__level-mark.needs-border { border: 1rpx solid var(--ic-line-strong); }
+.bf__identity-logo { width: 238rpx; height: 106rpx; align-self: flex-start; }
+.bf__identity-logo.is-light, .bf__level-logo.is-light { filter: brightness(0) invert(1); }
+.bf__identity-logo.is-dark, .bf__level-logo.is-dark { filter: brightness(0); }
+.bf__identity-vip {
+  align-self: flex-end;
+  font-size: 64rpx;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1rpx;
+  font-variant-numeric: tabular-nums;
+}
 
-.bf__growth { margin-top: 20rpx; }
-.bf__growth-head { display: flex; align-items: center; justify-content: space-between; }
-.bf__growth-label { font-size: 22rpx; color: rgba(255,255,255,0.85); }
-.bf__growth-val { font-size: 22rpx; color: #fff; font-variant-numeric: tabular-nums; }
-.bf__bar { margin-top: 14rpx; height: 12rpx; border-radius: 999rpx; background: rgba(255,255,255,0.3); overflow: hidden; }
-.bf__bar-fill { height: 100%; background: #fff; border-radius: 999rpx; }
+.bf__status { padding: 34rpx 4rpx 38rpx; border-bottom: 1rpx solid var(--ic-line); }
+.bf__status-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28rpx; }
+.bf__member { min-width: 0; }
+.bf__label { display: block; font-size: 22rpx; line-height: 1.4; color: var(--ic-text-3); }
+.bf__member-line { display: flex; align-items: center; gap: 12rpx; margin-top: 8rpx; min-width: 0; }
+.bf__member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34rpx; font-weight: 650; line-height: 1.25; color: var(--ic-black); }
+.bf__member-vip { flex: none; padding: 4rpx 10rpx; border-radius: 6rpx; background: var(--ic-black); color: var(--ic-white); font-size: 18rpx; font-weight: 650; line-height: 1.25; }
+.bf__growth-value { flex: none; text-align: right; }
+.bf__growth-num { display: block; margin-top: 4rpx; font-size: 38rpx; font-weight: 700; line-height: 1.2; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.bf__bar { height: 10rpx; margin-top: 28rpx; overflow: hidden; border-radius: 999rpx; background: var(--ic-fill); }
+.bf__bar-fill { height: 100%; border-radius: 999rpx; background: var(--ic-black); }
+.bf__growth-foot { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; margin-top: 12rpx; }
+.bf__growth-hint, .bf__growth-target { font-size: 20rpx; line-height: 1.4; color: var(--ic-text-3); }
+.bf__growth-target { flex: none; font-variant-numeric: tabular-nums; }
 
-/* 本页稳定 CSS 线性图标：黑白克制，不依赖背景大图 */
+.bf__sec { margin-top: 44rpx; }
+.bf__sec-title { display: block; padding-bottom: 18rpx; font-size: 28rpx; font-weight: 700; line-height: 1.3; color: var(--ic-black); }
+.bf__benefits, .bf__levels { border-top: 1rpx solid var(--ic-line); }
+.bf__benefit { display: flex; align-items: center; gap: 22rpx; min-height: 108rpx; padding: 24rpx 4rpx; border-bottom: 1rpx solid var(--ic-line); box-sizing: border-box; }
+.bf__benefit-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 6rpx; }
+.bf__benefit-title { font-size: 26rpx; font-weight: 600; line-height: 1.35; color: var(--ic-black); }
+.bf__benefit-desc { font-size: 22rpx; line-height: 1.4; color: var(--ic-text-3); }
+
 .bf__icon { position: relative; width: 36rpx; height: 36rpx; box-sizing: border-box; flex: none; color: var(--ic-black); }
 .bf__icon--calendar { border: 2rpx solid currentColor; border-radius: 6rpx; }
 .bf__icon--calendar::before { content: ""; position: absolute; left: -2rpx; right: -2rpx; top: 9rpx; height: 2rpx; background: currentColor; }
@@ -33,25 +62,13 @@
 .bf__icon--gift::before { content: ""; position: absolute; left: 6rpx; right: 6rpx; top: 15rpx; bottom: 3rpx; border: 2rpx solid currentColor; border-top: none; }
 .bf__icon--gift::after { content: ""; position: absolute; left: 50%; top: 8rpx; bottom: 3rpx; width: 2rpx; margin-left: -1rpx; background: currentColor; }
 
-.bf__sec { margin-top: 32rpx; }
-.bf__sec .ic-h2 { display: block; padding: 0 8rpx 20rpx; }
-
-.bf__benefits, .bf__levels { padding: 8rpx 32rpx; }
-.bf__benefit { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 0; border-bottom: 1rpx solid var(--ic-line); }
-.bf__benefit:last-child { border-bottom: none; }
-.bf__benefit-main { display: flex; flex-direction: column; gap: 6rpx; }
-.bf__benefit-title { font-size: 26rpx; color: var(--ic-black); }
-.bf__benefit-desc { font-size: 22rpx; color: var(--ic-text-3); }
-
-.bf__level { display: flex; align-items: center; gap: 22rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
-.bf__level:last-child { border-bottom: none; }
-.bf__level-main { flex: 1; }
-.bf__level-head { display: flex; align-items: center; gap: 14rpx; }
-.bf__level-ver { font-size: 20rpx; font-weight: 600; color: var(--ic-text-2); padding: 2rpx 10rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 6rpx; font-variant-numeric: tabular-nums; }
-.bf__level-name { font-size: 26rpx; font-weight: 600; color: var(--ic-black); }
-.bf__level-tag { font-size: 20rpx; color: var(--ic-black); padding: 2rpx 12rpx; background: var(--ic-fill); border-radius: 6rpx; }
-.bf__level-desc { display: block; margin-top: 6rpx; font-size: 22rpx; color: var(--ic-text-3); }
-.bf__level.is-current .bf__level-name { color: var(--ic-black); }
-
-.bf__level-icon { width: 64rpx; height: 64rpx; flex: none; }
-.bf__note { display: block; text-align: center; margin-top: 30rpx; font-size: 20rpx; color: var(--ic-text-4); }
+.bf__level { display: flex; align-items: center; gap: 22rpx; min-height: 118rpx; padding: 24rpx 4rpx; border-bottom: 1rpx solid var(--ic-line); box-sizing: border-box; }
+.bf__level-mark { width: 126rpx; height: 78rpx; padding: 10rpx 12rpx 9rpx; border-radius: 10rpx; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+.bf__level-logo { width: 76rpx; height: 34rpx; align-self: flex-start; }
+.bf__level-vip { align-self: flex-end; font-size: 18rpx; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.bf__level-main { flex: 1; min-width: 0; }
+.bf__level-head { display: flex; align-items: center; gap: 12rpx; }
+.bf__level-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26rpx; font-weight: 600; line-height: 1.35; color: var(--ic-black); }
+.bf__level-tag { flex: none; padding: 3rpx 10rpx; border-radius: 6rpx; background: var(--ic-black); color: var(--ic-white); font-size: 18rpx; line-height: 1.25; }
+.bf__level-desc { display: block; margin-top: 7rpx; font-size: 21rpx; line-height: 1.4; color: var(--ic-text-3); }
+.bf__note { display: block; margin-top: 34rpx; text-align: center; font-size: 20rpx; line-height: 1.4; color: var(--ic-text-4); }

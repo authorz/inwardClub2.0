@@ -325,8 +325,9 @@ function normalizeActivity(a) {
 }
 
 // ---- membership benefits overview (server arrays -> benefits page object) ----
-// The 会员权益 page (pages/benefits) reads an OBJECT {current(code), growthValue,
-// growthMax, benefits:[{icon,title,desc}], levels:[{code,name,desc}]}, but the
+// The 会员权益 page (pages/benefits) reads an OBJECT {current(code), currentLevel,
+// growthValue, growthMax, benefits:[{icon,title,desc}],
+// levels:[{code,level,name,threshold,desc}]}, but the
 // server returns a flat tier ARRAY (GET /mini/membership-tiers), the member's
 // current tier on /mini/me, and growth on the /mini/wallet growth_value account.
 // getBenefitsOverview() composes the object from that real data: tier level int ->
@@ -381,10 +382,17 @@ const api = {
         return {
           data: {
             current: levelToCode(curLevel),
+            currentLevel: curLevel,
             growthValue: wallet.growthValue || 0,
             growthMax: (next && next.threshold) || curTier.threshold || 1000,
             benefits: benefitItems(curTier.benefits),
-            levels: tiers.map((t) => ({ code: levelToCode(t.level), name: t.name, desc: t.benefits || '' })),
+            levels: tiers.map((t) => ({
+              code: levelToCode(t.level),
+              level: t.level,
+              name: t.name,
+              threshold: t.threshold || 0,
+              desc: t.benefits || '',
+            })),
           },
         };
       }
