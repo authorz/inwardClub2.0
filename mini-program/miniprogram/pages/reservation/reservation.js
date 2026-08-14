@@ -105,20 +105,32 @@ Page({
           isCurrentReservationDay(reservation.createdAt || reservation.reservedAt)
         );
         const ownReservationsBySeat = new Map();
-        activeReservations
+        const ownReservationsByTable = new Map();
+        const currentStoreReservations = activeReservations
           .filter((reservation) =>
-            reservation.seatId != null && String(reservation.storeId) === String(storeId)
-          )
-          .forEach((reservation) => {
+            String(reservation.storeId) === String(storeId)
+          );
+        currentStoreReservations.forEach((reservation) => {
+          if (reservation.seatId != null) {
             ownReservationsBySeat.set(String(reservation.seatId), reservation);
-          });
+          }
+          if (reservation.tableId != null) {
+            ownReservationsByTable.set(String(reservation.tableId), reservation);
+          }
+        });
         const byTable = {};
         (sRes.data || []).forEach((seat) => {
           const key = seat.tableId != null ? seat.tableId : '';
           (byTable[key] = byTable[key] || []).push(seat);
         });
         const tables = (tRes.data || []).map((t) =>
-          this.decorate(t, byTable[t.id], ownReservationsBySeat, activeReservations.length > 0)
+          this.decorate(
+            t,
+            byTable[t.id],
+            ownReservationsBySeat,
+            ownReservationsByTable,
+            activeReservations.length > 0
+          )
         );
         this.setData({
           tables,
@@ -131,12 +143,12 @@ Page({
 
   /** Attach display fields for a real SeatView, including the current occupant. */
   decorateSeat(s, ownReservationsBySeat) {
-    const state = s.status === 'available' ? 'free' : 'reserved';
+    const ownReservation = ownReservationsBySeat.get(String(s.id));
+    const state = ownReservation || s.status !== 'available' ? 'reserved' : 'free';
     const isGuest = Boolean(s.isGuest);
     const nickname = isGuest ? 'inward会员' : s.nickname || '';
     const gender = s.gender === 'male' || s.gender === 'female' ? s.gender : '';
-    const ownReservation = ownReservationsBySeat.get(String(s.id));
-    const isMine = state === 'reserved' && Boolean(ownReservation);
+    const isMine = Boolean(ownReservation);
     return {
       no: s.name,
       seatId: s.id,
@@ -155,24 +167,27 @@ Page({
   },
 
   /** Attach fixed-row display fields to a table. */
-  decorate(t, realSeats, ownReservationsBySeat, hasDailyReservation) {
+  decorate(t, realSeats, ownReservationsBySeat, ownReservationsByTable, hasDailyReservation) {
     const seats = (realSeats || []).map((s) =>
       this.decorateSeat(s, ownReservationsBySeat)
     );
     const cap = t.capacity || seats.length;
     const free = seats.filter((s) => s.state === 'free').length;
-    const mine = seats.find((s) => s.isMine && s.reservationId);
+    const mine = seats.find((s) => s.isMine && s.reservationId) || null;
+    const ownReservation = mine
+      ? { id: mine.reservationId, status: mine.reservationStatus, seatNo: mine.no }
+      : ownReservationsByTable.get(String(t.id));
     return {
       id: t.id,
       name: t.name,
       reservedText: (t.reserved != null ? t.reserved : cap - free) + '/' + cap,
       canReserve: free > 0,
-      isMineTable: Boolean(mine),
-      mineReservationId: mine ? mine.reservationId : '',
-      mineSeatNo: mine ? mine.no : '',
-      actionText: mine ? '取消预约' : '预约座位',
-      actionDisabled: mine
-        ? mine.reservationStatus !== 'booked'
+      isMineTable: Boolean(ownReservation),
+      mineReservationId: ownReservation ? ownReservation.id : '',
+      mineSeatNo: ownReservation ? ownReservation.seatNo || '' : '',
+      actionText: ownReservation ? '取消预约' : '预约座位',
+      actionDisabled: ownReservation
+        ? ownReservation.status !== 'booked'
         : hasDailyReservation || free === 0,
       seats,
     };
