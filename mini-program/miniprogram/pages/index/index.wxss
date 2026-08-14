@@ -229,21 +229,8 @@
 /* ---- current store address ---- */
 .home__store-section {
   position: relative;
-  z-index: 1;
-  margin: 20rpx 0 0;
-}
-.home__store-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 40rpx;
-  margin-bottom: 12rpx;
-}
-.home__store-section-title {
-  font-size: 26rpx;
-  font-weight: 400;
-  line-height: 1.3;
-  color: #34393f;
+  z-index: 2;
+  margin: 8rpx 24rpx 20rpx;
 }
 .home__store-panel {
   position: relative;
