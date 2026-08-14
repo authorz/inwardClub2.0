@@ -1,5 +1,10 @@
 <page-meta page-style="{{showSignInSheet ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="ic-page ic-page--tab home">
+  <view wx:if="{{currentActivityImage}}" class="home__ambient" aria-hidden="true">
+    <image class="home__ambient-image" src="{{currentActivityImage}}" mode="aspectFill" />
+    <view class="home__ambient-wash"></view>
+  </view>
+
   <!-- Custom navigation: white brand bar aligned to the WeChat capsule -->
   <view class="home__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="home__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
@@ -31,6 +36,7 @@
     indicator-dots="{{activities.length > 1}}"
     indicator-color="rgba(255,255,255,0.45)"
     indicator-active-color="#ffffff"
+    bindchange="onBannerChange"
   >
     <swiper-item wx:for="{{activities}}" wx:key="id">
       <view class="home__banner-item" data-id="{{item.id}}" bindtap="goActivity">
@@ -84,12 +90,6 @@
 
   <view class="home__glass-zone">
     <view class="home__feature-wall">
-      <image
-        class="home__feature-gif"
-        src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif"
-        mode="aspectFill"
-      />
-
     <!-- Flat member information: identity stays quiet so the activity hero remains primary. -->
     <view class="home__card">
       <view class="home__card-top {{loggedIn ? '' : 'home__card-top--guest'}}">

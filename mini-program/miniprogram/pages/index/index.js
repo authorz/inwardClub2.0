@@ -25,6 +25,7 @@ Page({
     store: null,
     storeDistanceText: '',
     activities: [],
+    currentActivityImage: '',
     signInStatus: {
       signedToday: false,
       streakDays: 0,
@@ -108,12 +109,14 @@ Page({
       // (tierCode/tierName/tierShort); mergeCachedProfile only backfills
       // avatar/nickname/gender, so the tier fields pass through untouched.
       const me = loggedIn ? mergeCachedProfile(meRes.data || {}) : {};
+      const activities = (actRes.data || []).slice(0, 4);
       this.setData({
         loggedIn,
         me,
         store,
         storeDistanceText: storeDistanceLabel(store),
-        activities: (actRes.data || []).slice(0, 4),
+        activities,
+        currentActivityImage: activities.length && activities[0].imageUrl ? activities[0].imageUrl : '',
       });
       if (loggedIn) this.loadSignInStatus();
       // 广告 Banner 接口暂时停用：首页顶部统一展示活动列表图片。
@@ -306,6 +309,11 @@ Page({
     const index = Number(e.currentTarget.dataset.index);
     if (!Number.isInteger(index) || index < 0 || index >= this.data.activities.length) return;
     this.setData({ [`activities[${index}].imageLoaded`]: true });
+  },
+  onBannerChange(e) {
+    const index = Number(e.detail.current);
+    const activity = this.data.activities[index];
+    this.setData({ currentActivityImage: activity && activity.imageUrl ? activity.imageUrl : '' });
   },
   goActivity(e) {
     wx.navigateTo({ url: '/pages/activity-detail/activity-detail?id=' + e.currentTarget.dataset.id });
