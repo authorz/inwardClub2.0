@@ -58,7 +58,7 @@
   z-index: 0;
   width: 214rpx;
   height: 92rpx;
-  opacity: 0.08;
+  opacity: 0.16;
   filter: brightness(0);
   transform: translateY(-50%);
   pointer-events: none;
