@@ -1,12 +1,21 @@
 <view wx:if="{{!hidden}}" class="tabbar">
-  <view
-    wx:for="{{list}}"
-    wx:key="text"
-    class="tabbar__item {{selected === index ? 'is-active' : ''}}"
-    data-index="{{index}}"
-    bindtap="onTap"
-  >
-    <image class="tabbar__icon" src="{{selected === index ? item.active : item.icon}}" mode="aspectFit" />
-    <text class="tabbar__text">{{item.text}}</text>
+  <view class="tabbar__glass">
+    <view
+      wx:for="{{list}}"
+      wx:key="text"
+      class="tabbar__item {{selected === index ? 'is-active' : ''}}"
+      hover-class="is-pressed"
+      hover-stay-time="80"
+      data-index="{{index}}"
+      aria-role="tab"
+      aria-label="{{item.text}}"
+      aria-checked="{{selected === index}}"
+      bindtap="onTap"
+    >
+      <view class="tabbar__icon-shell">
+        <image class="tabbar__icon" src="{{selected === index ? item.active : item.icon}}" mode="aspectFit" />
+      </view>
+      <text class="tabbar__text">{{item.text}}</text>
+    </view>
   </view>
 </view>
