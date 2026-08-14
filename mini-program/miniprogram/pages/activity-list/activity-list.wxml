@@ -64,7 +64,7 @@
     </view>
 
     <view wx:else class="al__reviews">
-      <view class="al__review" wx:for="{{reviews}}" wx:key="id" data-id="{{item.id}}" bindtap="onReviewTap">
+      <view class="al__review ic-glass-recessed" wx:for="{{reviews}}" wx:key="id" data-id="{{item.id}}" bindtap="onReviewTap">
         <view class="al__review-media">
           <image wx:if="{{item.imageUrl}}" class="al__review-image" src="{{item.imageUrl}}" mode="aspectFill" lazy-load="{{true}}" />
           <view wx:else class="al__review-placeholder">
