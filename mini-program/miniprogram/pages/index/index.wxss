@@ -47,7 +47,7 @@
   width: 100%;
   height: 820rpx;
   margin: 0;
-  border-radius: 0 0 16rpx 16rpx;
+  border-radius: 0 0 40rpx 40rpx;
   overflow: hidden;
   background: #17161a;
 }
