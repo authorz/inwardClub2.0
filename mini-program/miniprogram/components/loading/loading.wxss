@@ -19,9 +19,9 @@
   display: block;
   width: 280rpx;
   height: 124rpx;
-  filter: brightness(0);
+  filter: brightness(1.2) drop-shadow(0 0 14rpx rgba(255, 255, 255, 0.24));
 }
 .loading--fullscreen .loading__logo { width: 360rpx; height: 160rpx; }
-.loading--dark .loading__logo { filter: none; }
-.loading__text { margin-top: 18rpx; font-size: 22rpx; line-height: 1.4; color: rgba(0, 0, 0, 0.52); }
-.loading--dark .loading__text { color: rgba(255, 255, 255, 0.58); }
+.loading--light .loading__logo { filter: brightness(0); }
+.loading__text { margin-top: 18rpx; font-size: 22rpx; line-height: 1.4; color: rgba(255, 255, 255, 0.72); }
+.loading--light .loading__text { color: rgba(0, 0, 0, 0.58); }

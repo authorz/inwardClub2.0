@@ -1,9 +1,13 @@
+<ic-page-nav title="订单中心" />
+
 <view class="oce">
-  <view class="oce__types">
-    <ic-segmented options="{{typeOptions}}" value="{{type}}" variant="line" bind:change="onTypeChange" />
-  </view>
-  <view class="oce__status">
-    <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="pill" bind:change="onStatusChange" />
+  <view class="oce__filters ic-glass-recessed">
+    <view class="oce__types">
+      <ic-segmented options="{{typeOptions}}" value="{{type}}" variant="line" bind:change="onTypeChange" />
+    </view>
+    <view class="oce__status">
+      <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="pill" bind:change="onStatusChange" />
+    </view>
   </view>
 
   <ic-loading wx:if="{{loading}}" />

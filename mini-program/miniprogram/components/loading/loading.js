@@ -3,7 +3,7 @@ Component({
   properties: {
     show: { type: Boolean, value: true },
     text: { type: String, value: '' },
-    theme: { type: String, value: 'light' },
+    theme: { type: String, value: 'dark' },
     fullscreen: { type: Boolean, value: true },
   },
 });

@@ -3,7 +3,9 @@
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading",
     "ic-segmented": "/components/segmented/segmented",
-    "ic-order-row": "/components/order-row/order-row"
+    "ic-order-row": "/components/order-row/order-row",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "订单中心"
 }

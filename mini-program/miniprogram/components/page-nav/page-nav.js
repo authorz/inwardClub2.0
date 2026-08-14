@@ -12,6 +12,18 @@ Component({
       type: String,
       value: '',
     },
+    storeName: {
+      type: String,
+      value: '',
+    },
+    storeAddress: {
+      type: String,
+      value: '',
+    },
+    storeHours: {
+      type: String,
+      value: '',
+    },
   },
 
   data: {
@@ -41,6 +53,10 @@ Component({
   methods: {
     onLeftTap() {
       this.triggerEvent('lefttap');
+    },
+
+    onStoreTap() {
+      this.triggerEvent('storetap');
     },
 
     onBack() {

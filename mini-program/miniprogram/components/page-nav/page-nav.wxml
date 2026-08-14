@@ -12,4 +12,20 @@
     </view>
     <text class="page-nav__title">{{title}}</text>
   </view>
+  <view wx:if="{{storeName}}" class="page-nav__store" bindtap="onStoreTap" hover-class="page-nav__store--pressed" aria-role="button" aria-label="当前门店 {{storeName}}，点击切换门店">
+    <view class="page-nav__store-icon-wrap">
+      <image class="page-nav__store-icon" src="/assets/icons/location.svg" mode="aspectFit"></image>
+    </view>
+    <view class="page-nav__store-main">
+      <view class="page-nav__store-head">
+        <text class="page-nav__store-name">{{storeName}}</text>
+        <text class="page-nav__store-tag">当前门店</text>
+      </view>
+      <view class="page-nav__store-meta">
+        <text class="page-nav__store-address">{{storeAddress}}</text>
+        <text class="page-nav__store-hours">{{storeHours}}</text>
+      </view>
+    </view>
+    <view class="page-nav__store-caret"></view>
+  </view>
 </view>

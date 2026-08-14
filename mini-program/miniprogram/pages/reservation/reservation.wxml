@@ -1,28 +1,15 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
-<ic-page-nav title="预约" back="{{false}}" />
+<ic-page-nav
+  title="预约"
+  back="{{false}}"
+  store-name="{{store.name || '选择门店'}}"
+  store-address="{{store.address || '地址请咨询门店'}}"
+  store-hours="{{store.hours || '营业时间请咨询门店'}}"
+  bind:storetap="switchStore"
+/>
 
 <view class="ic-page ic-page--tab rsv">
-  <view class="rsv__store ic-glass-recessed" hover-class="rsv__field--hover" bindtap="switchStore">
-    <view class="rsv__store-icon">
-      <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
-    </view>
-    <view class="rsv__store-copy">
-      <view class="rsv__store-name-line">
-        <text class="rsv__store-name ic-ellipsis">{{store.name || '选择门店'}}</text>
-        <text class="rsv__store-current">当前门店</text>
-      </view>
-      <view class="rsv__store-meta">
-        <text class="rsv__store-address ic-ellipsis">{{store.address || '地址请咨询门店'}}</text>
-        <view class="rsv__store-hours">
-          <image class="rsv__hours-icon" src="/assets/icons/business-hours.svg" mode="aspectFit"></image>
-          <text class="ic-ellipsis">{{store.hours || '营业时间请咨询门店'}}</text>
-        </view>
-      </view>
-    </view>
-    <view class="rsv__caret"></view>
-  </view>
-
   <view class="rsv__sec">
     <text class="ic-h2">可预约桌台</text>
     <view class="rsv__mine-link" hover-class="rsv__field--hover" bindtap="goMyReservations">
@@ -70,8 +57,11 @@
     </view>
   </block>
 
-  <view class="rsv__waitbar">
-    <button class="ic-btn ic-btn-primary ic-btn-block rsv__waitbtn" bindtap="onWaitlist">排队等候</button>
+  <view class="rsv__waitbar ic-glass-recessed">
+    <button class="rsv__waitbtn" bindtap="onWaitlist">
+      <text>排队等候</text>
+      <view class="rsv__wait-arrow"></view>
+    </button>
   </view>
 </view>
 

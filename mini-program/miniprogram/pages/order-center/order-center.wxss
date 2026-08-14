@@ -1,5 +1,7 @@
-.oce { min-height: 100vh; background: var(--ic-bg); }
-.oce__types { background: var(--ic-white); padding: 0 24rpx; position: sticky; top: 0; z-index: 5; }
-.oce__status { padding: 20rpx 24rpx 8rpx; }
-.oce__list { margin-top: 8rpx; padding: 0 24rpx 40rpx; background: var(--ic-white); }
-.oce__item { padding: 0; }
+.oce { min-height: calc(100vh - 88rpx); padding: 28rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); background: transparent; box-sizing: border-box; }
+.oce__filters { padding: 12rpx 18rpx 18rpx; }
+.oce__types { padding: 0 6rpx; }
+.oce__status { padding: 8rpx 0 0; }
+.oce__list { margin-top: 24rpx; }
+.oce__item { margin-bottom: 20rpx; }
+.oce__item:last-child { margin-bottom: 0; }
