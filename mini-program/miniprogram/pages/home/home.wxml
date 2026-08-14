@@ -1,19 +1,20 @@
 <page-meta page-style="{{ (showRecharge || showPoint) ? 'overflow: hidden;' : '' }}" />
 <view class="ic-page ic-page--tab mine">
   <view class="mine__nav" style="padding-top: {{navStatusBar}}px;">
-    <view class="mine__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;"></view>
+    <view class="mine__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
+      <image
+        class="mine__nav-logo"
+        src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png"
+        mode="heightFix"
+        aria-label="Inward Club"
+      />
+    </view>
   </view>
 
   <view class="mine__content">
     <!-- Identity and assets share one continuous glass card. -->
     <view class="mine__summary mine__glass">
       <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
-        <image
-          class="mine__profile-brand"
-          src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png"
-          mode="aspectFit"
-          aria-hidden="true"
-        />
         <view class="mine__avatar">
           <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
           <view wx:else class="mine__avatar-ph"><text>{{me.nickname || '会员'}}</text></view>
@@ -45,12 +46,10 @@
           <text class="mine__asset-num">{{wallet.couponCount || 0}}</text>
           <text class="mine__asset-label">优惠券</text>
         </view>
-        <!-- <view class="mine__asset-div"></view> -->
         <view class="mine__asset" data-asset="coins" bindtap="onAsset" hover-class="mine__asset--hover">
           <text class="mine__asset-num">{{coinsText}}</text>
           <text class="mine__asset-label">金币余额</text>
         </view>
-        <!-- <view class="mine__asset-div"></view> -->
         <view class="mine__asset" data-asset="points" bindtap="onAsset" hover-class="mine__asset--hover">
           <text class="mine__asset-num">{{pointsText}}</text>
           <text class="mine__asset-label">积分</text>
@@ -58,10 +57,10 @@
       </view>
     </view>
 
-    <!-- The page-level silver linework sits behind the translucent panels. -->
+    <!-- Primary actions use flat hierarchy instead of a second glass card. -->
     <view class="mine__service-stage">
-      <!-- All primary actions share one continuous glass surface. -->
-      <view class="mine__services mine__glass">
+      <view class="mine__services">
+        <text class="mine__services-title">常用服务</text>
         <view class="mine__service-grid">
           <view class="mine__service-item" bindtap="goOrder" hover-class="mine__service-item--hover">
             <view class="mine__service-icon-box"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
@@ -75,8 +74,8 @@
       </view>
 
       <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
-      <view wx:if="{{isStaff}}" class="mine__services mine__services--staff mine__glass">
-        <text class="mine__staff-title">工作人员功能</text>
+      <view wx:if="{{isStaff}}" class="mine__services mine__services--staff">
+        <text class="mine__services-title">工作人员功能</text>
         <view class="mine__service-grid">
           <view class="mine__service-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__service-item--hover">
             <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
