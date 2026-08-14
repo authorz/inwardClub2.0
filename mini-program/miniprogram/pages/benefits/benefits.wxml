@@ -2,7 +2,7 @@
 
 <view wx:elif="{{tier}}" class="bf">
   <view
-    class="bf__identity {{tier.needsBorder ? 'needs-border' : ''}}"
+    class="bf__identity"
     style="background-color: {{tier.tone}}; color: {{tier.ink}};"
     aria-role="img"
     aria-label="{{tier.currentVer}} {{tier.currentName}}"
@@ -33,48 +33,4 @@
       <text wx:if="{{tier.growthTarget}}" class="bf__growth-target">{{tier.growthValue}} / {{tier.growthTarget}}</text>
     </view>
   </view>
-
-  <view class="bf__sec">
-    <text class="bf__sec-title">本级权益</text>
-    <view class="bf__benefits">
-      <view class="bf__benefit" wx:for="{{tier.benefits}}" wx:key="title">
-        <view class="bf__icon {{item.icon}}"></view>
-        <view class="bf__benefit-main">
-          <text class="bf__benefit-title">{{item.title}}</text>
-          <text class="bf__benefit-desc">{{item.desc || '按后台规则发放'}}</text>
-        </view>
-      </view>
-      <view wx:if="{{!tier.benefits.length}}" class="bf__benefit bf__benefit--empty">
-        <view class="bf__icon bf__icon--gift"></view>
-        <view class="bf__benefit-main">
-          <text class="bf__benefit-title">会员专属权益</text>
-          <text class="bf__benefit-desc">具体内容以后台配置为准</text>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <view class="bf__sec">
-    <text class="bf__sec-title">等级说明</text>
-    <view class="bf__levels">
-      <view class="bf__level {{item.current ? 'is-current' : ''}}" wx:for="{{tier.levels}}" wx:key="ver">
-        <view
-          class="bf__level-mark {{item.needsBorder ? 'needs-border' : ''}}"
-          style="background-color: {{item.tone}}; color: {{item.ink}};"
-        >
-          <image class="bf__level-logo {{item.logoClass}}" src="/assets/brand/logo-wordmark.png" mode="aspectFit"></image>
-          <text class="bf__level-vip">{{item.ver}}</text>
-        </view>
-        <view class="bf__level-main">
-          <view class="bf__level-head">
-            <text class="bf__level-name">{{item.name}}</text>
-            <text wx:if="{{item.current}}" class="bf__level-tag">当前</text>
-          </view>
-          <text class="bf__level-desc">{{item.thresholdText}}</text>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <text class="bf__note">权益内容以门店和后台规则为准</text>
 </view>
