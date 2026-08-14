@@ -6,8 +6,7 @@ const ui = require('../../utils/ui');
 const codeart = require('../../utils/codeart');
 const { TICKET_STATUS_LABEL } = require('../../constants/index');
 
-const STACK_PREVIEW_TOP_RPX = 414;
-const STACK_PREVIEW_STEP_RPX = 76;
+const TICKET_STACK_STEP_RPX = 116;
 
 // bucket lifecycle statuses into the three visible tabs
 function bucketOf(status) {
@@ -37,8 +36,8 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
-    decks: [],
-    currentTicketIndex: 0,
+    stackTravel: 0,
+    stackViewportHeight: 430,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -70,6 +69,10 @@ Page({
       .catch(() => this.setData({ loading: false }));
   },
 
+  onReady() {
+    this.measureTicketViewport();
+  },
+
   onStatusChange(e) {
     this.setData({ bucket: e.detail.value });
     this.applyFilter();
@@ -77,28 +80,30 @@ Page({
 
   applyFilter() {
     const list = this.data.all.filter((t) => t.bucket === this.data.bucket);
-    const decks = list.map((ticket, ticketIndex) => ({
-      ...ticket,
-      previews: list.slice(ticketIndex + 1, ticketIndex + 3).map((preview, previewIndex) => ({
-        ...preview,
-        targetIndex: ticketIndex + previewIndex + 1,
-        stackTop: STACK_PREVIEW_TOP_RPX + previewIndex * STACK_PREVIEW_STEP_RPX,
-        stackZ: 2 - previewIndex,
-      })),
-    }));
-    this.setData({ list, decks, currentTicketIndex: 0 });
+    const stackTravel = Math.max(list.length - 1, 0) * TICKET_STACK_STEP_RPX;
+    this.setData({ list, stackTravel }, () => this.measureTicketViewport());
   },
 
-  onTicketChange(e) {
-    const current = Number(e.detail.current);
-    if (!Number.isInteger(current) || current === this.data.currentTicketIndex) return;
-    this.setData({ currentTicketIndex: current });
+  measureTicketViewport() {
+    if (!wx.createSelectorQuery || !wx.getWindowInfo) return;
+    wx.nextTick(() => {
+      wx.createSelectorQuery()
+        .select('.tk__stack-scroll')
+        .boundingClientRect((rect) => {
+          if (!rect || !rect.height) return;
+          const windowWidth = wx.getWindowInfo().windowWidth;
+          if (!windowWidth) return;
+          const stackViewportHeight = Math.max(Math.round((rect.height * 750) / windowWidth), 430);
+          if (stackViewportHeight !== this.data.stackViewportHeight) {
+            this.setData({ stackViewportHeight });
+          }
+        })
+        .exec();
+    });
   },
 
-  selectTicket(e) {
-    const index = Number(e.currentTarget.dataset.index);
-    if (!Number.isInteger(index) || index < 0 || index >= this.data.decks.length) return;
-    this.setData({ currentTicketIndex: index });
+  onResize() {
+    this.measureTicketViewport();
   },
 
   showCode(e) {
