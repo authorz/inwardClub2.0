@@ -59,12 +59,14 @@
 
 /* ---- fixed table summary ---- */
 .rsv__table { margin-bottom: 20rpx; padding: 28rpx 30rpx 30rpx; }
-.rsv__thead { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }
+.rsv__thead { display: flex; align-items: center; }
 .rsv__table-title { display: flex; align-items: baseline; gap: 26rpx; min-width: 0; }
 .rsv__tname { font-size: 28rpx; font-weight: 700; color: var(--ic-black); }
 .rsv__tseats { font-size: 22rpx; color: var(--ic-text-2); }
+.rsv__seat-line { display: flex; align-items: center; gap: 18rpx; margin-top: 26rpx; }
 .rsv__reserve {
-  min-width: 126rpx;
+  width: 136rpx;
+  min-width: 136rpx;
   height: 52rpx;
   margin: 0;
   padding: 0 20rpx;
@@ -79,12 +81,13 @@
   line-height: 1;
 }
 .rsv__reserve::after { border: 0; }
+.rsv__reserve--cancel { background: var(--ic-white); color: var(--ic-black); box-shadow: inset 0 0 0 2rpx var(--ic-black); }
 .rsv__reserve--disabled { background: var(--ic-fill); color: var(--ic-text-4); }
-.rsv__seat-row { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 26rpx; }
+.rsv__seat-row { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 8rpx; }
 .rsv__seat {
   position: relative;
-  width: 48rpx;
-  height: 48rpx;
+  width: 38rpx;
+  height: 38rpx;
   flex: none;
   overflow: visible;
   border-radius: 50%;
@@ -96,14 +99,14 @@
 .rsv__seat--selected { background: var(--ic-black); border-color: var(--ic-black); box-shadow: 0 0 0 5rpx rgba(17, 17, 17, 0.12); }
 .rsv__seat--mine { box-shadow: 0 0 0 3rpx var(--ic-white), 0 0 0 5rpx var(--ic-black); }
 .rsv__seat-avatar { width: 100%; height: 100%; display: block; border-radius: 50%; }
-.rsv__seat-avatar--brand { box-sizing: border-box; padding: 11rpx 5rpx; background: var(--ic-white); }
-.rsv__seat-initial { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--ic-white); font-size: 18rpx; font-weight: 700; }
+.rsv__seat-avatar--brand { box-sizing: border-box; padding: 9rpx 4rpx; background: var(--ic-white); }
+.rsv__seat-initial { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--ic-white); font-size: 16rpx; font-weight: 700; }
 .rsv__seat-gender {
   position: absolute;
-  right: -5rpx;
-  bottom: -5rpx;
-  width: 21rpx;
-  height: 21rpx;
+  right: -4rpx;
+  bottom: -4rpx;
+  width: 18rpx;
+  height: 18rpx;
   padding: 2rpx;
   border-radius: 50%;
   background: var(--ic-white);

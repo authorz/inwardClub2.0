@@ -45,28 +45,31 @@
           <text class="rsv__tname">{{item.name}}</text>
           <text class="rsv__tseats">座位 {{item.reservedText}}</text>
         </view>
-        <button
-          class="rsv__reserve {{!item.canReserve ? 'rsv__reserve--disabled' : ''}}"
-          disabled="{{!item.canReserve}}"
-          data-id="{{item.id}}"
-          bindtap="onReserveTable"
-        >{{item.canReserve ? '预约座位' : '已满'}}</button>
       </view>
 
-      <view class="rsv__seat-row">
-        <view
-          class="rsv__seat rsv__seat--{{seat.state}} {{seat.isMine ? 'rsv__seat--mine' : ''}}"
-          wx:for="{{item.seats}}"
-          wx:for-item="seat"
-          wx:key="no"
-          aria-label="{{seat.accessibilityLabel}}"
-        >
-          <block wx:if="{{seat.state === 'reserved'}}">
-            <image wx:if="{{seat.avatarUrl}}" class="rsv__seat-avatar {{seat.isGuest ? 'rsv__seat-avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
-            <text wx:else class="rsv__seat-initial">{{seat.initial}}</text>
-            <image wx:if="{{seat.genderIcon}}" class="rsv__seat-gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
-          </block>
+      <view class="rsv__seat-line">
+        <view class="rsv__seat-row">
+          <view
+            class="rsv__seat rsv__seat--{{seat.state}} {{seat.isMine ? 'rsv__seat--mine' : ''}}"
+            wx:for="{{item.seats}}"
+            wx:for-item="seat"
+            wx:key="no"
+            aria-label="{{seat.accessibilityLabel}}"
+          >
+            <block wx:if="{{seat.state === 'reserved'}}">
+              <image wx:if="{{seat.avatarUrl}}" class="rsv__seat-avatar {{seat.isGuest ? 'rsv__seat-avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
+              <text wx:else class="rsv__seat-initial">{{seat.initial}}</text>
+              <image wx:if="{{seat.genderIcon}}" class="rsv__seat-gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
+            </block>
+          </view>
         </view>
+        <button
+          class="rsv__reserve {{item.isMineTable ? 'rsv__reserve--cancel' : ''}} {{item.actionDisabled ? 'rsv__reserve--disabled' : ''}}"
+          disabled="{{item.actionDisabled || cancellingReservationId}}"
+          loading="{{item.isMineTable && cancellingReservationId === item.mineReservationId}}"
+          data-id="{{item.id}}"
+          bindtap="onTableAction"
+        >{{item.actionText}}</button>
       </view>
     </view>
   </block>

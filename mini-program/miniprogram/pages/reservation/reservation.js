@@ -2,6 +2,7 @@
 const api = require('../../services/api');
 const validation = require('../../utils/validation');
 const auth = require('../../utils/auth');
+const http = require('../../utils/request');
 const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
 const { saveProfile } = require('../../utils/member-profile');
@@ -13,6 +14,8 @@ Page({
     tables: [],
     showConfirm: false,
     submitting: false,
+    cancellingReservationId: '',
+    hasDailyReservation: false,
     selected: null, // { tableId, tableName, seatNo }
     navStatusBar: 20,
     navContentHeight: 44,
@@ -76,8 +79,11 @@ Page({
       : Promise.resolve({ data: [] });
     Promise.all([api.getTables(storeId), api.getSeats(storeId), ownReservations])
       .then(([tRes, sRes, rRes]) => {
+        const activeReservations = (rRes.data || []).filter((reservation) =>
+          reservation.status === 'booked' || reservation.status === 'arrived'
+        );
         const ownReservationsBySeat = new Map();
-        (rRes.data || [])
+        activeReservations
           .filter((reservation) =>
             reservation.seatId != null && String(reservation.storeId) === String(storeId)
           )
@@ -90,10 +96,11 @@ Page({
           (byTable[key] = byTable[key] || []).push(seat);
         });
         const tables = (tRes.data || []).map((t) =>
-          this.decorate(t, byTable[t.id], ownReservationsBySeat)
+          this.decorate(t, byTable[t.id], ownReservationsBySeat, activeReservations.length > 0)
         );
         this.setData({
           tables,
+          hasDailyReservation: activeReservations.length > 0,
           loading: false,
         });
       })
@@ -116,6 +123,8 @@ Page({
       nickname,
       accessibilityLabel: state === 'reserved' ? nickname || '已预约用户' : '空位',
       isMine,
+      reservationId: ownReservation ? ownReservation.id : '',
+      reservationStatus: ownReservation ? ownReservation.status : '',
       isGuest,
       initial: (nickname || '会').trim().charAt(0).toUpperCase(),
       gender,
@@ -124,26 +133,42 @@ Page({
   },
 
   /** Attach fixed-row display fields to a table. */
-  decorate(t, realSeats, ownReservationsBySeat) {
+  decorate(t, realSeats, ownReservationsBySeat, hasDailyReservation) {
     const seats = (realSeats || []).map((s) =>
       this.decorateSeat(s, ownReservationsBySeat)
     );
     const cap = t.capacity || seats.length;
     const free = seats.filter((s) => s.state === 'free').length;
+    const mine = seats.find((s) => s.isMine && s.reservationId);
     return {
       id: t.id,
       name: t.name,
       reservedText: (t.reserved != null ? t.reserved : cap - free) + '/' + cap,
       canReserve: free > 0,
+      isMineTable: Boolean(mine),
+      mineReservationId: mine ? mine.reservationId : '',
+      mineSeatNo: mine ? mine.no : '',
+      actionText: mine ? '取消预约' : '预约座位',
+      actionDisabled: mine
+        ? mine.reservationStatus !== 'booked'
+        : hasDailyReservation || free === 0,
       seats,
     };
   },
 
-  onReserveTable(e) {
+  onTableAction(e) {
     const id = e.currentTarget.dataset.id;
     const tables = this.data.tables;
     const table = tables.find((item) => String(item.id) === String(id));
     if (!table) return;
+    if (table.isMineTable) {
+      this.cancelOwnReservation(table);
+      return;
+    }
+    if (this.data.hasDailyReservation) {
+      ui.toast('一天只能预约一个座位');
+      return;
+    }
     const target = table.seats.find((seat) => seat.state === 'free');
     if (!target) {
       ui.toast('该桌暂时没有空位');
@@ -160,6 +185,32 @@ Page({
         seatId: target.seatId,
       },
       showConfirm: true,
+    });
+  },
+
+  cancelOwnReservation(table) {
+    const reservationId = table.mineReservationId;
+    if (!reservationId || this.data.cancellingReservationId) return;
+    ui.confirm({
+      title: '取消预约',
+      content: `确认取消 ${table.name} · ${table.mineSeatNo}号座位？`,
+      confirmText: '取消预约',
+    }).then((ok) => {
+      if (!ok) return;
+      this.setData({ cancellingReservationId: reservationId });
+      ui.showLoading('取消中');
+      api.cancelReservation(reservationId, http.uuid())
+        .then(() => {
+          ui.hideLoading();
+          this.setData({ cancellingReservationId: '' });
+          this.loadTables(this.data.store.id);
+          ui.success('已取消预约');
+        })
+        .catch((err) => {
+          ui.hideLoading();
+          this.setData({ cancellingReservationId: '' });
+          ui.error((err && err.message) || '取消失败');
+        });
     });
   },
 
