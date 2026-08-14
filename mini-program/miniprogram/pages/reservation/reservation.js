@@ -38,30 +38,10 @@ Page({
     cancellingReservationId: '',
     hasDailyReservation: false,
     selected: null, // { tableId, tableName }
-    navStatusBar: 20,
-    navContentHeight: 44,
-    navRightGap: 96,
   },
 
   onLoad() {
-    this.measureNav();
     this.load();
-  },
-
-  measureNav() {
-    try {
-      const win = wx.getWindowInfo();
-      const cap = wx.getMenuButtonBoundingClientRect();
-      const statusBar = win.statusBarHeight || 20;
-      const gap = Math.max(cap.top - statusBar, 4);
-      this.setData({
-        navStatusBar: statusBar,
-        navContentHeight: cap.height + gap * 2,
-        navRightGap: Math.max(win.windowWidth - cap.left + 8, 96),
-      });
-    } catch {
-      /* keep defaults */
-    }
   },
 
   onShow() {

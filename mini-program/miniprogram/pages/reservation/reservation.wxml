@@ -1,11 +1,5 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
-<view class="rsv__nav" style="padding-top: {{navStatusBar}}px;">
-  <view class="rsv__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
-    <text class="rsv__nav-title">预约</text>
-  </view>
-</view>
-
 <view class="ic-page ic-page--tab rsv">
   <view class="rsv__store" hover-class="rsv__field--hover" bindtap="switchStore">
     <view class="rsv__store-icon">

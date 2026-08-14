@@ -4,6 +4,5 @@
     "ic-loading": "/components/loading/loading",
     "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet"
   },
-  "navigationStyle": "custom",
   "navigationBarTitleText": "预约"
 }

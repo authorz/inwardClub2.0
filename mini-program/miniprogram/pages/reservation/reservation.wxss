@@ -1,16 +1,6 @@
 /* bottom padding keeps the last table clear of the floating action + custom tabbar */
 .rsv { padding: 0 24rpx; padding-bottom: calc(236rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 
-/* Custom navigation avoids the separator rendered inside WeChat's native bar. */
-.rsv__nav { background: var(--ic-white); }
-.rsv__nav-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-.rsv__nav-title { font-size: 28rpx; font-weight: 700; color: var(--ic-black); }
-
 /* ---- current store ---- */
 .rsv__field--hover { opacity: 0.72; }
 .rsv__store {
