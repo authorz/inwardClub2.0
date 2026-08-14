@@ -22,22 +22,34 @@
   <view wx:else class="tk__wallet">
     <view class="tk__wallet-head">
       <text class="tk__wallet-count">{{list.length}} 张入场券</text>
-      <text class="tk__wallet-hint">轻触票券展开</text>
+      <view wx:if="{{list.length > 1}}" class="tk__wallet-nav">
+        <text class="tk__wallet-index">{{currentTicketIndex + 1}} / {{list.length}}</text>
+        <text class="tk__wallet-hint">左右滑动选择</text>
+      </view>
+      <text wx:else class="tk__wallet-hint">轻触票券展开</text>
     </view>
 
-    <view class="tk__stack">
-      <view
-        class="tk__pass {{item.usable ? '' : 'is-dim'}}"
-        wx:for="{{list}}"
-        wx:key="id"
-        data-id="{{item.id}}"
-        bindtap="showCode"
-        hover-class="tk__pass--pressed"
-        hover-stay-time="80"
-        style="z-index: {{index + 1}};"
-        role="button"
-        aria-label="打开{{item.title}}，{{item.statusLabel}}"
-      >
+    <swiper
+      class="tk__carousel"
+      current="{{currentTicketIndex}}"
+      autoplay="{{false}}"
+      circular="{{false}}"
+      previous-margin="{{list.length > 1 ? '18rpx' : '0rpx'}}"
+      next-margin="{{list.length > 1 ? '42rpx' : '0rpx'}}"
+      duration="220"
+      easing-function="easeOutCubic"
+      bindchange="onTicketChange"
+    >
+      <swiper-item wx:for="{{list}}" wx:key="id" class="tk__slide">
+        <view
+          class="tk__pass {{item.usable ? '' : 'is-dim'}}"
+          data-id="{{item.id}}"
+          bindtap="showCode"
+          hover-class="tk__pass--pressed"
+          hover-stay-time="80"
+          role="button"
+          aria-label="打开{{item.title}}，{{item.statusLabel}}"
+        >
         <view class="tk__pass-head tk__pass-head--{{item.tone}}">
           <view class="tk__pass-heading">
             <text class="tk__pass-brand">INWARD CLUB</text>
@@ -79,8 +91,9 @@
             <text>{{item.usable ? '打开入场券' : '查看票券'}}</text>
           </view>
         </view>
-      </view>
-    </view>
+        </view>
+      </swiper-item>
+    </swiper>
   </view>
 </view>
 

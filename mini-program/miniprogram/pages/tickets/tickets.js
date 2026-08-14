@@ -34,6 +34,7 @@ Page({
     bucket: 'pending',
     all: [],
     list: [],
+    currentTicketIndex: 0,
     showCodeModal: false,
     codeTicket: null,
     qr: [],
@@ -71,7 +72,16 @@ Page({
   },
 
   applyFilter() {
-    this.setData({ list: this.data.all.filter((t) => t.bucket === this.data.bucket) });
+    this.setData({
+      list: this.data.all.filter((t) => t.bucket === this.data.bucket),
+      currentTicketIndex: 0,
+    });
+  },
+
+  onTicketChange(e) {
+    const current = Number(e.detail.current);
+    if (!Number.isInteger(current) || current === this.data.currentTicketIndex) return;
+    this.setData({ currentTicketIndex: current });
   },
 
   showCode(e) {
