@@ -70,6 +70,12 @@
 }
 
 /* ---- banner ---- */
+.home__banner-stage {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 0 0 60rpx 60rpx;
+}
 .home__banner {
   position: relative;
   z-index: 1;
@@ -338,6 +344,7 @@
   line-height: 56rpx;
   text-align: center;
 }
+.home__banner-all,
 .home__vip,
 .home__franchise-action {
   border: 1rpx solid rgba(255, 255, 255, 0.76);

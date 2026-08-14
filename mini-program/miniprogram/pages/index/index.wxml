@@ -26,51 +26,39 @@
   </view>
 
   <!-- Activity hero: the former advertising Banner API is intentionally disabled. -->
-  <swiper
-    wx:if="{{activities.length}}"
-    class="home__banner"
-    autoplay="{{activities.length > 1}}"
-    circular="{{activities.length > 1}}"
-    interval="5000"
-    duration="350"
-    indicator-dots="{{activities.length > 1}}"
-    indicator-color="rgba(255,255,255,0.45)"
-    indicator-active-color="#ffffff"
-    bindchange="onBannerChange"
-  >
-    <swiper-item wx:for="{{activities}}" wx:key="id">
-      <view class="home__banner-item" data-id="{{item.id}}" bindtap="goActivity">
-        <image
-          wx:if="{{item.imageUrl}}"
-          class="home__banner-img"
-          src="{{item.imageUrl}}"
-          mode="aspectFill"
-          data-index="{{index}}"
-          bindload="onBannerImageLoad"
-        />
-        <view wx:if="{{!item.imageUrl || !item.imageLoaded}}" class="home__banner-loading">
-          <ic-loading theme="dark" fullscreen="{{false}}" />
-        </view>
-        <view class="home__banner-info">
-          <view class="home__banner-info-head">
-            <view
-              class="home__banner-all"
-              aria-label="查看全部活动"
-              aria-role="button"
-              hover-class="home__banner-all--hover"
-              catchtap="goActivityList"
-            >
-              <text>全部活动</text>
-              <view class="ic-arrow home__banner-all-arrow"></view>
-            </view>
+  <view class="home__banner-stage">
+    <swiper
+      wx:if="{{activities.length}}"
+      class="home__banner"
+      autoplay="{{activities.length > 1}}"
+      circular="{{activities.length > 1}}"
+      interval="5000"
+      duration="350"
+      indicator-dots="{{activities.length > 1}}"
+      indicator-color="rgba(255,255,255,0.45)"
+      indicator-active-color="#ffffff"
+      bindchange="onBannerChange"
+    >
+      <swiper-item wx:for="{{activities}}" wx:key="id">
+        <view class="home__banner-item" data-id="{{item.id}}" bindtap="goActivity">
+          <image
+            wx:if="{{item.imageUrl}}"
+            class="home__banner-img"
+            src="{{item.imageUrl}}"
+            mode="aspectFill"
+            data-index="{{index}}"
+            bindload="onBannerImageLoad"
+          />
+          <view wx:if="{{!item.imageUrl || !item.imageLoaded}}" class="home__banner-loading">
+            <ic-loading theme="dark" fullscreen="{{false}}" />
           </view>
         </view>
+      </swiper-item>
+    </swiper>
+    <view wx:else class="home__banner home__banner-empty">
+      <view class="home__banner-loading">
+        <ic-loading theme="dark" fullscreen="{{false}}" />
       </view>
-    </swiper-item>
-  </swiper>
-  <view wx:else class="home__banner home__banner-empty">
-    <view class="home__banner-loading">
-      <ic-loading theme="dark" fullscreen="{{false}}" />
     </view>
     <view class="home__banner-info">
       <view class="home__banner-info-head">
