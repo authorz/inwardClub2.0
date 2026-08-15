@@ -39,6 +39,18 @@ Page({
     cancellingReservationId: '',
     hasDailyReservation: false,
     selected: null, // { tableId, tableName }
+    signInStatus: {
+      signedToday: false,
+      streakDays: 0,
+      rewardPoints: 0,
+      nextRewardPoints: 0,
+      dailyRewards: [],
+    },
+    signInSubmitting: false,
+    showSignInSheet: false,
+    showSignInReward: false,
+    signInReward: 0,
+    signInStreak: 0,
   },
 
   onLoad() {
@@ -49,6 +61,11 @@ Page({
   onShow() {
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
+    }
+    if (auth.isLoggedIn()) {
+      this.loadSignInStatus();
+    } else if (this.data.signInStatus.signedToday || this.data.signInStatus.dailyRewards.length) {
+      this.resetSignInState();
     }
     const s = storeCtx.get();
     if (s && this.data.store && s.id !== this.data.store.id) {
@@ -234,6 +251,98 @@ Page({
 
   onCloseConfirm() {
     this.clearSelection();
+  },
+
+  resetSignInState() {
+    this.setData({
+      showSignInSheet: false,
+      signInStatus: {
+        signedToday: false,
+        streakDays: 0,
+        rewardPoints: 0,
+        nextRewardPoints: 0,
+        dailyRewards: [],
+      },
+    });
+  },
+
+  onSessionExpired() {
+    this.resetSignInState();
+  },
+
+  loadSignInStatus() {
+    if (!auth.isLoggedIn()) return Promise.resolve();
+    return api
+      .getSignInStatus()
+      .then((res) => this.setData({ signInStatus: res.data || {} }))
+      .catch(() => {});
+  },
+
+  requireLogin(next) {
+    if (auth.isLoggedIn()) return next();
+    wx.navigateTo({
+      url: '/pages/login/login',
+      success: (res) => {
+        if (!res.eventChannel) return;
+        res.eventChannel.on('loginSuccess', () => {
+          this.loadSignInStatus();
+          next();
+        });
+      },
+    });
+  },
+
+  onSignIn() {
+    if (this.data.signInSubmitting) return;
+    this.requireLogin(() => {
+      this.setData({ showSignInSheet: true });
+      if (!(this.data.signInStatus.dailyRewards || []).length) this.loadSignInStatus();
+    });
+  },
+
+  closeSignInSheet() {
+    if (!this.data.signInSubmitting) this.setData({ showSignInSheet: false });
+  },
+
+  confirmSignIn() {
+    if (this.data.signInSubmitting || this.data.signInStatus.signedToday) return;
+    this.setData({ signInSubmitting: true });
+    api
+      .signIn()
+      .then((res) => {
+        const result = res.data || {};
+        const status = {
+          signedToday: true,
+          streakDays: result.streakDays || 1,
+          rewardPoints: result.pointsEarned || 0,
+          nextRewardPoints: this.data.signInStatus.nextRewardPoints || 0,
+          dailyRewards: this.data.signInStatus.dailyRewards || [],
+        };
+        this.setData({ signInSubmitting: false, showSignInSheet: false, signInStatus: status });
+        if (result.alreadySigned) {
+          ui.toast('今天已经签到过了');
+          return;
+        }
+        clearTimeout(this._signInRewardTimer);
+        this.setData({
+          showSignInReward: true,
+          signInReward: result.pointsEarned || 0,
+          signInStreak: result.streakDays || 1,
+        });
+        this._signInRewardTimer = setTimeout(() => {
+          this.setData({ showSignInReward: false });
+        }, 1600);
+      })
+      .catch((err) => {
+        this.setData({ signInSubmitting: false });
+        if (err && err.code === 'CONFLICT') {
+          this.setData({ showSignInSheet: false });
+          this.loadSignInStatus();
+          ui.toast('今天已经签到过了');
+          return;
+        }
+        ui.error((err && err.message) || '签到失败，请重试');
+      });
   },
 
   onConfirm() {

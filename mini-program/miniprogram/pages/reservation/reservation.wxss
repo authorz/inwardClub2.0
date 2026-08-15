@@ -9,6 +9,248 @@
 .rsv__sec { min-height: 96rpx; padding: 24rpx 8rpx 8rpx; display: flex; align-items: center; gap: 24rpx; }
 .rsv__sec .ic-h2 { color: rgba(255, 255, 255, 0.94); }
 
+/* ---- daily sign-in ---- */
+.rsv__sign-in {
+  position: relative;
+  flex: none;
+  width: 72rpx;
+  height: 72rpx;
+  margin-left: auto;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ic-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.16);
+}
+.rsv__sign-in-icon { color: currentColor; transform: scale(0.92); }
+.rsv__sign-in-dot {
+  position: absolute;
+  top: 7rpx;
+  right: 7rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  box-shadow: 0 0 0 3rpx var(--ic-white);
+}
+.rsv__sign-in-badge {
+  position: absolute;
+  top: 4rpx;
+  right: 4rpx;
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 16rpx;
+  font-weight: 600;
+  line-height: 22rpx;
+  text-align: center;
+  box-shadow: 0 0 0 3rpx var(--ic-white);
+}
+.rsv__sign-in--loading { opacity: 0.62; }
+.rsv__sign-in--hover { transform: scale(0.94); }
+
+.rsv__sign-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  box-sizing: border-box;
+  padding: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+  animation: rsv-sign-dialog-backdrop 0.2s ease-out both;
+}
+.rsv__sign-dialog-panel {
+  width: 100%;
+  max-width: 686rpx;
+  box-sizing: border-box;
+  padding: 28rpx 32rpx 32rpx;
+  border-radius: 24rpx;
+  background: var(--ic-white);
+  color: var(--ic-text);
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.16);
+  animation: rsv-sign-dialog-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rsv__sign-dialog-head {
+  height: 76rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx solid var(--ic-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rsv__sign-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--ic-black);
+}
+.rsv__sign-dialog-title .ic-ic { color: currentColor; }
+.rsv__sign-dialog-close {
+  width: 72rpx;
+  height: 72rpx;
+  margin-right: -18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--ic-text-3);
+}
+.rsv__sign-dialog-close--hover { opacity: 0.55; }
+.rsv__sign-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 32rpx;
+}
+.rsv__sign-rule {
+  width: calc((100% - 24rpx) / 3);
+  height: 136rpx;
+  box-sizing: border-box;
+  border-radius: 14rpx;
+  background: var(--ic-fill-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.rsv__sign-rule--earned { background: var(--ic-fill); }
+.rsv__sign-rule--current {
+  background: var(--ic-white);
+  box-shadow: inset 0 0 0 2rpx var(--ic-black);
+}
+.rsv__sign-rule-day {
+  font-size: 20rpx;
+  line-height: 1.2;
+  color: var(--ic-text-3);
+  white-space: nowrap;
+}
+.rsv__sign-rule-points {
+  margin-top: 12rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ic-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.rsv__sign-rule--earned .rsv__sign-rule-points,
+.rsv__sign-rule--current .rsv__sign-rule-points { color: var(--ic-black); }
+.rsv__sign-rule-unit { margin-top: 6rpx; font-size: 20rpx; line-height: 1; color: var(--ic-text-3); }
+.rsv__sign-dialog-loading {
+  display: block;
+  padding: 90rpx 0;
+  text-align: center;
+  font-size: 22rpx;
+  color: var(--ic-text-3);
+}
+.rsv__sign-dialog-note {
+  display: block;
+  margin-top: 24rpx;
+  text-align: center;
+  font-size: 20rpx;
+  line-height: 1.5;
+  color: var(--ic-text-3);
+}
+.rsv__sign-dialog-button {
+  width: 100% !important;
+  height: 88rpx;
+  margin: 28rpx 0 0 !important;
+  padding: 0;
+  border-radius: 8rpx;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 88rpx;
+}
+.rsv__sign-dialog-button::after { border: none; }
+.rsv__sign-dialog-button--done { background: var(--ic-fill); color: var(--ic-text-3); }
+@keyframes rsv-sign-dialog-enter {
+  from { opacity: 0; transform: translateY(20rpx) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rsv-sign-dialog-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rsv__reward {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.16);
+  animation: rsv-reward-backdrop 1.6s ease-out both;
+}
+.rsv__reward-panel {
+  position: relative;
+  z-index: 1;
+  width: 300rpx;
+  padding: 38rpx 28rpx 34rpx;
+  box-sizing: border-box;
+  border-radius: 20rpx;
+  background: var(--ic-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 20rpx 50rpx rgba(0, 0, 0, 0.22);
+  animation: rsv-reward-rise 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rsv__reward-check {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: var(--ic-black);
+  color: var(--ic-white);
+  font-size: 28rpx;
+  line-height: 72rpx;
+  text-align: center;
+}
+.rsv__reward-title { margin-top: 20rpx; font-size: 24rpx; font-weight: 600; color: var(--ic-black); }
+.rsv__reward-points { margin-top: 4rpx; font-size: 30rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.rsv__reward-streak { margin-top: 8rpx; font-size: 20rpx; color: var(--ic-text-3); }
+.rsv__reward-halo {
+  position: absolute;
+  width: 210rpx;
+  height: 210rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: rsv-reward-halo 0.72s ease-out both;
+}
+@keyframes rsv-reward-rise {
+  from { opacity: 0; transform: translateY(30rpx) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rsv-reward-halo {
+  from { opacity: 0.85; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(2); }
+}
+@keyframes rsv-reward-backdrop {
+  0% { opacity: 0; }
+  15%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rsv__sign-dialog,
+  .rsv__sign-dialog-panel,
+  .rsv__reward,
+  .rsv__reward-panel,
+  .rsv__reward-halo { animation-duration: 0.01ms; }
+}
+
 /* ---- fixed table summary ---- */
 .rsv__table {
   position: relative;

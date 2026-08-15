@@ -26,18 +26,6 @@ Page({
     storeDistanceText: '',
     activities: [],
     currentActivityImage: '',
-    signInStatus: {
-      signedToday: false,
-      streakDays: 0,
-      rewardPoints: 0,
-      nextRewardPoints: 0,
-      dailyRewards: [],
-    },
-    signInSubmitting: false,
-    showSignInSheet: false,
-    showSignInReward: false,
-    signInReward: 0,
-    signInStreak: 0,
     // custom navigation metrics (px)
     navStatusBar: 20,
     navContentHeight: 44,
@@ -76,14 +64,10 @@ Page({
     // gated page). Pull fresh member data when it flips to logged-in.
     if (auth.isLoggedIn() && !this.data.loggedIn) {
       this.refreshMe();
-    } else if (auth.isLoggedIn()) {
-      this.loadSignInStatus();
     } else if (!auth.isLoggedIn() && this.data.loggedIn) {
       this.setData({
         loggedIn: false,
         me: {},
-        showSignInSheet: false,
-        signInStatus: { signedToday: false, streakDays: 0, rewardPoints: 0, nextRewardPoints: 0, dailyRewards: [] },
       });
     }
     // Reflect a store change made on the store-select page.
@@ -118,7 +102,6 @@ Page({
         activities,
         currentActivityImage: activities.length && activities[0].imageUrl ? activities[0].imageUrl : '',
       });
-      if (loggedIn) this.loadSignInStatus();
       // 广告 Banner 接口暂时停用：首页顶部统一展示活动列表图片。
       // if (store) api.getBanners(store.id).then(...);
     });
@@ -137,7 +120,6 @@ Page({
         }
         me = mergeCachedProfile(me);
         this.setData({ loggedIn: true, me });
-        return this.loadSignInStatus();
       })
       .catch(() => this.setData({ loggedIn: auth.isLoggedIn() }));
   },
@@ -172,70 +154,7 @@ Page({
     this.setData({
       loggedIn: false,
       me: {},
-      showSignInSheet: false,
-      signInStatus: { signedToday: false, streakDays: 0, rewardPoints: 0, nextRewardPoints: 0, dailyRewards: [] },
     });
-  },
-
-  loadSignInStatus() {
-    if (!auth.isLoggedIn()) return Promise.resolve();
-    return api
-      .getSignInStatus()
-      .then((res) => this.setData({ signInStatus: res.data || {} }))
-      .catch(() => {});
-  },
-
-  onSignIn() {
-    if (this.data.signInSubmitting) return;
-    this.requireLogin(() => {
-      this.setData({ showSignInSheet: true });
-      if (!(this.data.signInStatus.dailyRewards || []).length) this.loadSignInStatus();
-    });
-  },
-
-  closeSignInSheet() {
-    if (!this.data.signInSubmitting) this.setData({ showSignInSheet: false });
-  },
-
-  confirmSignIn() {
-    if (this.data.signInSubmitting || this.data.signInStatus.signedToday) return;
-    this.setData({ signInSubmitting: true });
-    api
-      .signIn()
-      .then((res) => {
-        const result = res.data || {};
-        const status = {
-          signedToday: true,
-          streakDays: result.streakDays || 1,
-          rewardPoints: result.pointsEarned || 0,
-          nextRewardPoints: this.data.signInStatus.nextRewardPoints || 0,
-          dailyRewards: this.data.signInStatus.dailyRewards || [],
-        };
-        this.setData({ signInSubmitting: false, showSignInSheet: false, signInStatus: status });
-        if (result.alreadySigned) {
-          ui.toast('今天已经签到过了');
-          return;
-        }
-        clearTimeout(this._signInRewardTimer);
-        this.setData({
-          showSignInReward: true,
-          signInReward: result.pointsEarned || 0,
-          signInStreak: result.streakDays || 1,
-        });
-        this._signInRewardTimer = setTimeout(() => {
-          this.setData({ showSignInReward: false });
-        }, 1600);
-      })
-      .catch((err) => {
-        this.setData({ signInSubmitting: false });
-        if (err && err.code === 'CONFLICT') {
-          this.setData({ showSignInSheet: false });
-          this.loadSignInStatus();
-          ui.toast('今天已经签到过了');
-          return;
-        }
-        ui.error((err && err.message) || '签到失败，请重试');
-      });
   },
 
   // Current store = the member's persisted pick, else the nearest by location

@@ -1,4 +1,3 @@
-<page-meta page-style="{{showSignInSheet ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="ic-scroll-shell home">
   <view wx:if="{{currentActivityImage}}" class="home__ambient" aria-hidden="true">
     <image class="home__ambient-image" src="{{currentActivityImage}}" mode="aspectFill" />
@@ -162,66 +161,5 @@
   </view>
   </view>
   </scroll-view>
-
-  <view
-    class="home__sign-in {{signInStatus.signedToday ? 'home__sign-in--done' : ''}} {{signInSubmitting ? 'home__sign-in--loading' : ''}}"
-    aria-label="{{signInStatus.signedToday ? '查看今日签到状态' : '查看签到规则'}}"
-    aria-role="button"
-    hover-class="home__sign-in--hover"
-    bindtap="onSignIn"
-  >
-    <view class="ic-ic ic-ic-calendar ic-ic--sm home__sign-in-icon"></view>
-    <text wx:if="{{signInStatus.signedToday}}" class="home__sign-in-badge">✓</text>
-    <view wx:if="{{!signInStatus.signedToday && !signInSubmitting}}" class="home__sign-in-dot"></view>
-  </view>
-
-  <view wx:if="{{showSignInSheet}}" class="home__sign-dialog">
-    <view class="home__sign-dialog-panel">
-      <view class="home__sign-dialog-head">
-        <view class="home__sign-dialog-title">
-          <view class="ic-ic ic-ic-calendar ic-ic--sm"></view>
-          <text>签到得积分</text>
-        </view>
-        <view
-          class="home__sign-dialog-close"
-          aria-label="关闭签到弹窗"
-          aria-role="button"
-          hover-class="home__sign-dialog-close--hover"
-          bindtap="closeSignInSheet"
-        >×</view>
-      </view>
-
-      <view wx:if="{{signInStatus.dailyRewards.length}}" class="home__sign-rules">
-        <view
-          class="home__sign-rule {{signInStatus.streakDays >= index + 1 ? 'home__sign-rule--earned' : ''}} {{!signInStatus.signedToday && signInStatus.streakDays === index ? 'home__sign-rule--current' : ''}}"
-          wx:for="{{signInStatus.dailyRewards}}"
-          wx:key="index"
-        >
-          <text class="home__sign-rule-day">{{index === signInStatus.dailyRewards.length - 1 ? ('第' + (index + 1) + '天及以上') : ('第' + (index + 1) + '天')}}</text>
-          <text class="home__sign-rule-points">+{{item}}</text>
-          <text class="home__sign-rule-unit">积分</text>
-        </view>
-      </view>
-      <text wx:else class="home__sign-dialog-loading">规则加载中…</text>
-
-      <text class="home__sign-dialog-note">连续签到可获得更多积分，断签后从第 1 天重新计算</text>
-      <button
-        class="home__sign-dialog-button {{signInStatus.signedToday ? 'home__sign-dialog-button--done' : ''}}"
-        loading="{{signInSubmitting}}"
-        disabled="{{signInSubmitting || signInStatus.signedToday}}"
-        bindtap="confirmSignIn"
-      >{{signInStatus.signedToday ? '今日已签到' : '签到'}}</button>
-    </view>
-  </view>
-
-  <view wx:if="{{showSignInReward}}" class="home__reward">
-    <view class="home__reward-halo"></view>
-    <view class="home__reward-panel">
-      <view class="home__reward-check">✓</view>
-      <text class="home__reward-title">签到成功</text>
-      <text class="home__reward-points">+{{signInReward}} 积分</text>
-      <text class="home__reward-streak">已连续签到 {{signInStreak}} 天</text>
-    </view>
-  </view>
 
 </view>

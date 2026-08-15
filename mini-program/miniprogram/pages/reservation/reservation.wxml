@@ -1,4 +1,4 @@
-<page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
+<page-meta page-style="{{ (showConfirm || showSignInSheet) ? 'overflow: hidden;' : '' }}"></page-meta>
 
 <view class="rsv-shell">
   <ic-page-nav
@@ -14,6 +14,17 @@
     <view class="rsv">
       <view class="rsv__sec">
         <text class="ic-h2">可预约桌台</text>
+        <view
+          class="rsv__sign-in {{signInStatus.signedToday ? 'rsv__sign-in--done' : ''}} {{signInSubmitting ? 'rsv__sign-in--loading' : ''}}"
+          aria-label="{{signInStatus.signedToday ? '查看今日签到状态' : '查看签到规则'}}"
+          aria-role="button"
+          hover-class="rsv__sign-in--hover"
+          bindtap="onSignIn"
+        >
+          <view class="ic-ic ic-ic-calendar ic-ic--sm rsv__sign-in-icon"></view>
+          <text wx:if="{{signInStatus.signedToday}}" class="rsv__sign-in-badge">✓</text>
+          <view wx:if="{{!signInStatus.signedToday && !signInSubmitting}}" class="rsv__sign-in-dot"></view>
+        </view>
       </view>
 
       <ic-loading wx:if="{{loading}}" />
@@ -62,6 +73,55 @@
       <text>排队等候</text>
       <view class="rsv__wait-arrow"></view>
     </button>
+  </view>
+
+  <view wx:if="{{showSignInSheet}}" class="rsv__sign-dialog">
+    <view class="rsv__sign-dialog-panel">
+      <view class="rsv__sign-dialog-head">
+        <view class="rsv__sign-dialog-title">
+          <view class="ic-ic ic-ic-calendar ic-ic--sm"></view>
+          <text>签到得积分</text>
+        </view>
+        <view
+          class="rsv__sign-dialog-close"
+          aria-label="关闭签到弹窗"
+          aria-role="button"
+          hover-class="rsv__sign-dialog-close--hover"
+          bindtap="closeSignInSheet"
+        >×</view>
+      </view>
+
+      <view wx:if="{{signInStatus.dailyRewards.length}}" class="rsv__sign-rules">
+        <view
+          class="rsv__sign-rule {{signInStatus.streakDays >= index + 1 ? 'rsv__sign-rule--earned' : ''}} {{!signInStatus.signedToday && signInStatus.streakDays === index ? 'rsv__sign-rule--current' : ''}}"
+          wx:for="{{signInStatus.dailyRewards}}"
+          wx:key="index"
+        >
+          <text class="rsv__sign-rule-day">{{index === signInStatus.dailyRewards.length - 1 ? ('第' + (index + 1) + '天及以上') : ('第' + (index + 1) + '天')}}</text>
+          <text class="rsv__sign-rule-points">+{{item}}</text>
+          <text class="rsv__sign-rule-unit">积分</text>
+        </view>
+      </view>
+      <text wx:else class="rsv__sign-dialog-loading">规则加载中…</text>
+
+      <text class="rsv__sign-dialog-note">连续签到可获得更多积分，断签后从第 1 天重新计算</text>
+      <button
+        class="rsv__sign-dialog-button {{signInStatus.signedToday ? 'rsv__sign-dialog-button--done' : ''}}"
+        loading="{{signInSubmitting}}"
+        disabled="{{signInSubmitting || signInStatus.signedToday}}"
+        bindtap="confirmSignIn"
+      >{{signInStatus.signedToday ? '今日已签到' : '签到'}}</button>
+    </view>
+  </view>
+
+  <view wx:if="{{showSignInReward}}" class="rsv__reward">
+    <view class="rsv__reward-halo"></view>
+    <view class="rsv__reward-panel">
+      <view class="rsv__reward-check">✓</view>
+      <text class="rsv__reward-title">签到成功</text>
+      <text class="rsv__reward-points">+{{signInReward}} 积分</text>
+      <text class="rsv__reward-streak">已连续签到 {{signInStreak}} 天</text>
+    </view>
   </view>
 </view>
 
