@@ -35,12 +35,14 @@ Page({
     tables: [],
     showConfirm: false,
     submitting: false,
+    waitlisting: false,
     cancellingReservationId: '',
     hasDailyReservation: false,
     selected: null, // { tableId, tableName }
   },
 
   onLoad() {
+    this._waitlistKey = http.uuid();
     this.load();
   },
 
@@ -317,12 +319,30 @@ Page({
   },
 
   onWaitlist() {
+    if (this.data.waitlisting) return;
     this.clearSelection();
-    wx.navigateTo({ url: '/pages/waitlist/waitlist' });
-  },
-
-  goMyReservations() {
-    wx.navigateTo({ url: '/pages/reservation-list/reservation-list' });
+    const store = this.data.store;
+    if (!auth.isLoggedIn()) {
+      ui.toast('请先登录后排队');
+      return;
+    }
+    try {
+      validation.integer(store && store.id, { label: '门店', min: 1 });
+    } catch (err) {
+      ui.toast(err.message);
+      return;
+    }
+    this.setData({ waitlisting: true });
+    api.joinWaitlist({ storeId: store.id, partySize: 1 }, this._waitlistKey)
+      .then(() => {
+        this._waitlistKey = http.uuid();
+        this.setData({ waitlisting: false });
+        ui.success('已加入排队');
+      })
+      .catch((err) => {
+        this.setData({ waitlisting: false });
+        ui.error((err && err.message) || '排队失败');
+      });
   },
 
   switchStore() {

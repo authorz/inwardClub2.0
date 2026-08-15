@@ -1,4 +1,5 @@
-.sv { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.sv__scroll { background: var(--ic-bg); }
+.sv { min-height: 0; background: var(--ic-bg); padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 
 .sv__store { display: flex; flex-direction: column; gap: 8rpx; padding: 8rpx 8rpx 20rpx; }
 .sv__store-label { font-size: 22rpx; color: var(--ic-text-3); }

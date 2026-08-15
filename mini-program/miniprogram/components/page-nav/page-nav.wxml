@@ -1,3 +1,8 @@
+<view
+  class="page-nav__spacer"
+  style="height: {{statusBarHeight + contentHeight}}px; padding-bottom: {{storeName ? '134rpx' : '0'}};"
+  aria-hidden="true"
+></view>
 <view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
   <view class="page-nav__bar" style="height: {{contentHeight}}px; padding-left: {{sideGap}}px; padding-right: {{sideGap}}px;">
     <view wx:if="{{back}}" class="page-nav__back" bindtap="onBack" hover-class="page-nav__back--pressed" aria-role="button" aria-label="返回">

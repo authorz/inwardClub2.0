@@ -1,12 +1,13 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="订单中心" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="oce">
   <view class="oce__filters ic-glass-recessed">
     <view class="oce__types">
-      <ic-segmented options="{{typeOptions}}" value="{{type}}" variant="line" bind:change="onTypeChange" />
+      <ic-segmented options="{{typeOptions}}" value="{{type}}" variant="line" theme="dark" bind:change="onTypeChange" />
     </view>
     <view class="oce__status">
-      <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="pill" bind:change="onStatusChange" />
+      <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="pill" theme="dark" bind:change="onStatusChange" />
     </view>
   </view>
 
@@ -31,4 +32,6 @@
       />
     </view>
   </view>
+</view>
+</scroll-view>
 </view>

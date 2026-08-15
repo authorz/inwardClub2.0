@@ -10,6 +10,14 @@
 
 /* ---- layout helpers ---- */
 .ic-page { min-height: 100vh; box-sizing: border-box; }
+.ic-scroll-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.ic-scroll-view { flex: 1; min-height: 0; }
 .ic-safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx); }
 .ic-section { background: var(--ic-white); }
 .ic-band { height: 20rpx; background: var(--ic-bg); }

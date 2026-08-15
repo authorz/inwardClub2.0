@@ -1,10 +1,8 @@
-page { background: #000; color: #fff; }
-
 .ap {
   min-height: 100vh;
-  padding: 0 40rpx calc(152rpx + env(safe-area-inset-bottom));
-  background: #000;
-  color: #fff;
+  padding: 24rpx 24rpx calc(176rpx + env(safe-area-inset-bottom));
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
   box-sizing: border-box;
 }
 .ap__empty { padding-top: 120rpx; }
@@ -13,14 +11,17 @@ page { background: #000; color: #fff; }
   display: flex;
   align-items: center;
   gap: 24rpx;
-  padding: 40rpx 0;
-  border-bottom: 1rpx solid rgba(255, 255, 255, 0.18);
+  padding: 24rpx;
 }
 .ap__cover {
   width: 136rpx;
   height: 136rpx;
   flex: none;
-  background: #111;
+  overflow: hidden;
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+  border-radius: 18rpx;
+  background: rgba(4, 7, 11, 0.34);
+  box-sizing: border-box;
 }
 .ap__summary-main {
   display: flex;
@@ -35,11 +36,11 @@ page { background: #000; color: #fff; }
   line-height: 1.4;
   color: #fff;
 }
-.ap__meta { font-size: 22rpx; color: #fff; }
+.ap__meta { font-size: 22rpx; color: rgba(255, 255, 255, 0.68); }
 
 .ap__section {
-  padding: 44rpx 0;
-  border-bottom: 1rpx solid rgba(255, 255, 255, 0.18);
+  margin-top: 20rpx;
+  padding: 30rpx 24rpx;
 }
 .ap__section-title {
   display: block;
@@ -77,7 +78,7 @@ page { background: #000; color: #fff; }
 .ap__ticket-line { display: flex; align-items: baseline; justify-content: space-between; gap: 24rpx; }
 .ap__ticket-name { font-size: 26rpx; font-weight: 600; color: #fff; }
 .ap__ticket-price { flex: none; font-size: 28rpx; font-weight: 700; color: #fff; }
-.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 20rpx; color: #fff; }
+.ap__ticket-stock { display: block; margin-top: 8rpx; font-size: 20rpx; color: rgba(255, 255, 255, 0.62); }
 .ap__qty {
   display: flex;
   align-items: center;
@@ -89,7 +90,7 @@ page { background: #000; color: #fff; }
   box-sizing: border-box;
 }
 .ap__qty-label { font-size: 24rpx; color: #fff; }
-.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 24rpx; color: #fff; }
+.ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 24rpx; color: rgba(255, 255, 255, 0.62); }
 
 .ap__amount { display: flex; align-items: center; justify-content: space-between; }
 .ap__amount-label { font-size: 24rpx; color: #fff; }
@@ -104,9 +105,9 @@ page { background: #000; color: #fff; }
   display: flex;
   align-items: center;
   gap: 24rpx;
-  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid rgba(255, 255, 255, 0.22);
-  background: #000;
+  padding: 30rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(41, 41, 44, 0), rgba(41, 41, 44, 0.94) 42%);
+  box-sizing: border-box;
 }
 .ap__bar-total { display: flex; min-width: 180rpx; flex-direction: column; }
 .ap__bar-label { font-size: 20rpx; color: #fff; }
@@ -117,8 +118,23 @@ page { background: #000; color: #fff; }
   height: 88rpx;
   margin-left: 0 !important;
   margin-right: 0 !important;
-  border: 1rpx solid #fff;
-  background: #000;
-  color: #fff;
+  border-radius: 999rpx;
+  color: rgba(255, 255, 255, 0.96);
 }
-.ap__submit.ic-disabled { border-color: #555; background: #222; color: #fff; }
+.ap__submit.ic-glass-recessed {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(168, 180, 198, 0.2);
+  -webkit-backdrop-filter: blur(40rpx) saturate(155%) brightness(0.98);
+  backdrop-filter: blur(40rpx) saturate(155%) brightness(0.98);
+}
+.ap__submit.ic-glass-recessed::before {
+  right: 22rpx;
+  left: 22rpx;
+  height: 38rpx;
+  border-radius: 999rpx 999rpx 45% 45%;
+}
+.ap__submit.ic-disabled {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(168, 180, 198, 0.09);
+  color: rgba(255, 255, 255, 0.46);
+}

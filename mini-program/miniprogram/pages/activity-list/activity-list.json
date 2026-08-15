@@ -4,9 +4,10 @@
     "ic-loading": "/components/loading/loading"
   },
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "近期活动",
   "backgroundColor": "#171717",
   "backgroundTextStyle": "light",
-  "enablePullDownRefresh": true,
+  "enablePullDownRefresh": false,
   "onReachBottomDistance": 120
 }

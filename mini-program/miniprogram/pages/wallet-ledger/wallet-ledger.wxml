@@ -1,12 +1,13 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="钱包流水" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="wl">
   <view class="wl__filters ic-glass-recessed">
     <view class="wl__seg">
-      <ic-segmented options="{{assetOptions}}" value="{{asset}}" variant="block" quiet="{{true}}" bind:change="onAssetChange" />
+      <ic-segmented options="{{assetOptions}}" value="{{asset}}" variant="block" theme="dark" quiet="{{true}}" bind:change="onAssetChange" />
     </view>
     <view class="wl__dir">
-      <ic-segmented options="{{dirOptions}}" value="{{dir}}" variant="line" quiet="{{true}}" bind:change="onDirChange" />
+      <ic-segmented options="{{dirOptions}}" value="{{dir}}" variant="line" theme="dark" quiet="{{true}}" bind:change="onDirChange" />
     </view>
   </view>
 
@@ -28,4 +29,6 @@
   </view>
 
   <text class="wl__foot">仅展示近 90 天记录</text>
+</view>
+</scroll-view>
 </view>

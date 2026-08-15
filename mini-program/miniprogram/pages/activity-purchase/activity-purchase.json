@@ -6,7 +6,7 @@
     "ic-pay-methods": "/components/pay-methods/pay-methods"
   },
   "navigationBarTitleText": "确认购票",
-  "navigationBarBackgroundColor": "#000000",
+  "navigationBarBackgroundColor": "#2f2f32",
   "navigationBarTextStyle": "white",
-  "backgroundColor": "#000000"
+  "backgroundColor": "#2f2f32"
 }

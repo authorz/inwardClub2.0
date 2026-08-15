@@ -3,5 +3,6 @@
     "ic-page-nav": "/components/page-nav/page-nav"
   },
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "个人资料"
 }

@@ -1,5 +1,6 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="咨询客服" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <ic-loading wx:if="{{loading}}" show text="正在匹配最近门店" />
 
 <view wx:elif="{{store}}" class="cs">
@@ -65,4 +66,6 @@
   <ic-empty text="暂未找到可联系的门店" hint="请稍后重试">
     <button class="ic-btn ic-btn-ghost cs__retry" bindtap="loadContactStore">重新加载</button>
   </ic-empty>
+</view>
+</scroll-view>
 </view>

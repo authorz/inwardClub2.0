@@ -6,5 +6,6 @@
     "ic-page-nav": "/components/page-nav/page-nav"
   },
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "预约"
 }

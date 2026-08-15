@@ -2,13 +2,13 @@
   <style>
     .logo-line{fill:none;stroke:#fff;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;vector-effect:non-scaling-stroke;opacity:0}
     .line-1{animation:grow-1 24s cubic-bezier(.22,1,.36,1) infinite}.line-2{animation:grow-2 24s cubic-bezier(.22,1,.36,1) infinite}.line-3{animation:grow-3 24s cubic-bezier(.22,1,.36,1) infinite}.line-4{animation:grow-4 24s cubic-bezier(.22,1,.36,1) infinite}.line-5{animation:grow-5 24s cubic-bezier(.22,1,.36,1) infinite}.line-6{animation:grow-6 24s cubic-bezier(.22,1,.36,1) infinite}
-    @keyframes grow-1{0%{opacity:0;stroke-dashoffset:1}4%{opacity:.16}25%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @keyframes grow-2{0%,5%{opacity:0;stroke-dashoffset:1}9%{opacity:.16}30%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @keyframes grow-3{0%,10%{opacity:0;stroke-dashoffset:1}14%{opacity:.16}35%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @keyframes grow-4{0%,15%{opacity:0;stroke-dashoffset:1}19%{opacity:.16}40%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @keyframes grow-5{0%,20%{opacity:0;stroke-dashoffset:1}24%{opacity:.16}45%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @keyframes grow-6{0%,25%{opacity:0;stroke-dashoffset:1}29%{opacity:.16}50%,82%{opacity:.16;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
-    @media (prefers-reduced-motion:reduce){.logo-line{animation:none;opacity:.12;stroke-dashoffset:0}}
+    @keyframes grow-1{0%{opacity:0;stroke-dashoffset:1}4%{opacity:.24}25%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @keyframes grow-2{0%,5%{opacity:0;stroke-dashoffset:1}9%{opacity:.24}30%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @keyframes grow-3{0%,10%{opacity:0;stroke-dashoffset:1}14%{opacity:.24}35%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @keyframes grow-4{0%,15%{opacity:0;stroke-dashoffset:1}19%{opacity:.24}40%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @keyframes grow-5{0%,20%{opacity:0;stroke-dashoffset:1}24%{opacity:.24}45%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @keyframes grow-6{0%,25%{opacity:0;stroke-dashoffset:1}29%{opacity:.24}50%,82%{opacity:.24;stroke-dashoffset:0}100%{opacity:0;stroke-dashoffset:0}}
+    @media (prefers-reduced-motion:reduce){.logo-line{animation:none;opacity:.18;stroke-dashoffset:0}}
   </style>
   <defs>
     <path id="backdrop-logo-1" pathLength="1" d="M0 0s-23.006-22.795-37.359-92.989l-15.467-72.595h39.695L2.336-92.989C-17.966-60.923 0 0 0 0" transform="matrix(1 0 0 -1 179.304 129.911)"/>

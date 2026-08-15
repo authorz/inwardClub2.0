@@ -5,6 +5,7 @@
     "ic-poster": "/components/poster/poster"
   },
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "活动详情",
   "backgroundColor": "#000000"
 }

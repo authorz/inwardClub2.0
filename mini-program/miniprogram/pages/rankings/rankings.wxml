@@ -1,8 +1,9 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="排行榜" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="rk">
   <view class="rk__seg ic-glass-recessed">
-    <ic-segmented options="{{scopeOptions}}" value="{{scope}}" variant="pill" bind:change="onScopeChange" />
+    <ic-segmented options="{{scopeOptions}}" value="{{scope}}" variant="pill" theme="dark" bind:change="onScopeChange" />
   </view>
 
   <ic-loading wx:if="{{loading}}" />
@@ -121,4 +122,6 @@
       <text class="rk__empty-sub">使用微信完成充值或消费后即可进入排行榜</text>
     </view>
   </block>
+</view>
+</scroll-view>
 </view>

@@ -1,5 +1,6 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="个人资料" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="pf">
   <view class="pf__section ic-glass-recessed">
     <view class="pf__row pf__row--avatar" hover-class="pf__row--hover" bindtap="chooseAvatar">
@@ -63,4 +64,6 @@
   <view class="pf__save">
     <button class="ic-btn ic-btn-primary ic-btn-block pf__save-btn" loading="{{saving}}" bindtap="save">保存</button>
   </view>
+</view>
+</scroll-view>
 </view>

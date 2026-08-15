@@ -1,64 +1,64 @@
 <page-meta page-style="{{ showConfirm ? 'overflow: hidden;' : '' }}"></page-meta>
 
-<ic-page-nav
-  title="预约"
-  back="{{false}}"
-  store-name="{{store.name || '选择门店'}}"
-  store-address="{{store.address || '地址请咨询门店'}}"
-  store-hours="{{store.hours || '营业时间请咨询门店'}}"
-  bind:storetap="switchStore"
-/>
+<view class="rsv-shell">
+  <ic-page-nav
+    title="预约"
+    back="{{false}}"
+    store-name="{{store.name || '选择门店'}}"
+    store-address="{{store.address || '地址请咨询门店'}}"
+    store-hours="{{store.hours || '营业时间请咨询门店'}}"
+    bind:storetap="switchStore"
+  />
 
-<view class="ic-page ic-page--tab rsv">
-  <view class="rsv__sec">
-    <text class="ic-h2">可预约桌台</text>
-    <view class="rsv__mine-link" hover-class="rsv__field--hover" bindtap="goMyReservations">
-      <text>我的预约</text>
-      <view class="ic-arrow"></view>
-    </view>
-  </view>
-
-  <ic-loading wx:if="{{loading}}" />
-  <ic-empty wx:elif="{{!tables.length}}" text="当前门店暂无可预约桌台" />
-
-  <block wx:else>
-    <view class="rsv__table ic-glass-recessed" wx:for="{{tables}}" wx:key="id" data-tid="{{item.id}}">
-      <view class="rsv__thead">
-        <view class="rsv__table-title">
-          <text class="rsv__tname">{{item.name}}</text>
-          <text class="rsv__tseats">座位 {{item.reservedText}}</text>
-        </view>
+  <scroll-view class="rsv__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+    <view class="rsv">
+      <view class="rsv__sec">
+        <text class="ic-h2">可预约桌台</text>
       </view>
 
-      <view class="rsv__seat-line">
-        <view class="rsv__seat-row">
-          <view
-            class="rsv__seat rsv__seat--{{seat.state}} {{seat.isMine ? 'rsv__seat--mine' : ''}}"
-            wx:for="{{item.seats}}"
-            wx:for-item="seat"
-            wx:key="no"
-            aria-label="{{seat.accessibilityLabel}}"
-          >
-            <block wx:if="{{seat.state === 'reserved'}}">
-              <image wx:if="{{seat.avatarUrl}}" class="rsv__seat-avatar {{seat.isGuest ? 'rsv__seat-avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
-              <text wx:else class="rsv__seat-initial">{{seat.initial}}</text>
-              <image wx:if="{{seat.genderIcon}}" class="rsv__seat-gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
-            </block>
+      <ic-loading wx:if="{{loading}}" />
+      <ic-empty wx:elif="{{!tables.length}}" text="当前门店暂无可预约桌台" />
+
+      <block wx:else>
+        <view class="rsv__table ic-glass-recessed" wx:for="{{tables}}" wx:key="id" data-tid="{{item.id}}">
+          <view class="rsv__thead">
+            <view class="rsv__table-title">
+              <text class="rsv__tname">{{item.name}}</text>
+              <text class="rsv__tseats">座位 {{item.reservedText}}</text>
+            </view>
+          </view>
+
+          <view class="rsv__seat-line">
+            <view class="rsv__seat-row">
+              <view
+                class="rsv__seat rsv__seat--{{seat.state}} {{seat.isMine ? 'rsv__seat--mine' : ''}}"
+                wx:for="{{item.seats}}"
+                wx:for-item="seat"
+                wx:key="no"
+                aria-label="{{seat.accessibilityLabel}}"
+              >
+                <block wx:if="{{seat.state === 'reserved'}}">
+                  <image wx:if="{{seat.avatarUrl}}" class="rsv__seat-avatar {{seat.isGuest ? 'rsv__seat-avatar--brand' : ''}}" src="{{seat.avatarUrl}}" mode="{{seat.isGuest ? 'aspectFit' : 'aspectFill'}}"></image>
+                  <text wx:else class="rsv__seat-initial">{{seat.initial}}</text>
+                  <image wx:if="{{seat.genderIcon}}" class="rsv__seat-gender" src="{{seat.genderIcon}}" mode="aspectFit"></image>
+                </block>
+              </view>
+            </view>
+            <button
+              class="rsv__reserve {{item.isMineTable ? 'rsv__reserve--cancel' : ''}} {{item.actionDisabled ? 'rsv__reserve--disabled' : ''}}"
+              disabled="{{item.actionDisabled || cancellingReservationId}}"
+              loading="{{item.isMineTable && cancellingReservationId === item.mineReservationId}}"
+              data-id="{{item.id}}"
+              bindtap="onTableAction"
+            >{{item.actionText}}</button>
           </view>
         </view>
-        <button
-          class="rsv__reserve {{item.isMineTable ? 'rsv__reserve--cancel' : ''}} {{item.actionDisabled ? 'rsv__reserve--disabled' : ''}}"
-          disabled="{{item.actionDisabled || cancellingReservationId}}"
-          loading="{{item.isMineTable && cancellingReservationId === item.mineReservationId}}"
-          data-id="{{item.id}}"
-          bindtap="onTableAction"
-        >{{item.actionText}}</button>
-      </view>
+      </block>
     </view>
-  </block>
+  </scroll-view>
 
   <view class="rsv__waitbar ic-glass-recessed">
-    <button class="rsv__waitbtn" bindtap="onWaitlist">
+    <button class="rsv__waitbtn" loading="{{waitlisting}}" disabled="{{waitlisting}}" bindtap="onWaitlist">
       <text>排队等候</text>
       <view class="rsv__wait-arrow"></view>
     </button>
@@ -82,7 +82,7 @@
       <image class="rsv__ic" src="/assets/icons/location.svg" mode="aspectFit"></image>
       <text class="rsvc__val ic-ellipsis">{{store.name}}</text>
     </view>
-    <view class="rsvc__hint">预约后座位将保持占用，如不再需要请在“我的预约”中取消</view>
+    <view class="rsvc__hint">预约后座位将保持占用，如不再需要可在当前桌台点击取消预约</view>
     <view class="rsvc__waitlist" hover-class="rsv__field--hover" bindtap="onWaitlist">
       <text>改为排队等候</text>
       <view class="ic-arrow"></view>

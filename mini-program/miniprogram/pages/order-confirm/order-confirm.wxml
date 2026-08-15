@@ -1,5 +1,6 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="确认订单" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view wx:if="{{ready && !store}}" class="oc-empty">
   <ic-empty text="没有待确认的订单" hint="请先在点餐页选择商品" />
 </view>
@@ -78,4 +79,6 @@
     <text class="oc__bar-amt">¥{{payText}}</text>
     <button class="ic-btn ic-glass-recessed oc__bar-btn" loading="{{submitting}}" bindtap="confirmPay">确认支付</button>
   </view>
+</view>
+</scroll-view>
 </view>

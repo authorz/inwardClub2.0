@@ -1,3 +1,5 @@
+<view class="ic-scroll-shell">
+<scroll-view class="ic-scroll-view sv__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:else class="sv">
@@ -57,4 +59,6 @@
     </view>
     <ic-empty wx:else text="暂无核销记录" compact="{{true}}" />
   </view>
+</view>
+</scroll-view>
 </view>

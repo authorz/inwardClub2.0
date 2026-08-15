@@ -61,5 +61,19 @@
 .seg--line .seg__underline { width: 44rpx; height: 6rpx; border-radius: 6rpx; margin-top: 12rpx; background: transparent; }
 .seg--line .seg__item.is-active .seg__underline { background: var(--ic-black); }
 
+/* ---- dark: glass surfaces on the shared graphite background ---- */
+.seg--dark.seg--block,
+.seg--dark.seg--pill { background: rgba(4, 7, 11, 0.2); }
+.seg--dark.seg--block .seg__item,
+.seg--dark.seg--pill .seg__item,
+.seg--dark.seg--line .seg__item { color: rgba(255, 255, 255, 0.6); }
+.seg--dark.seg--block .seg__item.is-active,
+.seg--dark.seg--pill .seg__item.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.96);
+}
+.seg--dark.seg--line .seg__item.is-active { color: rgba(255, 255, 255, 0.96); }
+.seg--dark.seg--line .seg__item.is-active .seg__underline { background: rgba(255, 255, 255, 0.9); }
+
 /* ---- quiet: reduced emphasis for dense, data-led pages ---- */
 .seg--quiet .seg__item.is-active { font-weight: 500; }

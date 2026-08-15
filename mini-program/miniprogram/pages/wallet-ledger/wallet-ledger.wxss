@@ -1,4 +1,4 @@
-.wl { min-height: calc(100vh - 88rpx); background: transparent; padding: 28rpx 32rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.wl { min-height: 0; background: transparent; padding: 28rpx 32rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .wl__filters { padding: 18rpx; }
 .wl__seg { margin-top: 0; }
 .wl__dir { margin-top: 8rpx; padding: 0 8rpx; }

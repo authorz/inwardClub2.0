@@ -1,5 +1,5 @@
 .bf {
-  min-height: calc(100vh - 88rpx);
+  min-height: 0;
   padding: 28rpx 36rpx calc(52rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: transparent;

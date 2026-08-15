@@ -2,10 +2,14 @@
   position: relative;
 }
 .mine__nav {
-  position: relative;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
   z-index: 10;
   background: transparent;
 }
+.mine__nav-spacer { width: 100%; flex: none; pointer-events: none; }
 .mine__nav-bar {
   display: flex;
   align-items: center;
@@ -22,7 +26,7 @@
 .mine__content {
   position: relative;
   z-index: 1;
-  padding: 70rpx 24rpx 40rpx;
+  padding: 70rpx 24rpx calc(160rpx + env(safe-area-inset-bottom));
 }
 .mine__glass {
   position: relative;

@@ -4,5 +4,6 @@
     "ic-loading": "/components/loading/loading"
   },
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "赛事详情"
 }

@@ -1,4 +1,5 @@
-.spr { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.spr__scroll { background: var(--ic-bg); }
+.spr { min-height: 0; background: var(--ic-bg); padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .spr__search { background: var(--ic-white); border-radius: var(--ic-radius); padding: 20rpx 28rpx; margin-bottom: 20rpx; }
 .spr__search-input { font-size: 24rpx; color: var(--ic-black); }
 .spr__search-ph { color: var(--ic-text-4); }

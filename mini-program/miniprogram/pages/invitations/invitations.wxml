@@ -1,5 +1,6 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="邀请好友" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{info}}" class="iv">
@@ -74,4 +75,6 @@
     </view>
     <ic-empty wx:else text="暂无邀请记录" compact="{{true}}" />
   </view>
+</view>
+</scroll-view>
 </view>

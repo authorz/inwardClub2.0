@@ -5,8 +5,10 @@
     <view class="al__backdrop-shade"></view>
   </view>
 
+  <scroll-view class="al__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="al__foreground">
   <!-- Custom navigation: dark, back arrow left, capsule-safe right -->
+  <view class="al__nav-spacer" style="height: {{navStatusBar + navContentHeight}}px;" aria-hidden="true"></view>
   <view class="al__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="al__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">
       <view class="al__nav-back" bindtap="goBack"><view class="al__nav-arrow"></view></view>
@@ -89,4 +91,5 @@
   </block>
   </view>
   </view>
+  </scroll-view>
 </view>

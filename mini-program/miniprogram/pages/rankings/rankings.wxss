@@ -1,7 +1,7 @@
 .rk {
-  min-height: 100vh;
+  min-height: 0;
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
-  background: var(--ic-bg);
+  background: transparent;
   box-sizing: border-box;
 }
 
@@ -588,7 +588,7 @@
 
 /* Dark-background glass treatment. Podium medal colors stay semantic. */
 .rk {
-  min-height: calc(100vh - 88rpx);
+  min-height: 0;
   background: transparent;
 }
 

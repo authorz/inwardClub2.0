@@ -1,5 +1,6 @@
 <page-meta page-style="{{ (showRecharge || showPoint) ? 'overflow: hidden;' : '' }}" />
-<view class="ic-page ic-page--tab mine">
+<view class="mine ic-scroll-shell">
+  <view class="mine__nav-spacer" style="height: {{navStatusBar + navContentHeight}}px;" aria-hidden="true"></view>
   <view class="mine__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="mine__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
       <image
@@ -11,6 +12,7 @@
     </view>
   </view>
 
+  <scroll-view class="mine__scroll ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="mine__content">
     <!-- Identity and assets share one continuous glass card. -->
     <view class="mine__summary mine__glass">
@@ -84,6 +86,7 @@
       </view>
     </view>
   </view>
+  </scroll-view>
 </view>
 
 <!-- 充值金币弹层（仅微信支付） -->

@@ -15,12 +15,13 @@
 .ord__coupon-desc { font-size: 20rpx; color: rgba(255, 255, 255, 0.54); }
 .ord__coupon-clear { flex: none; font-size: 22rpx; color: rgba(255, 255, 255, 0.64); }
 
-.ord__body { flex: 1; display: flex; min-height: 0; }
+.ord__body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 
 /* ---- left category rail ---- */
 .ord__cats {
   width: 184rpx;
   flex: none;
+  min-height: 0;
   height: 100%;
   box-sizing: border-box;
   border-right: 1rpx solid rgba(255, 255, 255, 0.16);
@@ -59,7 +60,7 @@
 }
 
 /* ---- right item grid ---- */
-.ord__items { flex: 1; height: 100%; box-sizing: border-box; padding: 0 18rpx; padding-bottom: calc(260rpx + env(safe-area-inset-bottom)); }
+.ord__items { flex: 1; min-height: 0; height: 100%; box-sizing: border-box; padding: 0 18rpx; padding-bottom: calc(260rpx + env(safe-area-inset-bottom)); }
 .ord__group-title { padding: 26rpx 8rpx 12rpx; font-size: 22rpx; font-weight: 500; color: rgba(255, 255, 255, 0.78); }
 .ord__grid { display: flex; flex-wrap: wrap; justify-content: space-between; }
 .ord__item {

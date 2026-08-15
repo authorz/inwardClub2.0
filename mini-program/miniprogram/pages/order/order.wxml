@@ -14,7 +14,7 @@
 
   <view wx:else class="ord__body">
     <!-- left category rail -->
-    <scroll-view class="ord__cats" scroll-y>
+    <scroll-view class="ord__cats" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
       <view
         class="ord__cat {{activeCat === item.id ? 'is-active' : ''}}"
         wx:for="{{groups}}"
@@ -28,7 +28,7 @@
     </scroll-view>
 
     <!-- right item grid: load the active category only -->
-    <scroll-view class="ord__items" scroll-y>
+    <scroll-view class="ord__items" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
       <ic-loading wx:if="{{itemsLoading}}" text="加载餐品" />
       <ic-empty wx:elif="{{!items.length}}" text="当前分类暂无餐品" compact="{{true}}" />
       <block wx:else>

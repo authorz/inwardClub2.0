@@ -1,3 +1,5 @@
+<view class="ic-scroll-shell">
+<scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="spr">
   <view class="spr__search">
     <input class="spr__search-input" maxlength="50" value="{{keyword}}" placeholder="搜索昵称或手机号" placeholder-class="spr__search-ph" bindinput="onSearch" />
@@ -25,4 +27,6 @@
       <view wx:else class="spr__done">{{item.statusLabel}}</view>
     </view>
   </view>
+</view>
+</scroll-view>
 </view>

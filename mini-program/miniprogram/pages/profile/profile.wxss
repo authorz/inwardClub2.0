@@ -1,4 +1,4 @@
-.pf { min-height: calc(100vh - 88rpx); background: transparent; padding: 32rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.pf { min-height: 0; background: transparent; padding: 32rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .pf__section { padding: 12rpx 32rpx; }
 .pf__row { display: flex; align-items: center; gap: 20rpx; min-height: 112rpx; border-bottom: 1rpx solid rgba(255, 255, 255, 0.12); }
 .pf__row--avatar { min-height: 144rpx; }

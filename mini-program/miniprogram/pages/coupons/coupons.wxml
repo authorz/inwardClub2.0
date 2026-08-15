@@ -1,15 +1,18 @@
-<view class="cp">
-  <view class="cp__seg">
-    <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="line" bind:change="onStatusChange" />
-  </view>
+<view class="ic-scroll-shell">
+  <ic-page-nav title="我的券" />
+  <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+  <view class="cp">
+    <view class="cp__seg ic-glass-recessed">
+      <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="line" theme="dark" bind:change="onStatusChange" />
+    </view>
 
-  <ic-loading wx:if="{{loading}}" />
-  <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
+    <ic-loading wx:if="{{loading}}" />
+    <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
 
-  <block wx:else>
-    <text class="cp__count">{{statusCountLabel}} {{statusCount}} 张</text>
-    <view class="cp__list">
-      <view class="cp__card {{item.status !== 'unused' ? 'is-dim' : ''}}" wx:for="{{list}}" wx:key="id">
+    <block wx:else>
+      <text class="cp__count">{{statusCountLabel}} {{statusCount}} 张</text>
+      <view class="cp__list">
+      <view class="cp__card ic-glass-recessed {{item.status !== 'unused' ? 'is-dim' : ''}}" wx:for="{{list}}" wx:key="id">
         <view class="cp__left">
           <image class="cp__icon" src="https://assets.inwardclub.com/public/images/coupon-gpt.png" mode="aspectFit" />
         </view>
@@ -22,7 +25,7 @@
         <view class="cp__right">
           <view
             wx:if="{{item.status === 'unused'}}"
-            class="cp__action"
+            class="cp__action ic-glass-recessed"
             data-id="{{item.id}}"
             bindtap="onAction"
             hover-class="cp__action--hover"
@@ -30,11 +33,13 @@
           <view wx:else class="cp__stamp cp__stamp--{{item.status}}">{{item.statusLabel}}</view>
         </view>
       </view>
-    </view>
+      </view>
 
-    <view class="cp__records" bindtap="goRecords">
-      <view class="ic-ic ic-ic-list ic-ic--sm"></view>
-      <text>使用记录</text>
-    </view>
-  </block>
+      <view class="cp__records" bindtap="goRecords">
+        <view class="ic-ic ic-ic-list ic-ic--sm"></view>
+        <text>使用记录</text>
+      </view>
+    </block>
+  </view>
+  </scroll-view>
 </view>

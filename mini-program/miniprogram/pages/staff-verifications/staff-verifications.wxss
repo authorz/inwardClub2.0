@@ -1,4 +1,5 @@
-.svl { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
+.svl__scroll { background: var(--ic-bg); }
+.svl { min-height: 0; background: var(--ic-bg); padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .svl__list { padding: 0 32rpx; }
 .svl__row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 28rpx 0; border-bottom: 1rpx solid var(--ic-line); }
 .svl__row:last-child { border-bottom: none; }

@@ -1,3 +1,5 @@
+<view class="ic-scroll-shell">
+<scroll-view class="ic-scroll-view svl__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="svl">
   <ic-loading wx:if="{{loading}}" />
   <ic-empty wx:elif="{{!list.length}}" text="暂无核销记录" />
@@ -12,4 +14,6 @@
       <text class="svl__result {{item.success ? 'is-ok' : 'is-fail'}}">{{item.resultLabel}}</text>
     </view>
   </view>
+</view>
+</scroll-view>
 </view>

@@ -1,5 +1,6 @@
+<view class="ic-scroll-shell">
 <ic-page-nav title="会员权益" />
-
+<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{tier}}" class="bf">
@@ -39,4 +40,6 @@
       <text wx:if="{{tier.growthTarget}}" class="bf__growth-target">{{tier.growthValue}} / {{tier.growthTarget}}</text>
     </view>
   </view>
+</view>
+</scroll-view>
 </view>

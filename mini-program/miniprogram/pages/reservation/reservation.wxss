@@ -1,13 +1,13 @@
 /* bottom padding keeps the last table clear of the floating action + custom tabbar */
+.rsv-shell { position: relative; z-index: 1; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.rsv__scroll { flex: 1; min-height: 0; }
 .rsv { position: relative; z-index: 1; padding: 0 24rpx; padding-bottom: calc(236rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: transparent; }
 
 .rsv__field--hover { opacity: 0.72; }
 .rsv__ic { width: 34rpx; height: 34rpx; flex: none; display: block; }
 
-.rsv__sec { min-height: 96rpx; padding: 24rpx 8rpx 8rpx; display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }
+.rsv__sec { min-height: 96rpx; padding: 24rpx 8rpx 8rpx; display: flex; align-items: center; gap: 24rpx; }
 .rsv__sec .ic-h2 { color: rgba(255, 255, 255, 0.94); }
-.rsv__mine-link { min-height: 88rpx; display: flex; align-items: center; gap: 10rpx; font-size: 22rpx; color: rgba(255, 255, 255, 0.74); }
-.rsv__mine-link .ic-arrow { margin-left: 0; width: 12rpx; height: 12rpx; border-width: 2rpx; border-color: rgba(255, 255, 255, 0.58); }
 
 /* ---- fixed table summary ---- */
 .rsv__table {
@@ -102,6 +102,7 @@
   font-weight: 650;
 }
 .rsv__waitbtn::after { border: 0; }
+.rsv__waitbtn[disabled] { opacity: 0.68; }
 .rsv__wait-arrow { width: 13rpx; height: 13rpx; transform: rotate(45deg); border-top: 2rpx solid rgba(255, 255, 255, 0.7); border-right: 2rpx solid rgba(255, 255, 255, 0.7); }
 
 /* ---- confirm sheet body ---- */
