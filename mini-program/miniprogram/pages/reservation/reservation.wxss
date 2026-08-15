@@ -26,14 +26,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10rpx;
+  gap: 16rpx;
   font-size: 20rpx !important;
   font-weight: 600;
   line-height: 1 !important;
 }
 .rsv__sign-in::after { border: 0; }
-.rsv__sign-in-icon { top: 10rpx; flex: none; color: currentColor; transform: scale(0.82); }
-.rsv__sign-in-label { position: relative; z-index: 1; white-space: nowrap; }
+.rsv__sign-in-icon { top: 14rpx; flex: none; color: currentColor; transform: scale(0.82); }
+.rsv__sign-in-label { position: relative; top: 4rpx; z-index: 1; white-space: nowrap; }
 .rsv__sign-in-dot {
   position: absolute;
   top: 6rpx;
