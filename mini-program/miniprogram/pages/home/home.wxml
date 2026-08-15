@@ -15,7 +15,7 @@
   <scroll-view class="mine__scroll ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="mine__content">
     <!-- Identity and assets share one continuous glass card. -->
-    <view class="mine__summary mine__glass">
+    <view class="mine__summary ic-glass-recessed">
       <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
         <view class="mine__avatar">
           <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
@@ -64,11 +64,11 @@
       <view class="mine__services">
         <view class="mine__service-grid">
           <view class="mine__service-item" bindtap="goOrder" hover-class="mine__service-item--hover">
-            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
+            <view class="mine__service-icon-box ic-glass-recessed"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{orderEntry.label}}</text>
           </view>
           <view class="mine__service-item" wx:for="{{memberMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goMember" hover-class="mine__service-item--hover">
-            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
+            <view class="mine__service-icon-box ic-glass-recessed"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{item.label}}</text>
           </view>
         </view>
@@ -79,7 +79,7 @@
         <text class="mine__services-title">工作人员功能</text>
         <view class="mine__service-grid">
           <view class="mine__service-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__service-item--hover">
-            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
+            <view class="mine__service-icon-box ic-glass-recessed"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{item.label}}</text>
           </view>
         </view>
