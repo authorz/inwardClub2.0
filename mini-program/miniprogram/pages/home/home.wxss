@@ -172,9 +172,8 @@
   transform: scale(0.98);
 }
 .mine__service-icon-box {
-  width: 112rpx;
-  height: 112rpx;
-  border-radius: 50%;
+  width: 62rpx;
+  height: 62rpx;
   display: flex;
   align-items: center;
   justify-content: center;
