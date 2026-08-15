@@ -12,22 +12,23 @@
 /* ---- daily sign-in ---- */
 .rsv__sign-in {
   flex: none;
-  min-width: 204rpx;
+  width: 176rpx;
+  min-width: 176rpx;
   height: 68rpx;
   margin: 0 0 0 auto !important;
-  padding: 0 22rpx;
+  padding: 0 12rpx;
   border-radius: 34rpx;
   color: rgba(255, 255, 255, 0.94);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12rpx;
-  font-size: 22rpx;
+  gap: 8rpx;
+  font-size: 20rpx;
   font-weight: 600;
   line-height: 1;
 }
 .rsv__sign-in::after { border: 0; }
-.rsv__sign-in-icon { flex: none; color: currentColor; transform: scale(0.88); }
+.rsv__sign-in-icon { flex: none; color: currentColor; transform: scale(0.82); }
 .rsv__sign-in-label { position: relative; z-index: 1; white-space: nowrap; }
 .rsv__sign-in-dot {
   position: absolute;
