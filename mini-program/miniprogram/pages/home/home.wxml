@@ -59,10 +59,10 @@
       </view>
     </view>
 
-    <!-- Primary actions share the same iOS glass material as the member summary. -->
+    <!-- Primary actions use independent circular glass controls. -->
     <view class="mine__service-stage">
       <view class="mine__services">
-        <view class="mine__service-grid mine__glass">
+        <view class="mine__service-grid">
           <view class="mine__service-item" bindtap="goOrder" hover-class="mine__service-item--hover">
             <view class="mine__service-icon-box"><image class="mine__service-image" src="{{orderEntry.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{orderEntry.label}}</text>
@@ -77,7 +77,7 @@
       <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
       <view wx:if="{{isStaff}}" class="mine__services mine__services--staff">
         <text class="mine__services-title">工作人员功能</text>
-        <view class="mine__service-grid mine__glass">
+        <view class="mine__service-grid">
           <view class="mine__service-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__service-item--hover">
             <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
             <text class="mine__service-label">{{item.label}}</text>

@@ -157,13 +157,13 @@
 }
 .mine__asset-label { font-size: 22rpx; line-height: 1.35; color: rgba(255, 255, 255, 0.66); }
 
-/* ---- service glass ---- */
+/* ---- independent service glass controls ---- */
 .mine__service-stage {
   position: relative;
   margin-top: 64rpx;
 }
 .mine__services {
-  padding: 0 8rpx;
+  padding: 0 4rpx;
 }
 .mine__services-title {
   display: block;
@@ -178,13 +178,14 @@
   z-index: 1;
   display: flex;
   flex-wrap: wrap;
-  padding: 24rpx 16rpx;
+  row-gap: 28rpx;
+  padding: 0;
   box-sizing: border-box;
 }
 .mine__service-item {
   width: 33.333%;
-  min-height: 142rpx;
-  padding: 18rpx 4rpx;
+  min-height: 166rpx;
+  padding: 0 4rpx;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -192,23 +193,53 @@
   justify-content: center;
   gap: 14rpx;
 }
-.mine__service-item--hover { background: rgba(255, 255, 255, 0.06); }
+.mine__service-item--hover .mine__service-icon-box {
+  background: rgba(112, 120, 132, 0.42);
+  transform: scale(0.96);
+}
 .mine__service-icon-box {
-  width: 62rpx;
-  height: 62rpx;
+  position: relative;
+  width: 112rpx;
+  height: 112rpx;
+  overflow: hidden;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(84, 92, 104, 0.34);
+  -webkit-backdrop-filter: blur(36rpx) saturate(145%);
+  backdrop-filter: blur(36rpx) saturate(145%);
+  box-shadow:
+    inset 0 2rpx 2rpx rgba(255, 255, 255, 0.3),
+    inset 0 -5rpx 10rpx rgba(4, 7, 11, 0.22),
+    0 6rpx 12rpx rgba(0, 0, 0, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  transition: transform 0.18s ease-out, background 0.18s ease-out;
+}
+.mine__service-icon-box::before {
+  content: "";
+  position: absolute;
+  top: 3rpx;
+  right: 14rpx;
+  left: 14rpx;
+  height: 40rpx;
+  border-top: 2rpx solid rgba(255, 255, 255, 0.52);
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 .mine__service-icon { width: 54rpx; height: 54rpx; color: var(--ic-black); }
 .mine__service-icon--activity { transform: scale(0.94); }
 .mine__service-icon--recharge { transform: scale(0.96); }
 .mine__service-icon--coupon { transform: scale(1.02); }
 .mine__service-image {
+  position: relative;
+  z-index: 1;
   width: 58rpx;
   height: 58rpx;
   filter: grayscale(1) brightness(0) invert(1);
-  opacity: 0.68;
+  opacity: 0.76;
 }
 .mine__service-label { font-size: 22rpx; line-height: 1.3; color: rgba(255, 255, 255, 0.82); text-align: center; white-space: nowrap; }
 .mine__services--staff { margin-top: 34rpx; }
