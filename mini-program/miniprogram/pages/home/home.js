@@ -188,9 +188,9 @@ Page({
   onAsset(e) {
     const asset = e.currentTarget.dataset.asset;
     this.requireLogin(() => {
-      // 充/存/取 已在会员功能里，资产区金币/积分直接看流水；券进优惠券页。
+      // 金币查看流水；积分直接发起取积分；优惠券进入券列表。
       if (asset === 'coins') wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=coins' });
-      else if (asset === 'points') wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=points' });
+      else if (asset === 'points') this.openPoint(POINT_SAVING.WITHDRAW);
       else wx.navigateTo({ url: '/pages/coupons/coupons' });
     });
   },
