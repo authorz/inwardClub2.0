@@ -24,11 +24,20 @@ Page({
     dir: 'all',
     all: [],
     list: [],
+    scrollEnabled: false,
   },
 
   onLoad(options) {
     if (options.asset) this.setData({ asset: options.asset });
     this.loadLedger();
+  },
+
+  onReady() {
+    this.updateScrollState();
+  },
+
+  onResize() {
+    this.updateScrollState();
   },
 
   onAssetChange(e) {
@@ -42,7 +51,7 @@ Page({
   },
 
   loadLedger() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, scrollEnabled: false });
     api
       .getWalletLedger({ asset: this.data.asset })
       .then((res) => {
@@ -57,12 +66,27 @@ Page({
         this.setData({ all, loading: false });
         this.applyFilter();
       })
-      .catch(() => this.setData({ loading: false }));
+      .catch(() => this.setData({ loading: false, all: [], list: [] }, () => this.updateScrollState()));
   },
 
   applyFilter() {
     const dir = this.data.dir;
     const list = dir === 'all' ? this.data.all : this.data.all.filter((x) => x.direction === dir);
-    this.setData({ list });
+    this.setData({ list }, () => this.updateScrollState());
+  },
+
+  updateScrollState() {
+    wx.nextTick(() => {
+      const query = this.createSelectorQuery();
+      query.select('.wl__scroll').boundingClientRect();
+      query.select('.wl').boundingClientRect();
+      query.exec((rects) => {
+        const viewport = rects && rects[0];
+        const content = rects && rects[1];
+        if (!viewport || !content) return;
+        const scrollEnabled = content.height > viewport.height + 2;
+        if (scrollEnabled !== this.data.scrollEnabled) this.setData({ scrollEnabled });
+      });
+    });
   },
 });

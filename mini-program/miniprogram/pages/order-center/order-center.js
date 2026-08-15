@@ -40,11 +40,20 @@ Page({
     loading: true,
     all: [],
     list: [],
+    scrollEnabled: false,
   },
 
   onLoad(options) {
     if (options.type) this.setData({ type: options.type });
     this.loadOrders();
+  },
+
+  onReady() {
+    this.updateScrollState();
+  },
+
+  onResize() {
+    this.updateScrollState();
   },
 
   onTypeChange(e) {
@@ -58,7 +67,7 @@ Page({
   },
 
   loadOrders() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, scrollEnabled: false });
     const type = this.data.type;
     const fetch =
       type === ORDER_TYPE.FOOD
@@ -74,7 +83,7 @@ Page({
         this.setData({ all, loading: false });
         this.applyFilter();
       })
-      .catch(() => this.setData({ loading: false, all: [], list: [] }));
+      .catch(() => this.setData({ loading: false, all: [], list: [] }, () => this.updateScrollState()));
   },
 
   normalize(type, o) {
@@ -118,7 +127,22 @@ Page({
     if (s === 'active') list = list.filter((o) => o.tone === 'active');
     else if (s === 'done') list = list.filter((o) => o.tone === 'done');
     else if (s === 'cancelled') list = list.filter((o) => o.tone === 'neutral' || o.tone === 'danger');
-    this.setData({ list });
+    this.setData({ list }, () => this.updateScrollState());
+  },
+
+  updateScrollState() {
+    wx.nextTick(() => {
+      const query = this.createSelectorQuery();
+      query.select('.oce__scroll').boundingClientRect();
+      query.select('.oce').boundingClientRect();
+      query.exec((rects) => {
+        const viewport = rects && rects[0];
+        const content = rects && rects[1];
+        if (!viewport || !content) return;
+        const scrollEnabled = content.height > viewport.height + 2;
+        if (scrollEnabled !== this.data.scrollEnabled) this.setData({ scrollEnabled });
+      });
+    });
   },
 
   onTapOrder(e) {

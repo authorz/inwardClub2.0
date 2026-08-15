@@ -1,5 +1,6 @@
 {
   "navigationStyle": "custom",
+  "disableScroll": true,
   "navigationBarTitleText": "Inward Club",
   "backgroundColor": "#ffffff",
   "backgroundColorTop": "#ffffff",

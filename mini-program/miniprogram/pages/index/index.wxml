@@ -1,5 +1,5 @@
 <page-meta page-style="{{showSignInSheet ? 'overflow: hidden;' : ''}}"></page-meta>
-<view class="ic-page ic-page--tab home">
+<view class="ic-scroll-shell home">
   <view wx:if="{{currentActivityImage}}" class="home__ambient" aria-hidden="true">
     <image class="home__ambient-image" src="{{currentActivityImage}}" mode="aspectFill" />
     <view class="home__ambient-wash"></view>
@@ -25,6 +25,14 @@
     </view>
   </view>
 
+  <scroll-view
+    class="home__scroll ic-scroll-view"
+    scroll-y="{{!showSignInSheet}}"
+    enhanced
+    show-scrollbar="{{false}}"
+    bounces="{{false}}"
+  >
+  <view class="home__scroll-content">
   <!-- Activity hero: the former advertising Banner API is intentionally disabled. -->
   <view class="home__banner-stage">
     <swiper
@@ -152,6 +160,8 @@
     </view>
     </view>
   </view>
+  </view>
+  </scroll-view>
 
   <view
     class="home__sign-in {{signInStatus.signedToday ? 'home__sign-in--done' : ''}} {{signInSubmitting ? 'home__sign-in--loading' : ''}}"

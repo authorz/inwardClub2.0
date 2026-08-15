@@ -1,6 +1,6 @@
 <view class="ic-scroll-shell">
 <ic-page-nav title="订单中心" />
-<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="oce__scroll ic-scroll-view" scroll-y="{{scrollEnabled}}" enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="oce">
   <view class="oce__filters ic-glass-recessed">
     <view class="oce__types">

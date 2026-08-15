@@ -1,6 +1,6 @@
 <view class="ic-scroll-shell">
 <ic-page-nav title="钱包流水" />
-<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="wl__scroll ic-scroll-view" scroll-y="{{scrollEnabled}}" enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="wl">
   <view class="wl__filters ic-glass-recessed">
     <view class="wl__seg">
