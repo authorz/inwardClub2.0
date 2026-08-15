@@ -14,17 +14,18 @@
     <view class="rsv">
       <view class="rsv__sec">
         <text class="ic-h2">可预约桌台</text>
-        <view
-          class="rsv__sign-in {{signInStatus.signedToday ? 'rsv__sign-in--done' : ''}} {{signInSubmitting ? 'rsv__sign-in--loading' : ''}}"
+        <button
+          class="rsv__sign-in ic-glass-control {{signInStatus.signedToday ? 'rsv__sign-in--done' : ''}} {{signInSubmitting ? 'rsv__sign-in--loading' : ''}}"
           aria-label="{{signInStatus.signedToday ? '查看今日签到状态' : '查看签到规则'}}"
-          aria-role="button"
+          disabled="{{signInSubmitting}}"
           hover-class="rsv__sign-in--hover"
           bindtap="onSignIn"
         >
           <view class="ic-ic ic-ic-calendar ic-ic--sm rsv__sign-in-icon"></view>
+          <text class="rsv__sign-in-label">签到得积分</text>
           <text wx:if="{{signInStatus.signedToday}}" class="rsv__sign-in-badge">✓</text>
           <view wx:if="{{!signInStatus.signedToday && !signInSubmitting}}" class="rsv__sign-in-dot"></view>
-        </view>
+        </button>
       </view>
 
       <ic-loading wx:if="{{loading}}" />

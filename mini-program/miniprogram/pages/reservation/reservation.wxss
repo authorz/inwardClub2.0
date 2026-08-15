@@ -11,48 +11,51 @@
 
 /* ---- daily sign-in ---- */
 .rsv__sign-in {
-  position: relative;
   flex: none;
-  width: 72rpx;
-  height: 72rpx;
-  margin-left: auto;
-  box-sizing: border-box;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.96);
-  color: var(--ic-black);
+  min-width: 204rpx;
+  height: 68rpx;
+  margin: 0 0 0 auto !important;
+  padding: 0 22rpx;
+  border-radius: 34rpx;
+  color: rgba(255, 255, 255, 0.94);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.16);
+  gap: 12rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1;
 }
-.rsv__sign-in-icon { color: currentColor; transform: scale(0.92); }
+.rsv__sign-in::after { border: 0; }
+.rsv__sign-in-icon { flex: none; color: currentColor; transform: scale(0.88); }
+.rsv__sign-in-label { position: relative; z-index: 1; white-space: nowrap; }
 .rsv__sign-in-dot {
   position: absolute;
-  top: 7rpx;
-  right: 7rpx;
+  top: 6rpx;
+  right: 8rpx;
   width: 10rpx;
   height: 10rpx;
   border-radius: 50%;
-  background: var(--ic-black);
-  box-shadow: 0 0 0 3rpx var(--ic-white);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0 0 3rpx rgba(20, 24, 30, 0.72);
 }
 .rsv__sign-in-badge {
   position: absolute;
-  top: 4rpx;
-  right: 4rpx;
+  top: 3rpx;
+  right: 5rpx;
   width: 22rpx;
   height: 22rpx;
   border-radius: 50%;
-  background: var(--ic-black);
-  color: var(--ic-white);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ic-black);
   font-size: 16rpx;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 22rpx;
   text-align: center;
-  box-shadow: 0 0 0 3rpx var(--ic-white);
+  box-shadow: 0 0 0 3rpx rgba(20, 24, 30, 0.72);
 }
 .rsv__sign-in--loading { opacity: 0.62; }
-.rsv__sign-in--hover { transform: scale(0.94); }
+.rsv__sign-in--hover { opacity: 0.78; transform: scale(0.98); }
 
 .rsv__sign-dialog {
   position: fixed;

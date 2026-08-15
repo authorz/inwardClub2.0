@@ -45,6 +45,20 @@ page {
   pointer-events: none;
 }
 
+/* Shared raised glass material for compact interactive controls. */
+.ic-glass-control {
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1rpx solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 24, 30, 0.34);
+  -webkit-backdrop-filter: blur(32rpx) saturate(145%) brightness(0.98);
+  backdrop-filter: blur(32rpx) saturate(145%) brightness(0.98);
+  box-shadow:
+    0 4rpx 8rpx rgba(0, 0, 0, 0.14),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.18);
+}
+
 /*
  * No global tag-name reset here. Every page uses components (global
  * usingComponents in app.json), so WeChat compiles page styles with
