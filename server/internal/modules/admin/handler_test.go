@@ -39,6 +39,7 @@ func TestAdminLookupMemberReturnsCandidateArray(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 	if len(envelope.Data) != 1 || envelope.Data[0].ID != 7 ||
+		envelope.Data[0].Phone != "13800000007" ||
 		envelope.Data[0].AvatarURL != "https://cdn.test/staff.webp" {
 		t.Fatalf("unexpected candidates: %+v", envelope.Data)
 	}

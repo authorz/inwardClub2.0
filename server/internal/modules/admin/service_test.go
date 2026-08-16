@@ -1404,7 +1404,7 @@ func TestSearchMembersByPhone(t *testing.T) {
 		t.Fatalf("search: %v", err)
 	}
 	if len(views) != 1 || views[0].ID != 7 || views[0].Nickname != "Waiter Wang" ||
-		views[0].Phone != "138****0007" || views[0].AvatarURL != "https://cdn.test/staff.webp" {
+		views[0].Phone != "13800000007" || views[0].AvatarURL != "https://cdn.test/staff.webp" {
 		t.Fatalf("unexpected results: %+v", views)
 	}
 	// Too-short fragment is rejected.

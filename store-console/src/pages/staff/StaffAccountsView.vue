@@ -9,11 +9,11 @@ import { computed, h, reactive, ref } from 'vue'
 import {
   NAvatar,
   NButton,
+  NCheckbox,
+  NCheckboxGroup,
   NInput,
   NInputGroup,
   NModal,
-  NRadio,
-  NRadioGroup,
   NSpace,
   type DataTableColumns,
 } from 'naive-ui'
@@ -24,6 +24,7 @@ import { useAsyncAction } from '@/composables/useAsyncAction'
 import { ACTIVE_STATUS, toOptions } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { dateColumn, statusColumn, textColumn } from '@/utils/columns'
+import { feedback } from '@/utils/feedback'
 import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
 import type { Member, StaffAccount } from '@/types/models'
 
@@ -41,10 +42,74 @@ const searchPhone = ref('')
 const searching = ref(false)
 const lookupError = ref<string | null>(null)
 const foundMembers = ref<Member[]>([])
-const selectedMemberId = ref<string | null>(null)
-const selectedMember = computed(
-  () => foundMembers.value.find((member) => String(member.id) === selectedMemberId.value) ?? null,
-)
+const selectedMemberIds = ref<string[]>([])
+const selectedMembers = computed(() => {
+  const selectedIds = new Set(selectedMemberIds.value)
+  return foundMembers.value.filter((member) => selectedIds.has(String(member.id)))
+})
+
+interface BatchBindResult {
+  successIds: string[]
+  failures: Array<{ id: string; name: string; message: string }>
+}
+
+function memberName(member: Member) {
+  return member.nickname?.trim() || '会员'
+}
+
+function memberInitial(member: Member) {
+  return memberName(member).slice(0, 1)
+}
+
+function bindMembers(members: Member[]): Promise<BatchBindResult> {
+  return Promise.allSettled(
+    members.map((member) =>
+      staffAccountService.create({ memberId: member.id, name: memberName(member) }),
+    ),
+  ).then((outcomes) => {
+    const result: BatchBindResult = { successIds: [], failures: [] }
+    outcomes.forEach((outcome, index) => {
+      const member = members[index]
+      const id = String(member.id)
+      if (outcome.status === 'fulfilled') {
+        result.successIds.push(id)
+        return
+      }
+      result.failures.push({
+        id,
+        name: memberName(member),
+        message: outcome.reason instanceof ApiError ? outcome.reason.message : '绑定失败',
+      })
+    })
+    return result
+  })
+}
+
+function handleBatchBindResult(result: BatchBindResult) {
+  void list.refresh()
+  if (result.failures.length === 0) {
+    feedback.message.success(`已绑定 ${result.successIds.length} 名员工`)
+    editShow.value = false
+    return
+  }
+
+  const successIds = new Set(result.successIds)
+  foundMembers.value = foundMembers.value.filter(
+    (member) => !successIds.has(String(member.id)),
+  )
+  selectedMemberIds.value = result.failures.map((failure) => failure.id)
+  const failureDetails = result.failures
+    .map((failure) => `${failure.name}（${failure.message}）`)
+    .join('、')
+  lookupError.value = result.successIds.length
+    ? `已绑定 ${result.successIds.length} 名；以下员工绑定失败：${failureDetails}`
+    : `绑定失败：${failureDetails}`
+  feedback.message.warning(
+    result.successIds.length
+      ? `已绑定 ${result.successIds.length} 名，${result.failures.length} 名失败`
+      : `${result.failures.length} 名员工绑定失败`,
+  )
+}
 
 function openCreate() {
   mode.value = 'create'
@@ -52,7 +117,7 @@ function openCreate() {
   form.name = ''
   searchPhone.value = ''
   foundMembers.value = []
-  selectedMemberId.value = null
+  selectedMemberIds.value = []
   lookupError.value = null
   editShow.value = true
 }
@@ -73,8 +138,7 @@ async function lookupMember() {
   searching.value = true
   lookupError.value = null
   foundMembers.value = []
-  selectedMemberId.value = null
-  form.name = ''
+  selectedMemberIds.value = []
   try {
     foundMembers.value = await memberService.lookupByPhone(phone)
     if (foundMembers.value.length === 0) {
@@ -90,31 +154,19 @@ async function lookupMember() {
 
 function clearLookupSelection() {
   foundMembers.value = []
-  selectedMemberId.value = null
+  selectedMemberIds.value = []
   lookupError.value = null
-  form.name = ''
-}
-
-function selectMember(value: string) {
-  selectedMemberId.value = value
-  const member = selectedMember.value
-  form.name = member?.nickname?.trim() || '会员'
 }
 
 function save() {
   if (mode.value === 'create') {
-    if (!selectedMember.value) {
-      lookupError.value = '请先按手机号查询并选择会员'
+    const members = selectedMembers.value
+    if (members.length === 0) {
+      lookupError.value = '请先按手机号查询并选择至少一名会员'
       return
     }
-    const memberId = selectedMember.value.id
-    const name = form.name.trim()
-    void action.run(() => staffAccountService.create({ memberId, name }), {
-      successMessage: '已绑定为员工',
-      onSuccess: () => {
-        editShow.value = false
-        list.refresh()
-      },
+    void action.run(() => bindMembers(members), {
+      onSuccess: handleBatchBindResult,
     })
     return
   }
@@ -247,42 +299,47 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
           {{ lookupError }}
         </p>
 
-        <NRadioGroup
+        <NCheckboxGroup
           v-if="foundMembers.length"
-          :value="selectedMemberId"
+          v-model:value="selectedMemberIds"
           class="staff-form__results"
-          @update:value="selectMember"
         >
-          <NRadio
+          <div
             v-for="member in foundMembers"
             :key="String(member.id)"
-            :value="String(member.id)"
             class="staff-form__result"
           >
             <span class="staff-form__member">
               <NAvatar
+                v-if="member.avatarUrl"
                 :size="40"
                 round
-                :src="member.avatarUrl || undefined"
+                :src="member.avatarUrl"
                 object-fit="cover"
               >
-                {{ member.nickname?.trim().slice(0, 1) || '会' }}
+                <template #fallback>
+                  {{ memberInitial(member) }}
+                </template>
+              </NAvatar>
+              <NAvatar
+                v-else
+                :size="40"
+                round
+              >
+                {{ memberInitial(member) }}
               </NAvatar>
               <span class="staff-form__member-info">
-                <span class="staff-form__found-name">{{ member.nickname || '会员' }}</span>
+                <span class="staff-form__found-name">{{ memberName(member) }}</span>
                 <span class="ic-muted">{{ member.phone || '未绑定手机号' }}</span>
               </span>
             </span>
-          </NRadio>
-        </NRadioGroup>
-
-        <label v-if="selectedMember">
-          <span class="ic-muted">员工姓名（默认取会员昵称，可修改）</span>
-          <NInput
-            v-model:value="form.name"
-            placeholder="员工姓名"
-          />
-        </label>
+            <NCheckbox
+              :value="String(member.id)"
+              :aria-label="`选择员工${memberName(member)}`"
+              class="staff-form__selection"
+            />
+          </div>
+        </NCheckboxGroup>
       </div>
 
       <!-- 编辑：改显示名 -->
@@ -308,10 +365,10 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
             v-if="mode === 'create'"
             type="primary"
             :loading="action.running.value"
-            :disabled="!selectedMember"
+            :disabled="selectedMembers.length === 0"
             @click="save"
           >
-            绑定为员工
+            {{ selectedMembers.length ? `绑定 ${selectedMembers.length} 名员工` : '绑定为员工' }}
           </NButton>
           <NButton
             v-else
@@ -353,28 +410,23 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
 .staff-form__result {
   display: flex;
   align-items: center;
+  gap: var(--ic-space-3);
   width: 100%;
   padding: var(--ic-space-3);
   border: 1px solid var(--ic-color-border, #efeff5);
   border-radius: 8px;
   background: var(--ic-color-fill-2, #fafafc);
 }
-.staff-form__result :deep(.n-radio__dot-wrapper) {
-  order: 2;
-  align-self: center;
-}
-.staff-form__result :deep(.n-radio__label) {
-  display: flex;
-  flex: 1;
-  order: 1;
-  min-width: 0;
-  padding: 0 var(--ic-space-3) 0 0;
-}
 .staff-form__member {
   display: flex;
+  flex: 1;
   align-items: center;
   min-width: 0;
   gap: var(--ic-space-3);
+}
+.staff-form__selection {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .staff-form__member-info {
   display: flex;
