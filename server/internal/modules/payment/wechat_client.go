@@ -85,8 +85,9 @@ func NewWeChatPayClient(cfg config.WeChatConfig) (*WeChatPayClient, error) {
 	}, nil
 }
 
-// jsapiPrepayRequest / refundRequest mirror the v3 request bodies. Only the
-// fields the mini program needs are populated.
+// jsapiPrepayRequest / nativeOrderRequest / closeOrderRequest / refundRequest
+// mirror the v3 request bodies. Only the fields used by this project are
+// populated.
 type jsapiPrepayRequest struct {
 	AppID       string     `json:"appid"`
 	MchID       string     `json:"mchid"`
@@ -104,6 +105,20 @@ type amountBody struct {
 
 type payerBody struct {
 	OpenID string `json:"openid"`
+}
+
+type nativeOrderRequest struct {
+	AppID       string     `json:"appid"`
+	MchID       string     `json:"mchid"`
+	Description string     `json:"description"`
+	OutTradeNo  string     `json:"out_trade_no"`
+	TimeExpire  string     `json:"time_expire"`
+	NotifyURL   string     `json:"notify_url"`
+	Amount      amountBody `json:"amount"`
+}
+
+type closeOrderRequest struct {
+	MchID string `json:"mchid"`
 }
 
 type refundRequest struct {
@@ -163,6 +178,41 @@ func (c *WeChatPayClient) CreateJSAPIPrepay(ctx context.Context, outTradeNo stri
 		PaySign:   paySign,
 		Timestamp: ts,
 	}, nil
+}
+
+// CreateNativeOrder creates a fixed-amount Native transaction. WeChat returns
+// code_url, which the store console converts into a QR image for the customer.
+func (c *WeChatPayClient) CreateNativeOrder(ctx context.Context, outTradeNo string, amountCent int64, description string, expiresAt time.Time) (string, error) {
+	body := nativeOrderRequest{
+		AppID:       c.appID,
+		MchID:       c.mchID,
+		Description: description,
+		OutTradeNo:  outTradeNo,
+		TimeExpire:  expiresAt.Format(time.RFC3339),
+		NotifyURL:   c.notifyURL,
+		Amount:      amountBody{Total: amountCent, Currency: "CNY"},
+	}
+	respBody, err := c.doRequest(ctx, http.MethodPost, "/v3/pay/transactions/native", body)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		CodeURL string `json:"code_url"`
+	}
+	if err := json.Unmarshal(respBody, &out); err != nil {
+		return "", apperr.Internal(fmt.Errorf("decode native response: %w", err))
+	}
+	if out.CodeURL == "" {
+		return "", apperr.Internal(fmt.Errorf("native response missing code_url"))
+	}
+	return out.CodeURL, nil
+}
+
+// CloseOrder closes an unpaid WeChat order by merchant order number.
+func (c *WeChatPayClient) CloseOrder(ctx context.Context, outTradeNo string) error {
+	path := "/v3/pay/transactions/out-trade-no/" + outTradeNo + "/close"
+	_, err := c.doRequest(ctx, http.MethodPost, path, closeOrderRequest{MchID: c.mchID})
+	return err
 }
 
 // Refund submits a domestic refund and returns the WeChat refund id.

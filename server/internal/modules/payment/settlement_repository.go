@@ -70,20 +70,28 @@ func NewSettlementRepository(db *platdb.DB) SettlementRepository {
 func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNotification, now time.Time) error {
 	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
 		var (
-			paymentID  int64
-			businessID int64
-			amount     int64
-			status     string
-			orderType  string
-			memberID   sql.NullInt64
-			storeID    sql.NullInt64
-			businessNo string
+			paymentID        int64
+			businessID       int64
+			amount           int64
+			status           string
+			orderType        string
+			memberID         sql.NullInt64
+			storeID          sql.NullInt64
+			businessNo       string
+			collectionStatus string
+			businessType     string
 		)
 		const sel = `SELECT po.id, po.business_order_id, po.amount_cent, po.status,
-				bo.order_type, bo.member_id, bo.store_id, bo.business_order_no
-			FROM payment_orders po JOIN business_orders bo ON bo.id = po.business_order_id
+				bo.order_type, bo.member_id, bo.store_id, bo.business_order_no,
+				COALESCE(oco.status, ''), COALESCE(oco.business_type, '')
+			FROM payment_orders po
+			JOIN business_orders bo ON bo.id = po.business_order_id
+			LEFT JOIN offline_collection_orders oco ON oco.payment_order_id = po.id
 			WHERE po.payment_order_no = ? FOR UPDATE`
-		err := tx.QueryRowContext(ctx, sel, n.OutTradeNo).Scan(&paymentID, &businessID, &amount, &status, &orderType, &memberID, &storeID, &businessNo)
+		err := tx.QueryRowContext(ctx, sel, n.OutTradeNo).Scan(
+			&paymentID, &businessID, &amount, &status, &orderType, &memberID,
+			&storeID, &businessNo, &collectionStatus, &businessType,
+		)
 		if errors.Is(err, sql.ErrNoRows) {
 			return apperr.NotFound("payment order not found")
 		}
@@ -96,11 +104,36 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		if status != paymentPending {
 			return apperr.Conflict("payment order is not payable")
 		}
+		if orderType == collectionType && collectionStatus != CollectionPending {
+			return apperr.Conflict("collection order is not payable")
+		}
 		if err := insertTxn(ctx, tx, paymentID, wechatProvider, wechatProvider, n.OutTradeNo, n.TransactionID, n.AmountCent, now); err != nil {
 			return err
 		}
 		if err := markOrderPaid(ctx, tx, paymentID, businessID, now); err != nil {
 			return err
+		}
+		if orderType == collectionType {
+			const payCollection = `UPDATE offline_collection_orders SET status = ?, updated_at = ?
+				WHERE payment_order_id = ? AND status = ?`
+			if _, err := tx.ExecContext(
+				ctx, payCollection, CollectionPaid, now, paymentID, CollectionPending,
+			); err != nil {
+				return apperr.Internal(err)
+			}
+			if memberID.Valid {
+				if err := writePostProcess(ctx, tx, postProcessPayload{
+					Source:          collectionType,
+					PaymentOrderID:  paymentID,
+					BusinessOrderID: businessID,
+					MemberID:        memberID.Int64,
+					StoreID:         storeID.Int64,
+					AmountCent:      amount,
+					BusinessType:    businessType,
+				}); err != nil {
+					return err
+				}
+			}
 		}
 		if orderType == "food" {
 			if _, err := tx.ExecContext(ctx,

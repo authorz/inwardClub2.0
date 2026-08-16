@@ -136,9 +136,32 @@ func (r *spineRepo) SettleWeChat(_ context.Context, n WeChatNotification, _ time
 		return err
 	}
 	if settled {
+		if po.collectionStatus != "" && po.memberID != 0 {
+			r.postProcessCount++
+		}
 		r.maybeReceipt(po)
 	}
 	return nil
+}
+
+func TestSettleWeChatNativeCollection(t *testing.T) {
+	svc, repo := newTestSettlementService()
+	repo.addOfflineOrder("PO-NATIVE", "", 20, 2000)
+	po := repo.paymentOrders["PO-NATIVE"]
+	po.id, po.storeID, po.orderType, po.businessNo, po.memberID = 91, 7, collectionType, "BO-NATIVE", 42
+
+	n := WeChatNotification{OutTradeNo: "PO-NATIVE", TransactionID: "wx-native", AmountCent: 2000, Success: true}
+	for i := 0; i < 2; i++ {
+		if err := svc.SettleWeChat(context.Background(), n); err != nil {
+			t.Fatalf("settle #%d: %v", i, err)
+		}
+	}
+	if po.status != paymentPaid || !po.businessPaid || po.collectionStatus != CollectionPaid {
+		t.Fatalf("expected native collection spine paid: %+v", po)
+	}
+	if repo.postProcessCount != 1 {
+		t.Fatalf("expected one member post-process event, got %d", repo.postProcessCount)
+	}
 }
 
 func (r *spineRepo) SettleOffline(_ context.Context, n OfflineNotification, _ time.Time) error {

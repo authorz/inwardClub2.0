@@ -13,12 +13,9 @@ import (
 	"github.com/inwardclub/server/internal/platform/idempotency"
 )
 
-// The offline collection channel is resolved by the acquirer at callback time,
-// so a freshly created payment order carries no concrete pay_method yet.
 const (
-	offlinePayMethod = "offline"
-	offlineProvider  = "offline_acquirer"
-	collectionType   = "offline_collection"
+	offlineProvider = "offline_acquirer"
+	collectionType  = "offline_collection"
 )
 
 type storeSQLRepository struct{ db *platdb.DB }
@@ -79,7 +76,7 @@ func (r *storeSQLRepository) CreateCollectionOrder(ctx context.Context, in Colle
 		const insPayment = `INSERT INTO payment_orders
 			(payment_order_no, business_order_id, store_id, member_id, amount_cent, pay_method, status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-		res, err = tx.ExecContext(ctx, insPayment, in.PaymentOrderNo, businessID, in.StoreID, memberArg, in.AmountCent, offlinePayMethod, in.Now, in.Now)
+		res, err = tx.ExecContext(ctx, insPayment, in.PaymentOrderNo, businessID, in.StoreID, memberArg, in.AmountCent, wechatProvider, in.Now, in.Now)
 		if err != nil {
 			return mapWriteErr(err)
 		}
@@ -118,6 +115,8 @@ func (r *storeSQLRepository) CreateCollectionOrder(ctx context.Context, in Colle
 			CollectionOrderNo: in.CollectionOrderNo,
 			StoreID:           in.StoreID,
 			PaymentOrderID:    paymentID,
+			PaymentOrderNo:    in.PaymentOrderNo,
+			PayMethod:         wechatProvider,
 			AmountCent:        in.AmountCent,
 			Subject:           in.Subject,
 			BusinessType:      in.BusinessType,
@@ -137,14 +136,15 @@ func (r *storeSQLRepository) CreateCollectionOrder(ctx context.Context, in Colle
 	return out, nil
 }
 
-const collectionColumns = `id, collection_order_no, store_id, payment_order_id, amount_cent,
-	subject, business_type, member_id, COALESCE(member_phone_masked,''),
-	COALESCE(acquirer_order_no,''), COALESCE(qr_content,''), status, expires_at, created_at`
+const collectionColumns = `oco.id, oco.collection_order_no, oco.store_id, oco.payment_order_id,
+	po.payment_order_no, po.pay_method, oco.amount_cent, oco.subject, oco.business_type, oco.member_id,
+	COALESCE(oco.member_phone_masked,''), COALESCE(oco.acquirer_order_no,''),
+	COALESCE(oco.qr_content,''), oco.status, oco.expires_at, oco.created_at`
 
 func scanCollection(row interface{ Scan(...any) error }) (CollectionOrder, error) {
 	var o CollectionOrder
 	var memberID sql.NullInt64
-	err := row.Scan(&o.ID, &o.CollectionOrderNo, &o.StoreID, &o.PaymentOrderID, &o.AmountCent,
+	err := row.Scan(&o.ID, &o.CollectionOrderNo, &o.StoreID, &o.PaymentOrderID, &o.PaymentOrderNo, &o.PayMethod, &o.AmountCent,
 		&o.Subject, &o.BusinessType, &memberID, &o.MemberPhoneMasked,
 		&o.AcquirerOrderNo, &o.QRContent, &o.Status, &o.ExpiresAt, &o.CreatedAt)
 	if memberID.Valid {
@@ -155,7 +155,9 @@ func scanCollection(row interface{ Scan(...any) error }) (CollectionOrder, error
 
 // GetCollectionOrder reads an order pinned to the acting store's scope.
 func (r *storeSQLRepository) GetCollectionOrder(ctx context.Context, storeID, id int64) (CollectionOrder, error) {
-	const q = `SELECT ` + collectionColumns + ` FROM offline_collection_orders WHERE id = ? AND store_id = ?`
+	const q = `SELECT ` + collectionColumns + ` FROM offline_collection_orders oco
+		JOIN payment_orders po ON po.id = oco.payment_order_id
+		WHERE oco.id = ? AND oco.store_id = ?`
 	o, err := scanCollection(r.db.QueryRowContext(ctx, q, id, storeID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return CollectionOrder{}, apperr.NotFound("collection order not found")
@@ -168,13 +170,45 @@ func (r *storeSQLRepository) GetCollectionOrder(ctx context.Context, storeID, id
 
 // CancelCollectionOrder cancels a still-pending order owned by the store.
 func (r *storeSQLRepository) CancelCollectionOrder(ctx context.Context, storeID, id int64, now time.Time) error {
-	const q = `UPDATE offline_collection_orders SET status = ?, updated_at = ?
-		WHERE id = ? AND store_id = ? AND status = ?`
-	res, err := r.db.ExecContext(ctx, q, CollectionCancelled, now, id, storeID, CollectionPending)
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	return affectedOrConflict(res, "collection order cannot be cancelled")
+	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var paymentID, businessID int64
+		var collectionStatus, paymentStatus string
+		const lock = `SELECT oco.status, po.id, po.status, po.business_order_id
+			FROM offline_collection_orders oco
+			JOIN payment_orders po ON po.id = oco.payment_order_id
+			WHERE oco.id = ? AND oco.store_id = ? FOR UPDATE`
+		err := tx.QueryRowContext(ctx, lock, id, storeID).Scan(
+			&collectionStatus, &paymentID, &paymentStatus, &businessID,
+		)
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("collection order not found")
+		}
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if collectionStatus != CollectionPending || paymentStatus != paymentPending {
+			return apperr.Conflict("collection order cannot be cancelled")
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE offline_collection_orders SET status = ?, updated_at = ? WHERE id = ?`,
+			CollectionCancelled, now, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE payment_orders SET status = 'cancelled', updated_at = ? WHERE id = ?`,
+			now, paymentID,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE business_orders SET order_status = 'cancelled', updated_at = ? WHERE id = ?`,
+			now, businessID,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
 }
 
 // CreateRefund inserts a pending refund only when the payment order belongs to
@@ -449,7 +483,7 @@ func (r *storeSQLRepository) CompleteRefundAdmin(
 				return apperr.Internal(err)
 			}
 		}
-		if channel == "offline" {
+		if channel == "offline" || orderType == collectionType {
 			if _, err := tx.ExecContext(
 				ctx, `UPDATE offline_collection_orders SET status = ?, updated_at = ? WHERE payment_order_id = ?`,
 				refundedState, now, paymentOrderID,

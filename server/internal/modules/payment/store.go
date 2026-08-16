@@ -36,6 +36,8 @@ type CollectionOrder struct {
 	CollectionOrderNo string
 	StoreID           int64
 	PaymentOrderID    int64
+	PaymentOrderNo    string
+	PayMethod         string
 	AmountCent        int64
 	Subject           string
 	BusinessType      string
@@ -141,6 +143,7 @@ type CollectionOrderView struct {
 	Subject           string    `json:"subject"`
 	BusinessType      string    `json:"businessType"`
 	Status            string    `json:"status"`
+	PayChannel        string    `json:"payChannel"`
 	MemberID          *int64    `json:"memberId,omitempty"`
 	MemberNickname    string    `json:"memberNickname,omitempty"`
 	MemberPhoneMasked string    `json:"memberPhoneMasked,omitempty"`
@@ -269,17 +272,21 @@ type StoreRepository interface {
 	GetPaymentOrder(ctx context.Context, id int64, storeID *int64) (PaymentOrder, error)
 }
 
-// StoreService provides the store-console payment write operations. The offline
-// acquirer is reached only through the injected gateway interface.
+// StoreService provides the store-console payment write operations.
 type StoreService struct {
-	repo     StoreRepository
-	acquirer OfflineAcquirer
-	now      func() time.Time
+	repo                        StoreRepository
+	wechat                      WeChatPayGateway
+	wechatPayAmountOverrideCent int64
+	now                         func() time.Time
 }
 
 // NewStoreService builds the store payment service.
-func NewStoreService(repo StoreRepository, acquirer OfflineAcquirer) *StoreService {
-	return &StoreService{repo: repo, acquirer: acquirer, now: time.Now}
+func NewStoreService(repo StoreRepository, wechat WeChatPayGateway, wechatPayAmountOverrideCent int64) *StoreService {
+	return &StoreService{
+		repo: repo, wechat: wechat,
+		wechatPayAmountOverrideCent: wechatPayAmountOverrideCent,
+		now:                         time.Now,
+	}
 }
 
 // maxCollectionTTL caps the offline collection code validity. The window itself
@@ -294,8 +301,12 @@ func (s *StoreService) CreateCollectionOrder(ctx context.Context, storeID int64,
 	if req.AmountCent <= 0 {
 		return CollectionOrderView{}, apperr.Invalid("amountCent must be positive")
 	}
+	req.Subject = strings.TrimSpace(req.Subject)
 	if req.Subject == "" {
 		return CollectionOrderView{}, apperr.Invalid("subject is required")
+	}
+	if utf8.RuneCountInString(req.Subject) > 127 {
+		return CollectionOrderView{}, apperr.Invalid("subject must not exceed 127 characters")
 	}
 	if req.BusinessType == "" {
 		return CollectionOrderView{}, apperr.Invalid("businessType is required")
@@ -328,12 +339,13 @@ func (s *StoreService) CreateCollectionOrder(ctx context.Context, storeID int64,
 	now := s.now().UTC()
 	expiresAt := now.Add(ttl)
 	paymentOrderNo := newNo("PO", now)
-	// NOTE: with the fake acquirer this call has no external side effect. A real
-	// acquirer that allocates an order here should void it if the create below
-	// fails; that belongs to the (still pending) real acquirer integration.
-	qr, err := s.acquirer.CreateDynamicQR(ctx, paymentOrderNo, req.AmountCent, req.Subject, expiresAt)
+	payAmountCent := req.AmountCent
+	if s.wechatPayAmountOverrideCent > 0 {
+		payAmountCent = s.wechatPayAmountOverrideCent
+	}
+	qrContent, err := s.wechat.CreateNativeOrder(ctx, paymentOrderNo, payAmountCent, req.Subject, expiresAt)
 	if err != nil {
-		return CollectionOrderView{}, apperr.Internal(err)
+		return CollectionOrderView{}, apperr.From(err)
 	}
 	order, err := s.repo.CreateCollectionOrder(ctx, CollectionOrderCreate{
 		StoreID:           storeID,
@@ -343,8 +355,7 @@ func (s *StoreService) CreateCollectionOrder(ctx context.Context, storeID int64,
 		BusinessOrderNo:   newNo("BO", now),
 		PaymentOrderNo:    paymentOrderNo,
 		CollectionOrderNo: newNo("CO", now),
-		AcquirerOrderNo:   qr.AcquirerOrderNo,
-		QRContent:         qr.QRContent,
+		QRContent:         qrContent,
 		ExpiresAt:         expiresAt,
 		CreatedByType:     byType,
 		CreatedByID:       byID,
@@ -354,6 +365,9 @@ func (s *StoreService) CreateCollectionOrder(ctx context.Context, storeID int64,
 		Now:               now,
 	})
 	if err != nil {
+		// The WeChat order exists already. Best-effort compensation prevents an
+		// untracked QR from remaining payable when the local transaction fails.
+		_ = s.wechat.CloseOrder(ctx, paymentOrderNo)
 		return CollectionOrderView{}, err
 	}
 	view := collectionOrderView(order)
@@ -376,6 +390,16 @@ func (s *StoreService) GetCollectionOrder(ctx context.Context, storeID, id int64
 
 // CancelCollectionOrder cancels a still-pending collection order for the store.
 func (s *StoreService) CancelCollectionOrder(ctx context.Context, storeID, id int64) error {
+	order, err := s.repo.GetCollectionOrder(ctx, storeID, id)
+	if err != nil {
+		return err
+	}
+	if order.Status != CollectionPending {
+		return apperr.Conflict("collection order cannot be cancelled")
+	}
+	if err := s.wechat.CloseOrder(ctx, order.PaymentOrderNo); err != nil {
+		return apperr.From(err)
+	}
 	return s.repo.CancelCollectionOrder(ctx, storeID, id, s.now().UTC())
 }
 
@@ -616,6 +640,7 @@ func collectionOrderView(o CollectionOrder) CollectionOrderView {
 		Subject:           o.Subject,
 		BusinessType:      o.BusinessType,
 		Status:            o.Status,
+		PayChannel:        o.PayMethod,
 		MemberID:          o.MemberID,
 		MemberPhoneMasked: o.MemberPhoneMasked,
 		QRContent:         o.QRContent,

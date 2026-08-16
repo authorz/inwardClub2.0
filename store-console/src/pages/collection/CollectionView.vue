@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * 线下聚合收款：创建固定金额动态收款码（支持微信 / 支付宝渠道，属门店收单能力）。
+ * 线下收款：通过微信支付 Native 下单创建固定金额动态收款码。
  *
  * 前端不传 storeId（门店范围来自 token scope）；memberPhone 仅用于本次匹配，
  * 服务端返回掩码会员信息。创建为高风险写操作，服务端带 Idempotency-Key。
  */
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { NButton, NForm, NFormItem, NInput, NInputNumber, NSelect } from 'naive-ui'
 import { collectionService, type CreateCollectionPayload } from '@/api/services/collection'
 import { useAsyncAction } from '@/composables/useAsyncAction'
@@ -34,6 +34,52 @@ const businessTypeOptions = [
 
 const dialogShow = ref(false)
 const currentOrder = ref<CollectionOrder | null>(null)
+const polling = ref(false)
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  polling.value = false
+}
+
+async function refreshOrder() {
+  const order = currentOrder.value
+  if (!order || order.status !== 'pending' || polling.value) return
+  polling.value = true
+  try {
+    const next = await collectionService.detail(order.id)
+    const previousStatus = currentOrder.value?.status
+    currentOrder.value = {
+      ...next,
+      memberNickname: next.memberNickname ?? order.memberNickname,
+      memberPhoneMasked: next.memberPhoneMasked ?? order.memberPhoneMasked,
+    }
+    if (next.status !== 'pending') stopPolling()
+    if (previousStatus === 'pending' && next.status === 'paid') {
+      feedback.message.success('收款成功')
+    }
+  } catch {
+    // 短暂网络异常不打断收款展示，下一轮继续查询。
+  } finally {
+    polling.value = false
+  }
+}
+
+function startPolling() {
+  stopPolling()
+  if (!dialogShow.value || currentOrder.value?.status !== 'pending') return
+  pollTimer = setInterval(() => void refreshOrder(), 2500)
+}
+
+watch(dialogShow, (open) => {
+  if (open) startPolling()
+  else stopPolling()
+})
+
+onBeforeUnmount(stopPolling)
 
 function submit() {
   if (form.amountYuan <= 0) {
@@ -68,9 +114,19 @@ function onCancelOrder(id: string | number) {
     confirm: { content: '确认取消该收款码？', danger: true },
     successMessage: '已取消收款',
     onSuccess: () => {
-      dialogShow.value = false
+      if (currentOrder.value) {
+        currentOrder.value = { ...currentOrder.value, status: 'cancelled' }
+      }
+      stopPolling()
     },
   })
+}
+
+function onExpired() {
+  if (currentOrder.value?.status === 'pending') {
+    currentOrder.value = { ...currentOrder.value, status: 'expired' }
+  }
+  stopPolling()
 }
 
 const channelLabels = COLLECTION_PAY_CHANNELS.map((c) => PAY_CHANNEL[c].label).join(' / ')
@@ -80,7 +136,7 @@ const channelLabels = COLLECTION_PAY_CHANNELS.map((c) => PAY_CHANNEL[c].label).j
   <div>
     <PageHeader
       title="线下聚合收款"
-      description="创建固定金额动态收款码，支持微信 / 支付宝收单"
+      description="创建固定金额微信收款码，顾客扫码支付后自动确认收款结果"
     />
 
     <div class="collect-form ic-band">
@@ -130,7 +186,7 @@ const channelLabels = COLLECTION_PAY_CHANNELS.map((c) => PAY_CHANNEL[c].label).j
         </NFormItem>
 
         <p class="collect-form__hint ic-muted">
-          支持渠道：{{ channelLabels }}。仅创建固定金额码，不生成无金额通用静态码。
+          支持渠道：{{ channelLabels }}。收款码与本次金额和有效期绑定，支付结果会自动更新。
         </p>
 
         <NButton
@@ -149,7 +205,9 @@ const channelLabels = COLLECTION_PAY_CHANNELS.map((c) => PAY_CHANNEL[c].label).j
       v-model:show="dialogShow"
       :order="currentOrder"
       :loading="action.running.value"
+      :polling="polling"
       @cancel="onCancelOrder"
+      @expired="onExpired"
     />
   </div>
 </template>

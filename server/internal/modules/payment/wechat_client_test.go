@@ -113,6 +113,59 @@ func TestCreateJSAPIPrepayNon2xxIsError(t *testing.T) {
 	}
 }
 
+func TestCreateNativeOrderReturnsCodeURL(t *testing.T) {
+	merchant := mustKey(t)
+	expiresAt := fixedNow().Add(5 * time.Minute)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/pay/transactions/native" || r.Method != http.MethodPost {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := readAll(r)
+		if err := verifyAuthHeader(r, "/v3/pay/transactions/native", body, &merchant.PublicKey); err != nil {
+			t.Errorf("verify request signature: %v", err)
+		}
+		var got nativeOrderRequest
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		if got.OutTradeNo != "PO-NATIVE" || got.Amount.Total != 4599 || got.TimeExpire != expiresAt.Format(time.RFC3339) {
+			t.Errorf("unexpected request body: %+v", got)
+		}
+		_, _ = w.Write([]byte(`{"code_url":"weixin://wxpay/bizpayurl/up?pr=test"}`))
+	}))
+	defer srv.Close()
+
+	c := testClient(t, srv.URL, merchant, mustKey(t))
+	codeURL, err := c.CreateNativeOrder(context.Background(), "PO-NATIVE", 4599, "门店收款", expiresAt)
+	if err != nil {
+		t.Fatalf("CreateNativeOrder: %v", err)
+	}
+	if codeURL != "weixin://wxpay/bizpayurl/up?pr=test" {
+		t.Fatalf("unexpected code URL %q", codeURL)
+	}
+}
+
+func TestCloseOrderSignsRequest(t *testing.T) {
+	merchant := mustKey(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := "/v3/pay/transactions/out-trade-no/PO-NATIVE/close"
+		if r.URL.Path != path || r.Method != http.MethodPost {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := readAll(r)
+		if err := verifyAuthHeader(r, path, body, &merchant.PublicKey); err != nil {
+			t.Errorf("verify request signature: %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := testClient(t, srv.URL, merchant, mustKey(t))
+	if err := c.CloseOrder(context.Background(), "PO-NATIVE"); err != nil {
+		t.Fatalf("CloseOrder: %v", err)
+	}
+}
+
 func TestRefundReturnsRefundID(t *testing.T) {
 	merchant := mustKey(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

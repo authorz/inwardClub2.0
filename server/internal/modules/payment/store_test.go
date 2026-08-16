@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,8 @@ func (r *memStoreRepo) CreateCollectionOrder(_ context.Context, in CollectionOrd
 		CollectionOrderNo: in.CollectionOrderNo,
 		StoreID:           in.StoreID,
 		PaymentOrderID:    r.nextID,
+		PaymentOrderNo:    in.PaymentOrderNo,
+		PayMethod:         wechatProvider,
 		AmountCent:        in.AmountCent,
 		Subject:           in.Subject,
 		BusinessType:      in.BusinessType,
@@ -181,7 +184,7 @@ func (r *memStoreRepo) GetPaymentOrder(_ context.Context, id int64, storeID *int
 
 func newTestStoreService() (*StoreService, *memStoreRepo) {
 	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
-	svc := NewStoreService(repo, NewFakeOfflineAcquirer())
+	svc := NewStoreService(repo, NewFakeWeChatPayGateway(), 0)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
 }
@@ -235,8 +238,11 @@ func TestCreateCollectionOrder(t *testing.T) {
 	if view.StoreID != 7 || view.Status != CollectionPending {
 		t.Fatalf("unexpected view: %+v", view)
 	}
-	if view.QRContent == "" || view.ExpiresAt.IsZero() {
-		t.Fatalf("expected acquirer QR and expiry: %+v", view)
+	if !strings.HasPrefix(view.QRContent, "weixin://wxpay/") || view.ExpiresAt.IsZero() {
+		t.Fatalf("expected WeChat Native QR and expiry: %+v", view)
+	}
+	if view.PayChannel != wechatProvider {
+		t.Fatalf("expected WeChat pay channel, got %+v", view)
 	}
 	// A walk-in collection (no memberPhone) binds no member.
 	if view.MemberID != nil || view.MemberNickname != "" || view.MemberPhoneMasked != "" {
@@ -248,6 +254,43 @@ func TestCreateCollectionOrder(t *testing.T) {
 	}
 	if len(repo.orders) != 1 {
 		t.Fatalf("order not persisted")
+	}
+}
+
+type recordingNativeGateway struct {
+	WeChatPayGateway
+	amountCent int64
+	expiresAt  time.Time
+	closedNo   string
+}
+
+func (g *recordingNativeGateway) CreateNativeOrder(_ context.Context, outTradeNo string, amountCent int64, _ string, expiresAt time.Time) (string, error) {
+	g.amountCent = amountCent
+	g.expiresAt = expiresAt
+	return "weixin://wxpay/bizpayurl/up?pr=" + outTradeNo, nil
+}
+
+func (g *recordingNativeGateway) CloseOrder(_ context.Context, outTradeNo string) error {
+	g.closedNo = outTradeNo
+	return nil
+}
+
+func TestCreateCollectionOrderUsesWechatAmountOverride(t *testing.T) {
+	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
+	gateway := &recordingNativeGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
+	svc := NewStoreService(repo, gateway, 1)
+	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
+
+	view, err := svc.CreateCollectionOrder(context.Background(), 7, "cashier", 3, "idem-native",
+		CreateCollectionOrderRequest{AmountCent: 1500, Subject: "coffee", BusinessType: "food", ExpiresInSeconds: 300})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if gateway.amountCent != 1 {
+		t.Fatalf("expected debug amount 1 cent, got %d", gateway.amountCent)
+	}
+	if !gateway.expiresAt.Equal(view.ExpiresAt) {
+		t.Fatalf("gateway expiry %s != order expiry %s", gateway.expiresAt, view.ExpiresAt)
 	}
 }
 
@@ -333,12 +376,18 @@ func TestGetCollectionOrderScope(t *testing.T) {
 }
 
 func TestCancelCollectionOrder(t *testing.T) {
-	svc, _ := newTestStoreService()
+	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
+	gateway := &recordingNativeGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
+	svc := NewStoreService(repo, gateway, 0)
+	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	view, _ := svc.CreateCollectionOrder(context.Background(), 7, "cashier", 3, "",
 		CreateCollectionOrderRequest{AmountCent: 1500, Subject: "coffee", BusinessType: "food", ExpiresInSeconds: 900})
 
 	if err := svc.CancelCollectionOrder(context.Background(), 7, view.ID); err != nil {
 		t.Fatalf("cancel: %v", err)
+	}
+	if gateway.closedNo == "" {
+		t.Fatal("expected WeChat order to be closed")
 	}
 	// Second cancel conflicts; wrong scope conflicts too.
 	if err := svc.CancelCollectionOrder(context.Background(), 7, view.ID); apperr.From(err).Code != apperr.CodeConflict {

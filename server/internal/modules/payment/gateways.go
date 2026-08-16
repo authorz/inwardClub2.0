@@ -32,10 +32,13 @@ type WeChatNotification struct {
 	Success       bool
 }
 
-// WeChatPayGateway abstracts WeChat Pay JSAPI creation, notify verification and
-// refunds. Only the mini program uses this; Alipay never appears here.
+// WeChatPayGateway abstracts WeChat Pay order creation, cancellation, notify
+// verification and refunds. JSAPI serves the mini program; Native serves the
+// store console's dynamic collection code.
 type WeChatPayGateway interface {
 	CreateJSAPIPrepay(ctx context.Context, outTradeNo string, amountCent int64, openID, description string) (WeChatPrepay, error)
+	CreateNativeOrder(ctx context.Context, outTradeNo string, amountCent int64, description string, expiresAt time.Time) (string, error)
+	CloseOrder(ctx context.Context, outTradeNo string) error
 	VerifyNotification(req *http.Request) (WeChatNotification, error)
 	Refund(ctx context.Context, outTradeNo, outRefundNo string, amountCent, totalCent int64) (string, error)
 }
@@ -82,6 +85,12 @@ func (f *FakeWeChatPayGateway) CreateJSAPIPrepay(_ context.Context, outTradeNo s
 		Timestamp: "0",
 	}, nil
 }
+
+func (f *FakeWeChatPayGateway) CreateNativeOrder(_ context.Context, outTradeNo string, _ int64, _ string, _ time.Time) (string, error) {
+	return "weixin://wxpay/bizpayurl/up?pr=fake_" + short(outTradeNo), nil
+}
+
+func (f *FakeWeChatPayGateway) CloseOrder(_ context.Context, _ string) error { return nil }
 
 // fakeWeChatNotifyBody is the simplified smoke-test payload accepted by the fake
 // WeChat gateway. It is never used against a real WeChat callback.

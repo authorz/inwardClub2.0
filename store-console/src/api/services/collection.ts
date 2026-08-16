@@ -1,5 +1,5 @@
 /**
- * 线下聚合收款服务。
+ * 线下微信收款服务。
  *
  * 创建收款码为高风险写操作，带 Idempotency-Key。
  * 前端不传 storeId（门店范围来自 token scope）；memberPhone 仅用于本次匹配，
@@ -27,7 +27,7 @@ export const collectionService = {
     return get<CollectionOrder>(API_PATHS.collection.order(id))
   },
   cancel(id: string | number) {
-    return post<CollectionOrder>(API_PATHS.collection.cancel(id), undefined, { idempotent: true })
+    return post<void>(API_PATHS.collection.cancel(id), undefined, { idempotent: true })
   },
   // 收款单列表（GET /store/offline-collection-orders）服务端未实现，故不提供 records 方法；记录页退化为空状态。
 }

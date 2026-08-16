@@ -1,14 +1,17 @@
 <script setup lang="ts">
 /**
- * 收款码弹窗：展示动态聚合收款码、金额、有效期倒计时与匹配到的掩码会员。
+ * 收款码弹窗：将微信 Native code_url 渲染为二维码，并展示金额、状态、
+ * 有效期倒计时与匹配到的掩码会员。
  *
- * 二维码内容/展示 URL 由收单服务商通过后端返回；前端只展示，不生成静态通用码。
+ * 二维码内容由后端向微信支付下单后返回；前端只将本次 code_url 转为二维码，
+ * 不生成无金额的静态通用码。
  * 会员手机号仅用于匹配，展示为掩码，前端不留存原始号码。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { NButton, NModal, NSpin } from 'naive-ui'
+import { NButton, NModal, NResult, NSpin, NTag } from 'naive-ui'
+import QRCode from 'qrcode'
 import { formatCent, formatCountdown } from '@/utils/format'
-import { PAY_CHANNEL } from '@/constants/enums'
+import { COLLECTION_ORDER_STATUS, PAY_CHANNEL, resolveEnum } from '@/constants/enums'
 import type { CollectionOrder } from '@/types/models'
 
 const props = withDefaults(
@@ -16,8 +19,9 @@ const props = withDefaults(
     show: boolean
     order?: CollectionOrder | null
     loading?: boolean
+    polling?: boolean
   }>(),
-  { order: null, loading: false },
+  { order: null, loading: false, polling: false },
 )
 
 const emit = defineEmits<{
@@ -27,7 +31,10 @@ const emit = defineEmits<{
 }>()
 
 const remaining = ref(0)
+const qrDataUrl = ref('')
+const qrError = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
+let qrRenderVersion = 0
 
 function stop() {
   if (timer) {
@@ -50,29 +57,55 @@ function tick() {
 }
 
 watch(
-  () => props.show,
-  (open) => {
+  [() => props.show, () => props.order?.expiresAt, () => props.order?.status],
+  ([open, , status]) => {
     stop()
-    if (open && props.order) {
+    if (open && props.order && status === 'pending') {
       tick()
       timer = setInterval(tick, 1000)
     }
   },
 )
 
+watch(
+  [() => props.show, () => props.order?.qrContent, () => props.order?.status],
+  async ([open, content, status]) => {
+    const version = ++qrRenderVersion
+    qrDataUrl.value = ''
+    qrError.value = false
+    if (!open || status !== 'pending') return
+    if (!content || !content.startsWith('weixin://wxpay/')) {
+      qrError.value = true
+      return
+    }
+    try {
+      const dataUrl = await QRCode.toDataURL(content, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#111111', light: '#ffffff' },
+      })
+      if (version === qrRenderVersion) qrDataUrl.value = dataUrl
+    } catch {
+      if (version === qrRenderVersion) qrError.value = true
+    }
+  },
+  { immediate: true },
+)
+
 onBeforeUnmount(stop)
 
-const channelLabels = computed(() =>
-  PAY_CHANNEL.wechat.label + ' / ' + PAY_CHANNEL.alipay.label,
-)
+const channelLabels = computed(() => PAY_CHANNEL.wechat.label)
+
+const statusMeta = computed(() => resolveEnum(COLLECTION_ORDER_STATUS, props.order?.status))
 </script>
 
 <template>
   <NModal
     :show="show"
     preset="card"
-    title="聚合收款码"
-    style="width: 380px"
+    title="微信收款码"
+    style="width: 460px"
     @update:show="emit('update:show', $event)"
   >
     <NSpin :show="loading">
@@ -87,26 +120,64 @@ const channelLabels = computed(() =>
           {{ order.subject }}
         </div>
 
-        <div class="collect__qr">
+        <NTag
+          :type="statusMeta.tone === 'default' ? 'default' : statusMeta.tone"
+          :bordered="false"
+          size="small"
+        >
+          {{ statusMeta.label }}
+        </NTag>
+
+        <div
+          v-if="order.status === 'pending'"
+          class="collect__qr"
+        >
           <img
-            v-if="order.qrDisplayUrl"
-            :src="order.qrDisplayUrl"
-            alt="收款码"
+            v-if="qrDataUrl"
+            :src="qrDataUrl"
+            alt="微信收款二维码"
           >
-          <div
+          <NSpin
+            v-else-if="!qrError"
+            size="large"
+          />
+          <NResult
             v-else
-            class="collect__qr-placeholder ic-mono"
-          >
-            {{ order.qrContent || '等待收单服务商返回收款码' }}
-          </div>
+            status="error"
+            title="收款码生成失败"
+            description="请关闭弹窗后重新生成"
+          />
         </div>
 
-        <div class="collect__meta">
-          <span>支持渠道：{{ channelLabels }}</span>
+        <NResult
+          v-else-if="order.status === 'paid'"
+          status="success"
+          title="收款成功"
+          :description="`已收到 ${formatCent(order.amountCent)}`"
+        />
+        <NResult
+          v-else
+          :status="order.status === 'expired' ? 'warning' : 'info'"
+          :title="statusMeta.label"
+          description="此收款码已停止使用"
+        />
+
+        <div
+          v-if="order.status === 'pending'"
+          class="collect__meta"
+        >
+          <span>请使用{{ channelLabels }}扫一扫</span>
           <span
             v-if="order.expiresAt"
             class="ic-mono"
           >剩余 {{ formatCountdown(remaining) }}</span>
+        </div>
+        <div
+          v-if="order.status === 'pending'"
+          class="collect__polling"
+        >
+          <span class="collect__polling-dot" />
+          {{ polling ? '正在确认支付结果' : '等待顾客支付' }}
         </div>
         <div
           v-if="order.memberNickname"
@@ -152,25 +223,19 @@ const channelLabels = computed(() =>
 }
 .collect__qr {
   margin: var(--ic-space-3) 0;
-}
-.collect__qr img {
-  width: 200px;
-  height: 200px;
-  object-fit: contain;
-}
-.collect__qr-placeholder {
-  width: 200px;
-  height: 200px;
+  width: 256px;
+  height: 256px;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  padding: var(--ic-space-3);
-  border: 1px dashed var(--ic-color-border-strong);
-  border-radius: var(--ic-radius-md);
-  color: var(--ic-color-text-tertiary);
-  font-size: var(--ic-font-xs);
-  word-break: break-all;
+  background: #fff;
+  border: 1px solid var(--ic-color-border);
+  padding: 8px;
+}
+.collect__qr img {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
 }
 .collect__meta {
   display: flex;
@@ -181,6 +246,24 @@ const channelLabels = computed(() =>
 }
 .collect__member {
   font-size: var(--ic-font-xs);
+}
+.collect__polling {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ic-color-text-tertiary);
+  font-size: var(--ic-font-xs);
+}
+.collect__polling-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ic-color-success);
+  animation: collect-pulse 1.5s ease-in-out infinite;
+}
+@keyframes collect-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }
 .collect__footer {
   display: flex;
