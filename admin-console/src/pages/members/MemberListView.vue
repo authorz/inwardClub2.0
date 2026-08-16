@@ -362,7 +362,7 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
       preset="card"
       title="会员详情"
       :mask-closable="false"
-      style="width: 640px; max-width: 92vw"
+      style="width: 760px; max-width: 92vw"
       content-style="max-height: 72vh; overflow: auto"
     >
       <NSpin :show="detailLoading">

@@ -330,7 +330,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
       v-model:show="detailShow"
       preset="card"
       title="会员详情"
-      style="width: 640px"
+      style="width: 760px; max-width: 92vw"
     >
       <NSpin :show="detailLoading">
         <div
