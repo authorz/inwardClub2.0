@@ -338,6 +338,11 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, scope Console
 
 func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error) {
 	where, args := consoleListWhere(scope, filter, "i")
+	// Legacy redemption-zone duplicates may still point at a removed category.
+	// Keep those historical rows out of product management so operators edit the
+	// single canonical product that belongs to a current store category.
+	where += ` AND EXISTS (SELECT 1 FROM catalog_categories visible_category
+		WHERE visible_category.id = i.category_id AND visible_category.store_id = i.store_id)`
 	if filter.CategoryID != nil {
 		where += " AND i.category_id = ?"
 		args = append(args, *filter.CategoryID)
@@ -680,7 +685,7 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	}
 	if _, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID); err != nil {
 		if apperr.From(err).Code == apperr.CodeNotFound {
-			return apperr.Invalid("catalog: category must belong to the selected store")
+			return apperr.Invalid("商品分类已失效，请重新选择有效分类")
 		}
 		return err
 	}

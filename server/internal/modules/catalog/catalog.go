@@ -120,7 +120,9 @@ func (r *sqlRepository) ListCategoriesForStore(ctx context.Context, storeID int6
 }
 
 func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, categoryID *int64, limit, offset int) ([]Item, int64, error) {
-	where := `status = 'published' AND scope_type = 'store' AND store_id = ?`
+	where := `status = 'published' AND scope_type = 'store' AND store_id = ?
+		AND EXISTS (SELECT 1 FROM catalog_categories c
+			WHERE c.id = catalog_items.category_id AND c.store_id = catalog_items.store_id)`
 	args := []any{storeID}
 	if categoryID != nil {
 		where += ` AND category_id = ?`
@@ -162,6 +164,8 @@ func (r *sqlRepository) ListCouponRedeemableItemsForStore(ctx context.Context, s
 		sort_order, status, created_at, updated_at
 		FROM catalog_items
 		WHERE status = 'published' AND scope_type = 'store' AND store_id = ?
+		  AND EXISTS (SELECT 1 FROM catalog_categories c
+			WHERE c.id = catalog_items.category_id AND c.store_id = catalog_items.store_id)
 		  AND price_cent > 0 AND price_cent <= ?
 		  AND JSON_CONTAINS(COALESCE(coupon_redeem_types, JSON_ARRAY()), JSON_QUOTE(?), '$')
 		ORDER BY sort_order ASC, id ASC`

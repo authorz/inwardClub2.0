@@ -24,6 +24,7 @@ import {
 } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { centToYuan, formatCent, yuanToCent } from '@/utils/format'
+import { feedback } from '@/utils/feedback'
 import { moneyColumn, statusColumn, textColumn } from '@/utils/columns'
 import {
   AppIcon,
@@ -81,7 +82,14 @@ const editForm = reactive<{
 function openEdit(row?: CatalogItem) {
   editForm.id = row?.id ?? null
   editForm.name = row?.name ?? ''
-  editForm.categoryId = row?.categoryId == null ? null : String(row.categoryId)
+  const categoryId = row?.categoryId == null ? null : String(row.categoryId)
+  const categoryIsValid = categoryId != null && categories.value.some(
+    (category) => String(category.id) === categoryId,
+  )
+  editForm.categoryId = categoryIsValid ? categoryId : null
+  if (row && !categoryIsValid) {
+    feedback.message.warning('该商品原分类已失效，请重新选择有效分类后保存')
+  }
   editForm.description = row?.description ?? ''
   editForm.assetId = row?.assetId == null ? null : String(row.assetId)
   editForm.imageUrl = row?.imageUrl ?? ''
@@ -102,6 +110,10 @@ function openEdit(row?: CatalogItem) {
 
 async function saveEdit() {
   const id = editForm.id
+  if (!editForm.categoryId) {
+    feedback.message.warning('请选择有效的商品分类')
+    return
+  }
   await action.run(
     async () => {
       if (!editForm.name.trim()) throw new Error('请填写商品名称')
