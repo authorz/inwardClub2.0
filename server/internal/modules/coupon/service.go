@@ -18,7 +18,7 @@ type Service struct {
 }
 
 type RedeemableCatalog interface {
-	ListCouponRedeemableItems(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]catalog.ItemView, error)
+	ListCouponRedeemableItems(ctx context.Context, storeID, couponTemplateID, maxPriceCent int64) ([]catalog.ItemView, error)
 }
 
 // NewService builds the coupon service.
@@ -44,7 +44,7 @@ func (s *Service) ListCoupons(ctx context.Context, memberID int64, status string
 }
 
 // ListEligibleItems returns the authenticated coupon plus the products that
-// the selected store has explicitly enabled for that coupon type.
+// the selected store has explicitly enabled for that concrete coupon template.
 func (s *Service) ListEligibleItems(ctx context.Context, memberID, entitlementID, storeID int64) (EligibleItemsView, error) {
 	c, items, err := s.eligibleCouponAndItems(ctx, memberID, entitlementID, storeID)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Service) eligibleCouponAndItems(ctx context.Context, memberID, entitlem
 	if s.catalog == nil {
 		return MemberCoupon{}, nil, apperr.Internal(fmt.Errorf("coupon: catalog service is not configured"))
 	}
-	items, err := s.catalog.ListCouponRedeemableItems(ctx, storeID, c.CouponType, c.ValueCent)
+	items, err := s.catalog.ListCouponRedeemableItems(ctx, storeID, c.TemplateID, c.ValueCent)
 	if err != nil {
 		return MemberCoupon{}, nil, err
 	}
@@ -142,7 +142,7 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 		return MemberCouponView{}, apperr.Internal(err)
 	}
 	ruleSnapshotJSON, err := marshalSnapshot(RedemptionRuleSnapshot{
-		CouponType: c.CouponType, CouponValueCent: c.ValueCent,
+		CouponTemplateID: c.TemplateID, CouponType: c.CouponType, CouponValueCent: c.ValueCent,
 		RedeemedAmountCent: totalCent, UnusedAmountCent: c.ValueCent - totalCent,
 	})
 	if err != nil {
@@ -158,7 +158,6 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 		Now:              now,
 		ItemSnapshotJSON: itemSnapshotJSON,
 		MatchedRuleJSON:  ruleSnapshotJSON,
-		CouponType:       c.CouponType,
 		Items:            snapshot,
 	})
 	if err != nil {

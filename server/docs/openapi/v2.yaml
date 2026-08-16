@@ -230,7 +230,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
-        couponRedeemTypes: { type: array, description: Empty means unavailable for coupon redemption., items: { type: string, enum: [exchange, discount, cash] } }
+        couponTemplateIds: { type: array, description: Concrete exchange-coupon template IDs allowed to redeem this product; empty means unavailable., items: { type: integer, format: int64 } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -1009,7 +1009,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
-        couponRedeemTypes: { type: array, description: Coupon types allowed to redeem this product., items: { type: string, enum: [exchange, discount, cash] } }
+        couponTemplateIds: { type: array, description: Concrete exchange-coupon template IDs allowed to redeem this product., items: { type: integer, format: int64 } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -1027,7 +1027,7 @@ components:
         itemType: { type: string }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
-        couponRedeemTypes: { type: array, items: { type: string, enum: [exchange, discount, cash] } }
+        couponTemplateIds: { type: array, items: { type: integer, format: int64 } }
         status: { type: string }
         createdAt: { type: string, format: date-time }
     CatalogItemInput:
@@ -1043,7 +1043,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
-        couponRedeemTypes: { type: array, description: Empty means unavailable for coupon redemption., items: { type: string, enum: [exchange, discount, cash] } }
+        couponTemplateIds: { type: array, description: Concrete exchange-coupon template IDs; empty means unavailable for coupon redemption., items: { type: integer, format: int64 } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -6079,11 +6079,12 @@ paths:
       parameters:
         - { in: query, name: status, required: false, schema: { type: string } }
         - { in: query, name: keyword, required: false, schema: { type: string } }
+        - { in: query, name: includeGlobal, required: false, description: Include platform coupon templates available to this store., schema: { type: boolean, default: false } }
         - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
         - { in: query, name: pageSize, required: false, schema: { type: integer, default: 20, maximum: 100 } }
       responses:
         '200':
-          description: Coupon template list (this store)
+          description: Coupon template list (this store, optionally including global templates)
           content:
             application/json:
               schema:

@@ -16,8 +16,9 @@ type fakeConsoleRepo struct {
 	items      []Item
 	variants   []Variant
 
-	lastScope  ConsoleScope
-	lastFilter ConsoleListFilter
+	lastScope             ConsoleScope
+	lastFilter            ConsoleListFilter
+	rejectCouponTemplates bool
 }
 
 type fakeCatalogAssets struct{}
@@ -97,7 +98,7 @@ func (r *fakeConsoleRepo) CreateItem(_ context.Context, scope ConsoleScope, in I
 	it := Item{ID: 200, ScopeType: scopeType, StoreID: storeID, CategoryID: in.CategoryID,
 		Name: in.Name, Description: in.Description, AssetID: in.AssetID, ItemType: in.ItemType, PriceCent: in.PriceCent,
 		StockQuantity: in.StockQuantity, PayChannels: in.PayChannels,
-		CouponRedeemTypes: in.CouponRedeemTypes, Status: in.Status}
+		CouponTemplateIDs: in.CouponTemplateIDs, Status: in.Status}
 	r.items = append(r.items, it)
 	return it, nil
 }
@@ -110,12 +111,16 @@ func (r *fakeConsoleRepo) UpdateItem(_ context.Context, scope ConsoleScope, id i
 			r.items[i].CategoryID = in.CategoryID
 			r.items[i].AssetID = in.AssetID
 			r.items[i].Name = in.Name
-			r.items[i].CouponRedeemTypes = in.CouponRedeemTypes
+			r.items[i].CouponTemplateIDs = in.CouponTemplateIDs
 			r.items[i].Status = in.Status
 			return r.items[i], nil
 		}
 	}
 	return Item{}, apperr.NotFound("catalog item not found")
+}
+
+func (r *fakeConsoleRepo) CouponTemplatesExistForStore(_ context.Context, _ int64, _ []int64) (bool, error) {
+	return !r.rejectCouponTemplates, nil
 }
 func (r *fakeConsoleRepo) DeleteItem(_ context.Context, scope ConsoleScope, id int64) error {
 	r.lastScope = scope
@@ -310,16 +315,16 @@ func TestNormalizePayChannels(t *testing.T) {
 	}
 }
 
-func TestNormalizeCouponRedeemTypes(t *testing.T) {
-	got, err := normalizeCouponRedeemTypes([]string{"exchange", "cash", "exchange"})
+func TestNormalizeCouponTemplateIDs(t *testing.T) {
+	got, err := normalizeCouponTemplateIDs([]int64{3, 1, 3})
 	if err != nil {
-		t.Fatalf("normalize coupon types: %v", err)
+		t.Fatalf("normalize coupon template IDs: %v", err)
 	}
-	if len(got) != 2 || got[0] != "exchange" || got[1] != "cash" {
-		t.Fatalf("unexpected coupon types: %#v", got)
+	if len(got) != 2 || got[0] != 3 || got[1] != 1 {
+		t.Fatalf("unexpected coupon template IDs: %#v", got)
 	}
-	if _, err := normalizeCouponRedeemTypes([]string{"unknown"}); err == nil {
-		t.Fatal("unsupported coupon type should be rejected")
+	if _, err := normalizeCouponTemplateIDs([]int64{0}); err == nil {
+		t.Fatal("non-positive coupon template ID should be rejected")
 	}
 }
 
@@ -404,6 +409,27 @@ func TestConsoleService_CreateItem_RejectsNegativePointsReward(t *testing.T) {
 	})
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected negative points reward to be rejected, got %v", err)
+	}
+}
+
+func TestConsoleService_CreateItem_RejectsCouponTemplateOutsideStore(t *testing.T) {
+	storeID := int64(3)
+	categoryID := int64(8)
+	assetID := int64(9)
+	repo := &fakeConsoleRepo{
+		rejectCouponTemplates: true,
+		categories: []Category{
+			{ID: categoryID, ScopeType: "store", StoreID: &storeID, Name: "Drinks"},
+		},
+	}
+	svc := NewConsoleService(repo)
+
+	_, err := svc.CreateItem(context.Background(), adminScope(), ItemInput{
+		StoreID: &storeID, CategoryID: &categoryID, AssetID: &assetID,
+		Name: "Latte", CouponTemplateIDs: []int64{99}, Status: "draft",
+	})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected out-of-scope coupon template to be rejected, got %v", err)
 	}
 }
 

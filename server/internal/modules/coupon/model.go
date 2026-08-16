@@ -67,6 +67,7 @@ type RedemptionItemSnapshot struct {
 }
 
 type RedemptionRuleSnapshot struct {
+	CouponTemplateID   int64  `json:"couponTemplateId"`
 	CouponType         string `json:"couponType"`
 	CouponValueCent    int64  `json:"couponValueCent"`
 	RedeemedAmountCent int64  `json:"redeemedAmountCent"`

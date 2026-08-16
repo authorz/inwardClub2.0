@@ -20,7 +20,7 @@ type fakeRedeemableCatalog struct {
 	items []catalog.ItemView
 }
 
-func (f fakeRedeemableCatalog) ListCouponRedeemableItems(_ context.Context, _ int64, _ string, _ int64) ([]catalog.ItemView, error) {
+func (f fakeRedeemableCatalog) ListCouponRedeemableItems(_ context.Context, _, _, _ int64) ([]catalog.ItemView, error) {
 	return f.items, nil
 }
 
@@ -201,7 +201,7 @@ func TestRedeemRejectsAmountAboveCouponValue(t *testing.T) {
 	}
 }
 
-func TestListEligibleItemsUsesCouponTypeAndFaceValue(t *testing.T) {
+func TestListEligibleItemsUsesCouponTemplateAndFaceValue(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
 		10: {{EntitlementID: 1, Name: "100元兑换券", CouponType: TypeExchange, ValueCent: 10000, Status: StatusActive}},
 	}}

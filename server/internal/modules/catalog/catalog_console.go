@@ -60,7 +60,7 @@ type ItemInput struct {
 	PriceCent         int64    `json:"priceCent"`
 	StockQuantity     int64    `json:"stockQuantity"`
 	PayChannels       []string `json:"payChannels"`
-	CouponRedeemTypes []string `json:"couponRedeemTypes"`
+	CouponTemplateIDs []int64  `json:"couponTemplateIds"`
 	PointsReward      int64    `json:"pointsReward"`
 	SortOrder         int      `json:"sortOrder"`
 	Status            string   `json:"status" binding:"required"`
@@ -105,7 +105,7 @@ type ConsoleItemView struct {
 	PriceCent         int64     `json:"priceCent"`
 	StockQuantity     int64     `json:"stockQuantity"`
 	PayChannels       []string  `json:"payChannels"`
-	CouponRedeemTypes []string  `json:"couponRedeemTypes"`
+	CouponTemplateIDs []int64   `json:"couponTemplateIds"`
 	PointsReward      int64     `json:"pointsReward"`
 	SortOrder         int       `json:"sortOrder"`
 	Status            string    `json:"status"`
@@ -149,6 +149,7 @@ type ConsoleRepository interface {
 	CreateItem(ctx context.Context, scope ConsoleScope, in ItemInput) (Item, error)
 	UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (Item, error)
 	DeleteItem(ctx context.Context, scope ConsoleScope, id int64) error
+	CouponTemplatesExistForStore(ctx context.Context, storeID int64, templateIDs []int64) (bool, error)
 
 	ListVariants(ctx context.Context, scope ConsoleScope, itemID int64, page httpx.Page) ([]Variant, int64, error)
 	GetVariant(ctx context.Context, scope ConsoleScope, itemID, id int64) (Variant, error)
@@ -226,12 +227,33 @@ func encodeChannels(ch []string) []byte {
 	return raw
 }
 
-func encodeStringList(values []string) []byte {
+func encodeInt64List(values []int64) []byte {
 	if values == nil {
-		values = []string{}
+		values = []int64{}
 	}
 	raw, _ := json.Marshal(values)
 	return raw
+}
+
+func (r *sqlConsoleRepository) CouponTemplatesExistForStore(ctx context.Context, storeID int64, templateIDs []int64) (bool, error) {
+	if len(templateIDs) == 0 {
+		return true, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(templateIDs)), ",")
+	args := make([]any, 0, len(templateIDs)+1)
+	args = append(args, storeID)
+	for _, id := range templateIDs {
+		args = append(args, id)
+	}
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates
+		WHERE coupon_type = 'exchange'
+		  AND (scope_type = 'global' OR (scope_type = 'store' AND store_id = ?))
+		  AND id IN (`+placeholders+`)`, args...).Scan(&count)
+	if err != nil {
+		return false, apperr.Internal(err)
+	}
+	return count == len(templateIDs), nil
 }
 
 func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Category, int64, error) {
@@ -353,7 +375,7 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 	}
 	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
 		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
-		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_redeem_types, i.points_reward, i.sort_order,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.points_reward, i.sort_order,
 		i.status, i.created_at, i.updated_at
 		FROM catalog_items i
 		LEFT JOIN stores s ON s.id = i.store_id
@@ -368,15 +390,15 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 	var out []Item
 	for rows.Next() {
 		var it Item
-		var payChannels, couponRedeemTypes []byte
+		var payChannels, couponTemplateIDs []byte
 		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName, &it.CategoryID,
 			&it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
-			&it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes, &it.PointsReward, &it.SortOrder,
+			&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.PointsReward, &it.SortOrder,
 			&it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		it.PayChannels = decodeChannels(payChannels)
-		it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
+		it.CouponTemplateIDs = decodeInt64List(couponTemplateIDs)
 		out = append(out, it)
 	}
 	if err := rows.Err(); err != nil {
@@ -389,7 +411,7 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 	where, args := scopedAliasWhere(scope, "i")
 	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
 		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
-		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_redeem_types, i.points_reward, i.sort_order,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.points_reward, i.sort_order,
 		i.status, i.created_at, i.updated_at
 		FROM catalog_items i
 		LEFT JOIN stores s ON s.id = i.store_id
@@ -397,10 +419,10 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 		WHERE i.id = ?` + where
 	qArgs := append([]any{id}, args...)
 	var it Item
-	var payChannels, couponRedeemTypes []byte
+	var payChannels, couponTemplateIDs []byte
 	err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName,
 		&it.CategoryID, &it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
-		&it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes, &it.PointsReward, &it.SortOrder,
+		&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.PointsReward, &it.SortOrder,
 		&it.Status, &it.CreatedAt, &it.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -409,7 +431,7 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 		return Item{}, apperr.Internal(err)
 	}
 	it.PayChannels = decodeChannels(payChannels)
-	it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
+	it.CouponTemplateIDs = decodeInt64List(couponTemplateIDs)
 	return it, nil
 }
 
@@ -417,10 +439,10 @@ func (r *sqlConsoleRepository) CreateItem(ctx context.Context, scope ConsoleScop
 	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	res, err := r.db.ExecContext(ctx, `INSERT INTO catalog_items
 		(scope_type, store_id, category_id, name, description, asset_id, item_type,
-		 price_cent, stock_quantity, pay_channels, coupon_redeem_types, points_reward, sort_order, status, created_at, updated_at)
+		 price_cent, stock_quantity, pay_channels, coupon_template_ids, points_reward, sort_order, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 		scopeType, storeID, in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeStringList(in.CouponRedeemTypes),
+		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs),
 		in.PointsReward, in.SortOrder, in.Status)
 	if err != nil {
 		return Item{}, apperr.Internal(err)
@@ -437,11 +459,11 @@ func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScop
 		if _, err := r.db.ExecContext(ctx, `UPDATE catalog_items
 			SET scope_type = 'store', store_id = ?, category_id = ?, name = ?,
 			    description = ?, asset_id = ?, item_type = ?, price_cent = ?,
-			    stock_quantity = ?, pay_channels = ?, coupon_redeem_types = ?, points_reward = ?, sort_order = ?,
+			    stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, points_reward = ?, sort_order = ?,
 			    status = ?, updated_at = NOW()
 			WHERE id = ?`,
 			in.StoreID, in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-			in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeStringList(in.CouponRedeemTypes), in.PointsReward,
+			in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs), in.PointsReward,
 			in.SortOrder, in.Status, id); err != nil {
 			return Item{}, apperr.Internal(err)
 		}
@@ -449,11 +471,11 @@ func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScop
 	}
 	where, args := scopeWhere(scope)
 	execArgs := append([]any{in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeStringList(in.CouponRedeemTypes),
+		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs),
 		in.PointsReward, in.SortOrder, in.Status, id}, args...)
 	if _, err := r.db.ExecContext(ctx, `UPDATE catalog_items
 		SET category_id = ?, name = ?, description = ?, asset_id = ?, item_type = ?,
-		    price_cent = ?, stock_quantity = ?, pay_channels = ?, coupon_redeem_types = ?, points_reward = ?,
+		    price_cent = ?, stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, points_reward = ?,
 		    sort_order = ?, status = ?, updated_at = NOW()
 		WHERE id = ?`+where, execArgs...); err != nil {
 		return Item{}, apperr.Internal(err)
@@ -630,7 +652,7 @@ func (s *ConsoleService) itemToView(ctx context.Context, it Item) ConsoleItemVie
 		StoreName: it.StoreName, CategoryName: it.CategoryName, Name: it.Name,
 		Description: it.Description, AssetID: it.AssetID, ItemType: it.ItemType,
 		PriceCent: it.PriceCent, StockQuantity: it.StockQuantity, PayChannels: it.PayChannels,
-		CouponRedeemTypes: it.CouponRedeemTypes,
+		CouponTemplateIDs: it.CouponTemplateIDs,
 		PointsReward:      it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		CreatedAt: it.CreatedAt, UpdatedAt: it.UpdatedAt,
 	}
@@ -679,9 +701,18 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	if err != nil {
 		return err
 	}
-	couponRedeemTypes, err := normalizeCouponRedeemTypes(in.CouponRedeemTypes)
+	couponTemplateIDs, err := normalizeCouponTemplateIDs(in.CouponTemplateIDs)
 	if err != nil {
 		return err
+	}
+	if len(couponTemplateIDs) > 0 {
+		exists, err := s.repo.CouponTemplatesExistForStore(ctx, *storeID, couponTemplateIDs)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return apperr.Invalid("部分优惠券不存在、不是兑换券或不适用于当前门店")
+		}
 	}
 	if _, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID); err != nil {
 		if apperr.From(err).Code == apperr.CodeNotFound {
@@ -692,25 +723,19 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	in.StoreID = storeID
 	in.Name = strings.TrimSpace(in.Name)
 	in.PayChannels = payChannels
-	in.CouponRedeemTypes = couponRedeemTypes
+	in.CouponTemplateIDs = couponTemplateIDs
 	if in.ItemType == "" {
 		in.ItemType = ItemTypeFood
 	}
 	return nil
 }
 
-func normalizeCouponRedeemTypes(values []string) ([]string, error) {
-	allowed := map[string]struct{}{
-		"exchange": {},
-		"discount": {},
-		"cash":     {},
-	}
-	normalized := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
+func normalizeCouponTemplateIDs(values []int64) ([]int64, error) {
+	normalized := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if _, ok := allowed[value]; !ok {
-			return nil, apperr.Invalid("catalog: unsupported coupon redeem type " + value)
+		if value <= 0 {
+			return nil, apperr.Invalid("catalog: couponTemplateIds must contain positive IDs")
 		}
 		if _, ok := seen[value]; ok {
 			continue

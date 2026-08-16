@@ -35,14 +35,15 @@ import {
   type OptionItem,
 } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
-import { catalogItemService, categoryService, storeService } from '@/api/services'
+import { catalogItemService, categoryService, couponTemplateService, storeService } from '@/api/services'
 import { usePublishableActions } from '@/composables/usePublishableActions'
-import type { CatalogCategory, CatalogItem } from '@/api/models'
+import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
 const stores = ref<OptionItem[]>([])
 const categories = ref<CatalogCategory[]>([])
+const couponTemplates = ref<CouponTemplate[]>([])
 const uploadKey = ref(0)
 
 const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
@@ -51,14 +52,10 @@ const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
   ),
 )
 const onlinePayChannelOptions = PAY_CHANNEL_OPTIONS
-const couponRedeemTypeOptions = [
-  { label: '兑换券', value: 'exchange' },
-  { label: '折扣券', value: 'discount' },
-  { label: '代金券', value: 'cash' },
-]
-const couponRedeemTypeLabels = Object.fromEntries(
-  couponRedeemTypeOptions.map(({ label, value }) => [value, label]),
-)
+function couponTemplateName(id: string | number): string {
+  return couponTemplates.value.find((template) => String(template.id) === String(id))?.name
+    ?? `券 ID ${id}`
+}
 const categoryFilterOptions = computed<OptionItem[]>(() =>
   categories.value.map((category) => ({
     label: category.storeName ? `${category.storeName} / ${category.name}` : category.name,
@@ -100,10 +97,10 @@ const columns = [
   ),
   renderColumn<CatalogItem>(
     '券兑换',
-    'couponRedeemTypes',
+    'couponTemplateIds',
     (row) =>
-      row.couponRedeemTypes?.length
-        ? row.couponRedeemTypes.map((type) => couponRedeemTypeLabels[type] ?? type).join(' / ')
+      row.couponTemplateIds?.length
+        ? row.couponTemplateIds.map(couponTemplateName).join(' / ')
         : '不可兑换',
     180,
   ),
@@ -171,7 +168,7 @@ interface ItemForm {
   priceYuan: number
   stockQuantity: number
   payChannels: string[]
-  couponRedeemTypes: string[]
+  couponTemplateIds: string[]
   rewardPointsEnabled: boolean
   pointsReward: number
   sortOrder: number
@@ -192,7 +189,7 @@ const form = reactive<ItemForm>({
   priceYuan: 0,
   stockQuantity: 0,
   payChannels: ['wechat'],
-  couponRedeemTypes: [],
+  couponTemplateIds: [],
   rewardPointsEnabled: false,
   pointsReward: 0,
   sortOrder: 0,
@@ -205,17 +202,33 @@ const formCategoryOptions = computed<OptionItem[]>(() =>
     .map((category) => ({ label: category.name, value: String(category.id) })),
 )
 
+const formCouponTemplateOptions = computed(() =>
+  couponTemplates.value
+    .filter((template) =>
+      template.couponType === 'exchange'
+      && (template.scopeType === 'global'
+        || String(template.storeId ?? '') === String(form.storeId ?? '')),
+    )
+    .map((template) => ({
+      label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
+      value: String(template.id),
+      disabled: template.status !== 'published',
+    })),
+)
+
 async function loadReferences(): Promise<void> {
   try {
-    const [storeResult, categoryResult] = await Promise.all([
+    const [storeResult, categoryResult, couponResult] = await Promise.all([
       storeService.list({ page: 1, pageSize: 100 }),
       categoryService.list({ page: 1, pageSize: 100 }),
+      couponTemplateService.list({ page: 1, pageSize: 100 }),
     ])
     stores.value = storeResult.items.map((store) => ({
       label: store.name,
       value: String(store.id),
     }))
     categories.value = categoryResult.items
+    couponTemplates.value = couponResult.items
   } catch (e) {
     toastError((e as { message?: string }).message ?? '商品基础数据加载失败')
   }
@@ -232,7 +245,7 @@ function resetForm(): void {
   form.priceYuan = 0
   form.stockQuantity = 0
   form.payChannels = ['wechat']
-  form.couponRedeemTypes = []
+  form.couponTemplateIds = []
   form.rewardPointsEnabled = false
   form.pointsReward = 0
   form.sortOrder = 0
@@ -259,7 +272,7 @@ function openEdit(row: CatalogItem): void {
   form.priceYuan = (row.priceCent ?? 0) / 100
   form.stockQuantity = row.stockQuantity ?? 0
   form.payChannels = row.payChannels?.length ? [...row.payChannels] : ['wechat']
-  form.couponRedeemTypes = [...(row.couponRedeemTypes ?? [])]
+  form.couponTemplateIds = (row.couponTemplateIds ?? []).map(String)
   form.rewardPointsEnabled = (row.pointsReward ?? 0) > 0
   form.pointsReward = row.pointsReward ?? 0
   form.sortOrder = row.sortOrder ?? 0
@@ -270,11 +283,15 @@ function openEdit(row: CatalogItem): void {
 watch(
   () => form.storeId,
   (storeId, previousStoreId) => {
-    if (previousStoreId == null || storeId === previousStoreId || !form.categoryId) return
-    const selected = categories.value.find(
-      (category) => String(category.id) === String(form.categoryId),
-    )
-    if (String(selected?.storeId ?? '') !== String(storeId ?? '')) form.categoryId = null
+    if (previousStoreId == null || storeId === previousStoreId) return
+    if (form.categoryId) {
+      const selected = categories.value.find(
+        (category) => String(category.id) === String(form.categoryId),
+      )
+      if (String(selected?.storeId ?? '') !== String(storeId ?? '')) form.categoryId = null
+    }
+    const availableCouponIDs = new Set(formCouponTemplateOptions.value.map(({ value }) => value))
+    form.couponTemplateIds = form.couponTemplateIds.filter((id) => availableCouponIDs.has(id))
   },
 )
 
@@ -298,7 +315,7 @@ async function submit(): Promise<void> {
     priceCent: Math.round(form.priceYuan * 100),
     stockQuantity: form.stockQuantity,
     payChannels: form.payChannels,
-    couponRedeemTypes: form.couponRedeemTypes,
+    couponTemplateIds: form.couponTemplateIds.map(Number),
     pointsReward: form.rewardPointsEnabled ? Math.floor(form.pointsReward) : 0,
     sortOrder: form.sortOrder,
     status: form.status,
@@ -437,13 +454,14 @@ onMounted(loadReferences)
             placeholder="请选择支付方式"
           />
         </NFormItem>
-        <NFormItem label="允许使用的券类型">
+        <NFormItem label="允许兑换该商品的券">
           <NSelect
-            v-model:value="form.couponRedeemTypes"
+            v-model:value="form.couponTemplateIds"
             multiple
             clearable
-            :options="couponRedeemTypeOptions"
-            placeholder="不选择表示该商品不可使用券兑换"
+            filterable
+            :options="formCouponTemplateOptions"
+            placeholder="请从当前门店可用的券列表中选择"
           />
         </NFormItem>
         <NFormItem label="购买后赠送积分">

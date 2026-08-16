@@ -23,6 +23,9 @@ type ListFilter struct {
 	Keyword   string
 	SortBy    string
 	SortOrder string
+	// IncludeGlobal makes a store-scoped coupon list include platform coupons
+	// that can also be selected by that store. Other resource lists ignore it.
+	IncludeGlobal bool
 	// Order-center member refinements are independent so nickname, phone and
 	// order number can each be fuzzy-matched.
 	MemberNickname string
@@ -198,7 +201,15 @@ func (r *sqlRepository) ListCatalogItems(ctx context.Context, f ListFilter) ([]C
 }
 
 func (r *sqlRepository) ListCouponTemplates(ctx context.Context, f ListFilter) ([]CouponTemplate, int64, error) {
-	where, args := filterClauses(f, "store_id", "status", "name")
+	where, args := filterClauses(f, "", "status", "name")
+	if f.StoreID != nil {
+		if f.IncludeGlobal {
+			where += " AND (scope_type = 'global' OR store_id = ?)"
+		} else {
+			where += " AND store_id = ?"
+		}
+		args = append(args, *f.StoreID)
+	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)

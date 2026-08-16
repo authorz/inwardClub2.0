@@ -120,7 +120,7 @@ export interface CatalogItem extends AuditFields {
   priceCent: number
   stockQuantity: number
   payChannels: PayChannel[]
-  couponRedeemTypes?: string[]
+  couponTemplateIds?: Array<number | string>
   status: PublishStatus
   categoryName?: string
   categoryId?: number | string
@@ -272,7 +272,7 @@ export interface StoreSeat extends AuditFields {
 export interface StoreBanner extends AuditFields {
   id: number | string
   storeId: number | string
-  scopeType: 'store'
+  scopeType: 'global' | 'store'
   title: string
   assetId: number | string
   imageUrl?: string

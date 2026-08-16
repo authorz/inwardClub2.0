@@ -48,7 +48,7 @@ type Item struct {
 	PriceCent         int64
 	StockQuantity     int64
 	PayChannels       []string
-	CouponRedeemTypes []string
+	CouponTemplateIDs []int64
 	PointsReward      int64
 	SortOrder         int
 	Status            string
@@ -75,7 +75,7 @@ type ItemView struct {
 	PriceCent         int64    `json:"priceCent"`
 	StockQuantity     int64    `json:"stockQuantity"`
 	PayChannels       []string `json:"payChannels"`
-	CouponRedeemTypes []string `json:"couponRedeemTypes"`
+	CouponTemplateIDs []int64  `json:"couponTemplateIds"`
 	PointsReward      int64    `json:"pointsReward"`
 	SortOrder         int      `json:"sortOrder"`
 	Status            string   `json:"status"`
@@ -90,7 +90,7 @@ type AssetResolver interface {
 type Repository interface {
 	ListCategoriesForStore(ctx context.Context, storeID int64) ([]Category, error)
 	ListItemsForStore(ctx context.Context, storeID int64, categoryID *int64, limit, offset int) ([]Item, int64, error)
-	ListCouponRedeemableItemsForStore(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]Item, error)
+	ListCouponRedeemableItemsForStore(ctx context.Context, storeID, couponTemplateID, maxPriceCent int64) ([]Item, error)
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -133,7 +133,7 @@ func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, ca
 		return nil, 0, apperr.Internal(err)
 	}
 	q := `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
-		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_redeem_types, points_reward,
+		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_template_ids, points_reward,
 		sort_order, status, created_at, updated_at
 		FROM catalog_items WHERE ` + where + ` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
@@ -145,31 +145,31 @@ func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, ca
 	var out []Item
 	for rows.Next() {
 		var it Item
-		var payChannels, couponRedeemTypes []byte
+		var payChannels, couponTemplateIDs []byte
 		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
-			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes, &it.PointsReward,
+			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.PointsReward,
 			&it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		it.PayChannels = decodeChannels(payChannels)
-		it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
+		it.CouponTemplateIDs = decodeInt64List(couponTemplateIDs)
 		out = append(out, it)
 	}
 	return out, total, rows.Err()
 }
 
-func (r *sqlRepository) ListCouponRedeemableItemsForStore(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]Item, error) {
+func (r *sqlRepository) ListCouponRedeemableItemsForStore(ctx context.Context, storeID, couponTemplateID, maxPriceCent int64) ([]Item, error) {
 	const q = `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
-		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_redeem_types, points_reward,
+		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_template_ids, points_reward,
 		sort_order, status, created_at, updated_at
 		FROM catalog_items
 		WHERE status = 'published' AND scope_type = 'store' AND store_id = ?
 		  AND EXISTS (SELECT 1 FROM catalog_categories c
 			WHERE c.id = catalog_items.category_id AND c.store_id = catalog_items.store_id)
 		  AND price_cent > 0 AND price_cent <= ?
-		  AND JSON_CONTAINS(COALESCE(coupon_redeem_types, JSON_ARRAY()), JSON_QUOTE(?), '$')
+		  AND JSON_CONTAINS(COALESCE(coupon_template_ids, JSON_ARRAY()), CAST(? AS JSON), '$')
 		ORDER BY sort_order ASC, id ASC`
-	rows, err := r.db.QueryContext(ctx, q, storeID, maxPriceCent, couponType)
+	rows, err := r.db.QueryContext(ctx, q, storeID, maxPriceCent, couponTemplateID)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
@@ -177,14 +177,14 @@ func (r *sqlRepository) ListCouponRedeemableItemsForStore(ctx context.Context, s
 	var out []Item
 	for rows.Next() {
 		var it Item
-		var payChannels, couponRedeemTypes []byte
+		var payChannels, couponTemplateIDs []byte
 		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
-			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes,
+			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs,
 			&it.PointsReward, &it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		it.PayChannels = decodeChannels(payChannels)
-		it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
+		it.CouponTemplateIDs = decodeInt64List(couponTemplateIDs)
 		out = append(out, it)
 	}
 	return out, rows.Err()
@@ -202,13 +202,13 @@ func decodeChannels(raw []byte) []string {
 	return normalized
 }
 
-func decodeStringList(raw []byte) []string {
+func decodeInt64List(raw []byte) []int64 {
 	if len(raw) == 0 {
-		return []string{}
+		return []int64{}
 	}
-	var values []string
+	var values []int64
 	if err := json.Unmarshal(raw, &values); err != nil {
-		return []string{}
+		return []int64{}
 	}
 	return values
 }
@@ -278,7 +278,7 @@ func (s *Service) ListItems(ctx context.Context, storeID int64, categoryID *int6
 		v := ItemView{
 			ID: it.ID, CategoryID: it.CategoryID, Name: it.Name, Description: it.Description,
 			ItemType: it.ItemType, PriceCent: it.PriceCent, StockQuantity: it.StockQuantity,
-			PayChannels: it.PayChannels, CouponRedeemTypes: it.CouponRedeemTypes,
+			PayChannels: it.PayChannels, CouponTemplateIDs: it.CouponTemplateIDs,
 			PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		}
 		if it.AssetID != nil {
@@ -290,9 +290,9 @@ func (s *Service) ListItems(ctx context.Context, storeID int64, categoryID *int6
 }
 
 // ListCouponRedeemableItems returns published products configured for the
-// coupon type whose unit price can fit within the coupon face value.
-func (s *Service) ListCouponRedeemableItems(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]ItemView, error) {
-	items, err := s.repo.ListCouponRedeemableItemsForStore(ctx, storeID, couponType, maxPriceCent)
+// concrete coupon template whose unit price can fit within its face value.
+func (s *Service) ListCouponRedeemableItems(ctx context.Context, storeID, couponTemplateID, maxPriceCent int64) ([]ItemView, error) {
+	items, err := s.repo.ListCouponRedeemableItemsForStore(ctx, storeID, couponTemplateID, maxPriceCent)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (s *Service) ListCouponRedeemableItems(ctx context.Context, storeID int64, 
 		view := ItemView{
 			ID: it.ID, CategoryID: it.CategoryID, Name: it.Name, Description: it.Description,
 			ItemType: it.ItemType, PriceCent: it.PriceCent, StockQuantity: it.StockQuantity,
-			PayChannels: it.PayChannels, CouponRedeemTypes: it.CouponRedeemTypes,
+			PayChannels: it.PayChannels, CouponTemplateIDs: it.CouponTemplateIDs,
 			PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		}
 		if it.AssetID != nil {

@@ -13,7 +13,7 @@ import {
   NTooltip,
   type DataTableColumns,
 } from 'naive-ui'
-import { catalogService } from '@/api/services'
+import { catalogService, couponService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import {
@@ -35,13 +35,14 @@ import {
   PermissionButton,
   StatusFilterBar,
 } from '@/components/common'
-import type { CatalogCategory, CatalogItem } from '@/types/models'
+import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/types/models'
 
 const list = useAsyncList<CatalogItem>((params) => catalogService.items(params), {
   initialFilters: { status: '', keyword: '', categoryId: '' },
 })
 const action = useAsyncAction()
 const categories = ref<CatalogCategory[]>([])
+const couponTemplates = ref<CouponTemplate[]>([])
 const categoryOptions = computed(() => categories.value.map((row) => ({ label: row.name, value: String(row.id) })))
 const categoryFilterOptions = computed(() => [
   { label: '全部分类', value: '' },
@@ -52,11 +53,13 @@ const itemTypeOptions = [
   { label: '积分兑换', value: 'redeemable' }, { label: '实物', value: 'physical' },
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
-const couponRedeemTypeOptions = [
-  { label: '兑换券', value: 'exchange' },
-  { label: '折扣券', value: 'discount' },
-  { label: '代金券', value: 'cash' },
-]
+const couponTemplateOptions = computed(() => couponTemplates.value
+  .filter((template) => template.couponType === 'exchange')
+  .map((template) => ({
+    label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
+    value: String(template.id),
+    disabled: template.status !== 'published',
+  })))
 
 // 商品可选支付方式（点餐/积分商城）：微信、金币。
 const ITEM_PAY_CHANNELS: PayChannel[] = ['wechat', 'coin']
@@ -73,11 +76,11 @@ const editForm = reactive<{
   priceYuan: number
   stockQuantity: number
   payChannels: PayChannel[]
-  couponRedeemTypes: string[]
+  couponTemplateIds: string[]
   pointsReward: number
   sortOrder: number
   status: string
-}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], couponRedeemTypes: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
+}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], couponTemplateIds: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
 
 function openEdit(row?: CatalogItem) {
   editForm.id = row?.id ?? null
@@ -101,7 +104,7 @@ function openEdit(row?: CatalogItem) {
   ).filter((channel, index, channels) =>
     ITEM_PAY_CHANNELS.includes(channel) && channels.indexOf(channel) === index,
   )
-  editForm.couponRedeemTypes = [...(row?.couponRedeemTypes ?? [])]
+  editForm.couponTemplateIds = (row?.couponTemplateIds ?? []).map(String)
   editForm.pointsReward = row?.pointsReward ?? 0
   editForm.sortOrder = row?.sortOrder ?? 0
   editForm.status = row?.status ?? 'draft'
@@ -126,7 +129,7 @@ async function saveEdit() {
         priceCent: yuanToCent(editForm.priceYuan),
         stockQuantity: editForm.stockQuantity,
         payChannels: editForm.payChannels,
-        couponRedeemTypes: editForm.couponRedeemTypes,
+        couponTemplateIds: editForm.couponTemplateIds.map(Number),
         pointsReward: editForm.pointsReward,
         sortOrder: editForm.sortOrder,
         status: editForm.status,
@@ -159,7 +162,7 @@ function togglePublish(row: CatalogItem) {
         priceCent: current.priceCent,
         stockQuantity: current.stockQuantity,
         payChannels: current.payChannels,
-        couponRedeemTypes: current.couponRedeemTypes ?? [],
+        couponTemplateIds: current.couponTemplateIds ?? [],
         pointsReward: current.pointsReward ?? 0,
         sortOrder: current.sortOrder ?? 0,
         status: publishing ? 'published' : 'unpublished',
@@ -250,8 +253,17 @@ const columns = computed<DataTableColumns<CatalogItem>>(() => [
 ])
 
 onMounted(async () => {
-  try { categories.value = (await catalogService.categories({ page: 1, pageSize: 100 })).rows }
-  catch { categories.value = [] }
+  try {
+    const [categoryResult, couponResult] = await Promise.all([
+      catalogService.categories({ page: 1, pageSize: 100 }),
+      couponService.list({ page: 1, pageSize: 100, includeGlobal: true }),
+    ])
+    categories.value = categoryResult.rows
+    couponTemplates.value = couponResult.rows
+  } catch {
+    categories.value = []
+    couponTemplates.value = []
+  }
 })
 </script>
 
@@ -386,13 +398,14 @@ onMounted(async () => {
             </div>
           </div>
           <label class="edit-form__field edit-form__span-2">
-            <span class="ic-muted">允许使用的券类型</span>
+            <span class="ic-muted">允许兑换该商品的券</span>
             <NSelect
-              v-model:value="editForm.couponRedeemTypes"
+              v-model:value="editForm.couponTemplateIds"
               multiple
               clearable
-              :options="couponRedeemTypeOptions"
-              placeholder="不选择表示该商品不可使用券兑换"
+              filterable
+              :options="couponTemplateOptions"
+              placeholder="请从当前门店可用的券列表中选择"
             />
           </label>
         </div>

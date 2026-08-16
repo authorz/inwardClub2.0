@@ -748,6 +748,7 @@ func (h *Handler) StoreCouponTemplates(c *gin.Context) {
 		return
 	}
 	f := scopedFilter(parseFilter(c), scope)
+	f.IncludeGlobal = c.Query("includeGlobal") == "true"
 	views, total, err := h.svc.ListCouponTemplates(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)

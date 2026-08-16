@@ -44,7 +44,6 @@ type RedeemInput struct {
 	Now              time.Time
 	ItemSnapshotJSON []byte
 	MatchedRuleJSON  []byte
-	CouponType       string
 	Items            []RedemptionItemSnapshot
 }
 
@@ -142,9 +141,9 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 				    updated_at = ?
 				WHERE id = ? AND scope_type = 'store' AND store_id = ? AND status = 'published'
 				  AND price_cent = ? AND (stock_quantity = 0 OR stock_quantity >= ?)
-				  AND JSON_CONTAINS(COALESCE(coupon_redeem_types, JSON_ARRAY()), JSON_QUOTE(?), '$')`
+				  AND JSON_CONTAINS(COALESCE(coupon_template_ids, JSON_ARRAY()), CAST(? AS JSON), '$')`
 			res, err := tx.ExecContext(ctx, reserve, item.Quantity, in.Now, item.ItemID, in.StoreID,
-				item.UnitPriceCent, item.Quantity, in.CouponType)
+				item.UnitPriceCent, item.Quantity, templateID)
 			if err != nil {
 				return apperr.Internal(err)
 			}
