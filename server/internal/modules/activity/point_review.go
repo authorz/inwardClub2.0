@@ -8,6 +8,7 @@ import (
 const (
 	defaultPointsDivisor     int64 = 5
 	defaultCoinPointsDivisor int64 = 2000
+	belowBasePointsDivisor   int64 = 2
 )
 
 var pointReviewLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -72,10 +73,18 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 	}
 
 	calc.BasePoints = base
-	if requested <= base {
-		calc.AwardedPoints = requested / rule.PointsDivisor
+	if requested < base {
+		calc.AwardedPoints = requested / belowBasePointsDivisor
 		calc.Description = fmt.Sprintf(
-			"用户存入积分：%d，基数积分：%d，实际存入积分：%d（基数积分规则：存入≤基数）",
+			"用户存入积分：%d，基数积分：%d，实际存入积分：%d（基数积分规则：存入<基数，按1:2）",
+			requested, base, calc.AwardedPoints,
+		)
+		return calc
+	}
+	if requested == base {
+		calc.AwardedPoints = requested
+		calc.Description = fmt.Sprintf(
+			"用户存入积分：%d，基数积分：%d，实际存入积分：%d（基数积分规则：存入=基数，按1:1）",
 			requested, base, calc.AwardedPoints,
 		)
 		return calc

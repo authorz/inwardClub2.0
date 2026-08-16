@@ -22,7 +22,7 @@ func TestBusinessWindowBoundaries(t *testing.T) {
 	}
 }
 
-func TestCalculatePointReviewMatchesV1Rules(t *testing.T) {
+func TestCalculatePointReviewRules(t *testing.T) {
 	rule := PointReviewRule{PointsDivisor: 5, CoinPointsDivisor: 2000, Version: 1}
 	outside := time.Date(2026, 7, 26, 12, 0, 0, 0, pointReviewLocation)
 	inside := time.Date(2026, 7, 26, 20, 0, 0, 0, pointReviewLocation)
@@ -36,8 +36,10 @@ func TestCalculatePointReviewMatchesV1Rules(t *testing.T) {
 	}{
 		{name: "outside business", when: outside, requested: 8000, base: 3000, wantPoints: 1600, wantCoin: 4},
 		{name: "inside without base", when: inside, requested: 8000, base: 0, wantPoints: 1600, wantCoin: 4},
-		{name: "inside not over base", when: inside, requested: 2000, base: 3000, wantPoints: 400, wantCoin: 0},
-		{name: "inside over base", when: inside, requested: 8000, base: 3000, wantPoints: 4000, wantCoin: 2, wantExcess: 5000},
+		{name: "inside below base", when: inside, requested: 800, base: 1000, wantPoints: 400, wantCoin: 0},
+		{name: "inside equal to base", when: inside, requested: 1000, base: 1000, wantPoints: 1000, wantCoin: 0},
+		{name: "inside over base", when: inside, requested: 1600, base: 1000, wantPoints: 1120, wantCoin: 0, wantExcess: 600},
+		{name: "inside over base awards coins", when: inside, requested: 8000, base: 3000, wantPoints: 4000, wantCoin: 2, wantExcess: 5000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
