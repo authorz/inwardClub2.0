@@ -808,7 +808,7 @@ func (s *Service) SearchMembersByPhone(ctx context.Context, phone string) ([]Mem
 	out := make([]MemberView, 0, len(rows))
 	for _, m := range rows {
 		out = append(out, MemberView{
-			ID: m.ID, Nickname: m.Nickname, Phone: maskPhone(m.Phone),
+			ID: m.ID, Nickname: m.Nickname, Phone: maskPhone(m.Phone), AvatarURL: m.AvatarURL,
 			PointsBalance: m.PointsBalance, Status: m.Status, CreatedAt: m.CreatedAt,
 		})
 	}

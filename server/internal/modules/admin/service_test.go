@@ -1319,7 +1319,7 @@ func TestStoreResetCashierPasswordGeneratesNewPassword(t *testing.T) {
 // (id 7) so staff-binding tests can bind by memberId.
 func staffMemberRepo() *fakeRepo {
 	return &fakeRepo{members: map[int64]Member{
-		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive},
+		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", AvatarURL: "https://cdn.test/staff.webp", Status: StatusActive},
 	}}
 }
 
@@ -1404,7 +1404,7 @@ func TestSearchMembersByPhone(t *testing.T) {
 		t.Fatalf("search: %v", err)
 	}
 	if len(views) != 1 || views[0].ID != 7 || views[0].Nickname != "Waiter Wang" ||
-		views[0].Phone != "138****0007" {
+		views[0].Phone != "138****0007" || views[0].AvatarURL != "https://cdn.test/staff.webp" {
 		t.Fatalf("unexpected results: %+v", views)
 	}
 	// Too-short fragment is rejected.

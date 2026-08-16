@@ -555,7 +555,7 @@ func (r *sqlRepository) GetMemberByID(ctx context.Context, memberID int64) (Memb
 // order-gated) so a newly-registered member can be located for staff binding.
 // Returns up to 20 matches, newest first; empty slice when none match.
 func (r *sqlRepository) SearchMembersByPhone(ctx context.Context, phone string) ([]Member, error) {
-	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''),
+	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''), COALESCE(m.avatar_url,''),
 			COALESCE((SELECT wa.available_amount FROM wallet_accounts wa WHERE wa.member_id = m.id AND wa.asset_type = 'points'), 0),
 			m.status, m.created_at
 		FROM members m
@@ -569,7 +569,7 @@ func (r *sqlRepository) SearchMembersByPhone(ctx context.Context, phone string) 
 	out := make([]Member, 0)
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.Nickname, &m.Phone, &m.PointsBalance, &m.Status, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Nickname, &m.Phone, &m.AvatarURL, &m.PointsBalance, &m.Status, &m.CreatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, m)

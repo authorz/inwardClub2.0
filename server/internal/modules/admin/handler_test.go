@@ -20,7 +20,7 @@ func TestAdminLookupMemberReturnsCandidateArray(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &fakeRepo{members: map[int64]Member{
-		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", Status: StatusActive},
+		7: {ID: 7, Nickname: "Waiter Wang", Phone: "13800000007", AvatarURL: "https://cdn.test/staff.webp", Status: StatusActive},
 	}}
 	h := NewHandler(NewService(repo, fakeStores{}, nil))
 	router := gin.New()
@@ -38,7 +38,8 @@ func TestAdminLookupMemberReturnsCandidateArray(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if len(envelope.Data) != 1 || envelope.Data[0].ID != 7 {
+	if len(envelope.Data) != 1 || envelope.Data[0].ID != 7 ||
+		envelope.Data[0].AvatarURL != "https://cdn.test/staff.webp" {
 		t.Fatalf("unexpected candidates: %+v", envelope.Data)
 	}
 }

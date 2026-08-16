@@ -7,6 +7,7 @@
  */
 import { computed, h, reactive, ref } from 'vue'
 import {
+  NAvatar,
   NButton,
   NInput,
   NInputGroup,
@@ -258,8 +259,20 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
             :value="String(member.id)"
             class="staff-form__result"
           >
-            <span class="staff-form__found-name">{{ member.nickname || '会员' }}</span>
-            <span class="ic-muted">{{ member.phone || '未绑定手机号' }}</span>
+            <span class="staff-form__member">
+              <NAvatar
+                :size="40"
+                round
+                :src="member.avatarUrl || undefined"
+                object-fit="cover"
+              >
+                {{ member.nickname?.trim().slice(0, 1) || '会' }}
+              </NAvatar>
+              <span class="staff-form__member-info">
+                <span class="staff-form__found-name">{{ member.nickname || '会员' }}</span>
+                <span class="ic-muted">{{ member.phone || '未绑定手机号' }}</span>
+              </span>
+            </span>
           </NRadio>
         </NRadioGroup>
 
@@ -346,11 +359,28 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
   border-radius: 8px;
   background: var(--ic-color-fill-2, #fafafc);
 }
+.staff-form__result :deep(.n-radio__dot-wrapper) {
+  order: 2;
+  align-self: center;
+}
 .staff-form__result :deep(.n-radio__label) {
   display: flex;
   flex: 1;
-  justify-content: space-between;
+  order: 1;
+  min-width: 0;
+  padding: 0 var(--ic-space-3) 0 0;
+}
+.staff-form__member {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   gap: var(--ic-space-3);
+}
+.staff-form__member-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--ic-space-1);
 }
 .staff-form__found-name {
   font-weight: 600;

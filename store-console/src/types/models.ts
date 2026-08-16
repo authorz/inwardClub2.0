@@ -325,6 +325,7 @@ export interface Member {
   id: number | string
   nickname?: string
   phone?: string
+  avatarUrl?: string
   pointsBalance?: number
   status?: string
   createdAt?: string
