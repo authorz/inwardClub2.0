@@ -18,7 +18,7 @@ import {
   NTabs,
   NTag,
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import type { DataTableColumns, DataTableSortOrder, DataTableSortState } from 'naive-ui'
 import { memberService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
@@ -26,13 +26,23 @@ import { PERM } from '@/constants/permissions'
 import { actionColumn, dateColumn, statusColumn, textColumn } from '@/utils/columns'
 import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
-import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
+import { DataTable, PageHeader, PermissionButton } from '@/components/common'
 import type { Member, WalletLedgerEntry } from '@/types/models'
 import { ACTIVE_STATUS } from '@/constants/enums'
 
-const list = useAsyncList<Member>((params) => memberService.list(params), {
-  initialFilters: { keyword: '' },
-})
+type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
+const sortBy = ref<MemberSortField | ''>('')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+const balanceFormatter = new Intl.NumberFormat('zh-CN')
+
+const list = useAsyncList<Member>(
+  (params) =>
+    memberService.list({
+      ...params,
+      ...(sortBy.value ? { sortBy: sortBy.value, sortOrder: sortOrder.value } : {}),
+    }),
+  { initialFilters: { keyword: '' } },
+)
 const registrationRange = ref<[number, number] | null>(null)
 
 const detailShow = ref(false)
@@ -79,6 +89,28 @@ function applyMemberFilters(): void {
 function resetMemberFilters(): void {
   registrationRange.value = null
   list.reset()
+}
+
+function columnSortOrder(field: MemberSortField): DataTableSortOrder {
+  if (sortBy.value !== field) return false
+  return sortOrder.value === 'asc' ? 'ascend' : 'descend'
+}
+
+function handleSorter(sorter: DataTableSortState | DataTableSortState[] | null): void {
+  const current = Array.isArray(sorter) ? sorter[0] : sorter
+  const field = current?.columnKey
+  if (
+    !current?.order ||
+    (field !== 'pointsBalance' && field !== 'coinsBalance' && field !== 'vipLevel')
+  ) {
+    sortBy.value = ''
+    sortOrder.value = 'desc'
+  } else {
+    sortBy.value = field
+    sortOrder.value = current.order === 'ascend' ? 'asc' : 'desc'
+  }
+  list.page.value = 1
+  list.refresh()
 }
 
 async function openMember(row: Member, tab: 'ledger' | 'adjust') {
@@ -135,28 +167,45 @@ function submitAdjust() {
 }
 
 const columns = computed<DataTableColumns<Member>>(() => [
-  textColumn<Member>('用户 ID', (r) => r.id, { width: 90 }),
+  textColumn<Member>('ID', (r) => r.id, { width: 80 }),
   {
     title: '头像',
     key: 'avatarUrl',
     width: 64,
     render: (row) =>
-      h(
-        NAvatar,
-        { size: 32, round: true, src: row.avatarUrl || undefined, objectFit: 'cover' },
-        {
-          default: () => row.nickname?.trim().slice(0, 1) || String(row.id).slice(-1),
-        },
-      ),
+      (() => {
+        const fallback = () => row.nickname?.trim().slice(0, 1) || String(row.id).slice(-1)
+        return h(
+          NAvatar,
+          { size: 32, round: true, src: row.avatarUrl || undefined, objectFit: 'cover' },
+          row.avatarUrl ? { fallback } : { default: fallback },
+        )
+      })(),
   },
   textColumn<Member>('昵称', (r) => r.nickname, { minWidth: 120 }),
   textColumn<Member>('手机号', (r) => r.phone, { width: 140 }),
-  textColumn<Member>('当前积分', (r) => r.pointsBalance, { width: 100, align: 'right' }),
-  textColumn<Member>('金币', (r) => r.coinsBalance, { width: 100, align: 'right' }),
+  {
+    title: '当前积分',
+    key: 'pointsBalance',
+    width: 120,
+    sorter: true,
+    sortOrder: columnSortOrder('pointsBalance'),
+    render: (row) => balanceFormatter.format(row.pointsBalance ?? 0),
+  },
+  {
+    title: '金币',
+    key: 'coinsBalance',
+    width: 120,
+    sorter: true,
+    sortOrder: columnSortOrder('coinsBalance'),
+    render: (row) => balanceFormatter.format(row.coinsBalance ?? 0),
+  },
   {
     title: 'VIP 等级',
     key: 'vipLevel',
     width: 150,
+    sorter: true,
+    sortOrder: columnSortOrder('vipLevel'),
     render: (row) =>
       row.vipLevel
         ? h(
@@ -175,7 +224,6 @@ const columns = computed<DataTableColumns<Member>>(() => [
           PermissionButton,
           {
             permissions: [PERM.memberRead, PERM.memberReadLimited],
-            text: true,
             onClick: () => openDetail(row),
           },
           { default: () => '详情' },
@@ -185,7 +233,6 @@ const columns = computed<DataTableColumns<Member>>(() => [
           {
             permissions: [PERM.memberWalletAdjustRequest],
             type: 'primary',
-            text: true,
             onClick: () => openAdjust(row),
           },
           { default: () => '人工调账' },
@@ -215,46 +262,69 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
 </script>
 
 <template>
-  <div>
+  <section class="member-list">
     <PageHeader
-      title="会员管理"
-      description="全部会员列表与本店钱包流水"
+      title="会员列表"
+      description="全局会员查询；人工调账为高风险操作"
+      :breadcrumb="['用户 / 会员', '会员列表']"
     />
 
-    <StatusFilterBar
-      :searchable="true"
-      :keyword="(list.filters.keyword as string) ?? ''"
-      :loading="list.loading.value"
-      search-placeholder="搜索昵称 / 手机号"
-      @update:keyword="list.filters.keyword = $event"
-      @apply="applyMemberFilters"
-      @reset="resetMemberFilters"
-    >
-      <template #filters>
-        <NDatePicker
-          v-model:value="registrationRange"
-          type="daterange"
-          clearable
-          format="yyyy-MM-dd"
-          start-placeholder="注册开始日期"
-          end-placeholder="注册结束日期"
-          style="width: 280px"
-        />
-      </template>
-    </StatusFilterBar>
+    <div class="member-filter">
+      <div class="member-filter__fields">
+        <label class="member-filter__field">
+          <span class="member-filter__label">昵称 / 手机号</span>
+          <NInput
+            :value="(list.filters.keyword as string) ?? ''"
+            clearable
+            placeholder="支持昵称、手机号模糊搜索"
+            style="width: 280px"
+            @update:value="list.filters.keyword = $event"
+            @keyup.enter="applyMemberFilters"
+          />
+        </label>
+        <label class="member-filter__field">
+          <span class="member-filter__label">注册时间</span>
+          <NDatePicker
+            v-model:value="registrationRange"
+            type="daterange"
+            clearable
+            style="width: 280px"
+          />
+        </label>
+      </div>
+      <NSpace class="member-filter__actions">
+        <NButton
+          type="primary"
+          size="small"
+          :loading="list.loading.value"
+          @click="applyMemberFilters"
+        >
+          查询
+        </NButton>
+        <NButton
+          size="small"
+          @click="resetMemberFilters"
+        >
+          重置
+        </NButton>
+      </NSpace>
+    </div>
 
-    <DataTable
-      :columns="columns"
-      :data="list.rows.value"
-      :loading="list.loading.value"
-      :page="list.page.value"
-      :page-size="list.pageSize.value"
-      :total="list.total.value"
-      :scroll-x="1360"
-      empty-text="暂无会员"
-      @update:page="list.setPage"
-      @update:page-size="list.setPageSize"
-    />
+    <div class="member-table">
+      <DataTable
+        :columns="columns"
+        :data="list.rows.value"
+        :loading="list.loading.value"
+        :page="list.page.value"
+        :page-size="list.pageSize.value"
+        :total="list.total.value"
+        :scroll-x="1360"
+        empty-text="暂无会员"
+        @update:page="list.setPage"
+        @update:page-size="list.setPageSize"
+        @update:sorter="handleSorter"
+      />
+    </div>
 
     <NModal
       v-model:show="detailShow"
@@ -263,24 +333,39 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
       style="width: 640px"
     >
       <NSpin :show="detailLoading">
-        <div class="member-detail__summary">
-          <div class="member-detail__avatar">
-            <NAvatar
-              :size="56"
-              round
-              :src="currentMember?.avatarUrl || undefined"
-            >
-              {{ currentMember?.nickname?.trim().slice(0, 1) || String(currentMember?.id ?? '').slice(-1) }}
-            </NAvatar>
+        <div
+          v-if="currentMember"
+          class="member-detail__profile"
+        >
+          <NAvatar
+            v-if="currentMember.avatarUrl"
+            :size="72"
+            round
+            :src="currentMember.avatarUrl"
+            object-fit="cover"
+          >
+            <template #fallback>
+              {{ currentMember.nickname?.trim().slice(0, 1) || String(currentMember.id).slice(-1) }}
+            </template>
+          </NAvatar>
+          <NAvatar
+            v-else
+            :size="72"
+            round
+          >
+            {{ currentMember.nickname?.trim().slice(0, 1) || String(currentMember.id).slice(-1) }}
+          </NAvatar>
+          <div class="member-detail__identity">
+            <strong>{{ currentMember.nickname || '—' }}</strong>
+            <span>{{ currentMember.phone || '—' }}</span>
           </div>
+        </div>
+        <div class="member-detail__summary">
           <div>
             <span class="ic-muted">用户 ID：</span>{{ currentMember?.id ?? '-' }}
           </div>
           <div>
-            <span class="ic-muted">昵称：</span>{{ currentMember?.nickname ?? '-' }}
-          </div>
-          <div>
-            <span class="ic-muted">手机号：</span>{{ currentMember?.phone ?? '-' }}
+            <span class="ic-muted">注册时间：</span>{{ formatDateTime(currentMember?.createdAt) }}
           </div>
           <div>
             <span class="ic-muted">当前积分：</span>{{ currentMember?.pointsBalance ?? 0 }}
@@ -294,9 +379,6 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
           </div>
           <div>
             <span class="ic-muted">状态：</span>{{ ACTIVE_STATUS[currentMember?.status as keyof typeof ACTIVE_STATUS]?.label ?? currentMember?.status ?? '-' }}
-          </div>
-          <div>
-            <span class="ic-muted">注册时间：</span>{{ formatDateTime(currentMember?.createdAt) }}
           </div>
           <div
             v-for="acc in currentMember?.wallet ?? []"
@@ -377,21 +459,73 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         </div>
       </template>
     </NModal>
-  </div>
+  </section>
 </template>
 
 <style scoped>
+.member-list {
+  max-width: 1400px;
+}
+.member-filter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ic-space-4);
+  padding: var(--ic-space-4);
+  margin-bottom: var(--ic-space-4);
+  background: var(--ic-color-surface);
+  border: 1px solid var(--ic-color-border);
+  border-radius: var(--ic-radius-md);
+  flex-wrap: wrap;
+}
+.member-filter__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ic-space-4);
+}
+.member-filter__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-1);
+}
+.member-filter__label {
+  font-size: var(--ic-font-xs);
+  color: var(--ic-color-text-secondary);
+}
+.member-filter__actions {
+  flex-shrink: 0;
+}
+.member-table {
+  padding: var(--ic-space-2);
+  background: var(--ic-color-surface);
+  border: 1px solid var(--ic-color-border);
+  border-radius: var(--ic-radius-md);
+}
+.member-detail__profile {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-4);
+  padding-bottom: var(--ic-space-4);
+  margin-bottom: var(--ic-space-4);
+  border-bottom: 1px solid var(--ic-color-border);
+}
+.member-detail__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-1);
+}
+.member-detail__identity strong {
+  font-size: var(--ic-font-md);
+}
+.member-detail__identity span {
+  color: var(--ic-color-text-secondary);
+}
 .member-detail__summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--ic-space-2);
   margin-bottom: var(--ic-space-4);
   font-size: var(--ic-font-sm);
-}
-.member-detail__avatar {
-  grid-row: span 2;
-  display: flex;
-  align-items: center;
 }
 .member-detail__adjust {
   display: flex;

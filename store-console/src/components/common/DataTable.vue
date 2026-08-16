@@ -5,6 +5,7 @@
  */
 import { computed } from 'vue'
 import { NDataTable, type DataTableColumns, type PaginationProps } from 'naive-ui'
+import type { DataTableSortState } from 'naive-ui'
 import EmptyState from './EmptyState.vue'
 
 /** naive-ui 表格内部行类型，用于把泛型列/数据安全桥接到组件。 */
@@ -28,6 +29,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:page': [page: number]
   'update:pageSize': [size: number]
+  'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
 }>()
 
 // 把泛型 T 的列/数据/rowKey 桥接为 naive 期望的内部行类型（值不变，仅类型转换）。
@@ -67,6 +69,7 @@ const defaultRowKey = (row: T): string | number => {
     size="small"
     @update:page="emit('update:page', $event)"
     @update:page-size="emit('update:pageSize', $event)"
+    @update:sorter="emit('update:sorter', $event)"
   >
     <template #empty>
       <EmptyState :description="emptyText" />

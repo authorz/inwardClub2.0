@@ -292,6 +292,33 @@ async function submitAdjust(): Promise<void> {
       @submit="detailDrawerShow = false"
     >
       <NSpin :show="detailLoading">
+        <div
+          v-if="detail"
+          class="member-detail__profile"
+        >
+          <NAvatar
+            v-if="detail.avatarUrl"
+            :size="72"
+            round
+            :src="detail.avatarUrl"
+            object-fit="cover"
+          >
+            <template #fallback>
+              {{ detail.nickname?.trim().slice(0, 1) || String(detail.id).slice(-1) }}
+            </template>
+          </NAvatar>
+          <NAvatar
+            v-else
+            :size="72"
+            round
+          >
+            {{ detail.nickname?.trim().slice(0, 1) || String(detail.id).slice(-1) }}
+          </NAvatar>
+          <div class="member-detail__identity">
+            <strong>{{ detail.nickname || '—' }}</strong>
+            <span>{{ detail.phone || '—' }}</span>
+          </div>
+        </div>
         <NDescriptions
           v-if="detail"
           label-placement="left"
@@ -300,15 +327,6 @@ async function submitAdjust(): Promise<void> {
         >
           <NDescriptionsItem label="用户 ID">
             {{ detail.id }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="头像">
-            <NAvatar
-              :size="48"
-              round
-              :src="detail.avatarUrl || undefined"
-            >
-              {{ detail.nickname?.trim().slice(0, 1) || String(detail.id).slice(-1) }}
-            </NAvatar>
           </NDescriptionsItem>
           <NDescriptionsItem label="昵称">
             {{ detail.nickname || '—' }}
@@ -343,3 +361,25 @@ async function submitAdjust(): Promise<void> {
     </FormDrawer>
   </div>
 </template>
+
+<style scoped>
+.member-detail__profile {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-md);
+  padding-bottom: var(--ic-space-md);
+  margin-bottom: var(--ic-space-md);
+  border-bottom: 1px solid var(--ic-color-border);
+}
+.member-detail__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-xs);
+}
+.member-detail__identity strong {
+  font-size: var(--ic-font-lg);
+}
+.member-detail__identity span {
+  color: var(--ic-color-text-secondary);
+}
+</style>
