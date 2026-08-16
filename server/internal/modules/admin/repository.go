@@ -39,6 +39,9 @@ type ListFilter struct {
 	ReasonKeyword  string
 	CreatedFrom    *time.Time
 	CreatedBefore  *time.Time
+	ActorType      string
+	Action         string
+	TargetType     string
 	// IncludePointRequests is enabled only by the headquarters wallet ledger.
 	// Store-console wallet reads retain their existing settled-ledger semantics.
 	IncludePointRequests bool
@@ -709,13 +712,38 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 }
 
 func (r *sqlRepository) ListAuditLogs(ctx context.Context, f ListFilter) ([]AuditLog, int64, error) {
-	// audit_logs has no status column; keyword matches the action.
-	where, args := filterClauses(f, "store_id", "", "action")
+	clauses := []string{"1=1"}
+	args := make([]any, 0)
+	if f.ActorType != "" {
+		clauses = append(clauses, "actor_type = ?")
+		args = append(args, f.ActorType)
+	}
+	if f.Action != "" {
+		clauses = append(clauses, "action = ?")
+		args = append(args, f.Action)
+	} else if f.Keyword != "" {
+		clauses = append(clauses, "action LIKE ?")
+		args = append(args, "%"+f.Keyword+"%")
+	}
+	if f.TargetType != "" {
+		clauses = append(clauses, "target_type = ?")
+		args = append(args, f.TargetType)
+	}
+	if f.CreatedFrom != nil {
+		clauses = append(clauses, "created_at >= ?")
+		args = append(args, f.CreatedFrom.UTC())
+	}
+	if f.CreatedBefore != nil {
+		clauses = append(clauses, "created_at < ?")
+		args = append(args, f.CreatedBefore.UTC())
+	}
+	where := strings.Join(clauses, " AND ")
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_logs WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, actor_type, actor_id, action, target_type, target_id, store_id, request_id, created_at
+	q := `SELECT id, actor_type, actor_id, actor_role, action, target_type, target_id, store_id,
+		before_json, after_json, reason, request_id, created_at
 		FROM audit_logs WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -727,8 +755,8 @@ func (r *sqlRepository) ListAuditLogs(ctx context.Context, f ListFilter) ([]Audi
 	for rows.Next() {
 		var a AuditLog
 		var targetID int64
-		if err := rows.Scan(&a.ID, &a.ActorType, &a.ActorID, &a.Action, &a.TargetType,
-			&targetID, &a.StoreID, &a.RequestID, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.ActorType, &a.ActorID, &a.ActorRole, &a.Action, &a.TargetType,
+			&targetID, &a.StoreID, &a.BeforeJSON, &a.AfterJSON, &a.Reason, &a.RequestID, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		a.TargetID = strconv.FormatInt(targetID, 10)

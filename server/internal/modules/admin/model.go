@@ -136,10 +136,14 @@ type AuditLog struct {
 	ID         int64
 	ActorType  string
 	ActorID    int64
+	ActorRole  string
 	Action     string
 	TargetType string
 	TargetID   string
 	StoreID    *int64
+	BeforeJSON json.RawMessage
+	AfterJSON  json.RawMessage
+	Reason     string
 	RequestID  string
 	CreatedAt  time.Time
 }

@@ -63,6 +63,32 @@ func parseMemberFilter(c *gin.Context) (ListFilter, error) {
 	return f, nil
 }
 
+func parseAuditLogFilter(c *gin.Context) (ListFilter, error) {
+	f := parseFilter(c)
+	f.ActorType = c.Query("actorType")
+	f.Action = c.Query("action")
+	f.TargetType = c.Query("targetType")
+	if raw := c.Query("createdFrom"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdFrom")
+		}
+		f.CreatedFrom = &parsed
+	}
+	if raw := c.Query("createdTo"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdTo")
+		}
+		before := parsed.Add(24 * time.Hour)
+		f.CreatedBefore = &before
+	}
+	if f.CreatedFrom != nil && f.CreatedBefore != nil && !f.CreatedFrom.Before(*f.CreatedBefore) {
+		return ListFilter{}, apperr.Invalid("createdFrom must be before createdTo")
+	}
+	return f, nil
+}
+
 // --- Admin console (audience: admin, no store filter) ---
 
 // Stores handles GET /admin/stores.
@@ -340,7 +366,11 @@ func (h *Handler) Refunds(c *gin.Context) {
 
 // AuditLogs handles GET /admin/audit-logs.
 func (h *Handler) AuditLogs(c *gin.Context) {
-	f := parseFilter(c)
+	f, err := parseAuditLogFilter(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	views, total, err := h.svc.ListAuditLogs(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)

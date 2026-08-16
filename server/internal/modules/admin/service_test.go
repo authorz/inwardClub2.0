@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -145,7 +146,13 @@ func (f *fakeRepo) ListRefunds(_ context.Context, flt ListFilter) ([]Refund, int
 }
 func (f *fakeRepo) ListAuditLogs(_ context.Context, flt ListFilter) ([]AuditLog, int64, error) {
 	f.lastFilter = flt
-	return []AuditLog{{ID: 60, Action: "login"}}, 1, nil
+	return []AuditLog{{
+		ID: 60, ActorType: "store_admin", ActorID: 9, ActorRole: "store_admin",
+		Action: "member.wallet.adjust", TargetType: "member", TargetID: "7",
+		BeforeJSON: json.RawMessage(`{"assetType":"points","availableAmount":100}`),
+		AfterJSON:  json.RawMessage(`{"assetType":"points","availableAmount":120}`),
+		Reason:     "客服补偿", RequestID: "req-audit-1",
+	}}, 1, nil
 }
 func (f *fakeRepo) ListRuleDefinitions(_ context.Context, flt ListFilter) ([]RuleDefinition, int64, error) {
 	f.lastFilter = flt

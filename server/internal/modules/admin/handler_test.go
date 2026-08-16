@@ -335,6 +335,38 @@ func TestWalletLedgerHandlerRejectsInvalidMemberID(t *testing.T) {
 	}
 }
 
+func TestAuditLogsHandlerPassesReadableDetailFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/audit-logs", h.AuditLogs)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/audit-logs?actorType=store_admin&action=member.wallet.adjust&targetType=member&createdFrom=2026-08-01T00%3A00%3A00Z&createdTo=2026-08-15T00%3A00%3A00Z",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.ActorType != "store_admin" ||
+		repo.lastFilter.Action != "member.wallet.adjust" ||
+		repo.lastFilter.TargetType != "member" ||
+		repo.lastFilter.CreatedFrom == nil || repo.lastFilter.CreatedBefore == nil {
+		t.Fatalf("unexpected audit filters: %+v", repo.lastFilter)
+	}
+	if !strings.Contains(rec.Body.String(), `"actorRole":"store_admin"`) ||
+		!strings.Contains(rec.Body.String(), `"before":{"assetType":"points","availableAmount":100}`) ||
+		!strings.Contains(rec.Body.String(), `"reason":"客服补偿"`) {
+		t.Fatalf("expected complete audit detail in response, got: %s", rec.Body.String())
+	}
+}
+
 func TestWalletLedgerHandlerPassesRichSearchFilters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

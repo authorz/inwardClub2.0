@@ -343,8 +343,9 @@ func (s *Service) ListAuditLogs(ctx context.Context, f ListFilter) ([]AuditLogVi
 	out := make([]AuditLogView, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, AuditLogView{
-			ID: r.ID, ActorType: r.ActorType, ActorID: r.ActorID, Action: r.Action,
+			ID: r.ID, ActorType: r.ActorType, ActorID: r.ActorID, ActorRole: r.ActorRole, Action: r.Action,
 			TargetType: r.TargetType, TargetID: r.TargetID, StoreID: r.StoreID,
+			Before: r.BeforeJSON, After: r.AfterJSON, Reason: r.Reason,
 			RequestID: r.RequestID, CreatedAt: r.CreatedAt,
 		})
 	}

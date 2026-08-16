@@ -277,15 +277,19 @@ export interface WalletLedgerEntry {
   createdAt: string
 }
 
-// 对齐 server admin.AuditLogView：actorType/actorId/targetType/targetId/storeId。
+// 对齐 server admin.AuditLogView：基础追溯字段 + 操作前后完整快照。
 export interface AuditLog {
   id: string
   actorType: string
   actorId?: number
+  actorRole?: string
   storeId?: string | number | null
   action: string
   targetType?: string
   targetId?: string
+  before?: unknown
+  after?: unknown
+  reason?: string
   requestId?: string
   createdAt: string
 }
