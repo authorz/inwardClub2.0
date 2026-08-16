@@ -277,16 +277,46 @@ export interface WalletLedgerEntry {
   createdAt: string
 }
 
-// 对齐 server admin.AuditLogView：基础追溯字段 + 操作前后完整快照。
+export interface AuditActorSnapshot {
+  type: string
+  id: number
+  role?: string
+  username?: string
+  displayName?: string
+  name?: string
+  phone?: string
+  avatarUrl?: string
+  source?: string
+}
+
+export interface AuditTargetSnapshot {
+  type: string
+  id: number
+  nickname?: string
+  phone?: string
+  avatarUrl?: string
+  source?: string
+}
+
+export interface AuditScopeSnapshot {
+  storeId: number
+  storeName?: string
+  source?: string
+}
+
+// 对齐 server admin.AuditLogView：身份、对象、门店及操作前后快照均为入库时数据。
 export interface AuditLog {
   id: string
   actorType: string
   actorId?: number
   actorRole?: string
+  actorSnapshot?: AuditActorSnapshot
   storeId?: string | number | null
+  scopeSnapshot?: AuditScopeSnapshot
   action: string
   targetType?: string
   targetId?: string
+  targetSnapshot?: AuditTargetSnapshot
   before?: unknown
   after?: unknown
   reason?: string

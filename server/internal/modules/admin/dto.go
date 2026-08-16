@@ -202,19 +202,22 @@ type RefundView struct {
 
 // AuditLogView is the console list representation of an audit-trail row.
 type AuditLogView struct {
-	ID         int64           `json:"id"`
-	ActorType  string          `json:"actorType"`
-	ActorID    int64           `json:"actorId"`
-	ActorRole  string          `json:"actorRole,omitempty"`
-	Action     string          `json:"action"`
-	TargetType string          `json:"targetType,omitempty"`
-	TargetID   string          `json:"targetId,omitempty"`
-	StoreID    *int64          `json:"storeId,omitempty"`
-	Before     json.RawMessage `json:"before,omitempty"`
-	After      json.RawMessage `json:"after,omitempty"`
-	Reason     string          `json:"reason,omitempty"`
-	RequestID  string          `json:"requestId,omitempty"`
-	CreatedAt  time.Time       `json:"createdAt"`
+	ID             int64           `json:"id"`
+	ActorType      string          `json:"actorType"`
+	ActorID        int64           `json:"actorId"`
+	ActorRole      string          `json:"actorRole,omitempty"`
+	ActorSnapshot  json.RawMessage `json:"actorSnapshot,omitempty"`
+	Action         string          `json:"action"`
+	TargetType     string          `json:"targetType,omitempty"`
+	TargetID       string          `json:"targetId,omitempty"`
+	TargetSnapshot json.RawMessage `json:"targetSnapshot,omitempty"`
+	StoreID        *int64          `json:"storeId,omitempty"`
+	ScopeSnapshot  json.RawMessage `json:"scopeSnapshot,omitempty"`
+	Before         json.RawMessage `json:"before,omitempty"`
+	After          json.RawMessage `json:"after,omitempty"`
+	Reason         string          `json:"reason,omitempty"`
+	RequestID      string          `json:"requestId,omitempty"`
+	CreatedAt      time.Time       `json:"createdAt"`
 }
 
 // RuleDefinitionView is the console representation of a business rule.

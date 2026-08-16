@@ -138,13 +138,37 @@ function targetTypeLabel(value?: string): string {
   return TARGET_TYPE_LABELS[value ?? ''] ?? value ?? '未知对象'
 }
 
+function actorName(row: AuditLog): string {
+  const snapshot = row.actorSnapshot
+  return snapshot?.displayName || snapshot?.name || snapshot?.username || actorTypeLabel(row.actorType)
+}
+
+function actorAccount(row: AuditLog): string {
+  const snapshot = row.actorSnapshot
+  const account = snapshot?.username ? `账号：${snapshot.username}` : actorTypeLabel(row.actorType)
+  return `${account} · ID ${snapshot?.id ?? row.actorId ?? '—'}`
+}
+
 function targetLabel(row: AuditLog): string {
   const type = targetTypeLabel(row.targetType)
-  return row.targetId ? `${type} #${row.targetId}` : type
+  const snapshot = row.targetSnapshot
+  if (snapshot?.nickname) return `${snapshot.nickname}（${type} ID ${snapshot.id}）`
+  return row.targetId ? `${type} ID ${row.targetId}` : type
+}
+
+function targetPhone(row: AuditLog): string {
+  return row.targetSnapshot?.phone || '未保存'
+}
+
+function snapshotSourceLabel(row: AuditLog): string {
+  const source = row.targetSnapshot?.source || row.actorSnapshot?.source || row.scopeSnapshot?.source
+  return source === 'backfill_current_state' ? '历史补录（迁移时的当前资料）' : '操作时入库快照'
 }
 
 function scopeLabel(row: AuditLog): string {
-  return row.storeId == null ? '总部 / 全局' : `门店 #${row.storeId}`
+  if (row.storeId == null) return '总部 / 全局'
+  const snapshot = row.scopeSnapshot
+  return snapshot?.storeName ? `${snapshot.storeName}（ID ${snapshot.storeId}）` : `门店 ID ${row.storeId}`
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -201,10 +225,10 @@ const columns: TableColumnList<AuditLog> = [
     'actorType',
     (row) =>
       h('div', { class: 'audit-log__identity' }, [
-        h('strong', actorTypeLabel(row.actorType)),
-        h('span', `账号 ID：${row.actorId ?? '—'}`),
+        h('strong', actorName(row)),
+        h('span', actorAccount(row)),
       ]),
-    160,
+    190,
   ),
   renderColumn<AuditLog>(
     '操作',
@@ -212,8 +236,17 @@ const columns: TableColumnList<AuditLog> = [
     (row) => h(NTag, { size: 'small', bordered: false }, { default: () => actionLabel(row.action) }),
     160,
   ),
-  renderColumn<AuditLog>('操作对象', 'targetType', (row) => targetLabel(row), 150),
-  renderColumn<AuditLog>('操作范围', 'storeId', (row) => scopeLabel(row), 120),
+  renderColumn<AuditLog>(
+    '操作对象',
+    'targetType',
+    (row) =>
+      h('div', { class: 'audit-log__identity' }, [
+        h('strong', targetLabel(row)),
+        h('span', `手机号：${targetPhone(row)}`),
+      ]),
+    250,
+  ),
+  renderColumn<AuditLog>('操作范围', 'storeId', (row) => scopeLabel(row), 180),
   renderColumn<AuditLog>('变更摘要', 'summary', (row) => operationSummary(row)),
   actionsColumn<AuditLog>(
     (row) =>
@@ -262,7 +295,7 @@ const columns: TableColumnList<AuditLog> = [
             {{ formatDateTime(current.createdAt) }}
           </NDescriptionsItem>
           <NDescriptionsItem label="操作者">
-            {{ actorTypeLabel(current.actorType) }} #{{ current.actorId }}
+            {{ actorName(current) }}（{{ actorAccount(current) }}）
           </NDescriptionsItem>
           <NDescriptionsItem label="操作者角色">
             {{ roleLabel(current.actorRole) }}
@@ -272,6 +305,15 @@ const columns: TableColumnList<AuditLog> = [
           </NDescriptionsItem>
           <NDescriptionsItem label="操作对象">
             {{ targetLabel(current) }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="会员手机号">
+            {{ targetPhone(current) }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="会员头像地址">
+            {{ current.targetSnapshot?.avatarUrl || '未保存' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="身份资料来源">
+            {{ snapshotSourceLabel(current) }}
           </NDescriptionsItem>
           <NDescriptionsItem label="操作代码">
             {{ current.action }}

@@ -361,6 +361,9 @@ func TestAuditLogsHandlerPassesReadableDetailFilters(t *testing.T) {
 		t.Fatalf("unexpected audit filters: %+v", repo.lastFilter)
 	}
 	if !strings.Contains(rec.Body.String(), `"actorRole":"store_admin"`) ||
+		!strings.Contains(rec.Body.String(), `"displayName":"门店管理员"`) ||
+		!strings.Contains(rec.Body.String(), `"phone":"13800138000"`) ||
+		!strings.Contains(rec.Body.String(), `"storeName":"新壹街店"`) ||
 		!strings.Contains(rec.Body.String(), `"before":{"assetType":"points","availableAmount":100}`) ||
 		!strings.Contains(rec.Body.String(), `"reason":"客服补偿"`) {
 		t.Fatalf("expected complete audit detail in response, got: %s", rec.Body.String())

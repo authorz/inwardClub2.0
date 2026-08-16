@@ -742,7 +742,8 @@ func (r *sqlRepository) ListAuditLogs(ctx context.Context, f ListFilter) ([]Audi
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_logs WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, actor_type, actor_id, actor_role, action, target_type, target_id, store_id,
+	q := `SELECT id, actor_type, actor_id, actor_role, actor_snapshot_json,
+		action, target_type, target_id, target_snapshot_json, store_id, scope_snapshot_json,
 		before_json, after_json, reason, request_id, created_at
 		FROM audit_logs WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -755,11 +756,16 @@ func (r *sqlRepository) ListAuditLogs(ctx context.Context, f ListFilter) ([]Audi
 	for rows.Next() {
 		var a AuditLog
 		var targetID int64
-		if err := rows.Scan(&a.ID, &a.ActorType, &a.ActorID, &a.ActorRole, &a.Action, &a.TargetType,
-			&targetID, &a.StoreID, &a.BeforeJSON, &a.AfterJSON, &a.Reason, &a.RequestID, &a.CreatedAt); err != nil {
+		var actorSnapshotJSON, targetSnapshotJSON, scopeSnapshotJSON []byte
+		if err := rows.Scan(&a.ID, &a.ActorType, &a.ActorID, &a.ActorRole, &actorSnapshotJSON,
+			&a.Action, &a.TargetType, &targetID, &targetSnapshotJSON, &a.StoreID,
+			&scopeSnapshotJSON, &a.BeforeJSON, &a.AfterJSON, &a.Reason, &a.RequestID, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		a.TargetID = strconv.FormatInt(targetID, 10)
+		a.ActorSnapshotJSON = actorSnapshotJSON
+		a.TargetSnapshotJSON = targetSnapshotJSON
+		a.ScopeSnapshotJSON = scopeSnapshotJSON
 		out = append(out, a)
 	}
 	return out, total, rows.Err()

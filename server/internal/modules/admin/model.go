@@ -133,19 +133,22 @@ type WalletLedgerEntry struct {
 
 // AuditLog is the console read model for an audit-trail row.
 type AuditLog struct {
-	ID         int64
-	ActorType  string
-	ActorID    int64
-	ActorRole  string
-	Action     string
-	TargetType string
-	TargetID   string
-	StoreID    *int64
-	BeforeJSON json.RawMessage
-	AfterJSON  json.RawMessage
-	Reason     string
-	RequestID  string
-	CreatedAt  time.Time
+	ID                 int64
+	ActorType          string
+	ActorID            int64
+	ActorRole          string
+	ActorSnapshotJSON  json.RawMessage
+	Action             string
+	TargetType         string
+	TargetID           string
+	TargetSnapshotJSON json.RawMessage
+	StoreID            *int64
+	ScopeSnapshotJSON  json.RawMessage
+	BeforeJSON         json.RawMessage
+	AfterJSON          json.RawMessage
+	Reason             string
+	RequestID          string
+	CreatedAt          time.Time
 }
 
 // RuleDefinition is the console read model for a configurable business rule.
