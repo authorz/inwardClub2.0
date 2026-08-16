@@ -195,19 +195,21 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
   gap: var(--ic-space-1);
   font-size: var(--ic-font-sm);
 }
-.point-review__identity {
+:global(.point-review__identity) {
   display: flex;
   align-items: center;
   gap: var(--ic-space-3);
   min-width: 0;
 }
-.point-review__identity-copy {
+:global(.point-review__identity-copy) {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  line-height: 1.4;
 }
-.point-review__identity-copy strong {
+:global(.point-review__identity-copy strong) {
+  display: block;
   overflow: hidden;
   color: var(--ic-color-text);
   font-size: var(--ic-font-base);
@@ -215,7 +217,8 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.point-review__identity-copy span {
+:global(.point-review__identity-copy span) {
+  display: block;
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
   white-space: nowrap;
