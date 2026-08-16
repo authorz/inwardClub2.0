@@ -43,6 +43,7 @@ const fields = computed<FilterField[]>(() => [
 ])
 
 const columns = [
+  textColumn<CatalogCategory>('分类 ID', 'id', { width: 90 }),
   renderColumn<CatalogCategory>(
     '分类名称',
     'name',

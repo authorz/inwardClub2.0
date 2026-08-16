@@ -8,23 +8,6 @@ const fmt = require('../../utils/format');
 const draft = require('../../utils/order-draft');
 
 const SELECTED_COUPON_KEY = 'ic_selected_coupon_v1';
-const CATEGORY_ICON_BASE = 'https://assets.inwardclub.com/public/menu-category/white-v1/';
-const CATEGORY_ICON_FILES = {
-  '酒券兑换区': 'voucher-redemption.svg',
-  '特调饮品': 'signature-drinks.svg',
-  '经典啤酒': 'classic-beer.svg',
-  '经典鸡尾酒': 'classic-cocktails.svg',
-  '纯饮威士忌': 'whisky-neat.svg',
-  '软饮系列': 'soft-drinks.svg',
-  '佐食小吃': 'bar-snacks.svg',
-  '酒券套餐': 'voucher-sets.svg',
-  '精致餐食': 'fine-dining.svg',
-};
-
-function categoryIconUrl(category) {
-  const file = CATEGORY_ICON_FILES[String(category.name || '').trim()];
-  return file ? CATEGORY_ICON_BASE + file : category.imageUrl || '';
-}
 
 function formatMenuPrice(cent) {
   const n = Number(cent || 0);
@@ -140,7 +123,7 @@ Page({
         const groups = (catRes.data || []).map((category) => ({
           id: category.id,
           name: category.name,
-          iconUrl: categoryIconUrl(category),
+          iconUrl: category.imageUrl || '',
           items: [],
         }));
         const first = groups[0] || null;

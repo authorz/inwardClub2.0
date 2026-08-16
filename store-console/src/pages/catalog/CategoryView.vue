@@ -66,6 +66,7 @@ async function remove(row: CatalogCategory): Promise<void> {
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '删除失败') }
 }
 const columns = computed<DataTableColumns<CatalogCategory>>(() => [
+  textColumn<CatalogCategory>('分类 ID', (row) => row.id, { width: 90 }),
   {
     title: '图标',
     key: 'icon',
