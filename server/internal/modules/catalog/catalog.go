@@ -35,24 +35,25 @@ type Category struct {
 
 // Item is a catalog item (menu/product/redeemable).
 type Item struct {
-	ID            int64
-	ScopeType     string
-	StoreID       *int64
-	StoreName     string
-	CategoryID    *int64
-	CategoryName  string
-	Name          string
-	Description   string
-	AssetID       *int64
-	ItemType      string
-	PriceCent     int64
-	StockQuantity int64
-	PayChannels   []string
-	PointsReward  int64
-	SortOrder     int
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                int64
+	ScopeType         string
+	StoreID           *int64
+	StoreName         string
+	CategoryID        *int64
+	CategoryName      string
+	Name              string
+	Description       string
+	AssetID           *int64
+	ItemType          string
+	PriceCent         int64
+	StockQuantity     int64
+	PayChannels       []string
+	CouponRedeemTypes []string
+	PointsReward      int64
+	SortOrder         int
+	Status            string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // CategoryView / ItemView are the public representations.
@@ -65,18 +66,19 @@ type CategoryView struct {
 }
 
 type ItemView struct {
-	ID            int64    `json:"id"`
-	CategoryID    *int64   `json:"categoryId,omitempty"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description,omitempty"`
-	ImageURL      string   `json:"imageUrl,omitempty"`
-	ItemType      string   `json:"itemType"`
-	PriceCent     int64    `json:"priceCent"`
-	StockQuantity int64    `json:"stockQuantity"`
-	PayChannels   []string `json:"payChannels"`
-	PointsReward  int64    `json:"pointsReward"`
-	SortOrder     int      `json:"sortOrder"`
-	Status        string   `json:"status"`
+	ID                int64    `json:"id"`
+	CategoryID        *int64   `json:"categoryId,omitempty"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description,omitempty"`
+	ImageURL          string   `json:"imageUrl,omitempty"`
+	ItemType          string   `json:"itemType"`
+	PriceCent         int64    `json:"priceCent"`
+	StockQuantity     int64    `json:"stockQuantity"`
+	PayChannels       []string `json:"payChannels"`
+	CouponRedeemTypes []string `json:"couponRedeemTypes"`
+	PointsReward      int64    `json:"pointsReward"`
+	SortOrder         int      `json:"sortOrder"`
+	Status            string   `json:"status"`
 }
 
 // AssetResolver resolves an asset id to a public URL.
@@ -88,6 +90,7 @@ type AssetResolver interface {
 type Repository interface {
 	ListCategoriesForStore(ctx context.Context, storeID int64) ([]Category, error)
 	ListItemsForStore(ctx context.Context, storeID int64, categoryID *int64, limit, offset int) ([]Item, int64, error)
+	ListCouponRedeemableItemsForStore(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]Item, error)
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -128,7 +131,7 @@ func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, ca
 		return nil, 0, apperr.Internal(err)
 	}
 	q := `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
-		asset_id, item_type, price_cent, stock_quantity, pay_channels, points_reward,
+		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_redeem_types, points_reward,
 		sort_order, status, created_at, updated_at
 		FROM catalog_items WHERE ` + where + ` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
@@ -140,16 +143,47 @@ func (r *sqlRepository) ListItemsForStore(ctx context.Context, storeID int64, ca
 	var out []Item
 	for rows.Next() {
 		var it Item
-		var payChannels []byte
+		var payChannels, couponRedeemTypes []byte
 		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
-			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &it.PointsReward,
+			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes, &it.PointsReward,
 			&it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		it.PayChannels = decodeChannels(payChannels)
+		it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
 		out = append(out, it)
 	}
 	return out, total, rows.Err()
+}
+
+func (r *sqlRepository) ListCouponRedeemableItemsForStore(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]Item, error) {
+	const q = `SELECT id, scope_type, store_id, category_id, name, COALESCE(description,''),
+		asset_id, item_type, price_cent, stock_quantity, pay_channels, coupon_redeem_types, points_reward,
+		sort_order, status, created_at, updated_at
+		FROM catalog_items
+		WHERE status = 'published' AND scope_type = 'store' AND store_id = ?
+		  AND price_cent > 0 AND price_cent <= ?
+		  AND JSON_CONTAINS(COALESCE(coupon_redeem_types, JSON_ARRAY()), JSON_QUOTE(?), '$')
+		ORDER BY sort_order ASC, id ASC`
+	rows, err := r.db.QueryContext(ctx, q, storeID, maxPriceCent, couponType)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	var out []Item
+	for rows.Next() {
+		var it Item
+		var payChannels, couponRedeemTypes []byte
+		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.CategoryID, &it.Name, &it.Description,
+			&it.AssetID, &it.ItemType, &it.PriceCent, &it.StockQuantity, &payChannels, &couponRedeemTypes,
+			&it.PointsReward, &it.SortOrder, &it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		it.PayChannels = decodeChannels(payChannels)
+		it.CouponRedeemTypes = decodeStringList(couponRedeemTypes)
+		out = append(out, it)
+	}
+	return out, rows.Err()
 }
 
 func decodeChannels(raw []byte) []string {
@@ -162,6 +196,17 @@ func decodeChannels(raw []byte) []string {
 	}
 	normalized, _ := normalizePayChannels(ch)
 	return normalized
+}
+
+func decodeStringList(raw []byte) []string {
+	if len(raw) == 0 {
+		return []string{}
+	}
+	var values []string
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return []string{}
+	}
+	return values
 }
 
 func normalizePayChannels(channels []string) ([]string, error) {
@@ -229,7 +274,8 @@ func (s *Service) ListItems(ctx context.Context, storeID int64, categoryID *int6
 		v := ItemView{
 			ID: it.ID, CategoryID: it.CategoryID, Name: it.Name, Description: it.Description,
 			ItemType: it.ItemType, PriceCent: it.PriceCent, StockQuantity: it.StockQuantity,
-			PayChannels: it.PayChannels, PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
+			PayChannels: it.PayChannels, CouponRedeemTypes: it.CouponRedeemTypes,
+			PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		}
 		if it.AssetID != nil {
 			v.ImageURL, _ = s.assets.PublicURLByID(ctx, *it.AssetID)
@@ -237,4 +283,27 @@ func (s *Service) ListItems(ctx context.Context, storeID int64, categoryID *int6
 		views = append(views, v)
 	}
 	return views, total, nil
+}
+
+// ListCouponRedeemableItems returns published products configured for the
+// coupon type whose unit price can fit within the coupon face value.
+func (s *Service) ListCouponRedeemableItems(ctx context.Context, storeID int64, couponType string, maxPriceCent int64) ([]ItemView, error) {
+	items, err := s.repo.ListCouponRedeemableItemsForStore(ctx, storeID, couponType, maxPriceCent)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]ItemView, 0, len(items))
+	for _, it := range items {
+		view := ItemView{
+			ID: it.ID, CategoryID: it.CategoryID, Name: it.Name, Description: it.Description,
+			ItemType: it.ItemType, PriceCent: it.PriceCent, StockQuantity: it.StockQuantity,
+			PayChannels: it.PayChannels, CouponRedeemTypes: it.CouponRedeemTypes,
+			PointsReward: it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
+		}
+		if it.AssetID != nil {
+			view.ImageURL, _ = s.assets.PublicURLByID(ctx, *it.AssetID)
+		}
+		views = append(views, view)
+	}
+	return views, nil
 }

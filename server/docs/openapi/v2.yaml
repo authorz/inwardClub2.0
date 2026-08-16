@@ -230,6 +230,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        couponRedeemTypes: { type: array, description: Empty means unavailable for coupon redemption., items: { type: string, enum: [exchange, discount, cash] } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -1008,6 +1009,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        couponRedeemTypes: { type: array, description: Coupon types allowed to redeem this product., items: { type: string, enum: [exchange, discount, cash] } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -1025,6 +1027,7 @@ components:
         itemType: { type: string }
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
+        couponRedeemTypes: { type: array, items: { type: string, enum: [exchange, discount, cash] } }
         status: { type: string }
         createdAt: { type: string, format: date-time }
     CatalogItemInput:
@@ -1040,6 +1043,7 @@ components:
         priceCent: { type: integer, format: int64 }
         stockQuantity: { type: integer, format: int64 }
         payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        couponRedeemTypes: { type: array, description: Empty means unavailable for coupon redemption., items: { type: string, enum: [exchange, discount, cash] } }
         pointsReward: { type: integer, format: int64 }
         sortOrder: { type: integer }
         status: { type: string }
@@ -1171,6 +1175,7 @@ components:
     MemberCouponView:
       type: object
       properties:
+        id: { type: integer, format: int64, description: Redemption id; present on successful redemption creation. }
         entitlementId: { type: integer, format: int64 }
         entitlementNo: { type: string }
         templateId: { type: integer, format: int64 }
@@ -1178,6 +1183,7 @@ components:
         description: { type: string }
         couponType: { type: string, enum: [exchange, discount, cash] }
         valueCent: { type: integer, format: int64 }
+        storeId: { type: integer, format: int64 }
         status: { type: string, enum: [active, used, void, expired] }
         expiresAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
@@ -1197,10 +1203,29 @@ components:
         createdAt: { type: string, format: date-time }
     CouponRedeemRequest:
       type: object
-      required: [entitlementId, storeId]
+      required: [entitlementId, storeId, items]
       properties:
         entitlementId: { type: integer, format: int64 }
         storeId: { type: integer, format: int64 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [itemId, quantity]
+            properties:
+              itemId: { type: integer, format: int64 }
+              quantity: { type: integer, minimum: 1 }
+    CouponEligibleItemView:
+      type: object
+      properties:
+        itemId: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        imageUrl: { type: string, format: uri }
+        unitPriceCent: { type: integer, format: int64 }
+        stockQuantity: { type: integer, format: int64, description: 0 means unlimited. }
+        sortOrder: { type: integer }
     # ---- console coupon template views/inputs ----
     ConsoleCouponTemplateView:
       type: object
@@ -5610,6 +5635,30 @@ paths:
                   meta: { $ref: '#/components/schemas/Meta' }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /api/v2/mini/coupon-redemptions/eligible-items:
+    get:
+      tags: [mini]
+      summary: List products redeemable by a held coupon at a store
+      description: Coupon type and face value are resolved from the authenticated member's entitlement; only published products explicitly enabled for that coupon type are returned.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: entitlementId, required: true, schema: { type: integer, format: int64 } }
+        - { in: query, name: storeId, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Coupon and eligible product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      coupon: { $ref: '#/components/schemas/MemberCouponView' }
+                      items: { type: array, items: { $ref: '#/components/schemas/CouponEligibleItemView' } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/v2/mini/coupon-redemptions:
     get:
       tags: [mini]
@@ -5632,7 +5681,7 @@ paths:
     post:
       tags: [mini]
       summary: Redeem a held coupon entitlement
-      description: Records a redemption for a member-held entitlement and flips it to `used` in one transaction. Guarded by the Idempotency-Key and the unique redemption index.
+      description: Server-prices and snapshots the selected products, reserves finite stock, records the redemption, and flips the entitlement to `used` in one transaction. The selected total must be positive and no greater than the coupon face value; unused value is not refunded or split. Guarded by the Idempotency-Key and the unique redemption index.
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }

@@ -2,8 +2,10 @@ package coupon
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/inwardclub/server/internal/modules/catalog"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -11,6 +13,15 @@ import (
 type memRepo struct {
 	byMember    map[int64][]MemberCoupon
 	redemptions map[int64][]RedemptionOrder
+	lastRedeem  *RedeemInput
+}
+
+type fakeRedeemableCatalog struct {
+	items []catalog.ItemView
+}
+
+func (f fakeRedeemableCatalog) ListCouponRedeemableItems(_ context.Context, _ int64, _ string, _ int64) ([]catalog.ItemView, error) {
+	return f.items, nil
 }
 
 func (r *memRepo) ListMemberCoupons(_ context.Context, memberID int64, status string, _, _ int) ([]MemberCoupon, int64, error) {
@@ -35,6 +46,7 @@ func (r *memRepo) GetEntitlement(_ context.Context, memberID, entitlementID int6
 // Redeem is exercised end-to-end against MySQL; the in-memory repo flips the
 // entitlement to used and echoes it back so the service wiring can be tested.
 func (r *memRepo) Redeem(_ context.Context, in RedeemInput) (MemberCoupon, error) {
+	r.lastRedeem = &in
 	for i, c := range r.byMember[in.MemberID] {
 		if c.EntitlementID == in.EntitlementID {
 			r.byMember[in.MemberID][i].Status = StatusUsed
@@ -93,16 +105,28 @@ func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 
 func TestRedeemActiveMarksUsed(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
-		10: {{EntitlementID: 1, Status: StatusActive}},
+		10: {{EntitlementID: 1, CouponType: TypeExchange, ValueCent: 10000, Status: StatusActive}},
 	}}
-	svc := NewService(repo)
+	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
+		{ID: 8, Name: "Latte", PriceCent: 5000, StockQuantity: 0},
+	}})
 
-	view, err := svc.Redeem(context.Background(), 10, "idem-1", RedeemRequest{EntitlementID: 1, StoreID: 5})
+	view, err := svc.Redeem(context.Background(), 10, "idem-1", RedeemRequest{
+		EntitlementID: 1, StoreID: 5,
+		Items: []RedeemItemRequest{{ItemID: 8, Quantity: 1}},
+	})
 	if err != nil {
 		t.Fatalf("redeem: %v", err)
 	}
 	if view.Status != StatusUsed {
 		t.Fatalf("expected used status, got %s", view.Status)
+	}
+	var rule RedemptionRuleSnapshot
+	if err := json.Unmarshal(repo.lastRedeem.MatchedRuleJSON, &rule); err != nil {
+		t.Fatalf("decode rule snapshot: %v", err)
+	}
+	if rule.RedeemedAmountCent != 5000 || rule.UnusedAmountCent != 5000 {
+		t.Fatalf("unexpected underuse snapshot: %+v", rule)
 	}
 }
 
@@ -158,5 +182,37 @@ func TestRedeemRejectsNonActiveAndForeign(t *testing.T) {
 	// Another member's entitlement is not found.
 	if _, err := svc.Redeem(ctx, 99, "idem-b", RedeemRequest{EntitlementID: 1, StoreID: 5}); codeOf(t, err) != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for foreign coupon")
+	}
+}
+
+func TestRedeemRejectsAmountAboveCouponValue(t *testing.T) {
+	repo := &memRepo{byMember: map[int64][]MemberCoupon{
+		10: {{EntitlementID: 1, CouponType: TypeCash, ValueCent: 10000, Status: StatusActive}},
+	}}
+	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
+		{ID: 8, Name: "Latte", PriceCent: 6000},
+	}})
+	_, err := svc.Redeem(context.Background(), 10, "idem-over", RedeemRequest{
+		EntitlementID: 1, StoreID: 5,
+		Items: []RedeemItemRequest{{ItemID: 8, Quantity: 2}},
+	})
+	if codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected amount rejection, got %v", err)
+	}
+}
+
+func TestListEligibleItemsUsesCouponTypeAndFaceValue(t *testing.T) {
+	repo := &memRepo{byMember: map[int64][]MemberCoupon{
+		10: {{EntitlementID: 1, Name: "100元兑换券", CouponType: TypeExchange, ValueCent: 10000, Status: StatusActive}},
+	}}
+	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
+		{ID: 8, Name: "Latte", PriceCent: 5000},
+	}})
+	view, err := svc.ListEligibleItems(context.Background(), 10, 1, 5)
+	if err != nil {
+		t.Fatalf("list eligible items: %v", err)
+	}
+	if view.Coupon.ValueCent != 10000 || len(view.Items) != 1 || view.Items[0].ItemID != 8 {
+		t.Fatalf("unexpected eligible items: %+v", view)
 	}
 }

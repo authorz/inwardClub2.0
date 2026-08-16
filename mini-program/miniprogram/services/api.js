@@ -246,6 +246,10 @@ function couponRedemptionBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
     entitlementId: d.entitlementId != null ? d.entitlementId : d.couponId,
+    items: (d.items || []).map((item) => ({
+      itemId: item.itemId != null ? item.itemId : item.id,
+      quantity: item.quantity != null ? item.quantity : item.qty,
+    })),
   });
 }
 
@@ -486,6 +490,8 @@ const api = {
     http.get(m(`/activity-orders/${id}`)).then((res) => ({ data: normalizeActivityOrder(res.data), meta: res.meta })),
 
   /* ---------- coupon redemption ---------- */
+  getCouponRedeemableItems: (params) =>
+    http.get(m('/coupon-redemptions/eligible-items') + qs(params)),
   createCouponRedemption: (data, key) =>
     http.post(m('/coupon-redemptions'), couponRedemptionBody(data), { idempotent: true, idempotencyKey: key }),
   getRedemptionOrders: (params) => http.get(m('/coupon-redemptions') + qs(params)),

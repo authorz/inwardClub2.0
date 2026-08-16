@@ -1,78 +1,141 @@
 <view class="cr">
-  <!-- Custom navigation: store + location left, title centered -->
-  <view class="cr__nav" style="padding-top: {{navStatusBar}}px;">
-    <view class="cr__nav-bar" style="height: {{navContentHeight}}px; padding-left: {{navRightGap}}px; padding-right: {{navRightGap}}px;">
-      <view class="cr__nav-store">
-        <image class="cr__nav-loc" src="/assets/icons/location.svg" mode="aspectFit" />
-        <text class="cr__nav-name ic-ellipsis">{{store.name || '选择门店'}}</text>
+  <ic-page-nav
+    title="券兑换"
+    store-name="{{store.name || ''}}"
+    store-address="{{store.address || ''}}"
+    store-hours="点击切换门店"
+    bind:storetap="openStoreSheet"
+  />
+
+  <view class="cr__coupon ic-glass-recessed">
+    <view class="cr__coupon-main">
+      <view class="cr__coupon-head">
+        <text class="cr__coupon-type">{{couponTypeLabel}}</text>
+        <text class="cr__coupon-name ic-ellipsis">{{couponName || '当前优惠券'}}</text>
       </view>
-      <text class="cr__nav-title">券兑换</text>
+      <text wx:if="{{validUntil}}" class="cr__coupon-valid">有效期至 {{validUntil}}</text>
+    </view>
+    <view class="cr__coupon-value">
+      <text class="cr__coupon-symbol">¥</text>
+      <text class="cr__coupon-amount">{{couponAmountText}}</text>
     </view>
   </view>
 
   <ic-loading wx:if="{{loading}}" />
-  <ic-empty wx:elif="{{!groups.length}}" text="当前门店暂无可兑换商品" />
+  <ic-empty wx:elif="{{!items.length}}" text="当前门店暂无可兑换商品" />
 
-  <view wx:else class="cr__body">
-    <!-- left category rail -->
-    <scroll-view class="cr__cats" scroll-y>
-      <view
-        class="cr__cat {{activeCat === item.id ? 'is-active' : ''}}"
-        wx:for="{{groups}}"
-        wx:key="id"
-        data-id="{{item.id}}"
-        bindtap="onPickCat"
-      >
-        <text>{{item.name}}</text>
-      </view>
-    </scroll-view>
-
-    <!-- right item grid, grouped by category -->
-    <scroll-view class="cr__items" scroll-y scroll-into-view="{{intoView}}" scroll-with-animation>
-      <view class="cr__group" wx:for="{{groups}}" wx:key="id" wx:for-item="group">
-        <view class="cr__group-title" id="cat-{{group.id}}">{{group.name}}</view>
-        <view class="cr__grid">
-          <view class="cr__item" wx:for="{{group.items}}" wx:key="id" wx:for-item="it">
-            <view class="cr__item-img">
-              <image wx:if="{{it.imageUrl}}" class="cr__item-pic" src="{{it.imageUrl}}" mode="aspectFill" />
-              <view wx:else class="cr__item-ph"><text>{{it.name}}</text></view>
-              <view wx:if="{{it.soldOut}}" class="cr__soldout">已售罄</view>
-            </view>
-            <text class="cr__item-name ic-ellipsis">{{it.name}}</text>
-            <view class="cr__item-foot">
-              <view class="cr__item-row">
-                <text class="cr__item-yuan {{it.priceCompact ? 'cr__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
-                <view wx:if="{{!it.soldOut}}" class="cr__item-stepper">
-                  <ic-stepper
-                    value="{{it.qty}}"
-                    min="{{0}}"
-                    max="{{it.stock}}"
-                    size="sm"
-                    hide-zero="{{true}}"
-                    data-id="{{it.id}}"
-                    bind:change="onQtyChange"
-                  />
-                </view>
-              </view>
+  <scroll-view wx:else class="cr__items" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+    <view class="cr__group-title">可兑换商品</view>
+    <view class="cr__grid">
+      <view class="cr__item ic-glass-recessed" wx:for="{{items}}" wx:key="id" wx:for-item="it">
+        <view class="cr__item-img">
+          <image wx:if="{{it.imageUrl}}" class="cr__item-pic" src="{{it.imageUrl}}" mode="aspectFill" />
+          <view wx:else class="cr__item-ph"><text>{{it.name}}</text></view>
+          <view wx:if="{{it.soldOut}}" class="cr__soldout">不可兑换</view>
+        </view>
+        <text class="cr__item-name ic-ellipsis">{{it.name}}</text>
+        <view class="cr__item-foot">
+          <view class="cr__item-row">
+            <text class="cr__item-yuan {{it.priceCompact ? 'cr__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
+            <view wx:if="{{!it.soldOut}}" class="cr__item-stepper">
+              <ic-stepper
+                value="{{it.qty}}"
+                min="{{0}}"
+                max="{{it.maxQty}}"
+                size="sm"
+                theme="dark"
+                hide-zero="{{true}}"
+                data-id="{{it.id}}"
+                bind:change="onQtyChange"
+              />
             </view>
           </view>
+          <text class="cr__item-hint">可使用当前券兑换</text>
         </view>
       </view>
-      <view class="cr__grid-gap"></view>
-    </scroll-view>
-  </view>
-
-  <!-- bottom redeem bar -->
-  <view class="cr__bar">
-    <view class="cr__bar-meta">
-      <view class="cr__bar-line">
-        <text class="cr__bar-label">已选</text>
-        <text class="cr__bar-total">¥{{totalText}}</text>
-        <text class="cr__bar-sub">/ 券面额 ¥{{couponAmountText}}</text>
-      </view>
-      <text wx:if="{{overCent > 0}}" class="cr__bar-over">超出 ¥{{overText}}</text>
-      <text wx:else class="cr__bar-remain">剩余额度 ¥{{remainText}}</text>
     </view>
-    <button class="ic-btn ic-btn-primary cr__bar-btn {{canConfirm ? '' : 'ic-disabled'}}" bindtap="confirmRedeem">确认兑换</button>
+    <view class="cr__grid-gap"></view>
+  </scroll-view>
+
+  <view class="cr__bar ic-glass-recessed">
+    <view class="cr__summary" bindtap="openSelectionSheet" hover-class="cr__summary--hover">
+      <view class="cr__bag {{selectedCount ? 'is-full' : ''}}">
+        <view class="ic-ic ic-ic-bag"></view>
+        <view wx:if="{{selectedCount}}" class="cr__badge">{{selectedCount}}</view>
+      </view>
+      <view class="cr__meta">
+        <text class="cr__count">已选 {{selectedCount}} 件</text>
+        <text class="cr__remain">剩余 ¥{{remainText}}</text>
+      </view>
+    </view>
+    <view class="cr__total">
+      <text class="cr__total-label">合计</text>
+      <text class="cr__total-value">¥{{totalText}}</text>
+    </view>
+    <button
+      class="ic-btn ic-btn-primary cr__bar-btn {{canConfirm ? '' : 'ic-disabled'}}"
+      loading="{{submitting}}"
+      bindtap="confirmRedeem"
+    >确认兑换</button>
+  </view>
+</view>
+
+<ic-bottom-sheet show="{{showStoreSheet}}" title="选择门店" max-height="82vh" bind:close="closeStoreSheet">
+  <view class="cr-store-list">
+    <view
+      class="cr-store {{store.id === item.id ? 'is-active' : ''}}"
+      wx:for="{{stores}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onSelectStore"
+    >
+      <view class="cr-store__main">
+        <text class="cr-store__name">{{item.name}}</text>
+        <text class="cr-store__addr ic-ellipsis">{{item.address}}{{item.addressDetail ? ' · ' + item.addressDetail : ''}}</text>
+      </view>
+      <text wx:if="{{store.id === item.id}}" class="cr-store__current">当前</text>
+    </view>
+  </view>
+</ic-bottom-sheet>
+
+<ic-bottom-sheet show="{{showSelectionSheet}}" title="已选商品" max-height="72vh" bind:close="closeSelectionSheet">
+  <view class="cr-sheet__bar">
+    <text class="cr-sheet__count">已选 {{selectedCount}} 件商品</text>
+    <text class="cr-sheet__clear" bindtap="onClearSelection">清空</text>
+  </view>
+  <view class="cr-sheet__list">
+    <view class="cr-sheet__item" wx:for="{{selectedItems}}" wx:key="id" wx:for-item="selected">
+      <image wx:if="{{selected.imageUrl}}" class="cr-sheet__image" src="{{selected.imageUrl}}" mode="aspectFill" />
+      <view wx:else class="cr-sheet__image cr-sheet__image--empty">{{selected.initial}}</view>
+      <view class="cr-sheet__info">
+        <text class="cr-sheet__name ic-ellipsis">{{selected.name}}</text>
+        <text class="cr-sheet__price">¥{{selected.priceText}}</text>
+      </view>
+      <view class="cr-sheet__action">
+        <text class="cr-sheet__subtotal">¥{{selected.lineTotalText}}</text>
+        <ic-stepper
+          value="{{selected.qty}}"
+          min="{{0}}"
+          max="{{selected.maxQty}}"
+          size="sm"
+          theme="dark"
+          data-id="{{selected.id}}"
+          bind:change="onQtyChange"
+        />
+      </view>
+    </view>
+  </view>
+  <button slot="footer" class="ic-btn ic-btn-primary cr-sheet__confirm" bindtap="confirmRedeem">确认兑换 · ¥{{totalText}}</button>
+</ic-bottom-sheet>
+
+<view wx:if="{{showUnderuseConfirm}}" class="cr-modal" catchtap="noop">
+  <view class="cr-modal__panel ic-glass-recessed" catchtap="noop">
+    <text class="cr-modal__title">确认兑换</text>
+    <text class="cr-modal__warning">券只能兑换一次，不找零不拆分兑换</text>
+    <text class="cr-modal__message">你当前选择的商品金额 ¥{{totalText}} 小于券面金额 ¥{{couponAmountText}}，确认是否兑换？</text>
+    <view class="cr-modal__actions">
+      <button class="cr-modal__button cr-modal__button--secondary" bindtap="cancelUnderuseConfirm">再选选</button>
+      <button class="cr-modal__button cr-modal__button--primary" bindtap="confirmUnderuseRedeem">确认兑换</button>
+    </view>
   </view>
 </view>

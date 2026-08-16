@@ -32,6 +32,35 @@ func (h *Handler) List(c *gin.Context) {
 	httpx.List(c, views, httpx.MetaFor(page, total))
 }
 
+// EligibleItems handles GET /mini/coupon-redemptions/eligible-items.
+func (h *Handler) EligibleItems(c *gin.Context) {
+	memberID := authn.MustFromContext(c).SubjectID()
+	entitlementID, err := positiveQueryID(c, "entitlementId")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	storeID, err := positiveQueryID(c, "storeId")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	view, err := h.svc.ListEligibleItems(c.Request.Context(), memberID, entitlementID, storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+func positiveQueryID(c *gin.Context, key string) (int64, error) {
+	id, err := strconv.ParseInt(c.Query(key), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, apperr.Invalid("invalid " + key)
+	}
+	return id, nil
+}
+
 // Redeem handles POST /mini/coupon-redemptions.
 func (h *Handler) Redeem(c *gin.Context) {
 	memberID := authn.MustFromContext(c).SubjectID()

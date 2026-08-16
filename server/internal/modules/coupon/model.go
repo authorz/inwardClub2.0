@@ -1,12 +1,13 @@
 // Package coupon owns member coupon entitlements and their redemption. Coupons
 // reuse the catalog through templates; a member holds entitlements and a
 // redemption records a single hit. This package exposes the mini-program read
-// path (a member's coupons) and the redemption entry point; the transactional
-// redemption itself (rule matching + verification within one tx) lands in a
-// later milestone and is reported as not-yet-implemented.
+// path, eligible-product query, and transactional redemption entry point.
 package coupon
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Entitlement statuses (mirrors coupon_entitlements.status).
 const (
@@ -40,6 +41,7 @@ type RedemptionOrder struct {
 
 // MemberCoupon is one entitlement joined with its template display fields.
 type MemberCoupon struct {
+	RedemptionID  int64
 	EntitlementID int64
 	EntitlementNo string
 	TemplateID    int64
@@ -47,7 +49,28 @@ type MemberCoupon struct {
 	Description   string
 	CouponType    string
 	ValueCent     int64
+	StoreID       *int64
 	Status        string
 	ExpiresAt     *time.Time
 	CreatedAt     time.Time
 }
+
+// RedemptionItemSnapshot is the server-priced product selection persisted on
+// a coupon redemption. Amounts are integer RMB cents.
+type RedemptionItemSnapshot struct {
+	ItemID        int64  `json:"itemId"`
+	Name          string `json:"name"`
+	ImageURL      string `json:"imageUrl,omitempty"`
+	UnitPriceCent int64  `json:"unitPriceCent"`
+	Quantity      int    `json:"quantity"`
+	SubtotalCent  int64  `json:"subtotalCent"`
+}
+
+type RedemptionRuleSnapshot struct {
+	CouponType         string `json:"couponType"`
+	CouponValueCent    int64  `json:"couponValueCent"`
+	RedeemedAmountCent int64  `json:"redeemedAmountCent"`
+	UnusedAmountCent   int64  `json:"unusedAmountCent"`
+}
+
+func marshalSnapshot(value any) ([]byte, error) { return json.Marshal(value) }

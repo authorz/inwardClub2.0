@@ -120,6 +120,7 @@ export interface CatalogItem extends AuditFields {
   priceCent: number
   stockQuantity: number
   payChannels: PayChannel[]
+  couponRedeemTypes?: string[]
   status: PublishStatus
   categoryName?: string
   categoryId?: number | string

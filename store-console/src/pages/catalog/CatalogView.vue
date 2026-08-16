@@ -51,6 +51,11 @@ const itemTypeOptions = [
   { label: '积分兑换', value: 'redeemable' }, { label: '实物', value: 'physical' },
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
+const couponRedeemTypeOptions = [
+  { label: '兑换券', value: 'exchange' },
+  { label: '折扣券', value: 'discount' },
+  { label: '代金券', value: 'cash' },
+]
 
 // 商品可选支付方式（点餐/积分商城）：微信、金币。
 const ITEM_PAY_CHANNELS: PayChannel[] = ['wechat', 'coin']
@@ -67,10 +72,11 @@ const editForm = reactive<{
   priceYuan: number
   stockQuantity: number
   payChannels: PayChannel[]
+  couponRedeemTypes: string[]
   pointsReward: number
   sortOrder: number
   status: string
-}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
+}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], couponRedeemTypes: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
 
 function openEdit(row?: CatalogItem) {
   editForm.id = row?.id ?? null
@@ -87,6 +93,7 @@ function openEdit(row?: CatalogItem) {
   ).filter((channel, index, channels) =>
     ITEM_PAY_CHANNELS.includes(channel) && channels.indexOf(channel) === index,
   )
+  editForm.couponRedeemTypes = [...(row?.couponRedeemTypes ?? [])]
   editForm.pointsReward = row?.pointsReward ?? 0
   editForm.sortOrder = row?.sortOrder ?? 0
   editForm.status = row?.status ?? 'draft'
@@ -107,6 +114,7 @@ async function saveEdit() {
         priceCent: yuanToCent(editForm.priceYuan),
         stockQuantity: editForm.stockQuantity,
         payChannels: editForm.payChannels,
+        couponRedeemTypes: editForm.couponRedeemTypes,
         pointsReward: editForm.pointsReward,
         sortOrder: editForm.sortOrder,
         status: editForm.status,
@@ -139,6 +147,7 @@ function togglePublish(row: CatalogItem) {
         priceCent: current.priceCent,
         stockQuantity: current.stockQuantity,
         payChannels: current.payChannels,
+        couponRedeemTypes: current.couponRedeemTypes ?? [],
         pointsReward: current.pointsReward ?? 0,
         sortOrder: current.sortOrder ?? 0,
         status: publishing ? 'published' : 'unpublished',
@@ -364,6 +373,16 @@ onMounted(async () => {
               </NCheckboxGroup>
             </div>
           </div>
+          <label class="edit-form__field edit-form__span-2">
+            <span class="ic-muted">允许使用的券类型</span>
+            <NSelect
+              v-model:value="editForm.couponRedeemTypes"
+              multiple
+              clearable
+              :options="couponRedeemTypeOptions"
+              placeholder="不选择表示该商品不可使用券兑换"
+            />
+          </label>
         </div>
         <p class="ic-muted edit-form__hint">
           当前价格：{{ formatCent(yuanToCent(editForm.priceYuan)) }}

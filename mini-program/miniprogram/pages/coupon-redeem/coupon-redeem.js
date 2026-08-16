@@ -1,214 +1,310 @@
-// 券兑换 — 券面额抵扣，选择允许分类内的商品，总价须 <= 券面额
-// 复用点餐页结构：自定义导航 + 左侧分类栏 + 右侧两列商品 + 底部兑换栏（class 前缀 cr__）
+// 券兑换 — 复用点餐页的商品网格、选择栏和门店切换，不展示商品分类。
 const api = require('../../services/api');
 const http = require('../../utils/request');
 const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 
-// 券类型 -> 允许的分类
-const TYPE_CATS = {
-  drink: ['cat_1', 'cat_2'],
-  food: ['cat_4', 'cat_5'],
-  snack: ['cat_3'],
+const COUPON_TYPE_LABEL = {
+  exchange: '兑换券',
+  discount: '折扣券',
+  cash: '代金券',
 };
 
 function formatMenuPrice(cent) {
-  const n = Number(cent || 0);
-  if (n % 100 === 0) return String(Math.floor(n / 100));
-  return (n / 100).toFixed(2);
+  const value = Number(cent || 0);
+  if (value % 100 === 0) return String(Math.floor(value / 100));
+  return (value / 100).toFixed(2);
 }
 
 Page({
   data: {
     loading: true,
+    submitting: false,
     store: null,
-    couponId: '',
+    stores: [],
+    entitlementId: '',
+    templateId: '',
+    couponStoreId: '',
     couponType: '',
+    couponTypeLabel: '优惠券',
     couponName: '',
     couponAmountCent: 0,
     couponAmountText: '0.00',
-    groups: [],
-    activeCat: '',
-    intoView: '',
+    validUntil: '',
+    items: [],
+    selectedItems: [],
     selectedCount: 0,
     totalCent: 0,
     totalText: '0.00',
     remainText: '0.00',
-    overCent: 0,
-    overText: '0.00',
     canConfirm: false,
-    // custom navigation metrics (px)
-    navStatusBar: 20,
-    navContentHeight: 44,
-    navRightGap: 96,
+    showStoreSheet: false,
+    showSelectionSheet: false,
+    showUnderuseConfirm: false,
   },
 
   onLoad(query) {
-    this.qty = {}; // itemId -> qty
-    const amountCent = Number(query.amount || 0);
+    this._requestId = 0;
+    const entitlementId = query.entitlementId || query.id || '';
+    const couponType = query.couponType || query.type || '';
+    const amountCent = Number(query.valueCent || query.amount || 0);
     this.setData({
-      couponId: query.id || '',
-      couponType: query.type || '',
+      entitlementId,
+      templateId: query.templateId || '',
+      couponStoreId: query.storeId || '',
+      couponType,
+      couponTypeLabel: COUPON_TYPE_LABEL[couponType] || '优惠券',
       couponName: decodeURIComponent(query.name || ''),
       couponAmountCent: amountCent,
       couponAmountText: fmt.centToYuan(amountCent),
       remainText: fmt.centToYuan(amountCent),
+      validUntil: decodeURIComponent(query.validUntil || ''),
     });
-    this.allowCats = TYPE_CATS[query.type] || [];
-    this.measureNav();
+    if (!entitlementId) {
+      this.setData({ loading: false });
+      ui.toast('优惠券参数不正确');
+      return;
+    }
     this.load();
   },
 
-  // Size the custom nav bar to the status bar + WeChat capsule button.
-  measureNav() {
-    try {
-      const win = wx.getWindowInfo();
-      const cap = wx.getMenuButtonBoundingClientRect();
-      const statusBar = win.statusBarHeight || 20;
-      const gap = Math.max(cap.top - statusBar, 4);
-      this.setData({
-        navStatusBar: statusBar,
-        navContentHeight: cap.height + gap * 2,
-        navRightGap: Math.max(win.windowWidth - cap.left + 8, 96),
-      });
-    } catch {
-      /* keep defaults */
-    }
-  },
-
   load() {
-    // Resolve the current store (persisted pick, else nearest) before loading its
-    // catalog — coupon redemption is store-scoped.
-    storeCtx.ensureStore().then((store) => {
-      this.setData({ store });
-      if (store) this.loadCatalog(store.id);
-      else this.setData({ loading: false });
-    });
-  },
-
-  loadCatalog(storeId) {
-    this.setData({ loading: true });
-    Promise.all([api.getCategories(storeId), api.getItems(storeId)])
-      .then(([catRes, itemRes]) => {
-        const cats = (catRes.data || []).filter((c) => this.allowCats.includes(c.id));
-        const items = itemRes.data || [];
-        const groups = cats
-          .map((c) => ({
-            id: c.id,
-            name: c.name,
-            items: items
-              .filter((it) => it.categoryId === c.id)
-              .map((it) => this.decorateItem(it)),
-          }))
-          .filter((g) => g.items.length);
-        this.setData({
-          groups,
-          activeCat: groups.length ? groups[0].id : '',
-          loading: false,
-        });
+    Promise.all([this.loadStores().catch(() => []), storeCtx.ensureStore()])
+      .then(([stores, currentStore]) => {
+        const requiredStore = this.data.couponStoreId
+          ? stores.find((store) => String(store.id) === String(this.data.couponStoreId))
+          : null;
+        const store = requiredStore || currentStore;
+        if (store) {
+          if (requiredStore) storeCtx.set(requiredStore);
+          this.useStore(store, true);
+        }
+        else this.setData({ loading: false });
       })
       .catch(() => this.setData({ loading: false }));
   },
 
-  decorateItem(it) {
-    const priceText = formatMenuPrice(it.priceCent);
-    const yuanDigits = String(Math.floor((it.priceCent || 0) / 100)).length;
-    return {
-      id: it.id,
-      categoryId: it.categoryId,
-      name: it.name,
-      priceCent: it.priceCent,
-      priceText,
-      priceCompact: yuanDigits >= 3,
-      imageUrl: it.imageUrl || '',
-      payChannels: it.payChannels,
-      stock: it.stock,
-      soldOut: it.stock <= 0,
-      qty: this.qty[it.id] || 0,
-    };
+  loadStores() {
+    return storeCtx.listNearby().then((stores) => {
+      this.setData({ stores });
+      return stores;
+    });
   },
 
-  onPickCat(e) {
-    const id = e.currentTarget.dataset.id;
-    this.setData({ activeCat: id, intoView: 'cat-' + id });
+  useStore(store, force) {
+    const changed = !this.data.store || String(this.data.store.id) !== String(store.id);
+    this.setData({ store });
+    if (changed || force) {
+      this.clearSelection();
+      this.loadEligibleItems(store.id);
+    }
+  },
+
+  loadEligibleItems(storeId) {
+    const requestId = ++this._requestId;
+    this.setData({ loading: true, items: [] });
+    api
+      .getCouponRedeemableItems({
+        entitlementId: this.data.entitlementId,
+        storeId,
+      })
+      .then((res) => {
+        if (requestId !== this._requestId) return;
+        const data = res.data || {};
+        const coupon = data.coupon || {};
+        const amountCent = Number(coupon.valueCent || this.data.couponAmountCent || 0);
+        const couponType = coupon.couponType || this.data.couponType;
+        const items = (data.items || []).map((item) => this.decorateItem(item, amountCent));
+        this.setData({
+          loading: false,
+          items,
+          couponType,
+          couponTypeLabel: COUPON_TYPE_LABEL[couponType] || '优惠券',
+          couponName: coupon.name || this.data.couponName,
+          couponAmountCent: amountCent,
+          couponAmountText: fmt.centToYuan(amountCent),
+          remainText: fmt.centToYuan(amountCent),
+          validUntil: coupon.expiresAt || this.data.validUntil,
+        });
+      })
+      .catch((err) => {
+        if (requestId !== this._requestId) return;
+        this.setData({ loading: false, items: [] });
+        ui.toast((err && err.message) || '可兑换商品加载失败');
+      });
+  },
+
+  decorateItem(item, amountCent) {
+    const priceCent = Number(item.unitPriceCent || 0);
+    const stock = Number(item.stockQuantity || 0);
+    const amountMax = priceCent > 0 ? Math.floor(amountCent / priceCent) : 0;
+    // stockQuantity=0 表示不限量；步进器单次最多选择 99 件。
+    const maxQty = stock > 0 ? Math.min(stock, amountMax) : Math.min(99, amountMax);
+    return {
+      id: item.itemId,
+      name: item.name,
+      description: item.description || '',
+      initial: (item.name || '兑').slice(0, 1),
+      imageUrl: item.imageUrl || '',
+      priceCent,
+      priceText: formatMenuPrice(priceCent),
+      priceCompact: String(Math.floor(priceCent / 100)).length >= 3,
+      stock,
+      maxQty,
+      qty: 0,
+      soldOut: maxQty <= 0,
+    };
   },
 
   onQtyChange(e) {
     const id = e.currentTarget.dataset.id;
-    const qty = e.detail.value;
-    if (qty > 0) this.qty[id] = qty;
-    else delete this.qty[id];
-    const groups = this.data.groups;
-    for (const g of groups) {
-      const it = g.items.find((x) => x.id === id);
-      if (it) {
-        it.qty = qty;
-        break;
-      }
+    const quantity = Number(e.detail.value || 0);
+    const current = this.data.items.find((item) => String(item.id) === String(id));
+    if (!current) return;
+    const nextTotal = this.data.totalCent - current.qty * current.priceCent + quantity * current.priceCent;
+    if (nextTotal > this.data.couponAmountCent) {
+      ui.toast('所选商品金额不能超过券面额');
+      return;
     }
-    this.setData({ groups });
-    this.recalc();
+    const items = this.data.items.map((item) =>
+      String(item.id) === String(id) ? Object.assign({}, item, { qty: quantity }) : item
+    );
+    this.recalculate(items);
   },
 
-  recalc() {
-    let count = 0;
+  recalculate(items) {
+    const selectedItems = [];
+    let selectedCount = 0;
     let totalCent = 0;
-    this.data.groups.forEach((g) =>
-      g.items.forEach((it) => {
-        if (it.qty > 0) {
-          count += it.qty;
-          totalCent += it.qty * it.priceCent;
-        }
-      })
-    );
-    const amount = this.data.couponAmountCent;
-    const overCent = Math.max(totalCent - amount, 0);
-    const remainCent = Math.max(amount - totalCent, 0);
+    items.forEach((item) => {
+      if (item.qty <= 0) return;
+      selectedCount += item.qty;
+      totalCent += item.qty * item.priceCent;
+      selectedItems.push(
+        Object.assign({}, item, {
+          lineTotalText: fmt.centToYuan(item.qty * item.priceCent),
+        })
+      );
+    });
+    const remainCent = Math.max(this.data.couponAmountCent - totalCent, 0);
     this.setData({
-      selectedCount: count,
+      items,
+      selectedItems,
+      selectedCount,
       totalCent,
       totalText: fmt.centToYuan(totalCent),
       remainText: fmt.centToYuan(remainCent),
-      overCent,
-      overText: fmt.centToYuan(overCent),
-      canConfirm: totalCent > 0 && totalCent <= amount,
+      canConfirm: totalCent > 0 && totalCent <= this.data.couponAmountCent,
+    });
+    if (!selectedCount && this.data.showSelectionSheet) {
+      this.setData({ showSelectionSheet: false });
+    }
+  },
+
+  clearSelection() {
+    const items = this.data.items.map((item) => Object.assign({}, item, { qty: 0 }));
+    this.setData({
+      items,
+      selectedItems: [],
+      selectedCount: 0,
+      totalCent: 0,
+      totalText: '0.00',
+      remainText: this.data.couponAmountText,
+      canConfirm: false,
+      showSelectionSheet: false,
+      showUnderuseConfirm: false,
     });
   },
 
-  confirmRedeem() {
-    const { totalCent, couponAmountCent } = this.data;
-    if (totalCent <= 0) {
+  openSelectionSheet() {
+    if (!this.data.selectedCount) {
       ui.toast('请先选择商品');
       return;
     }
-    if (totalCent > couponAmountCent) {
-      ui.toast('已超出券面额');
+    this.setData({ showSelectionSheet: true });
+  },
+
+  closeSelectionSheet() {
+    this.setData({ showSelectionSheet: false });
+  },
+
+  onClearSelection() {
+    this.clearSelection();
+  },
+
+  openStoreSheet() {
+    if (this.data.stores.length) {
+      this.setData({ showStoreSheet: true });
       return;
     }
-    const items = [];
-    this.data.groups.forEach((g) =>
-      g.items.forEach((it) => {
-        if (it.qty > 0) {
-          items.push({ id: it.id, name: it.name, qty: it.qty, priceCent: it.priceCent });
-        }
-      })
+    this.loadStores().then(() => this.setData({ showStoreSheet: true }));
+  },
+
+  closeStoreSheet() {
+    this.setData({ showStoreSheet: false });
+  },
+
+  onSelectStore(e) {
+    const store = this.data.stores.find(
+      (item) => String(item.id) === String(e.currentTarget.dataset.id)
     );
+    if (!store) return;
+    storeCtx.set(store);
+    this.setData({ showStoreSheet: false });
+    this.useStore(store, true);
+  },
+
+  confirmRedeem() {
+    if (!this.data.canConfirm || this.data.submitting) {
+      if (!this.data.selectedCount) ui.toast('请先选择商品');
+      return;
+    }
+    if (this.data.showSelectionSheet) this.setData({ showSelectionSheet: false });
+    if (this.data.totalCent < this.data.couponAmountCent) {
+      this.setData({ showUnderuseConfirm: true });
+      return;
+    }
+    this.submitRedeem();
+  },
+
+  cancelUnderuseConfirm() {
+    this.setData({ showUnderuseConfirm: false });
+  },
+
+  confirmUnderuseRedeem() {
+    this.setData({ showUnderuseConfirm: false });
+    this.submitRedeem();
+  },
+
+  submitRedeem() {
+    if (this.data.submitting || !this.data.store) return;
+    this.setData({ submitting: true });
+    const items = this.data.selectedItems.map((item) => ({
+      itemId: item.id,
+      quantity: item.qty,
+    }));
     api
       .createCouponRedemption(
         {
-          couponId: this.data.couponId,
-          couponType: this.data.couponType,
-          storeId: this.data.store ? this.data.store.id : '',
+          entitlementId: this.data.entitlementId,
+          storeId: this.data.store.id,
           items,
-          totalCent,
-          couponAmountCent,
         },
         http.uuid()
       )
-      .then((r) => {
-        const id = r.data && r.data.id;
-        wx.redirectTo({ url: `/pages/redemption-order-detail/redemption-order-detail?id=${id}` });
+      .then((res) => {
+        const redemptionId = res.data && res.data.id;
+        if (!redemptionId) throw new Error('兑换记录创建失败');
+        wx.redirectTo({
+          url: `/pages/redemption-order-detail/redemption-order-detail?id=${redemptionId}`,
+        });
+      })
+      .catch((err) => {
+        this.setData({ submitting: false });
+        ui.toast((err && err.message) || '兑换失败，请稍后重试');
       });
   },
+
+  noop() {},
 });

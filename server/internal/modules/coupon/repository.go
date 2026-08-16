@@ -3,6 +3,7 @@ package coupon
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 )
 
 // Repository is the coupon persistence port. Reads are scoped to the owning
-// member. Redemption writes (matching a rule and recording a redemption inside
-// one transaction) land in a later milestone.
+// member; redemption writes reserve finite product stock and persist snapshots
+// in the same transaction that consumes the entitlement.
 type Repository interface {
 	ListMemberCoupons(ctx context.Context, memberID int64, status string, limit, offset int) ([]MemberCoupon, int64, error)
 	GetEntitlement(ctx context.Context, memberID, entitlementID int64) (MemberCoupon, error)
@@ -35,12 +36,16 @@ type Repository interface {
 
 // RedeemInput is the resolved redemption the repository persists.
 type RedeemInput struct {
-	MemberID      int64
-	EntitlementID int64
-	StoreID       int64
-	RedemptionNo  string
-	IdemKey       string
-	Now           time.Time
+	MemberID         int64
+	EntitlementID    int64
+	StoreID          int64
+	RedemptionNo     string
+	IdemKey          string
+	Now              time.Time
+	ItemSnapshotJSON []byte
+	MatchedRuleJSON  []byte
+	CouponType       string
+	Items            []RedemptionItemSnapshot
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -49,7 +54,7 @@ type sqlRepository struct{ db *platdb.DB }
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.name,
-	COALESCE(t.description,''), t.coupon_type, t.value_cent, e.status, e.expires_at, e.created_at
+	COALESCE(t.description,''), t.coupon_type, t.value_cent, e.store_id, e.status, e.expires_at, e.created_at
 	FROM coupon_entitlements e
 	JOIN coupon_templates t ON t.id = e.coupon_template_id`
 
@@ -131,18 +136,40 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 		if expiresAt.Valid && expiresAt.Time.Before(in.Now) {
 			return apperr.Conflict("coupon has expired")
 		}
+		for _, item := range in.Items {
+			const reserve = `UPDATE catalog_items
+				SET stock_quantity = CASE WHEN stock_quantity = 0 THEN 0 ELSE stock_quantity - ? END,
+				    updated_at = ?
+				WHERE id = ? AND scope_type = 'store' AND store_id = ? AND status = 'published'
+				  AND price_cent = ? AND (stock_quantity = 0 OR stock_quantity >= ?)
+				  AND JSON_CONTAINS(COALESCE(coupon_redeem_types, JSON_ARRAY()), JSON_QUOTE(?), '$')`
+			res, err := tx.ExecContext(ctx, reserve, item.Quantity, in.Now, item.ItemID, in.StoreID,
+				item.UnitPriceCent, item.Quantity, in.CouponType)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			if affected, _ := res.RowsAffected(); affected == 0 {
+				return apperr.Conflict("商品库存或兑换设置已变化，请重新选择")
+			}
+		}
 		const ins = `INSERT INTO coupon_redemptions
-			(redemption_no, entitlement_id, coupon_template_id, member_id, store_id, verified_by_type, idem_key, created_at)
-			VALUES (?, ?, ?, ?, ?, 'member', ?, ?)`
+			(redemption_no, entitlement_id, coupon_template_id, member_id, store_id,
+			 matched_rule_json, item_snapshot_json, verified_by_type, idem_key, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'member', ?, ?)`
 		var idem any
 		if in.IdemKey != "" {
 			idem = in.IdemKey
 		}
-		if _, err := tx.ExecContext(ctx, ins, in.RedemptionNo, in.EntitlementID, templateID,
-			in.MemberID, in.StoreID, idem, in.Now); err != nil {
+		insertResult, err := tx.ExecContext(ctx, ins, in.RedemptionNo, in.EntitlementID, templateID,
+			in.MemberID, in.StoreID, in.MatchedRuleJSON, in.ItemSnapshotJSON, idem, in.Now)
+		if err != nil {
 			if platdb.IsDuplicate(err) {
 				return apperr.Conflict("coupon already redeemed")
 			}
+			return apperr.Internal(err)
+		}
+		redemptionID, err := insertResult.LastInsertId()
+		if err != nil {
 			return apperr.Internal(err)
 		}
 		const upd = `UPDATE coupon_entitlements SET status = ?, updated_at = ?
@@ -158,6 +185,7 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 		if err != nil {
 			return apperr.Internal(err)
 		}
+		out.RedemptionID = redemptionID
 		return nil
 	})
 	if err != nil {
@@ -170,7 +198,7 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 // template (display name) and store (name). The redemption_no doubles as the
 // member-facing 兑换码.
 const redemptionSelect = `SELECT r.id, r.redemption_no, e.status, t.name, e.expires_at,
-	COALESCE(s.name,''), r.created_at
+	COALESCE(s.name,''), r.item_snapshot_json, r.created_at
 	FROM coupon_redemptions r
 	JOIN coupon_entitlements e ON e.id = r.entitlement_id
 	JOIN coupon_templates t ON t.id = r.coupon_template_id
@@ -232,13 +260,25 @@ func (r *sqlRepository) ExpireEntitlements(ctx context.Context, now time.Time) (
 func scanRedemption(s scanner) (RedemptionOrder, error) {
 	var o RedemptionOrder
 	var name string
-	if err := s.Scan(&o.ID, &o.RedemptionNo, &o.Status, &name, &o.ValidUntil, &o.StoreName, &o.CreatedAt); err != nil {
+	var snapshotJSON []byte
+	if err := s.Scan(&o.ID, &o.RedemptionNo, &o.Status, &name, &o.ValidUntil, &o.StoreName, &snapshotJSON, &o.CreatedAt); err != nil {
 		return RedemptionOrder{}, err
 	}
 	o.Title = name
 	o.CouponName = name
 	o.Code = o.RedemptionNo
-	o.Qty = 1
+	var items []RedemptionItemSnapshot
+	if len(snapshotJSON) > 0 && json.Unmarshal(snapshotJSON, &items) == nil && len(items) > 0 {
+		o.Title = items[0].Name
+		for _, item := range items {
+			o.Qty += item.Quantity
+		}
+		if len(items) > 1 {
+			o.Title += "等商品"
+		}
+	} else {
+		o.Qty = 1
+	}
 	return o, nil
 }
 
@@ -249,6 +289,6 @@ type scanner interface {
 func scanCoupon(s scanner) (MemberCoupon, error) {
 	var c MemberCoupon
 	err := s.Scan(&c.EntitlementID, &c.EntitlementNo, &c.TemplateID, &c.Name, &c.Description,
-		&c.CouponType, &c.ValueCent, &c.Status, &c.ExpiresAt, &c.CreatedAt)
+		&c.CouponType, &c.ValueCent, &c.StoreID, &c.Status, &c.ExpiresAt, &c.CreatedAt)
 	return c, err
 }

@@ -84,6 +84,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/sign-ins/status", a.walletHandler.SignInStatus)
 	p.GET("/invitations", a.memberHandler.ListInvitations)
 	p.GET("/coupons", a.couponHandler.List)
+	p.GET("/coupon-redemptions/eligible-items", a.couponHandler.EligibleItems)
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)
 	p.GET("/coupon-redemptions/:id", a.couponHandler.GetRedemption)
 

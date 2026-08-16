@@ -25,6 +25,8 @@ Page({
       .then((res) => {
         const all = (res.data || []).map((c) => ({
           id: c.id,
+          templateId: c.templateId,
+          storeId: c.storeId,
           name: c.name,
           desc: c.desc,
           type: c.type,
@@ -60,9 +62,11 @@ Page({
     const c = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
     if (!c || c.status !== 'unused') return;
     const params = [
-      `id=${c.id}`,
-      `type=${c.type}`,
-      `amount=${c.amountCent || 0}`,
+      `entitlementId=${c.id}`,
+      `templateId=${c.templateId || ''}`,
+      `storeId=${c.storeId || ''}`,
+      `couponType=${c.type}`,
+      `valueCent=${c.amountCent || 0}`,
       `name=${encodeURIComponent(c.name)}`,
       `validUntil=${encodeURIComponent(c.validUntil || '')}`,
     ].join('&');

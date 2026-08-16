@@ -164,7 +164,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	reservationSvc := reservation.NewService(
 		reservation.NewRepository(database), assetSvc, globalSettingsSvc, businessClock.Location(),
 	)
-	couponSvc := coupon.NewService(coupon.NewRepository(database))
+	couponSvc := coupon.NewService(coupon.NewRepository(database), catalogSvc)
 	wechatPayAmountOverrideCent := cfg.WeChatPayAmountOverrideCent()
 	if wechatPayAmountOverrideCent > 0 {
 		log.Warn("payment debug mode enabled", "wechatAmountCent", wechatPayAmountOverrideCent)

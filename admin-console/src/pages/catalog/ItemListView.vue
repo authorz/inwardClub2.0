@@ -51,6 +51,14 @@ const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
   ),
 )
 const onlinePayChannelOptions = PAY_CHANNEL_OPTIONS
+const couponRedeemTypeOptions = [
+  { label: '兑换券', value: 'exchange' },
+  { label: '折扣券', value: 'discount' },
+  { label: '代金券', value: 'cash' },
+]
+const couponRedeemTypeLabels = Object.fromEntries(
+  couponRedeemTypeOptions.map(({ label, value }) => [value, label]),
+)
 const categoryFilterOptions = computed<OptionItem[]>(() =>
   categories.value.map((category) => ({
     label: category.storeName ? `${category.storeName} / ${category.name}` : category.name,
@@ -89,6 +97,15 @@ const columns = [
     'imageUrl',
     (row) => h(AssetImage, { src: row.imageUrl, width: 64, height: 44 }),
     92,
+  ),
+  renderColumn<CatalogItem>(
+    '券兑换',
+    'couponRedeemTypes',
+    (row) =>
+      row.couponRedeemTypes?.length
+        ? row.couponRedeemTypes.map((type) => couponRedeemTypeLabels[type] ?? type).join(' / ')
+        : '不可兑换',
+    180,
   ),
   textColumn<CatalogItem>('商品名称', 'name', { width: 180 }),
   textColumn<CatalogItem>('商品分类', 'categoryName', { width: 150 }),
@@ -154,6 +171,7 @@ interface ItemForm {
   priceYuan: number
   stockQuantity: number
   payChannels: string[]
+  couponRedeemTypes: string[]
   rewardPointsEnabled: boolean
   pointsReward: number
   sortOrder: number
@@ -174,6 +192,7 @@ const form = reactive<ItemForm>({
   priceYuan: 0,
   stockQuantity: 0,
   payChannels: ['wechat'],
+  couponRedeemTypes: [],
   rewardPointsEnabled: false,
   pointsReward: 0,
   sortOrder: 0,
@@ -213,6 +232,7 @@ function resetForm(): void {
   form.priceYuan = 0
   form.stockQuantity = 0
   form.payChannels = ['wechat']
+  form.couponRedeemTypes = []
   form.rewardPointsEnabled = false
   form.pointsReward = 0
   form.sortOrder = 0
@@ -239,6 +259,7 @@ function openEdit(row: CatalogItem): void {
   form.priceYuan = (row.priceCent ?? 0) / 100
   form.stockQuantity = row.stockQuantity ?? 0
   form.payChannels = row.payChannels?.length ? [...row.payChannels] : ['wechat']
+  form.couponRedeemTypes = [...(row.couponRedeemTypes ?? [])]
   form.rewardPointsEnabled = (row.pointsReward ?? 0) > 0
   form.pointsReward = row.pointsReward ?? 0
   form.sortOrder = row.sortOrder ?? 0
@@ -277,6 +298,7 @@ async function submit(): Promise<void> {
     priceCent: Math.round(form.priceYuan * 100),
     stockQuantity: form.stockQuantity,
     payChannels: form.payChannels,
+    couponRedeemTypes: form.couponRedeemTypes,
     pointsReward: form.rewardPointsEnabled ? Math.floor(form.pointsReward) : 0,
     sortOrder: form.sortOrder,
     status: form.status,
@@ -413,6 +435,15 @@ onMounted(loadReferences)
             multiple
             :options="onlinePayChannelOptions.map(({ label, value }) => ({ label, value }))"
             placeholder="请选择支付方式"
+          />
+        </NFormItem>
+        <NFormItem label="允许使用的券类型">
+          <NSelect
+            v-model:value="form.couponRedeemTypes"
+            multiple
+            clearable
+            :options="couponRedeemTypeOptions"
+            placeholder="不选择表示该商品不可使用券兑换"
           />
         </NFormItem>
         <NFormItem label="购买后赠送积分">

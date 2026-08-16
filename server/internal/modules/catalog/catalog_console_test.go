@@ -96,7 +96,8 @@ func (r *fakeConsoleRepo) CreateItem(_ context.Context, scope ConsoleScope, in I
 	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	it := Item{ID: 200, ScopeType: scopeType, StoreID: storeID, CategoryID: in.CategoryID,
 		Name: in.Name, Description: in.Description, AssetID: in.AssetID, ItemType: in.ItemType, PriceCent: in.PriceCent,
-		StockQuantity: in.StockQuantity, PayChannels: in.PayChannels, Status: in.Status}
+		StockQuantity: in.StockQuantity, PayChannels: in.PayChannels,
+		CouponRedeemTypes: in.CouponRedeemTypes, Status: in.Status}
 	r.items = append(r.items, it)
 	return it, nil
 }
@@ -109,6 +110,7 @@ func (r *fakeConsoleRepo) UpdateItem(_ context.Context, scope ConsoleScope, id i
 			r.items[i].CategoryID = in.CategoryID
 			r.items[i].AssetID = in.AssetID
 			r.items[i].Name = in.Name
+			r.items[i].CouponRedeemTypes = in.CouponRedeemTypes
 			r.items[i].Status = in.Status
 			return r.items[i], nil
 		}
@@ -305,6 +307,19 @@ func TestNormalizePayChannels(t *testing.T) {
 	}
 	if _, err := normalizePayChannels([]string{"wechat", "points"}); err == nil {
 		t.Fatal("unsupported channel should be rejected")
+	}
+}
+
+func TestNormalizeCouponRedeemTypes(t *testing.T) {
+	got, err := normalizeCouponRedeemTypes([]string{"exchange", "cash", "exchange"})
+	if err != nil {
+		t.Fatalf("normalize coupon types: %v", err)
+	}
+	if len(got) != 2 || got[0] != "exchange" || got[1] != "cash" {
+		t.Fatalf("unexpected coupon types: %#v", got)
+	}
+	if _, err := normalizeCouponRedeemTypes([]string{"unknown"}); err == nil {
+		t.Fatal("unsupported coupon type should be rejected")
 	}
 }
 

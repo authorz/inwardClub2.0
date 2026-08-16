@@ -87,6 +87,7 @@ export interface CatalogItem extends AuditableEntity {
   priceCent?: number
   stockQuantity?: number
   payChannels?: string[]
+  couponRedeemTypes?: string[]
   assetId?: string | number
   categoryId?: string | number
   pointsReward?: number

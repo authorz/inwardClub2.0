@@ -2,7 +2,9 @@
   "usingComponents": {
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading",
-    "ic-stepper": "/components/stepper/stepper"
+    "ic-stepper": "/components/stepper/stepper",
+    "ic-bottom-sheet": "/components/bottom-sheet/bottom-sheet",
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
   "navigationStyle": "custom",
   "disableScroll": true,
