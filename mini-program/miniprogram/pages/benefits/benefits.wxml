@@ -4,40 +4,66 @@
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{tier}}" class="bf">
-  <view
-    class="bf__identity"
-    style="background-color: {{tier.tone}}; color: {{tier.ink}};"
-    aria-role="img"
-    aria-label="{{tier.currentVer}} {{tier.currentName}}"
+  <swiper
+    class="bf__tier-swiper"
+    current="{{activeTierIndex}}"
+    previous-margin="18rpx"
+    next-margin="18rpx"
+    duration="220"
+    skip-hidden-item-layout="{{true}}"
+    bindchange="onTierChange"
+    aria-label="会员等级，可左右滑动预览"
   >
-    <image class="bf__identity-logo {{tier.logoClass}}" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="aspectFit"></image>
-    <view class="bf__identity-vip" aria-hidden="true">
-      <text class="bf__identity-vip-label">VIP</text>
-      <view class="bf__identity-vip-rule"></view>
-      <text class="bf__identity-vip-number">{{tier.currentNo}}</text>
+    <swiper-item wx:for="{{tiers}}" wx:key="level">
+      <view
+        class="bf__identity"
+        style="background-color: {{item.tone}}; color: {{item.ink}};"
+        aria-role="img"
+        aria-label="{{item.currentVer}} {{item.currentName}}{{item.isCurrent ? '，当前等级' : ''}}"
+      >
+        <image class="bf__identity-logo {{item.logoClass}}" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="aspectFit"></image>
+        <text wx:if="{{item.isCurrent}}" class="bf__identity-current">当前</text>
+        <view class="bf__identity-vip" aria-hidden="true">
+          <text class="bf__identity-vip-label">VIP</text>
+          <view class="bf__identity-vip-rule"></view>
+          <text class="bf__identity-vip-number">{{item.currentNo}}</text>
+        </view>
+      </view>
+    </swiper-item>
+  </swiper>
+
+  <view class="bf__tier-nav" aria-label="正在预览 {{tier.currentVer}}，第 {{activeTierIndex + 1}} 个，共 {{tiers.length}} 个等级">
+    <text class="bf__tier-nav-state">{{tier.isCurrent ? '当前等级' : '等级预览'}}</text>
+    <view class="bf__tier-dots" aria-hidden="true">
+      <view
+        class="bf__tier-dot {{index === activeTierIndex ? 'is-active' : ''}} {{item.isCurrent ? 'is-current' : ''}}"
+        wx:for="{{tiers}}"
+        wx:key="level"
+      ></view>
     </view>
+    <text class="bf__tier-nav-count">{{activeTierIndex + 1}} / {{tiers.length}}</text>
   </view>
 
   <view class="bf__status ic-glass-recessed">
     <view class="bf__status-head">
       <view class="bf__member">
-        <text class="bf__label">会员等级</text>
+        <text class="bf__label">{{tier.isCurrent ? '会员等级' : '预览等级'}}</text>
         <view class="bf__member-line">
           <text class="bf__member-name">{{tier.currentName}}</text>
           <text class="bf__member-vip">{{tier.currentVer}}</text>
         </view>
       </view>
       <view class="bf__growth-value">
-        <text class="bf__label">成长值</text>
-        <text class="bf__growth-num">{{tier.growthValue}}</text>
+        <text class="bf__label">{{tier.growthLabel}}</text>
+        <text class="bf__growth-num">{{tier.growthDisplay}}</text>
       </view>
     </view>
-    <view class="bf__bar" aria-role="progressbar" aria-valuenow="{{tier.growthValue}}" aria-valuemax="{{tier.growthTarget || tier.growthValue}}">
+    <view class="bf__bar" aria-role="progressbar" aria-valuenow="{{tier.progressValue}}" aria-valuemax="{{tier.growthTarget || tier.progressValue || 1}}">
       <view class="bf__bar-fill" style="width: {{tier.growthPct}}%;"></view>
     </view>
     <view class="bf__growth-foot">
       <text class="bf__growth-hint">{{tier.growthHint}}</text>
-      <text wx:if="{{tier.growthTarget}}" class="bf__growth-target">{{tier.growthValue}} / {{tier.growthTarget}}</text>
+      <text wx:if="{{tier.growthTarget}}" class="bf__growth-target">{{tier.progressValue}} / {{tier.growthTarget}}</text>
     </view>
   </view>
 </view>

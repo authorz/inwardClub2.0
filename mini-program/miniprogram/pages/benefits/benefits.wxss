@@ -6,9 +6,12 @@
 }
 
 /* 会员身份面只保留品牌 LOGO 与 VIP 等级。 */
+.bf__tier-swiper { height: 300rpx; }
 .bf__identity {
   position: relative;
+  width: calc(100% - 16rpx);
   height: 300rpx;
+  margin: 0 8rpx;
   padding: 34rpx 38rpx 30rpx;
   border-radius: 16rpx;
   overflow: hidden;
@@ -42,24 +45,38 @@
 .bf__identity-logo { position: relative; z-index: 1; width: 238rpx; height: 106rpx; align-self: flex-start; }
 .bf__identity-logo.is-light { filter: brightness(0) invert(1); }
 .bf__identity-logo.is-dark { filter: brightness(0); }
+.bf__identity-current {
+  position: absolute;
+  top: 30rpx;
+  right: 34rpx;
+  z-index: 1;
+  padding: 5rpx 13rpx;
+  border: 1rpx solid currentColor;
+  border-radius: 999rpx;
+  font-size: 18rpx;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0.74;
+}
 .bf__identity-vip {
   position: relative;
   z-index: 1;
   align-self: flex-end;
   display: flex;
   align-items: center;
-  min-width: 168rpx;
+  min-width: 280rpx;
   justify-content: flex-end;
 }
-.bf__identity-vip-label {
-  font-size: 22rpx;
-  font-weight: 700;
+.bf__identity-vip-label,
+.bf__identity-vip-number {
+  font-size: 76rpx;
+  font-weight: 500;
   line-height: 1;
-  letter-spacing: 3rpx;
+  letter-spacing: -2rpx;
 }
 .bf__identity-vip-rule {
   width: 1rpx;
-  height: 42rpx;
+  height: 54rpx;
   margin: 0 18rpx;
   background: currentColor;
   opacity: 0.4;
@@ -67,14 +84,26 @@
 .bf__identity-vip-number {
   min-width: 46rpx;
   text-align: right;
-  font-size: 76rpx;
-  font-weight: 500;
-  line-height: 0.82;
-  letter-spacing: -2rpx;
   font-variant-numeric: tabular-nums;
 }
 
-.bf__status { margin-top: 28rpx; padding: 36rpx 32rpx 38rpx; }
+.bf__tier-nav {
+  min-height: 52rpx;
+  padding: 10rpx 8rpx 0;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  box-sizing: border-box;
+}
+.bf__tier-nav-state,
+.bf__tier-nav-count { width: 112rpx; flex: none; font-size: 19rpx; color: rgba(255, 255, 255, 0.62); }
+.bf__tier-nav-count { text-align: right; font-variant-numeric: tabular-nums; }
+.bf__tier-dots { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10rpx; }
+.bf__tier-dot { width: 8rpx; height: 8rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.28); }
+.bf__tier-dot.is-current { box-shadow: 0 0 0 2rpx rgba(255, 255, 255, 0.48); }
+.bf__tier-dot.is-active { width: 24rpx; background: rgba(255, 255, 255, 0.9); }
+
+.bf__status { margin-top: 18rpx; padding: 36rpx 32rpx 38rpx; }
 .bf__status-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28rpx; }
 .bf__member { min-width: 0; }
 .bf__label { display: block; font-size: 22rpx; line-height: 1.4; color: rgba(255, 255, 255, 0.62); }

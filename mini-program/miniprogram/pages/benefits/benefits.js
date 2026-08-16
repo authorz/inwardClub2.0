@@ -1,4 +1,4 @@
-// 会员权益 — 纯 LOGO + 灰阶 VIP 身份 / 当前会员等级 / 成长值
+// 会员权益 — 可滑动灰阶 VIP 身份 / 等级预览 / 成长值
 const api = require('../../services/api');
 
 // 客户指定的黑白灰等级色阶：VIP1 从浅灰开始，等级越高越接近纯黑。
@@ -24,46 +24,95 @@ function memberName(name, ver) {
   return value || ver + ' 会员';
 }
 
+function tierView(tiers, selectedIndex, currentIndex, growthValue) {
+  const selected = tiers[selectedIndex] || tiers[0];
+  if (!selected) return null;
+
+  const isCurrent = selectedIndex === currentIndex;
+  const isUnlocked = selectedIndex < currentIndex;
+  const nextTier = tiers[selectedIndex + 1];
+  const growthTarget = isCurrent
+    ? (nextTier ? nextTier.threshold : 0)
+    : selected.threshold;
+  const progressValue = isUnlocked ? growthTarget : growthValue;
+  const growthPct = isUnlocked
+    ? 100
+    : growthTarget
+      ? Math.min(100, Math.round((growthValue / growthTarget) * 100))
+      : 100;
+
+  let growthHint;
+  if (isUnlocked) {
+    growthHint = '该等级已解锁';
+  } else if (isCurrent) {
+    growthHint = nextTier
+      ? '距 ' + nextTier.currentVer + ' 还需 ' + Math.max(0, growthTarget - growthValue) + ' 成长值'
+      : '已达当前最高等级';
+  } else {
+    growthHint = '距 ' + selected.currentVer + ' 还需 ' + Math.max(0, growthTarget - growthValue) + ' 成长值';
+  }
+
+  return Object.assign({}, selected, {
+    isCurrent,
+    growthLabel: isCurrent ? '成长值' : '解锁成长值',
+    growthDisplay: isCurrent ? growthValue : growthTarget,
+    growthTarget,
+    progressValue,
+    growthPct,
+    growthHint,
+  });
+}
+
 Page({
-  data: { loading: true, tier: null },
+  data: { loading: true, tiers: [], activeTierIndex: 0, tier: null },
 
   onLoad() {
     api
       .getBenefitsOverview()
       .then((res) => {
         const d = /** @type {any} */ (res.data || {});
-        const levels = d.levels || [];
+        const levels = (d.levels && d.levels.length)
+          ? d.levels
+          : [{ level: Number(d.currentLevel) || 1, name: '', threshold: 0 }];
         const matchedIndex = levels.findIndex((level) =>
           d.currentLevel ? Number(level.level) === Number(d.currentLevel) : level.code === d.current
         );
         const currentIdx = Math.max(0, matchedIndex);
-        const currentLevel = levels[currentIdx] || {};
-        const nextLevel = levels[currentIdx + 1];
         const growthValue = Number(d.growthValue) || 0;
-        const growthTarget = nextLevel ? Number(nextLevel.threshold) || Number(d.growthMax) || 0 : 0;
-        const growthPct = growthTarget ? Math.min(100, Math.round((growthValue / growthTarget) * 100)) : 100;
-        const currentVer = vipLabel(currentLevel.level || d.currentLevel, currentIdx);
-        const currentTone = toneFor(currentIdx, Math.max(1, levels.length));
-        const nextVer = nextLevel ? vipLabel(nextLevel.level, currentIdx + 1) : '';
-
-        this.setData({
-          loading: false,
-          tier: {
+        const tiers = levels.map((level, index) => {
+          const currentVer = vipLabel(level.level, index);
+          const currentTone = toneFor(index, levels.length);
+          return {
+            level: Number(level.level) || index + 1,
             currentVer,
-            currentNo: String(Number(currentLevel.level || d.currentLevel) || currentIdx + 1),
-            currentName: memberName(currentLevel.name, currentVer),
-            growthValue,
-            growthTarget,
-            growthPct,
-            growthHint: nextLevel
-              ? '距 ' + nextVer + ' 还需 ' + Math.max(0, growthTarget - growthValue) + ' 成长值'
-              : '已达当前最高等级',
+            currentNo: String(Number(level.level) || index + 1),
+            currentName: memberName(level.name, currentVer),
+            threshold: Number(level.threshold) || 0,
+            isCurrent: index === currentIdx,
             tone: currentTone.tone,
             ink: currentTone.ink,
             logoClass: currentTone.logoClass,
-          },
+          };
+        });
+
+        this.currentTierIndex = currentIdx;
+        this.growthValue = growthValue;
+
+        this.setData({
+          loading: false,
+          tiers,
+          activeTierIndex: currentIdx,
+          tier: tierView(tiers, currentIdx, currentIdx, growthValue),
         });
       })
       .catch(() => this.setData({ loading: false }));
+  },
+
+  onTierChange(e) {
+    const selectedIndex = Number(e.detail.current) || 0;
+    this.setData({
+      activeTierIndex: selectedIndex,
+      tier: tierView(this.data.tiers, selectedIndex, this.currentTierIndex || 0, this.growthValue || 0),
+    });
   },
 });
