@@ -133,7 +133,7 @@ func (h *Handler) MemberDetail(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
-	view, err := h.svc.AdminGetMemberDetail(c.Request.Context(), id)
+	view, err := h.svc.GetMemberDetail(c.Request.Context(), id)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -763,11 +763,13 @@ func (h *Handler) StorePaymentTransactions(c *gin.Context) {
 
 // StoreMembers handles GET /store/members.
 func (h *Handler) StoreMembers(c *gin.Context) {
-	scope, ok := storescope.MustFromContext(c)
-	if !ok {
+	if _, ok := storescope.MustFromContext(c); !ok {
 		return
 	}
-	f := scopedFilter(parseFilter(c), scope)
+	// Members are platform-wide identities and have no registration-store
+	// ownership. Store authentication is still required, but the read itself is
+	// deliberately not filtered by the caller's store.
+	f := parseFilter(c)
 	views, total, err := h.svc.ListMembers(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -800,8 +802,7 @@ func (h *Handler) StoreWalletLedger(c *gin.Context) {
 
 // StoreMemberDetail handles GET /store/members/:memberID.
 func (h *Handler) StoreMemberDetail(c *gin.Context) {
-	scope, ok := storescope.MustFromContext(c)
-	if !ok {
+	if _, ok := storescope.MustFromContext(c); !ok {
 		return
 	}
 	id, err := pathID(c, "memberID")
@@ -809,7 +810,7 @@ func (h *Handler) StoreMemberDetail(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
-	view, err := h.svc.GetMemberDetail(c.Request.Context(), scope, id)
+	view, err := h.svc.GetMemberDetail(c.Request.Context(), id)
 	if err != nil {
 		httpx.Fail(c, err)
 		return

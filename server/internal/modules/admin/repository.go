@@ -57,11 +57,11 @@ type Repository interface {
 	ListActivities(ctx context.Context, f ListFilter) ([]Activity, int64, error)
 	ListOrders(ctx context.Context, f ListFilter) ([]Order, int64, error)
 	ListMembers(ctx context.Context, f ListFilter) ([]Member, int64, error)
-	// GetMember returns a single member, scoped to storeID: the member must have
-	// at least one business order at that store, mirroring ListMembers' scope.
+	// GetMember verifies that a member has activity at storeID. It is retained
+	// only for store-attributed write authorization such as wallet adjustment;
+	// member list/detail reads use the platform-wide methods above/below.
 	GetMember(ctx context.Context, storeID, memberID int64) (Member, error)
-	// GetMemberByID returns a single member by id alone, for the headquarters
-	// console which is not pinned to a single store.
+	// GetMemberByID returns a platform-wide member by id alone.
 	GetMemberByID(ctx context.Context, memberID int64) (Member, error)
 	// SearchMembersByPhone fuzzy-matches members by phone fragment (tail number
 	// supported) across all members (not store-scoped, not order-gated) so a
@@ -442,17 +442,13 @@ func (r *sqlRepository) ListRefunds(ctx context.Context, f ListFilter) ([]Refund
 }
 
 func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member, int64, error) {
-	// members are not store-scoped in the schema; a store scope selects members
-	// who have at least one business order at that store.
+	// Members are platform-wide identities and have no registration-store
+	// ownership. Store-scoped handlers intentionally call this without StoreID.
 	where, args := filterClauses(f, "", "m.status", "")
 	if f.Keyword != "" {
 		keyword := "%" + f.Keyword + "%"
 		where += " AND (m.nickname LIKE ? OR m.phone LIKE ?)"
 		args = append(args, keyword, keyword)
-	}
-	if f.StoreID != nil {
-		where += " AND EXISTS (SELECT 1 FROM business_orders bo WHERE bo.member_id = m.id AND bo.store_id = ?)"
-		args = append(args, *f.StoreID)
 	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members m WHERE `+where, args...).Scan(&total); err != nil {

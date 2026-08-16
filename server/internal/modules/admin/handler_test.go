@@ -432,6 +432,48 @@ func withStoreScope(storeID int64) gin.HandlerFunc {
 	}
 }
 
+func TestStoreMembersHandlerListsPlatformWideMembers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/store/members", withStoreScope(42), h.StoreMembers)
+
+	req := httptest.NewRequest(http.MethodGet, "/store/members", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.StoreID != nil {
+		t.Fatalf("member list must not be store-scoped, got store id %v", *repo.lastFilter.StoreID)
+	}
+}
+
+func TestStoreMemberDetailReadsPlatformWideMember(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{members: map[int64]Member{
+		7: {ID: 7, Nickname: "Global Member", Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/store/members/:memberID", withStoreScope(42), h.StoreMemberDetail)
+
+	req := httptest.NewRequest(http.MethodGet, "/store/members/7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for member without store ownership, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Global Member") {
+		t.Fatalf("expected platform-wide member detail, got: %s", rec.Body.String())
+	}
+}
+
 func TestStoreRefundsHandlerScopesToStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

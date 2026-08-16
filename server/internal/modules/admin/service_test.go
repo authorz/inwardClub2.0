@@ -1537,12 +1537,12 @@ func (f *fakeWallets) AdjustBalanceForAdmin(_ context.Context, memberID int64, r
 	return f.adjusted, nil
 }
 
-func TestAdminGetMemberDetailNotScopedToStore(t *testing.T) {
+func TestGetMemberDetailNotScopedToStore(t *testing.T) {
 	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "n", Status: StatusActive}}}
 	wallets := &fakeWallets{accounts: []wallet.Account{{AssetType: wallet.AssetPoints, AvailableAmount: 100}}}
 	svc := NewService(repo, fakeStores{}, wallets)
 
-	view, err := svc.AdminGetMemberDetail(context.Background(), 7)
+	view, err := svc.GetMemberDetail(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1550,7 +1550,7 @@ func TestAdminGetMemberDetailNotScopedToStore(t *testing.T) {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 
-	if _, err := svc.AdminGetMemberDetail(context.Background(), 999); apperr.From(err).Code != apperr.CodeNotFound {
+	if _, err := svc.GetMemberDetail(context.Background(), 999); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for missing member, got %v", err)
 	}
 }
@@ -1574,24 +1574,6 @@ func TestAdminCreateWalletAdjustmentDelegatesUnscoped(t *testing.T) {
 		AssetType: wallet.AssetPoints, Direction: wallet.DirectionCredit, Amount: 50,
 	}, "idem-2"); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for missing member, got %v", err)
-	}
-}
-
-func TestGetMemberDetailScopedToStore(t *testing.T) {
-	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "n", Status: StatusActive}}}
-	wallets := &fakeWallets{accounts: []wallet.Account{{AssetType: wallet.AssetPoints, AvailableAmount: 100}}}
-	svc := NewService(repo, fakeStores{}, wallets)
-
-	view, err := svc.GetMemberDetail(context.Background(), 42, 7)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if view.ID != 7 || len(view.Wallet) != 1 || view.Wallet[0].AvailableAmount != 100 {
-		t.Fatalf("unexpected view: %+v", view)
-	}
-
-	if _, err := svc.GetMemberDetail(context.Background(), 42, 999); apperr.From(err).Code != apperr.CodeNotFound {
-		t.Fatalf("expected NOT_FOUND for member outside store scope, got %v", err)
 	}
 }
 

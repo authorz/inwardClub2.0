@@ -3870,11 +3870,30 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
         '400': { $ref: '#/components/responses/Error' }
+  /api/v2/store/members:
+    get:
+      tags: [store]
+      security: [{ bearerAuth: [] }]
+      summary: List all platform members (members have no store ownership)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Platform-wide member list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/MemberView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
   /api/v2/store/members/{memberID}:
     get:
       tags: [store]
       security: [{ bearerAuth: [] }]
-      summary: Member detail (profile + wallet; 404 if not in own store)
+      summary: Platform-wide member detail (profile + wallet)
       parameters: [{ $ref: '#/components/parameters/MemberID' }]
       responses:
         '200':

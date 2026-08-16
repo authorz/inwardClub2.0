@@ -134,7 +134,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   <div>
     <PageHeader
       title="会员管理"
-      description="本店会员列表与钱包流水"
+      description="全部会员列表与本店钱包流水"
     />
 
     <StatusFilterBar

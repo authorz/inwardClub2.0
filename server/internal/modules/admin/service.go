@@ -201,27 +201,6 @@ func (s *Service) ListMembers(ctx context.Context, f ListFilter) ([]MemberView, 
 	return out, total, nil
 }
 
-// GetMemberDetail returns a single member (scoped to the caller's store) plus
-// its wallet balances.
-func (s *Service) GetMemberDetail(ctx context.Context, storeID, memberID int64) (MemberDetailView, error) {
-	m, err := s.repo.GetMember(ctx, storeID, memberID)
-	if err != nil {
-		return MemberDetailView{}, err
-	}
-	view := MemberDetailView{MemberView: MemberView{
-		ID: m.ID, Nickname: m.Nickname, Phone: m.Phone,
-		PointsBalance: m.PointsBalance, Status: m.Status, CreatedAt: m.CreatedAt,
-	}}
-	if s.wallets != nil {
-		accounts, err := s.wallets.GetWallet(ctx, memberID)
-		if err != nil {
-			return MemberDetailView{}, err
-		}
-		view.Wallet = accounts
-	}
-	return view, nil
-}
-
 // CreateWalletAdjustment applies a store-initiated wallet adjustment to a
 // member scoped to the caller's store.
 func (s *Service) CreateWalletAdjustment(ctx context.Context, storeID, memberID int64, req WalletAdjustmentRequest, idemKey string) (WalletAdjustmentView, error) {
@@ -243,9 +222,9 @@ func (s *Service) CreateWalletAdjustment(ctx context.Context, storeID, memberID 
 	}, nil
 }
 
-// AdminGetMemberDetail returns a single member (not scoped to a store) plus
-// its wallet balances, for the headquarters console.
-func (s *Service) AdminGetMemberDetail(ctx context.Context, memberID int64) (MemberDetailView, error) {
+// GetMemberDetail returns a platform-wide member plus wallet balances. Members
+// have no registration-store ownership, so both consoles share this read path.
+func (s *Service) GetMemberDetail(ctx context.Context, memberID int64) (MemberDetailView, error) {
 	m, err := s.repo.GetMemberByID(ctx, memberID)
 	if err != nil {
 		return MemberDetailView{}, err
