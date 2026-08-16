@@ -62,7 +62,7 @@
   <text class="pf__note">资料仅用于会员权益和订单通知</text>
 
   <view class="pf__save">
-    <button class="ic-btn ic-btn-primary ic-btn-block pf__save-btn" loading="{{saving}}" bindtap="save">保存</button>
+    <button class="ic-btn ic-btn-primary ic-btn-block ic-glass-recessed pf__save-btn" loading="{{saving}}" bindtap="save">保存</button>
   </view>
 </view>
 </scroll-view>
