@@ -32,12 +32,29 @@
 .mine__summary { padding: 12rpx 6rpx 20rpx; }
 .mine__profile {
   min-height: 166rpx;
-  padding: 18rpx 30rpx;
   display: flex;
   align-items: center;
   box-sizing: border-box;
 }
-.mine__profile--hover { opacity: 0.72; }
+.mine__profile-benefits {
+  min-width: 0;
+  min-height: 166rpx;
+  padding: 18rpx 0 18rpx 30rpx;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.mine__profile-edit {
+  width: 112rpx;
+  align-self: stretch;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mine__profile-benefits--hover,
+.mine__profile-edit--hover { opacity: 0.72; }
 .mine__avatar {
   position: relative;
   width: 112rpx;
@@ -95,11 +112,18 @@
   background: rgba(255, 255, 255, 0.84);
   color: #14171b;
 }
-.mine__tier--hover { opacity: 0.72; }
 .mine__invite { display: inline-flex; align-items: center; gap: 4rpx; margin-top: 12rpx; }
 .mine__invite-text { font-size: 20rpx; color: rgba(255, 255, 255, 0.68); line-height: 1; }
+.mine__invite-copy-hit {
+  width: 64rpx;
+  height: 64rpx;
+  margin: -18rpx -16rpx -18rpx -8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .mine__invite-copy { width: 28rpx; height: 28rpx; color: rgba(255, 255, 255, 0.68); transform: translateY(-4rpx) scale(0.58); transform-origin: center; }
-.mine__profile-arrow { flex: none; margin-left: 18rpx; border-color: rgba(255, 255, 255, 0.5); }
+.mine__profile-arrow { flex: none; margin-left: 0; border-color: rgba(255, 255, 255, 0.5); }
 
 /* ---- assets ---- */
 .mine__assets {

@@ -16,30 +16,42 @@
   <view class="mine__content">
     <!-- Identity and assets share one continuous glass card. -->
     <view class="mine__summary ic-glass-recessed">
-      <view class="mine__profile" hover-class="mine__profile--hover" bindtap="goProfile">
-        <view class="mine__avatar">
-          <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
-          <view wx:else class="mine__avatar-ph"><text>{{me.nickname || '会员'}}</text></view>
-          <image wx:if="{{genderIcon}}" class="mine__gender" src="{{genderIcon}}" mode="aspectFit" />
-        </view>
-        <view class="mine__ident">
-          <view class="mine__nameline">
-            <text class="mine__name">{{me.nickname || '会员'}}</text>
-            <view
-              wx:if="{{me.tierShort}}"
-              class="mine__tier"
-              hover-class="mine__tier--hover"
-              catchtap="goBenefits"
-              aria-role="button"
-              aria-label="查看会员权益"
-            >{{me.tierShort}}</view>
+      <view class="mine__profile">
+        <view
+          class="mine__profile-benefits"
+          hover-class="mine__profile-benefits--hover"
+          bindtap="goBenefits"
+          aria-role="button"
+          aria-label="查看会员权益"
+        >
+          <view class="mine__avatar">
+            <image wx:if="{{me.avatarUrl}}" class="mine__avatar-img" src="{{me.avatarUrl}}" mode="aspectFill" />
+            <view wx:else class="mine__avatar-ph"><text>{{me.nickname || '会员'}}</text></view>
+            <image wx:if="{{genderIcon}}" class="mine__gender" src="{{genderIcon}}" mode="aspectFit" />
           </view>
-          <view class="mine__invite" catchtap="copyInvite">
-            <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>
-            <view class="ic-ic ic-ic-copy mine__invite-copy"></view>
+          <view class="mine__ident">
+            <view class="mine__nameline">
+              <text class="mine__name">{{me.nickname || '会员'}}</text>
+              <view wx:if="{{me.tierShort}}" class="mine__tier">{{me.tierShort}}</view>
+            </view>
+            <view class="mine__invite">
+              <text class="mine__invite-text">邀请码 {{me.inviteCode || '--'}}</text>
+              <view
+                class="mine__invite-copy-hit"
+                catchtap="copyInvite"
+                aria-role="button"
+                aria-label="复制邀请码"
+              ><view class="ic-ic ic-ic-copy mine__invite-copy"></view></view>
+            </view>
           </view>
         </view>
-        <view class="ic-arrow mine__profile-arrow"></view>
+        <view
+          class="mine__profile-edit"
+          hover-class="mine__profile-edit--hover"
+          bindtap="goProfile"
+          aria-role="button"
+          aria-label="编辑个人资料"
+        ><view class="ic-arrow mine__profile-arrow"></view></view>
       </view>
 
       <!-- assets: 优惠券 / 金币余额 / 积分 -->
