@@ -197,16 +197,34 @@ export interface VerificationRecord extends AuditFields {
   at?: string
 }
 
-// 对齐 server activity.PointSavingView：memberName/phone/points/note/reviewedBy。
+export interface PointSavingReviewer {
+  type: 'staff' | 'store_admin' | 'cashier'
+  id: number
+  role?: string
+  username?: string
+  displayName?: string
+  staffName?: string
+  nickname?: string
+  phone?: string
+  avatarUrl?: string
+  source?: string
+}
+
+// 对齐 server activity.PointSavingView：会员资料、审核者快照及审核时间。
 export interface PointSavingRequest extends AuditFields {
   id: number | string
+  memberId: number | string
   memberName?: string
   phone?: string
+  memberAvatarUrl?: string
   direction?: string
   points: number
   status: ReviewStatus
   note?: string
   reviewedBy?: number
+  reviewedByType?: string
+  reviewer?: PointSavingReviewer
+  reviewedAt?: string
   submittedAt?: string
 }
 

@@ -4,7 +4,7 @@
  * 审核为高风险写操作，服务端带 Idempotency-Key 与审计。
  */
 import { computed, h, ref } from 'vue'
-import { type DataTableColumns } from 'naive-ui'
+import { NAvatar, type DataTableColumns } from 'naive-ui'
 import { pointSavingService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
@@ -45,13 +45,78 @@ function submit(decision: 'approved' | 'rejected', reason: string) {
   })
 }
 
+function initial(value?: string): string {
+  return value?.trim().slice(0, 1).toUpperCase() || '会'
+}
+
+function memberCell(row: PointSavingRequest) {
+  const name = row.memberName || `用户 ${row.memberId}`
+  return h('div', { class: 'point-review__identity' }, [
+    h(
+      NAvatar,
+      { round: true, size: 40, src: row.memberAvatarUrl || undefined },
+      { default: () => initial(name) },
+    ),
+    h('div', { class: 'point-review__identity-copy' }, [
+      h('strong', name),
+      h('span', row.memberName ? `用户 ID：${row.memberId}` : `用户 ID：${row.memberId} · 资料已不存在`),
+    ]),
+  ])
+}
+
+function reviewerCell(row: PointSavingRequest) {
+  const reviewer = row.reviewer
+  if (!reviewer) {
+    const text = row.status === 'pending'
+      ? '待审核'
+      : `审核者 ${row.reviewedBy ? `ID ${row.reviewedBy}` : '资料未保存'}`
+    return h('span', { class: 'ic-muted' }, text)
+  }
+
+  if (reviewer.type === 'staff') {
+    const name = reviewer.nickname || reviewer.staffName || '工作人员'
+    return h('div', { class: 'point-review__identity' }, [
+      h(
+        NAvatar,
+        { round: true, size: 40, src: reviewer.avatarUrl || undefined },
+        { default: () => initial(name) },
+      ),
+      h('div', { class: 'point-review__identity-copy' }, [
+        h('strong', name),
+        h('span', `工作人员 · ${reviewer.phone || '未登记手机号'}`),
+      ]),
+    ])
+  }
+
+  const name = reviewer.displayName || reviewer.username || '后台管理员'
+  const role = reviewer.type === 'cashier' ? '收银员' : '门店管理员'
+  return h('div', { class: 'point-review__identity' }, [
+    h(NAvatar, { round: true, size: 40 }, { default: () => initial(name) }),
+    h('div', { class: 'point-review__identity-copy' }, [
+      h('strong', name),
+      h('span', `${role}账号：${reviewer.username || '未保存'}`),
+    ]),
+  ])
+}
+
 const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
-  textColumn<PointSavingRequest>('会员', (r) => r.memberName),
+  {
+    title: '会员',
+    key: 'member',
+    width: 230,
+    render: memberCell,
+  },
   phoneColumn<PointSavingRequest>('手机号', (r) => r.phone),
   textColumn<PointSavingRequest>('申请积分', (r) => r.points, { align: 'right' }),
   statusColumn<PointSavingRequest>('状态', REVIEW_STATUS, (r) => r.status, { width: 100 }),
-  textColumn<PointSavingRequest>('审核人', (r) => r.reviewedBy),
+  {
+    title: '审核人',
+    key: 'reviewer',
+    width: 260,
+    render: reviewerCell,
+  },
   dateColumn<PointSavingRequest>('提交时间', (r) => r.submittedAt ?? r.createdAt, { width: 150 }),
+  dateColumn<PointSavingRequest>('审核时间', (r) => r.reviewedAt, { width: 150 }),
   {
     title: '操作',
     key: 'actions',
@@ -129,5 +194,30 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
   flex-direction: column;
   gap: var(--ic-space-1);
   font-size: var(--ic-font-sm);
+}
+.point-review__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-3);
+  min-width: 0;
+}
+.point-review__identity-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.point-review__identity-copy strong {
+  overflow: hidden;
+  color: var(--ic-color-text);
+  font-size: var(--ic-font-base);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.point-review__identity-copy span {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+  white-space: nowrap;
 }
 </style>

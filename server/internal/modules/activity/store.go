@@ -69,6 +69,7 @@ type PointSaving struct {
 	MemberID               int64
 	MemberName             string
 	Phone                  string
+	MemberAvatarURL        string
 	StoreName              string
 	Points                 int64
 	BasePoints             int64
@@ -89,6 +90,8 @@ type PointSaving struct {
 	Status                 string
 	Remark                 string
 	ReviewedBy             *int64
+	ReviewedByType         string
+	ReviewerSnapshotJSON   []byte
 	ReviewedAt             *time.Time
 	CreatedAt              time.Time
 }
@@ -133,7 +136,7 @@ type StoreRepository interface {
 	VerifyTicket(ctx context.Context, storeID int64, code string, byID int64, now time.Time) (TicketVerification, error)
 	ListPointSavings(ctx context.Context, storeID int64, limit, offset int) ([]PointSaving, int64, error)
 	GetPointSaving(ctx context.Context, storeID, requestID int64) (PointSaving, error)
-	ReviewPointSaving(ctx context.Context, storeID, requestID int64, decision, remark string, byID int64, now time.Time) (PointSaving, error)
+	ReviewPointSaving(ctx context.Context, storeID, requestID int64, decision, remark, reviewerType string, byID int64, now time.Time) (PointSaving, error)
 	ListTodayActivities(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error)
 	ListTodayActivitySummaries(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]TodayActivity, error)
 	ListVerifications(ctx context.Context, storeID int64, limit, offset int) ([]Verification, int64, error)
@@ -209,25 +212,27 @@ func (r *storeSQLRepository) VerifyTicket(ctx context.Context, storeID int64, co
 // pointSavingSelect reads point_savings joined to members (name/phone) and
 // stores (name) for display; COALESCE guards nullable joins and columns.
 const pointSavingSelect = `SELECT ps.id, ps.store_id, ps.member_id,
-	COALESCE(m.nickname,''), COALESCE(m.phone,''), COALESCE(s.name,''),
+	COALESCE(m.nickname,''), COALESCE(m.phone,''), COALESCE(m.avatar_url,''), COALESCE(s.name,''),
 	ps.points, ps.base_points, ps.excess_points, ps.awarded_points,
 	ps.coin_base_points, ps.awarded_coins, ps.rule_version, ps.points_divisor,
 	ps.coin_points_divisor, ps.business_date, ps.business_start_at, ps.business_end_at,
 	ps.calculation_start_at, ps.calculation_end_at, ps.last_approved_saving_id,
 	COALESCE(ps.calculation_description,''), ps.status, COALESCE(ps.remark,''),
-	ps.reviewed_by, ps.reviewed_at, ps.created_at
+	ps.reviewed_by, COALESCE(ps.reviewed_by_type,''), ps.reviewer_snapshot_json,
+	ps.reviewed_at, ps.created_at
 	FROM point_savings ps
 	LEFT JOIN members m ON m.id = ps.member_id
 	LEFT JOIN stores s ON s.id = ps.store_id`
 
 func scanPointSaving(row interface{ Scan(...any) error }) (PointSaving, error) {
 	var p PointSaving
-	if err := row.Scan(&p.ID, &p.StoreID, &p.MemberID, &p.MemberName, &p.Phone, &p.StoreName,
+	if err := row.Scan(&p.ID, &p.StoreID, &p.MemberID, &p.MemberName, &p.Phone, &p.MemberAvatarURL, &p.StoreName,
 		&p.Points, &p.BasePoints, &p.ExcessPoints, &p.AwardedPoints,
 		&p.CoinBasePoints, &p.AwardedCoins, &p.RuleVersion, &p.PointsDivisor,
 		&p.CoinPointsDivisor, &p.BusinessDate, &p.BusinessStartAt, &p.BusinessEndAt,
 		&p.CalculationStartAt, &p.CalculationEndAt, &p.LastApprovedSavingID,
 		&p.CalculationDescription, &p.Status, &p.Remark, &p.ReviewedBy,
+		&p.ReviewedByType, &p.ReviewerSnapshotJSON,
 		&p.ReviewedAt, &p.CreatedAt); err != nil {
 		return PointSaving{}, err
 	}
@@ -435,7 +440,7 @@ func (s *StoreService) GetPointSaving(ctx context.Context, storeID, requestID in
 }
 
 // ReviewPointSaving approves or rejects a store's point-saving request.
-func (s *StoreService) ReviewPointSaving(ctx context.Context, storeID, requestID int64, req ReviewPointSavingRequest, byID int64) (PointSavingView, error) {
+func (s *StoreService) ReviewPointSaving(ctx context.Context, storeID, requestID int64, req ReviewPointSavingRequest, reviewerType string, byID int64) (PointSavingView, error) {
 	if req.Decision != ReviewApprove && req.Decision != ReviewReject {
 		return PointSavingView{}, apperr.Invalid("decision must be approve or reject")
 	}
@@ -445,7 +450,7 @@ func (s *StoreService) ReviewPointSaving(ctx context.Context, storeID, requestID
 	if validationErr != nil {
 		return PointSavingView{}, apperr.Invalid(validationErr.Error())
 	}
-	p, err := s.repo.ReviewPointSaving(ctx, storeID, requestID, req.Decision, remark, byID, s.now().UTC())
+	p, err := s.repo.ReviewPointSaving(ctx, storeID, requestID, req.Decision, remark, reviewerType, byID, s.now().UTC())
 	if err != nil {
 		return PointSavingView{}, err
 	}

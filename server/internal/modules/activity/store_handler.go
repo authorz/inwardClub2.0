@@ -90,7 +90,9 @@ func (h *StoreHandler) ReviewPointSaving(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("invalid request body"))
 		return
 	}
-	view, err := h.svc.ReviewPointSaving(c.Request.Context(), storeID, requestID, req, claims.SubjectID())
+	view, err := h.svc.ReviewPointSaving(
+		c.Request.Context(), storeID, requestID, req, string(claims.SubjectType), claims.SubjectID(),
+	)
 	if err != nil {
 		httpx.Fail(c, err)
 		return

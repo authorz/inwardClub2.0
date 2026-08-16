@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,7 +15,7 @@ import (
 func (r *storeSQLRepository) ReviewPointSaving(
 	ctx context.Context,
 	storeID, requestID int64,
-	decision, remark string,
+	decision, remark, reviewerType string,
 	byID int64,
 	now time.Time,
 ) (PointSaving, error) {
@@ -34,13 +35,19 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		if saving.Status != PointSavingPending {
 			return apperr.Conflict("point-saving request is not pending review")
 		}
+		reviewerSnapshot, err := loadPointSavingReviewerSnapshot(ctx, tx, storeID, reviewerType, byID)
+		if err != nil {
+			return err
+		}
 
 		if decision == ReviewReject {
 			const reject = `UPDATE point_savings
-				SET status = ?, remark = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
+				SET status = ?, remark = ?, reviewed_by = ?, reviewed_by_type = ?,
+					reviewer_snapshot_json = ?, reviewed_at = ?, updated_at = ?
 				WHERE id = ? AND store_id = ? AND status = ?`
 			res, err := tx.ExecContext(
-				ctx, reject, PointSavingRejected, remark, byID, now, now,
+				ctx, reject, PointSavingRejected, remark, byID, reviewerType,
+				reviewerSnapshot, now, now,
 				requestID, storeID, PointSavingPending,
 			)
 			if err != nil {
@@ -116,7 +123,8 @@ func (r *storeSQLRepository) ReviewPointSaving(
 			businessEnd = window.End.UTC()
 		}
 		const approve = `UPDATE point_savings SET
-			status = ?, remark = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?,
+			status = ?, remark = ?, reviewed_by = ?, reviewed_by_type = ?,
+			reviewer_snapshot_json = ?, reviewed_at = ?, updated_at = ?,
 			base_points = ?, excess_points = ?, awarded_points = ?, coin_base_points = ?,
 			awarded_coins = ?, rule_version = ?, points_divisor = ?, coin_points_divisor = ?,
 			business_date = ?, business_start_at = ?, business_end_at = ?,
@@ -125,7 +133,7 @@ func (r *storeSQLRepository) ReviewPointSaving(
 			WHERE id = ? AND store_id = ? AND status = ?`
 		res, err := tx.ExecContext(
 			ctx, approve,
-			PointSavingApproved, remark, byID, now, now,
+			PointSavingApproved, remark, byID, reviewerType, reviewerSnapshot, now, now,
 			calc.BasePoints, calc.ExcessPoints, calc.AwardedPoints, calc.CoinBasePoints,
 			calc.AwardedCoins, rule.Version, rule.PointsDivisor, rule.CoinPointsDivisor,
 			businessDate, businessStart, businessEnd, calcStart, now, lastSavingID,
@@ -140,6 +148,58 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		return PointSaving{}, err
 	}
 	return r.GetPointSaving(ctx, storeID, requestID)
+}
+
+type pointSavingReviewerSnapshot struct {
+	Type        string `json:"type"`
+	ID          int64  `json:"id"`
+	Role        string `json:"role,omitempty"`
+	Username    string `json:"username,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
+	StaffName   string `json:"staffName,omitempty"`
+	Nickname    string `json:"nickname,omitempty"`
+	Phone       string `json:"phone,omitempty"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
+}
+
+func loadPointSavingReviewerSnapshot(
+	ctx context.Context,
+	tx *sql.Tx,
+	storeID int64,
+	reviewerType string,
+	byID int64,
+) (string, error) {
+	snapshot := pointSavingReviewerSnapshot{Type: reviewerType, ID: byID}
+	switch reviewerType {
+	case "staff":
+		err := tx.QueryRowContext(ctx, `SELECT sa.name, m.nickname, COALESCE(m.phone,''), COALESCE(m.avatar_url,'')
+			FROM staff_accounts sa JOIN members m ON m.id = sa.member_id
+			WHERE sa.member_id = ? AND sa.store_id = ?`, byID, storeID,
+		).Scan(&snapshot.StaffName, &snapshot.Nickname, &snapshot.Phone, &snapshot.AvatarURL)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", apperr.Forbidden("reviewing staff account not found")
+		}
+		if err != nil {
+			return "", apperr.Internal(err)
+		}
+	case "store_admin", "cashier":
+		err := tx.QueryRowContext(ctx, `SELECT role, username, display_name
+			FROM admin_accounts WHERE id = ? AND store_id = ?`, byID, storeID,
+		).Scan(&snapshot.Role, &snapshot.Username, &snapshot.DisplayName)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", apperr.Forbidden("reviewing admin account not found")
+		}
+		if err != nil {
+			return "", apperr.Internal(err)
+		}
+	default:
+		return "", apperr.Forbidden("unsupported point-saving reviewer")
+	}
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return "", apperr.Internal(err)
+	}
+	return string(raw), nil
 }
 
 func requireSingleReview(result sql.Result) error {

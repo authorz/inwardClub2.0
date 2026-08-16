@@ -54,7 +54,7 @@ func (r *storeMemRepo) GetPointSaving(_ context.Context, storeID, requestID int6
 	return PointSaving{}, apperr.NotFound("point-saving request not found")
 }
 
-func (r *storeMemRepo) ReviewPointSaving(_ context.Context, storeID, requestID int64, decision, remark string, byID int64, now time.Time) (PointSaving, error) {
+func (r *storeMemRepo) ReviewPointSaving(_ context.Context, storeID, requestID int64, decision, remark, reviewerType string, byID int64, now time.Time) (PointSaving, error) {
 	r.reviewDecision = decision
 	for i := range r.pointSavings {
 		p := &r.pointSavings[i]
@@ -66,6 +66,7 @@ func (r *storeMemRepo) ReviewPointSaving(_ context.Context, storeID, requestID i
 			}
 			p.Remark = remark
 			p.ReviewedBy = &byID
+			p.ReviewedByType = reviewerType
 			p.ReviewedAt = &now
 			return *p, nil
 		}
@@ -174,7 +175,9 @@ func TestVerifyTicketScopeAndStaff(t *testing.T) {
 func TestListPointSavingsScoped(t *testing.T) {
 	svc, repo := newStoreTestService()
 	repo.pointSavings = []PointSaving{
-		{ID: 1, StoreID: 7, MemberID: 1, Points: 100, Status: PointSavingPending},
+		{ID: 1, StoreID: 7, MemberID: 1, MemberName: "会员甲", MemberAvatarURL: "https://cdn.test/member.jpg",
+			Points: 100, Status: PointSavingApproved, ReviewedByType: "store_admin",
+			ReviewerSnapshotJSON: []byte(`{"type":"store_admin","id":2,"username":"storeadmin"}`)},
 		{ID: 2, StoreID: 7, MemberID: 2, Points: 50, Status: PointSavingPending},
 		{ID: 3, StoreID: 99, MemberID: 3, Points: 10, Status: PointSavingPending},
 	}
@@ -184,6 +187,10 @@ func TestListPointSavingsScoped(t *testing.T) {
 	}
 	if total != 2 || len(views) != 2 {
 		t.Fatalf("expected 2 requests for store 7, got %d", total)
+	}
+	if views[0].MemberID != 1 || views[0].MemberAvatarURL == "" ||
+		views[0].ReviewedByType != "store_admin" || string(views[0].Reviewer) != `{"type":"store_admin","id":2,"username":"storeadmin"}` {
+		t.Fatalf("expected member and reviewer identity fields, got %+v", views[0])
 	}
 }
 
@@ -199,7 +206,7 @@ func TestGetPointSavingCrossStoreHidden(t *testing.T) {
 func TestReviewPointSavingValidation(t *testing.T) {
 	svc, _ := newStoreTestService()
 	req := ReviewPointSavingRequest{Decision: "maybe"}
-	if _, err := svc.ReviewPointSaving(context.Background(), 7, 1, req, 5); apperr.From(err).Code != apperr.CodeInvalidArgument {
+	if _, err := svc.ReviewPointSaving(context.Background(), 7, 1, req, "staff", 5); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for bad decision, got %v", err)
 	}
 }
@@ -207,11 +214,11 @@ func TestReviewPointSavingValidation(t *testing.T) {
 func TestReviewPointSavingApprove(t *testing.T) {
 	svc, repo := newStoreTestService()
 	repo.pointSavings = []PointSaving{{ID: 1, StoreID: 7, MemberID: 1, Points: 100, Status: PointSavingPending}}
-	view, err := svc.ReviewPointSaving(context.Background(), 7, 1, ReviewPointSavingRequest{Decision: ReviewApprove, Remark: "ok"}, 5)
+	view, err := svc.ReviewPointSaving(context.Background(), 7, 1, ReviewPointSavingRequest{Decision: ReviewApprove, Remark: "ok"}, "staff", 5)
 	if err != nil {
 		t.Fatalf("review: %v", err)
 	}
-	if view.Status != PointSavingApproved || view.ReviewedBy == nil || *view.ReviewedBy != 5 {
+	if view.Status != PointSavingApproved || view.ReviewedBy == nil || *view.ReviewedBy != 5 || view.ReviewedByType != "staff" {
 		t.Fatalf("unexpected reviewed view: %+v", view)
 	}
 }

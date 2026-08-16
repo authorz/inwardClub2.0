@@ -1,6 +1,9 @@
 package activity
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // VerifyTicketRequest is the store-console ticket verification body.
 type VerifyTicketRequest struct {
@@ -28,33 +31,36 @@ type ReviewPointSavingRequest struct {
 // names align with the store-console client: memberName, phone, direction,
 // points, storeName, status, createdAt, note.
 type PointSavingView struct {
-	ID                     int64      `json:"id"`
-	MemberID               int64      `json:"memberId"`
-	MemberName             string     `json:"memberName"`
-	Phone                  string     `json:"phone"`
-	Direction              string     `json:"direction"`
-	Points                 int64      `json:"points"`
-	BasePoints             int64      `json:"basePoints"`
-	ExcessPoints           int64      `json:"excessPoints"`
-	AwardedPoints          int64      `json:"awardedPoints"`
-	CoinBasePoints         int64      `json:"coinBasePoints"`
-	AwardedCoins           int64      `json:"awardedCoins"`
-	RuleVersion            int64      `json:"ruleVersion"`
-	PointsDivisor          int64      `json:"pointsDivisor"`
-	CoinPointsDivisor      int64      `json:"coinPointsDivisor"`
-	BusinessDate           *time.Time `json:"businessDate,omitempty"`
-	BusinessStartAt        *time.Time `json:"businessStartAt,omitempty"`
-	BusinessEndAt          *time.Time `json:"businessEndAt,omitempty"`
-	CalculationStartAt     *time.Time `json:"calculationStartAt,omitempty"`
-	CalculationEndAt       *time.Time `json:"calculationEndAt,omitempty"`
-	LastApprovedSavingID   *int64     `json:"lastApprovedSavingId,omitempty"`
-	CalculationDescription string     `json:"calculationDescription,omitempty"`
-	StoreName              string     `json:"storeName"`
-	Status                 string     `json:"status"`
-	Note                   string     `json:"note,omitempty"`
-	ReviewedBy             *int64     `json:"reviewedBy,omitempty"`
-	ReviewedAt             *time.Time `json:"reviewedAt,omitempty"`
-	CreatedAt              time.Time  `json:"createdAt"`
+	ID                     int64           `json:"id"`
+	MemberID               int64           `json:"memberId"`
+	MemberName             string          `json:"memberName"`
+	Phone                  string          `json:"phone"`
+	MemberAvatarURL        string          `json:"memberAvatarUrl,omitempty"`
+	Direction              string          `json:"direction"`
+	Points                 int64           `json:"points"`
+	BasePoints             int64           `json:"basePoints"`
+	ExcessPoints           int64           `json:"excessPoints"`
+	AwardedPoints          int64           `json:"awardedPoints"`
+	CoinBasePoints         int64           `json:"coinBasePoints"`
+	AwardedCoins           int64           `json:"awardedCoins"`
+	RuleVersion            int64           `json:"ruleVersion"`
+	PointsDivisor          int64           `json:"pointsDivisor"`
+	CoinPointsDivisor      int64           `json:"coinPointsDivisor"`
+	BusinessDate           *time.Time      `json:"businessDate,omitempty"`
+	BusinessStartAt        *time.Time      `json:"businessStartAt,omitempty"`
+	BusinessEndAt          *time.Time      `json:"businessEndAt,omitempty"`
+	CalculationStartAt     *time.Time      `json:"calculationStartAt,omitempty"`
+	CalculationEndAt       *time.Time      `json:"calculationEndAt,omitempty"`
+	LastApprovedSavingID   *int64          `json:"lastApprovedSavingId,omitempty"`
+	CalculationDescription string          `json:"calculationDescription,omitempty"`
+	StoreName              string          `json:"storeName"`
+	Status                 string          `json:"status"`
+	Note                   string          `json:"note,omitempty"`
+	ReviewedBy             *int64          `json:"reviewedBy,omitempty"`
+	ReviewedByType         string          `json:"reviewedByType,omitempty"`
+	Reviewer               json.RawMessage `json:"reviewer,omitempty"`
+	ReviewedAt             *time.Time      `json:"reviewedAt,omitempty"`
+	CreatedAt              time.Time       `json:"createdAt"`
 }
 
 // VerificationView is the public representation of a verification record. Every
@@ -113,7 +119,8 @@ func ticketVerificationView(v TicketVerification) TicketVerificationView {
 func pointSavingView(p PointSaving) PointSavingView {
 	return PointSavingView{
 		ID: p.ID, MemberID: p.MemberID, MemberName: p.MemberName, Phone: p.Phone,
-		Direction: PointSavingDirection, Points: p.Points, StoreName: p.StoreName,
+		MemberAvatarURL: p.MemberAvatarURL,
+		Direction:       PointSavingDirection, Points: p.Points, StoreName: p.StoreName,
 		BasePoints: p.BasePoints, ExcessPoints: p.ExcessPoints, AwardedPoints: p.AwardedPoints,
 		CoinBasePoints: p.CoinBasePoints, AwardedCoins: p.AwardedCoins,
 		RuleVersion: p.RuleVersion, PointsDivisor: p.PointsDivisor,
@@ -122,7 +129,8 @@ func pointSavingView(p PointSaving) PointSavingView {
 		CalculationStartAt: p.CalculationStartAt, CalculationEndAt: p.CalculationEndAt,
 		LastApprovedSavingID:   p.LastApprovedSavingID,
 		CalculationDescription: p.CalculationDescription, Status: p.Status, Note: p.Remark,
-		ReviewedBy: p.ReviewedBy, ReviewedAt: p.ReviewedAt, CreatedAt: p.CreatedAt,
+		ReviewedBy: p.ReviewedBy, ReviewedByType: p.ReviewedByType,
+		Reviewer: json.RawMessage(p.ReviewerSnapshotJSON), ReviewedAt: p.ReviewedAt, CreatedAt: p.CreatedAt,
 	}
 }
 
