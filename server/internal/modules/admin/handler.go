@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -34,6 +35,32 @@ func parseFilter(c *gin.Context) ListFilter {
 		SortBy:    c.Query("sortBy"),
 		SortOrder: c.Query("sortOrder"),
 	}
+}
+
+// parseMemberFilter adds the inclusive registration-date range shared by both
+// consoles. The UI submits local date boundaries as RFC3339 timestamps; the end
+// date is advanced by one day so SQL can use a stable half-open interval.
+func parseMemberFilter(c *gin.Context) (ListFilter, error) {
+	f := parseFilter(c)
+	if raw := c.Query("createdFrom"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdFrom")
+		}
+		f.CreatedFrom = &parsed
+	}
+	if raw := c.Query("createdTo"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ListFilter{}, apperr.Invalid("invalid createdTo")
+		}
+		before := parsed.Add(24 * time.Hour)
+		f.CreatedBefore = &before
+	}
+	if f.CreatedFrom != nil && f.CreatedBefore != nil && !f.CreatedFrom.Before(*f.CreatedBefore) {
+		return ListFilter{}, apperr.Invalid("createdFrom must be before createdTo")
+	}
+	return f, nil
 }
 
 // --- Admin console (audience: admin, no store filter) ---
@@ -117,7 +144,11 @@ func (h *Handler) Orders(c *gin.Context) {
 
 // Members handles GET /admin/members.
 func (h *Handler) Members(c *gin.Context) {
-	f := parseFilter(c)
+	f, err := parseMemberFilter(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	views, total, err := h.svc.ListMembers(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -153,7 +184,8 @@ func (h *Handler) CreateWalletAdjustment(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("admin: invalid wallet adjustment body"))
 		return
 	}
-	view, err := h.svc.AdminCreateWalletAdjustment(c.Request.Context(), id, req, idempotency.Key(c))
+	auditEntry := audit.FromContext(c, "member.wallet.adjust", "member", id)
+	view, err := h.svc.AdminCreateWalletAdjustment(c.Request.Context(), id, req, idempotency.Key(c), auditEntry)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -769,7 +801,11 @@ func (h *Handler) StoreMembers(c *gin.Context) {
 	// Members are platform-wide identities and have no registration-store
 	// ownership. Store authentication is still required, but the read itself is
 	// deliberately not filtered by the caller's store.
-	f := parseFilter(c)
+	f, err := parseMemberFilter(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	views, total, err := h.svc.ListMembers(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -834,7 +870,8 @@ func (h *Handler) StoreCreateWalletAdjustment(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("admin: invalid wallet adjustment body"))
 		return
 	}
-	view, err := h.svc.CreateWalletAdjustment(c.Request.Context(), scope, id, req, idempotency.Key(c))
+	auditEntry := audit.FromContext(c, "member.wallet.adjust", "member", id)
+	view, err := h.svc.CreateWalletAdjustment(c.Request.Context(), scope, id, req, idempotency.Key(c), auditEntry)
 	if err != nil {
 		httpx.Fail(c, err)
 		return

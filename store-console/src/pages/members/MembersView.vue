@@ -4,24 +4,41 @@
  * 人工调账为高风险写操作，服务端带 Idempotency-Key，需二次确认。
  */
 import { computed, h, reactive, ref } from 'vue'
-import { NButton, NInput, NInputNumber, NModal, NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
+import {
+  NAvatar,
+  NButton,
+  NDatePicker,
+  NInput,
+  NInputNumber,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  NTabPane,
+  NTabs,
+  NTag,
+} from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { memberService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { PERM } from '@/constants/permissions'
-import { actionColumn, dateColumn, phoneColumn, textColumn } from '@/utils/columns'
+import { actionColumn, dateColumn, statusColumn, textColumn } from '@/utils/columns'
+import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
 import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
 import type { Member, WalletLedgerEntry } from '@/types/models'
+import { ACTIVE_STATUS } from '@/constants/enums'
 
 const list = useAsyncList<Member>((params) => memberService.list(params), {
   initialFilters: { keyword: '' },
 })
+const registrationRange = ref<[number, number] | null>(null)
 
 const detailShow = ref(false)
 const detailLoading = ref(false)
 const currentMember = ref<Member | null>(null)
+const detailTab = ref<'ledger' | 'adjust'>('ledger')
 
 const ledger = useAsyncList<WalletLedgerEntry>(
   (params) => memberService.walletLedger(params),
@@ -31,8 +48,10 @@ const ledger = useAsyncList<WalletLedgerEntry>(
 const action = useAsyncAction()
 
 const assetTypeOptions = [
-  { label: '余额', value: 'cash_balance' },
   { label: '积分', value: 'points' },
+  { label: '金币', value: 'coins' },
+  { label: '余额', value: 'cash_balance' },
+  { label: '成长值', value: 'growth_value' },
 ]
 const ASSET_LABELS: Record<string, string> = {
   cash_balance: '余额',
@@ -46,8 +65,25 @@ const adjustForm = reactive<{ assetType: string; changeAmount: number | null; re
   reason: '',
 })
 
-async function openDetail(row: Member) {
+function applyMemberFilters(): void {
+  if (registrationRange.value) {
+    list.filters.createdFrom = new Date(registrationRange.value[0]).toISOString()
+    list.filters.createdTo = new Date(registrationRange.value[1]).toISOString()
+  } else {
+    delete list.filters.createdFrom
+    delete list.filters.createdTo
+  }
+  list.applyFilters({})
+}
+
+function resetMemberFilters(): void {
+  registrationRange.value = null
+  list.reset()
+}
+
+async function openMember(row: Member, tab: 'ledger' | 'adjust') {
   currentMember.value = row
+  detailTab.value = tab
   detailShow.value = true
   detailLoading.value = true
   adjustForm.assetType = 'cash_balance'
@@ -62,6 +98,14 @@ async function openDetail(row: Member) {
   }
   ledger.filters.memberId = row.id
   ledger.applyFilters({})
+}
+
+function openDetail(row: Member): void {
+  void openMember(row, 'ledger')
+}
+
+function openAdjust(row: Member): void {
+  void openMember(row, 'adjust')
 }
 
 function submitAdjust() {
@@ -91,24 +135,64 @@ function submitAdjust() {
 }
 
 const columns = computed<DataTableColumns<Member>>(() => [
-  textColumn<Member>('昵称', (r) => r.nickname),
-  phoneColumn<Member>('手机号', (r) => r.phone),
-  textColumn<Member>('积分', (r) => r.pointsBalance, { width: 90, align: 'right' }),
-  dateColumn<Member>('注册时间', (r) => r.createdAt, { width: 150 }),
+  textColumn<Member>('用户 ID', (r) => r.id, { width: 90 }),
+  {
+    title: '头像',
+    key: 'avatarUrl',
+    width: 64,
+    render: (row) =>
+      h(
+        NAvatar,
+        { size: 32, round: true, src: row.avatarUrl || undefined, objectFit: 'cover' },
+        {
+          default: () => row.nickname?.trim().slice(0, 1) || String(row.id).slice(-1),
+        },
+      ),
+  },
+  textColumn<Member>('昵称', (r) => r.nickname, { minWidth: 120 }),
+  textColumn<Member>('手机号', (r) => r.phone, { width: 140 }),
+  textColumn<Member>('当前积分', (r) => r.pointsBalance, { width: 100, align: 'right' }),
+  textColumn<Member>('金币', (r) => r.coinsBalance, { width: 100, align: 'right' }),
+  {
+    title: 'VIP 等级',
+    key: 'vipLevel',
+    width: 150,
+    render: (row) =>
+      row.vipLevel
+        ? h(
+            NTag,
+            { size: 'small', bordered: false },
+            { default: () => `VIP${row.vipLevel} · ${row.vipTierName || '会员'}` },
+          )
+        : '-',
+  },
+  statusColumn<Member>('状态', ACTIVE_STATUS, (r) => r.status, { width: 90 }),
+  dateColumn<Member>('注册时间', (r) => r.createdAt, { width: 170 }),
   actionColumn<Member>(
     (row) =>
-      h(
-        PermissionButton,
-        {
-          permissions: [PERM.memberRead, PERM.memberReadLimited],
-          type: 'primary',
-          text: true,
-          onClick: () => openDetail(row),
-        },
-        { default: () => '详情' },
-      ),
+      h(NSpace, { wrap: false }, () => [
+        h(
+          PermissionButton,
+          {
+            permissions: [PERM.memberRead, PERM.memberReadLimited],
+            text: true,
+            onClick: () => openDetail(row),
+          },
+          { default: () => '详情' },
+        ),
+        h(
+          PermissionButton,
+          {
+            permissions: [PERM.memberWalletAdjustRequest],
+            type: 'primary',
+            text: true,
+            onClick: () => openAdjust(row),
+          },
+          { default: () => '人工调账' },
+        ),
+      ]),
     '操作',
-    100,
+    180,
   ),
 ])
 
@@ -143,9 +227,21 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
       :loading="list.loading.value"
       search-placeholder="搜索昵称 / 手机号"
       @update:keyword="list.filters.keyword = $event"
-      @apply="list.applyFilters({})"
-      @reset="list.reset()"
-    />
+      @apply="applyMemberFilters"
+      @reset="resetMemberFilters"
+    >
+      <template #filters>
+        <NDatePicker
+          v-model:value="registrationRange"
+          type="daterange"
+          clearable
+          format="yyyy-MM-dd"
+          start-placeholder="注册开始日期"
+          end-placeholder="注册结束日期"
+          style="width: 280px"
+        />
+      </template>
+    </StatusFilterBar>
 
     <DataTable
       :columns="columns"
@@ -154,6 +250,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
+      :scroll-x="1360"
       empty-text="暂无会员"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
@@ -167,6 +264,18 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     >
       <NSpin :show="detailLoading">
         <div class="member-detail__summary">
+          <div class="member-detail__avatar">
+            <NAvatar
+              :size="56"
+              round
+              :src="currentMember?.avatarUrl || undefined"
+            >
+              {{ currentMember?.nickname?.trim().slice(0, 1) || String(currentMember?.id ?? '').slice(-1) }}
+            </NAvatar>
+          </div>
+          <div>
+            <span class="ic-muted">用户 ID：</span>{{ currentMember?.id ?? '-' }}
+          </div>
           <div>
             <span class="ic-muted">昵称：</span>{{ currentMember?.nickname ?? '-' }}
           </div>
@@ -174,7 +283,20 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             <span class="ic-muted">手机号：</span>{{ currentMember?.phone ?? '-' }}
           </div>
           <div>
-            <span class="ic-muted">积分：</span>{{ currentMember?.pointsBalance ?? 0 }}
+            <span class="ic-muted">当前积分：</span>{{ currentMember?.pointsBalance ?? 0 }}
+          </div>
+          <div>
+            <span class="ic-muted">金币：</span>{{ currentMember?.coinsBalance ?? 0 }}
+          </div>
+          <div>
+            <span class="ic-muted">VIP 等级：</span>
+            {{ currentMember?.vipLevel ? `VIP${currentMember.vipLevel} · ${currentMember.vipTierName || '会员'}` : '-' }}
+          </div>
+          <div>
+            <span class="ic-muted">状态：</span>{{ ACTIVE_STATUS[currentMember?.status as keyof typeof ACTIVE_STATUS]?.label ?? currentMember?.status ?? '-' }}
+          </div>
+          <div>
+            <span class="ic-muted">注册时间：</span>{{ formatDateTime(currentMember?.createdAt) }}
           </div>
           <div
             v-for="acc in currentMember?.wallet ?? []"
@@ -185,8 +307,8 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         </div>
 
         <NTabs
+          v-model:value="detailTab"
           type="line"
-          default-value="ledger"
         >
           <NTabPane
             name="ledger"
@@ -265,6 +387,11 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   gap: var(--ic-space-2);
   margin-bottom: var(--ic-space-4);
   font-size: var(--ic-font-sm);
+}
+.member-detail__avatar {
+  grid-row: span 2;
+  display: flex;
+  align-items: center;
 }
 .member-detail__adjust {
   display: flex;

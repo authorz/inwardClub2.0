@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/inwardclub/server/internal/modules/wallet"
+	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
 )
@@ -70,7 +72,7 @@ func TestMembersPassesSearchAndSortAndReturnsExpandedFields(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/admin/members?keyword=Sam&sortBy=coinsBalance&sortOrder=asc",
+		"/admin/members?keyword=Sam&sortBy=coinsBalance&sortOrder=asc&createdFrom=2026-08-01T00%3A00%3A00Z&createdTo=2026-08-15T00%3A00%3A00Z",
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -79,7 +81,9 @@ func TestMembersPassesSearchAndSortAndReturnsExpandedFields(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	if repo.lastFilter.Keyword != "Sam" || repo.lastFilter.SortBy != "coinsBalance" ||
-		repo.lastFilter.SortOrder != "asc" {
+		repo.lastFilter.SortOrder != "asc" || repo.lastFilter.CreatedFrom == nil ||
+		repo.lastFilter.CreatedBefore == nil ||
+		!repo.lastFilter.CreatedBefore.Equal(time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected filter: %+v", repo.lastFilter)
 	}
 	body := rec.Body.String()
@@ -432,6 +436,16 @@ func withStoreScope(storeID int64) gin.HandlerFunc {
 	}
 }
 
+func withStoreIdentity(storeID, actorID int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims := &authn.Claims{SubjectType: authn.SubjectStoreAdmin, Role: authn.RoleStoreAdmin, StoreID: storeID}
+		claims.Subject = strconv.FormatInt(actorID, 10)
+		c.Set(httpx.CtxClaims, claims)
+		c.Set(httpx.CtxStoreScope, storeID)
+		c.Next()
+	}
+}
+
 func TestStoreMembersHandlerListsPlatformWideMembers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -471,6 +485,37 @@ func TestStoreMemberDetailReadsPlatformWideMember(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Global Member") {
 		t.Fatalf("expected platform-wide member detail, got: %s", rec.Body.String())
+	}
+}
+
+func TestStoreWalletAdjustmentCarriesStoreAndAdministratorAuditIdentity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "Global Member", Status: StatusActive}}}
+	wallets := &fakeWallets{adjusted: wallet.Account{AssetType: wallet.AssetCoins, AvailableAmount: 120}}
+	h := NewHandler(NewService(repo, fakeStores{}, wallets))
+	router := gin.New()
+	router.POST(
+		"/store/members/:memberID/wallet-adjustments",
+		withStoreIdentity(42, 88),
+		idempotency.Require(),
+		h.StoreCreateWalletAdjustment,
+	)
+
+	body := `{"assetType":"coins","direction":"credit","amount":20,"reason":"service recovery"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/members/7/wallet-adjustments", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "store-adjust-1")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if wallets.lastStoreID != 42 || wallets.lastAudit.StoreID != 42 || wallets.lastAudit.ActorID != 88 ||
+		wallets.lastAudit.ActorType != string(authn.SubjectStoreAdmin) ||
+		wallets.lastAudit.Action != "member.wallet.adjust" || wallets.lastAudit.TargetID != 7 {
+		t.Fatalf("missing store/operator audit attribution: %+v", wallets.lastAudit)
 	}
 }
 

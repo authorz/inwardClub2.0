@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/inwardclub/server/internal/modules/wallet"
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -73,19 +74,6 @@ func (f *fakeRepo) ListMembers(_ context.Context, flt ListFilter) ([]Member, int
 		Status: StatusActive,
 	}}, 1, nil
 }
-func (f *fakeRepo) GetMember(_ context.Context, storeID, memberID int64) (Member, error) {
-	if f.err != nil {
-		return Member{}, f.err
-	}
-	if f.members != nil {
-		if m, ok := f.members[memberID]; ok {
-			return m, nil
-		}
-		return Member{}, apperr.NotFound("member not found")
-	}
-	return Member{ID: memberID, Nickname: "n", Status: StatusActive}, nil
-}
-
 func (f *fakeRepo) GetMemberByID(_ context.Context, memberID int64) (Member, error) {
 	if f.err != nil {
 		return Member{}, f.err
@@ -1512,6 +1500,7 @@ type fakeWallets struct {
 	lastStoreID  int64
 	lastReq      wallet.AdjustmentRequest
 	lastIdemKey  string
+	lastAudit    audit.Entry
 }
 
 func (f *fakeWallets) GetWallet(_ context.Context, memberID int64) ([]wallet.Account, error) {
@@ -1521,16 +1510,18 @@ func (f *fakeWallets) GetWallet(_ context.Context, memberID int64) ([]wallet.Acc
 	return f.accounts, nil
 }
 
-func (f *fakeWallets) AdjustBalance(_ context.Context, memberID, storeID int64, req wallet.AdjustmentRequest, idemKey string) (wallet.Account, error) {
+func (f *fakeWallets) AdjustBalance(_ context.Context, memberID, storeID int64, req wallet.AdjustmentRequest, idemKey string, auditEntry audit.Entry) (wallet.Account, error) {
 	f.lastMemberID, f.lastStoreID, f.lastReq, f.lastIdemKey = memberID, storeID, req, idemKey
+	f.lastAudit = auditEntry
 	if f.err != nil {
 		return wallet.Account{}, f.err
 	}
 	return f.adjusted, nil
 }
 
-func (f *fakeWallets) AdjustBalanceForAdmin(_ context.Context, memberID int64, req wallet.AdjustmentRequest, idemKey string) (wallet.Account, error) {
+func (f *fakeWallets) AdjustBalanceForAdmin(_ context.Context, memberID int64, req wallet.AdjustmentRequest, idemKey string, auditEntry audit.Entry) (wallet.Account, error) {
 	f.lastMemberID, f.lastReq, f.lastIdemKey = memberID, req, idemKey
+	f.lastAudit = auditEntry
 	if f.err != nil {
 		return wallet.Account{}, f.err
 	}
@@ -1538,7 +1529,11 @@ func (f *fakeWallets) AdjustBalanceForAdmin(_ context.Context, memberID int64, r
 }
 
 func TestGetMemberDetailNotScopedToStore(t *testing.T) {
-	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "n", Status: StatusActive}}}
+	repo := &fakeRepo{members: map[int64]Member{7: {
+		ID: 7, Nickname: "n", Phone: "13800000007", AvatarURL: "https://cdn.test/avatar.webp",
+		PointsBalance: 100, CoinsBalance: 20, VIPTierName: "黄金会员", VIPLevel: 3,
+		Status: StatusActive,
+	}}}
 	wallets := &fakeWallets{accounts: []wallet.Account{{AssetType: wallet.AssetPoints, AvailableAmount: 100}}}
 	svc := NewService(repo, fakeStores{}, wallets)
 
@@ -1546,7 +1541,9 @@ func TestGetMemberDetailNotScopedToStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if view.ID != 7 || len(view.Wallet) != 1 || view.Wallet[0].AvailableAmount != 100 {
+	if view.ID != 7 || view.AvatarURL != "https://cdn.test/avatar.webp" || view.CoinsBalance != 20 ||
+		view.VIPLevel != 3 || view.VIPTierName != "黄金会员" || len(view.Wallet) != 1 ||
+		view.Wallet[0].AvailableAmount != 100 {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 
@@ -1562,7 +1559,7 @@ func TestAdminCreateWalletAdjustmentDelegatesUnscoped(t *testing.T) {
 
 	view, err := svc.AdminCreateWalletAdjustment(context.Background(), 7, WalletAdjustmentRequest{
 		AssetType: wallet.AssetPoints, Direction: wallet.DirectionCredit, Amount: 50, Reason: "goodwill",
-	}, "idem-1")
+	}, "idem-1", audit.Entry{ActorID: 9})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1572,30 +1569,31 @@ func TestAdminCreateWalletAdjustmentDelegatesUnscoped(t *testing.T) {
 
 	if _, err := svc.AdminCreateWalletAdjustment(context.Background(), 999, WalletAdjustmentRequest{
 		AssetType: wallet.AssetPoints, Direction: wallet.DirectionCredit, Amount: 50,
-	}, "idem-2"); apperr.From(err).Code != apperr.CodeNotFound {
+	}, "idem-2", audit.Entry{ActorID: 9}); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for missing member, got %v", err)
 	}
 }
 
-func TestCreateWalletAdjustmentScopedAndDelegates(t *testing.T) {
+func TestCreateWalletAdjustmentAttributesStoreAndAuditActor(t *testing.T) {
 	repo := &fakeRepo{members: map[int64]Member{7: {ID: 7, Nickname: "n", Status: StatusActive}}}
 	wallets := &fakeWallets{adjusted: wallet.Account{AssetType: wallet.AssetPoints, AvailableAmount: 150}}
 	svc := NewService(repo, fakeStores{}, wallets)
 
 	view, err := svc.CreateWalletAdjustment(context.Background(), 42, 7, WalletAdjustmentRequest{
 		AssetType: wallet.AssetPoints, Direction: wallet.DirectionCredit, Amount: 50, Reason: "goodwill",
-	}, "idem-1")
+	}, "idem-1", audit.Entry{ActorID: 88, StoreID: 42})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if view.BalanceAfter != 150 || wallets.lastMemberID != 7 || wallets.lastStoreID != 42 || wallets.lastIdemKey != "idem-1" {
+	if view.BalanceAfter != 150 || wallets.lastMemberID != 7 || wallets.lastStoreID != 42 ||
+		wallets.lastIdemKey != "idem-1" || wallets.lastAudit.ActorID != 88 || wallets.lastAudit.StoreID != 42 {
 		t.Fatalf("unexpected adjustment call/result: %+v wallets=%+v", view, wallets)
 	}
 
-	// Member outside store scope must be rejected before reaching the wallet.
+	// A missing platform member is rejected before reaching the wallet.
 	if _, err := svc.CreateWalletAdjustment(context.Background(), 42, 999, WalletAdjustmentRequest{
 		AssetType: wallet.AssetPoints, Direction: wallet.DirectionCredit, Amount: 50,
-	}, "idem-2"); apperr.From(err).Code != apperr.CodeNotFound {
-		t.Fatalf("expected NOT_FOUND for member outside store scope, got %v", err)
+	}, "idem-2", audit.Entry{ActorID: 88, StoreID: 42}); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected NOT_FOUND for missing member, got %v", err)
 	}
 }

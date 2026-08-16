@@ -35,6 +35,15 @@ function setRange(field: FilterField, value: [number, number] | null): void {
   }
   emit('update:modelValue', next)
 }
+
+function rangeValue(field: FilterField): [number, number] | null {
+  const from = props.modelValue[`${field.key}From`]
+  const to = props.modelValue[`${field.key}To`]
+  if (typeof from !== 'string' || typeof to !== 'string') return null
+  const fromTime = Date.parse(from)
+  const toTime = Date.parse(to)
+  return Number.isNaN(fromTime) || Number.isNaN(toTime) ? null : [fromTime, toTime]
+}
 </script>
 
 <template>
@@ -66,6 +75,7 @@ function setRange(field: FilterField, value: [number, number] | null): void {
         />
         <NDatePicker
           v-else-if="field.type === 'daterange'"
+          :value="rangeValue(field)"
           type="daterange"
           clearable
           :style="{ width: (field.width ?? 260) + 'px' }"

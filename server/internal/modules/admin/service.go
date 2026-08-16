@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/inwardclub/server/internal/modules/wallet"
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -26,10 +27,10 @@ type StoreProfileProvider interface {
 // without this module owning wallet SQL.
 type WalletProvider interface {
 	GetWallet(ctx context.Context, memberID int64) ([]wallet.Account, error)
-	AdjustBalance(ctx context.Context, memberID, storeID int64, req wallet.AdjustmentRequest, idemKey string) (wallet.Account, error)
+	AdjustBalance(ctx context.Context, memberID, storeID int64, req wallet.AdjustmentRequest, idemKey string, auditEntry audit.Entry) (wallet.Account, error)
 	// AdjustBalanceForAdmin applies a headquarters-initiated adjustment, not
 	// scoped to a single store.
-	AdjustBalanceForAdmin(ctx context.Context, memberID int64, req wallet.AdjustmentRequest, idemKey string) (wallet.Account, error)
+	AdjustBalanceForAdmin(ctx context.Context, memberID int64, req wallet.AdjustmentRequest, idemKey string, auditEntry audit.Entry) (wallet.Account, error)
 }
 
 // AssetResolver resolves an asset id to a public URL for console list images.
@@ -201,18 +202,22 @@ func (s *Service) ListMembers(ctx context.Context, f ListFilter) ([]MemberView, 
 	return out, total, nil
 }
 
-// CreateWalletAdjustment applies a store-initiated wallet adjustment to a
-// member scoped to the caller's store.
-func (s *Service) CreateWalletAdjustment(ctx context.Context, storeID, memberID int64, req WalletAdjustmentRequest, idemKey string) (WalletAdjustmentView, error) {
+// CreateWalletAdjustment applies a store-attributed wallet adjustment to a
+// platform-wide member.
+func (s *Service) CreateWalletAdjustment(ctx context.Context, storeID, memberID int64, req WalletAdjustmentRequest, idemKey string, auditEntry audit.Entry) (WalletAdjustmentView, error) {
 	if s.wallets == nil {
 		return WalletAdjustmentView{}, apperr.NotImplemented("admin: wallet provider not wired")
 	}
-	if _, err := s.repo.GetMember(ctx, storeID, memberID); err != nil {
+	// Members are platform-wide, so a store may adjust any visible member. The
+	// store attribution still comes from the authenticated token and is written
+	// to both the wallet ledger and audit log.
+	if _, err := s.repo.GetMemberByID(ctx, memberID); err != nil {
 		return WalletAdjustmentView{}, err
 	}
+	auditEntry.StoreID = storeID
 	acc, err := s.wallets.AdjustBalance(ctx, memberID, storeID, wallet.AdjustmentRequest{
 		AssetType: req.AssetType, Direction: req.Direction, Amount: req.Amount, Reason: req.Reason,
-	}, idemKey)
+	}, idemKey, auditEntry)
 	if err != nil {
 		return WalletAdjustmentView{}, err
 	}
@@ -231,7 +236,10 @@ func (s *Service) GetMemberDetail(ctx context.Context, memberID int64) (MemberDe
 	}
 	view := MemberDetailView{MemberView: MemberView{
 		ID: m.ID, Nickname: m.Nickname, Phone: m.Phone,
-		PointsBalance: m.PointsBalance, Status: m.Status, CreatedAt: m.CreatedAt,
+		AvatarURL: m.AvatarURL, Gender: m.Gender,
+		PointsBalance: m.PointsBalance, CoinsBalance: m.CoinsBalance,
+		VIPTierName: m.VIPTierName, VIPLevel: m.VIPLevel,
+		Status: m.Status, CreatedAt: m.CreatedAt,
 	}}
 	if s.wallets != nil {
 		accounts, err := s.wallets.GetWallet(ctx, memberID)
@@ -245,16 +253,17 @@ func (s *Service) GetMemberDetail(ctx context.Context, memberID int64) (MemberDe
 
 // AdminCreateWalletAdjustment applies a headquarters-initiated wallet
 // adjustment to any member, not scoped to a store.
-func (s *Service) AdminCreateWalletAdjustment(ctx context.Context, memberID int64, req WalletAdjustmentRequest, idemKey string) (WalletAdjustmentView, error) {
+func (s *Service) AdminCreateWalletAdjustment(ctx context.Context, memberID int64, req WalletAdjustmentRequest, idemKey string, auditEntry audit.Entry) (WalletAdjustmentView, error) {
 	if s.wallets == nil {
 		return WalletAdjustmentView{}, apperr.NotImplemented("admin: wallet provider not wired")
 	}
 	if _, err := s.repo.GetMemberByID(ctx, memberID); err != nil {
 		return WalletAdjustmentView{}, err
 	}
+	auditEntry.StoreID = 0
 	acc, err := s.wallets.AdjustBalanceForAdmin(ctx, memberID, wallet.AdjustmentRequest{
 		AssetType: req.AssetType, Direction: req.Direction, Amount: req.Amount, Reason: req.Reason,
-	}, idemKey)
+	}, idemKey, auditEntry)
 	if err != nil {
 		return WalletAdjustmentView{}, err
 	}

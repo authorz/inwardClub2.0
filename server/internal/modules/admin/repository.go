@@ -57,10 +57,6 @@ type Repository interface {
 	ListActivities(ctx context.Context, f ListFilter) ([]Activity, int64, error)
 	ListOrders(ctx context.Context, f ListFilter) ([]Order, int64, error)
 	ListMembers(ctx context.Context, f ListFilter) ([]Member, int64, error)
-	// GetMember verifies that a member has activity at storeID. It is retained
-	// only for store-attributed write authorization such as wallet adjustment;
-	// member list/detail reads use the platform-wide methods above/below.
-	GetMember(ctx context.Context, storeID, memberID int64) (Member, error)
 	// GetMemberByID returns a platform-wide member by id alone.
 	GetMemberByID(ctx context.Context, memberID int64) (Member, error)
 	// SearchMembersByPhone fuzzy-matches members by phone fragment (tail number
@@ -450,6 +446,14 @@ func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member
 		where += " AND (m.nickname LIKE ? OR m.phone LIKE ?)"
 		args = append(args, keyword, keyword)
 	}
+	if f.CreatedFrom != nil {
+		where += " AND m.created_at >= ?"
+		args = append(args, f.CreatedFrom.UTC())
+	}
+	if f.CreatedBefore != nil {
+		where += " AND m.created_at < ?"
+		args = append(args, f.CreatedBefore.UTC())
+	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members m WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -511,32 +515,28 @@ func (r *sqlRepository) ListMembers(ctx context.Context, f ListFilter) ([]Member
 	return out, total, rows.Err()
 }
 
-func (r *sqlRepository) GetMember(ctx context.Context, storeID, memberID int64) (Member, error) {
-	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''),
-			COALESCE((SELECT wa.available_amount FROM wallet_accounts wa WHERE wa.member_id = m.id AND wa.asset_type = 'points'), 0),
+// GetMemberByID looks up a platform-wide member by id alone.
+func (r *sqlRepository) GetMemberByID(ctx context.Context, memberID int64) (Member, error) {
+	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''), COALESCE(m.avatar_url,''), COALESCE(m.gender,''),
+			COALESCE(points.available_amount, 0), COALESCE(coins.available_amount, 0),
+			COALESCE(current_tier.name, base_tier.name, ''),
+			COALESCE(current_tier.level, base_tier.level, 0),
 			m.status, m.created_at
 		FROM members m
-		WHERE m.id = ? AND EXISTS (SELECT 1 FROM business_orders bo WHERE bo.member_id = m.id AND bo.store_id = ?)`
+		LEFT JOIN wallet_accounts points ON points.member_id = m.id AND points.asset_type = 'points'
+		LEFT JOIN wallet_accounts coins ON coins.member_id = m.id AND coins.asset_type = 'coins'
+		LEFT JOIN membership_tiers current_tier ON current_tier.id = m.current_tier_id
+		LEFT JOIN (
+			SELECT name, level FROM membership_tiers
+			WHERE status = 'active' ORDER BY level ASC, id ASC LIMIT 1
+		) base_tier ON 1 = 1
+		WHERE m.id = ?`
 	var m Member
-	err := r.db.QueryRowContext(ctx, q, memberID, storeID).Scan(&m.ID, &m.Nickname, &m.Phone, &m.PointsBalance, &m.Status, &m.CreatedAt)
-	if err == sql.ErrNoRows {
-		return Member{}, apperr.NotFound("member not found")
-	}
-	if err != nil {
-		return Member{}, apperr.Internal(err)
-	}
-	return m, nil
-}
-
-// GetMemberByID looks up a member by id alone, for the headquarters console
-// which is not pinned to a single store.
-func (r *sqlRepository) GetMemberByID(ctx context.Context, memberID int64) (Member, error) {
-	const q = `SELECT m.id, m.nickname, COALESCE(m.phone,''),
-			COALESCE((SELECT wa.available_amount FROM wallet_accounts wa WHERE wa.member_id = m.id AND wa.asset_type = 'points'), 0),
-			m.status, m.created_at
-		FROM members m WHERE m.id = ?`
-	var m Member
-	err := r.db.QueryRowContext(ctx, q, memberID).Scan(&m.ID, &m.Nickname, &m.Phone, &m.PointsBalance, &m.Status, &m.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, memberID).Scan(
+		&m.ID, &m.Nickname, &m.Phone, &m.AvatarURL, &m.Gender,
+		&m.PointsBalance, &m.CoinsBalance, &m.VIPTierName, &m.VIPLevel,
+		&m.Status, &m.CreatedAt,
+	)
 	if err == sql.ErrNoRows {
 		return Member{}, apperr.NotFound("member not found")
 	}

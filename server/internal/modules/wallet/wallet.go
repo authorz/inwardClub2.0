@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -70,11 +71,11 @@ type Repository interface {
 	// ledger row. storeID identifies the store console that made the
 	// adjustment (recorded as the ledger source); idemKey guards against a
 	// retried request applying the adjustment twice.
-	AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string) (Account, error)
+	AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error)
 	// AdjustBalanceForAdmin applies the same adjustment on behalf of the
 	// headquarters console, which is not scoped to a single store; the
 	// ledger row's source_id is left NULL rather than pinned to a store.
-	AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string) (Account, error)
+	AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error)
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -132,19 +133,19 @@ func (r *sqlRepository) ListLedger(ctx context.Context, memberID int64, assetTyp
 
 // AdjustBalance applies an admin-initiated credit or debit to the member's
 // wallet, scoped to the requesting store, and returns the affected account.
-func (r *sqlRepository) AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string) (Account, error) {
-	return r.adjustBalance(ctx, memberID, &storeID, req, idemKey)
+func (r *sqlRepository) AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error) {
+	return r.adjustBalance(ctx, memberID, &storeID, req, idemKey, auditEntry)
 }
 
 // AdjustBalanceForAdmin applies a headquarters-initiated credit or debit, not
 // attributed to a single store.
-func (r *sqlRepository) AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string) (Account, error) {
-	return r.adjustBalance(ctx, memberID, nil, req, idemKey)
+func (r *sqlRepository) AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error) {
+	return r.adjustBalance(ctx, memberID, nil, req, idemKey, auditEntry)
 }
 
 // adjustBalance is the shared transactional core for AdjustBalance and
 // AdjustBalanceForAdmin. A nil storeID is recorded as a NULL ledger source_id.
-func (r *sqlRepository) adjustBalance(ctx context.Context, memberID int64, storeID *int64, req AdjustmentRequest, idemKey string) (Account, error) {
+func (r *sqlRepository) adjustBalance(ctx context.Context, memberID int64, storeID *int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error) {
 	now := time.Now().UTC()
 	var out Account
 	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
@@ -199,6 +200,12 @@ func (r *sqlRepository) adjustBalance(ctx context.Context, memberID int64, store
 			}
 			return apperr.Internal(err)
 		}
+		auditEntry.Before = Account{AssetType: req.AssetType, AvailableAmount: available, HeldAmount: held}
+		auditEntry.After = Account{AssetType: req.AssetType, AvailableAmount: newBalance, HeldAmount: held}
+		auditEntry.Reason = reason
+		if err := audit.RecordTx(ctx, tx, auditEntry); err != nil {
+			return err
+		}
 		out = Account{AssetType: req.AssetType, AvailableAmount: newBalance, HeldAmount: held}
 		return nil
 	})
@@ -242,21 +249,21 @@ func (s *Service) Ledger(ctx context.Context, memberID int64, assetType string, 
 // AdjustBalance validates and applies an admin-initiated wallet adjustment for
 // a member, scoped to the requesting store. idemKey guards against a retried
 // request applying the adjustment twice.
-func (s *Service) AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string) (Account, error) {
+func (s *Service) AdjustBalance(ctx context.Context, memberID, storeID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error) {
 	if err := validateAdjustment(req, idemKey); err != nil {
 		return Account{}, err
 	}
-	return s.repo.AdjustBalance(ctx, memberID, storeID, req, idemKey)
+	return s.repo.AdjustBalance(ctx, memberID, storeID, req, idemKey, auditEntry)
 }
 
 // AdjustBalanceForAdmin validates and applies a headquarters-initiated wallet
 // adjustment for a member, not scoped to a single store. idemKey guards
 // against a retried request applying the adjustment twice.
-func (s *Service) AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string) (Account, error) {
+func (s *Service) AdjustBalanceForAdmin(ctx context.Context, memberID int64, req AdjustmentRequest, idemKey string, auditEntry audit.Entry) (Account, error) {
 	if err := validateAdjustment(req, idemKey); err != nil {
 		return Account{}, err
 	}
-	return s.repo.AdjustBalanceForAdmin(ctx, memberID, req, idemKey)
+	return s.repo.AdjustBalanceForAdmin(ctx, memberID, req, idemKey, auditEntry)
 }
 
 func validateAdjustment(req AdjustmentRequest, idemKey string) error {

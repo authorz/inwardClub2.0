@@ -121,8 +121,8 @@ type MemberDetailView struct {
 	Wallet []wallet.Account `json:"wallet"`
 }
 
-// WalletAdjustmentRequest is the POST /store/members/:memberID/wallet-adjustments
-// body: a store-initiated correction to one of the member's wallet balances.
+// WalletAdjustmentRequest is the console correction request for one of a
+// member's wallet balances. Store-console writes retain store attribution.
 type WalletAdjustmentRequest struct {
 	AssetType string `json:"assetType" binding:"required"`
 	Direction string `json:"direction" binding:"required"`

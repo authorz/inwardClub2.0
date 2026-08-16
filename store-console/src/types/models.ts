@@ -327,6 +327,9 @@ export interface Member {
   phone?: string
   avatarUrl?: string
   pointsBalance?: number
+  coinsBalance?: number
+  vipTierName?: string
+  vipLevel?: number
   status?: string
   createdAt?: string
   /** 仅会员详情返回：各资产余额。 */

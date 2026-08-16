@@ -29,7 +29,7 @@ import { runAudited } from '@/composables/useAuditedAction'
 import { memberService } from '@/api/services'
 import { http } from '@/api/http'
 import { API_PATHS } from '@/constants/api-paths'
-import { formatDateTime, maskPhone } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import type { Member, MemberDetail } from '@/api/models'
 import type { ListQuery } from '@/api/types'
 import type { FilterField, TableColumnList } from '@/components/ui-types'
@@ -47,6 +47,12 @@ const fields: FilterField[] = [
     label: '昵称 / 手机号',
     type: 'input',
     placeholder: '支持昵称、手机号模糊搜索',
+    width: 280,
+  },
+  {
+    key: 'created',
+    label: '注册时间',
+    type: 'daterange',
     width: 280,
   },
 ]
@@ -67,15 +73,14 @@ const columns = computed<TableColumnList<Member>>(() => [
     64,
   ),
   textColumn<Member>('昵称', 'nickname'),
-  renderColumn<Member>('手机号', 'phone', (row) => maskPhone(row.phone), 140),
-  renderColumn<Member>('性别', 'gender', (row) => genderLabel(row.gender), 80),
-  textColumn<Member>('积分余额', 'pointsBalance', {
+  textColumn<Member>('手机号', 'phone', { width: 140 }),
+  textColumn<Member>('当前积分', 'pointsBalance', {
     width: 120,
     sorter: true,
     sortOrder: columnSortOrder('pointsBalance'),
     render: (row) => balanceFormatter.format(row.pointsBalance ?? 0),
   }),
-  textColumn<Member>('金币余额', 'coinsBalance', {
+  textColumn<Member>('金币', 'coinsBalance', {
     width: 120,
     sorter: true,
     sortOrder: columnSortOrder('coinsBalance'),
@@ -121,16 +126,6 @@ const columns = computed<TableColumnList<Member>>(() => [
 function columnSortOrder(field: MemberSortField): DataTableSortOrder {
   if (sortBy.value !== field) return false
   return sortOrder.value === 'asc' ? 'ascend' : 'descend'
-}
-
-function genderLabel(gender: string | undefined): string {
-  return (
-    {
-      male: '男',
-      female: '女',
-      other: '其他',
-    }[gender ?? ''] ?? '未知'
-  )
 }
 
 function fetchMembers(query: ListQuery) {
@@ -303,14 +298,32 @@ async function submitAdjust(): Promise<void> {
           :column="1"
           bordered
         >
+          <NDescriptionsItem label="用户 ID">
+            {{ detail.id }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="头像">
+            <NAvatar
+              :size="48"
+              round
+              :src="detail.avatarUrl || undefined"
+            >
+              {{ detail.nickname?.trim().slice(0, 1) || String(detail.id).slice(-1) }}
+            </NAvatar>
+          </NDescriptionsItem>
           <NDescriptionsItem label="昵称">
-            {{ detail.nickname }}
+            {{ detail.nickname || '—' }}
           </NDescriptionsItem>
           <NDescriptionsItem label="手机号">
-            {{ maskPhone(detail.phone) }}
+            {{ detail.phone || '—' }}
           </NDescriptionsItem>
-          <NDescriptionsItem label="积分">
+          <NDescriptionsItem label="当前积分">
             {{ detail.pointsBalance }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="金币">
+            {{ detail.coinsBalance }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="VIP 等级">
+            {{ detail.vipLevel ? `VIP${detail.vipLevel} · ${detail.vipTierName || '会员'}` : '—' }}
           </NDescriptionsItem>
           <NDescriptionsItem label="状态">
             {{ statusLabel(detail.status) }}
