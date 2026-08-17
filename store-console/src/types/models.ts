@@ -42,6 +42,8 @@ export interface StoreOrder extends AuditFields {
   memberNickname?: string
   memberPhone?: string
   memberAvatarUrl?: string
+  storeId?: number | string
+  storeName?: string
   paymentOrderId?: number | string
   refundStatus?: string
 }

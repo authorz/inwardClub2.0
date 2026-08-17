@@ -74,6 +74,27 @@ export const PAYMENT_STATUS: Record<PaymentStatus, EnumOption<PaymentStatus>> = 
   failed: { value: 'failed', label: '支付失败', tone: 'error' },
 }
 
+/** 统一订单读模型的支付状态（与总后台订单中心一致）。 */
+export const ORDER_PAYMENT_STATUS: Record<string, EnumOption> = {
+  unpaid: { value: 'unpaid', label: '未支付', tone: 'warning' },
+  paid: { value: 'paid', label: '已支付', tone: 'success' },
+  expired: { value: 'expired', label: '已过期', tone: 'default' },
+  partially_refunded: { value: 'partially_refunded', label: '部分退款', tone: 'warning' },
+  refunded: { value: 'refunded', label: '已退款', tone: 'info' },
+}
+
+/** 统一订单读模型的履约状态（与总后台订单中心一致）。 */
+export const ORDER_STATUS: Record<string, EnumOption> = {
+  created: { value: 'created', label: '已创建', tone: 'default' },
+  confirmed: { value: 'confirmed', label: '已确认', tone: 'info' },
+  preparing: { value: 'preparing', label: '备餐中', tone: 'warning' },
+  ready: { value: 'ready', label: '待取', tone: 'info' },
+  completed: { value: 'completed', label: '已完成', tone: 'success' },
+  cancelled: { value: 'cancelled', label: '已取消', tone: 'error' },
+  partially_refunded: { value: 'partially_refunded', label: '部分退款', tone: 'warning' },
+  refunded: { value: 'refunded', label: '已退款', tone: 'info' },
+}
+
 /* ------------------------------------------------------------------ */
 /* 退款单状态                                                          */
 /* ------------------------------------------------------------------ */

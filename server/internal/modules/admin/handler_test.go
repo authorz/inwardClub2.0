@@ -111,7 +111,7 @@ func TestOrdersPassesFuzzySearchAndStoreFilters(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/admin/orders?storeId=42&memberNickname=%E5%B0%8F%E6%98%8E&memberPhone=138&keyword=NO-2026&paymentStatus=paid&orderStatus=completed&payChannel=wechat",
+		"/admin/orders?storeId=42&memberNickname=%E5%B0%8F%E6%98%8E&memberPhone=138&keyword=NO-2026&paymentStatus=paid&orderStatus=completed&payChannel=wechat&orderType=food&createdFrom=2026-08-01T00%3A00%3A00Z&createdTo=2026-08-15T00%3A00%3A00Z",
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -125,8 +125,44 @@ func TestOrdersPassesFuzzySearchAndStoreFilters(t *testing.T) {
 		repo.lastFilter.Keyword != "NO-2026" ||
 		repo.lastFilter.PaymentStatus != "paid" ||
 		repo.lastFilter.Status != "completed" ||
-		repo.lastFilter.PayChannel != "wechat" {
+		repo.lastFilter.PayChannel != "wechat" ||
+		repo.lastFilter.OrderType != "food" ||
+		repo.lastFilter.CreatedFrom == nil ||
+		repo.lastFilter.CreatedBefore == nil ||
+		!repo.lastFilter.CreatedBefore.Equal(time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected order filters: %+v", repo.lastFilter)
+	}
+}
+
+func TestStoreOrdersPinsScopeAndPassesSearchFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/store/orders", withStoreScope(42), h.StoreOrders)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/store/orders?storeId=99&memberNickname=%E5%B0%8F%E6%98%8E&memberPhone=138&keyword=NO-2026&paymentStatus=paid&orderStatus=completed&payChannel=wechat&orderType=activity&createdFrom=2026-08-01T00%3A00%3A00Z&createdTo=2026-08-15T00%3A00%3A00Z",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.StoreID == nil || *repo.lastFilter.StoreID != 42 ||
+		repo.lastFilter.MemberNickname != "小明" ||
+		repo.lastFilter.MemberPhone != "138" ||
+		repo.lastFilter.Keyword != "NO-2026" ||
+		repo.lastFilter.PaymentStatus != "paid" ||
+		repo.lastFilter.Status != "completed" ||
+		repo.lastFilter.PayChannel != "wechat" ||
+		repo.lastFilter.OrderType != "activity" ||
+		repo.lastFilter.CreatedFrom == nil ||
+		repo.lastFilter.CreatedBefore == nil {
+		t.Fatalf("unexpected store order filters: %+v", repo.lastFilter)
 	}
 }
 

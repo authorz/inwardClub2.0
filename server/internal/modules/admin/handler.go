@@ -37,11 +37,9 @@ func parseFilter(c *gin.Context) ListFilter {
 	}
 }
 
-// parseMemberFilter adds the inclusive registration-date range shared by both
-// consoles. The UI submits local date boundaries as RFC3339 timestamps; the end
-// date is advanced by one day so SQL can use a stable half-open interval.
-func parseMemberFilter(c *gin.Context) (ListFilter, error) {
-	f := parseFilter(c)
+// parseCreatedRange applies the inclusive local-date range used by console
+// filters as a half-open [from, next-day) interval for SQL queries.
+func parseCreatedRange(c *gin.Context, f ListFilter) (ListFilter, error) {
 	if raw := c.Query("createdFrom"); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
@@ -61,6 +59,24 @@ func parseMemberFilter(c *gin.Context) (ListFilter, error) {
 		return ListFilter{}, apperr.Invalid("createdFrom must be before createdTo")
 	}
 	return f, nil
+}
+
+func parseOrderFilter(c *gin.Context) (ListFilter, error) {
+	f := parseFilter(c)
+	f.Status = c.Query("orderStatus")
+	f.MemberNickname = c.Query("memberNickname")
+	f.MemberPhone = c.Query("memberPhone")
+	f.PaymentStatus = c.Query("paymentStatus")
+	f.PayChannel = c.Query("payChannel")
+	f.OrderType = c.Query("orderType")
+	return parseCreatedRange(c, f)
+}
+
+// parseMemberFilter adds the inclusive registration-date range shared by both
+// consoles. The UI submits local date boundaries as RFC3339 timestamps; the end
+// date is advanced by one day so SQL can use a stable half-open interval.
+func parseMemberFilter(c *gin.Context) (ListFilter, error) {
+	return parseCreatedRange(c, parseFilter(c))
 }
 
 func parseAuditLogFilter(c *gin.Context) (ListFilter, error) {
@@ -145,13 +161,11 @@ func (h *Handler) Activities(c *gin.Context) {
 
 // Orders handles GET /admin/orders.
 func (h *Handler) Orders(c *gin.Context) {
-	f := parseFilter(c)
-	f.Status = c.Query("orderStatus")
-	f.MemberNickname = c.Query("memberNickname")
-	f.MemberPhone = c.Query("memberPhone")
-	f.PaymentStatus = c.Query("paymentStatus")
-	f.PayChannel = c.Query("payChannel")
-	f.OrderType = c.Query("orderType")
+	f, err := parseOrderFilter(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	if raw := c.Query("storeId"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
@@ -778,13 +792,12 @@ func (h *Handler) StoreOrders(c *gin.Context) {
 	if !ok {
 		return
 	}
-	f := scopedFilter(parseFilter(c), scope)
-	f.Status = c.Query("orderStatus")
-	f.MemberNickname = c.Query("memberNickname")
-	f.MemberPhone = c.Query("memberPhone")
-	f.PaymentStatus = c.Query("paymentStatus")
-	f.PayChannel = c.Query("payChannel")
-	f.OrderType = c.Query("orderType")
+	f, err := parseOrderFilter(c)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	f = scopedFilter(f, scope)
 	views, total, err := h.svc.ListOrders(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)

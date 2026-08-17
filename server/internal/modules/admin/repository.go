@@ -303,6 +303,14 @@ func (r *sqlRepository) ListOrders(ctx context.Context, f ListFilter) ([]Order, 
 		where += " AND m.phone LIKE ?"
 		args = append(args, "%"+f.MemberPhone+"%")
 	}
+	if f.CreatedFrom != nil {
+		where += " AND bo.created_at >= ?"
+		args = append(args, *f.CreatedFrom)
+	}
+	if f.CreatedBefore != nil {
+		where += " AND bo.created_at < ?"
+		args = append(args, *f.CreatedBefore)
+	}
 	var total int64
 	countQ := `SELECT COUNT(*) FROM business_orders bo LEFT JOIN members m ON m.id = bo.member_id WHERE ` + where
 	if err := r.db.QueryRowContext(ctx, countQ, args...).Scan(&total); err != nil {
