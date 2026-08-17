@@ -144,11 +144,6 @@ export const API_PATHS = {
     staffBinding: (id: string | number) => `/store/staff-accounts/${id}/binding`,
   },
 
-  banners: {
-    list: '/store/banners',
-    banner: (id: string | number) => `/store/banners/${id}`,
-  },
-
   printers: {
     list: '/store/printer-devices',
     device: (id: string | number) => `/store/printer-devices/${id}`,

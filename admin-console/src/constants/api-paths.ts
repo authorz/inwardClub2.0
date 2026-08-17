@@ -115,13 +115,6 @@ export const API_PATHS = {
     entitlementVoid: (id: string) => `/admin/coupon-entitlements/${id}/void`,
   },
 
-  banners: {
-    list: '/admin/banners',
-    create: '/admin/banners',
-    update: (id: string) => `/admin/banners/${id}`,
-    remove: (id: string) => `/admin/banners/${id}`,
-  },
-
   rechargeProducts: {
     list: '/admin/recharge-products',
     create: '/admin/recharge-products',

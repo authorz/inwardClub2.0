@@ -41,7 +41,7 @@ go test -race ./...
 | 健康检查 | - | `/internal/health`,`/internal/ready` |
 | 认证（三套 audience 隔离） | mini/admin/store | `*/auth/login`(或 `wechat/login`),`/refresh`,`/me`,`/logout` |
 | 资产上传（合并至七牛） | mini/admin/store | `*/assets/upload-credentials`,`/internal/qiniu/upload-callback` |
-| 门店公开信息 | mini | `/mini/stores`,`/{id}`,`/{id}/banners` |
+| 门店公开信息 | mini | `/mini/stores`,`/{id}` |
 | 分类/商品公开读取 | mini | `/mini/stores/{id}/catalog/categories`,`/items` |
 | 活动公开读取 | mini | `/mini/activities`,`/{id}`,`/mini/stores/{id}/activities` |
 | 钱包/账本（只读+只追加） | mini/admin/store | `/mini/wallet`,`/wallet/ledger`,`/admin/wallet-ledger`,`/store/wallet-ledger` |
@@ -77,7 +77,7 @@ go test -race ./...
    `POST /api/v2/mini/assets/upload-credentials`（带 mini token）→ 返回七牛上传凭证；
    同理验证 admin/store 端点各自的 scope。
 6. **小程序公开读**
-   `GET /mini/stores` → 返回测试环境的真实数据；`GET /mini/stores/{id}`、`/banners`、
+   `GET /mini/stores` → 返回测试环境的真实数据；`GET /mini/stores/{id}`、
    `/catalog/categories`、`/catalog/items`、`/mini/activities` → 200，字段与 `v2.yaml`
    schema 一致。
 7. **钱包只读+账本只追加**

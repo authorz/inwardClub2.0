@@ -28,7 +28,7 @@ info:
     `COVERAGE_MATRIX.md`.
     NOTE (audited 2026-07-18): this file specs a documented SUBSET, not the full
     surface. `internal/bootstrap/router.go` registers ~254 routes and this file
-    describes ~190 of them; the other ~64 (store / banner / printer
+    describes ~190 of them; the other routes (store / printer
     console CRUD and assorted reads) are implemented and DB-backed but not yet
     written up here — omitted for lack of a spec, NOT because they are skeletons.
     No route documented here returns `NOT_IMPLEMENTED`. `router.go` is the
@@ -81,7 +81,7 @@ components:
       properties:
         purpose:
           type: string
-          enum: [avatar, store_logo, banner, category, product, activity, table_layout, seat_layout, vip_icon, vip_banner, rich_content]
+          enum: [avatar, store_logo, category, product, activity, table_layout, seat_layout, vip_icon, vip_banner, rich_content]
         filename: { type: string }
         contentType: { type: string }
         sizeBytes: { type: integer, format: int64 }
@@ -202,14 +202,6 @@ components:
         tableId: { type: integer, format: int64, minimum: 1 }
         name: { type: string, maxLength: 64 }
         status: { type: string, enum: [available, paused, full, maintenance] }
-    BannerView:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        title: { type: string }
-        imageUrl: { type: string }
-        linkUrl: { type: string }
-        sortOrder: { type: integer }
     CategoryView:
       type: object
       properties:
@@ -1857,13 +1849,6 @@ paths:
       responses:
         '200': { description: store detail }
         '404': { $ref: '#/components/responses/Error' }
-  /api/v2/mini/stores/{storeID}/banners:
-    get:
-      tags: [mini]
-      summary: Store banners
-      parameters: [{ $ref: '#/components/parameters/StoreID' }]
-      responses:
-        '200': { description: banner list }
   /api/v2/mini/stores/{storeID}/catalog/categories:
     get:
       tags: [mini]

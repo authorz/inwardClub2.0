@@ -282,7 +282,6 @@ export const PRINT_JOB_STATUS: Record<PrintJobStatus, EnumOption<PrintJobStatus>
 
 export type AssetPurpose =
   | 'store_logo'
-  | 'banner'
   | 'category'
   | 'product'
   | 'activity'
@@ -292,7 +291,6 @@ export type AssetPurpose =
 
 export const STORE_ASSET_PURPOSES: AssetPurpose[] = [
   'store_logo',
-  'banner',
   'category',
   'product',
   'activity',

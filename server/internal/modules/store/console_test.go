@@ -33,10 +33,6 @@ func (r *consoleFakeRepo) GetStore(_ context.Context, id int64) (Store, error) {
 	return r.store, nil
 }
 
-func (r *consoleFakeRepo) ListStoreBanners(_ context.Context, _ int64) ([]Banner, error) {
-	return nil, nil
-}
-
 func (r *consoleFakeRepo) UpdateStoreProfile(_ context.Context, storeID int64, fields UpdateProfileRequest) (Store, error) {
 	r.gotUpdateID = storeID
 	r.gotUpdateFields = fields
@@ -98,16 +94,6 @@ func (r *consoleFakeRepo) UpsertStoreSettings(_ context.Context, storeID int64, 
 	r.settings = StoreSettings{StoreID: storeID, SettingsJSON: settingsJSON, UpdatedAt: time.Now()}
 	return r.settings, nil
 }
-
-func (r *consoleFakeRepo) ListBanners(_ context.Context, _ *int64) ([]Banner, error) {
-	return nil, nil
-}
-func (r *consoleFakeRepo) GetBanner(_ context.Context, _ int64) (Banner, error) {
-	return Banner{}, apperr.NotFound("banner not found")
-}
-func (r *consoleFakeRepo) CreateBanner(_ context.Context, b Banner) (Banner, error) { return b, nil }
-func (r *consoleFakeRepo) UpdateBanner(_ context.Context, b Banner) (Banner, error) { return b, nil }
-func (r *consoleFakeRepo) DeleteBanner(_ context.Context, _ int64) error            { return nil }
 
 func TestConsoleGetProfileMapsView(t *testing.T) {
 	lat, lng := 31.0, 121.0
@@ -353,41 +339,5 @@ func TestConsoleUpdateStoreValidatesRequiredFields(t *testing.T) {
 
 	if _, err := svc.UpdateStore(context.Background(), 5, StoreInput{Address: "Y"}); err == nil {
 		t.Fatal("expected error for missing name")
-	}
-}
-
-func TestBannerAdminCreateValidatesScope(t *testing.T) {
-	repo := &consoleFakeRepo{}
-	svc := NewBannerConsoleService(repo, fakeResolver{})
-
-	sid := int64(3)
-	// Global banner must not carry a storeId.
-	if _, err := svc.AdminCreate(context.Background(), BannerInput{ScopeType: BannerScopeGlobal, StoreID: &sid, AssetID: 1}); err == nil {
-		t.Fatal("expected error for global banner with storeId")
-	}
-	// Store banner requires a storeId.
-	if _, err := svc.AdminCreate(context.Background(), BannerInput{ScopeType: BannerScopeStore, AssetID: 1}); err == nil {
-		t.Fatal("expected error for store banner without storeId")
-	}
-	// assetId is required.
-	if _, err := svc.AdminCreate(context.Background(), BannerInput{ScopeType: BannerScopeGlobal}); err == nil {
-		t.Fatal("expected error for missing assetId")
-	}
-}
-
-func TestBannerStoreCreateForcesOwnScope(t *testing.T) {
-	repo := &consoleFakeRepo{}
-	svc := NewBannerConsoleService(repo, fakeResolver{})
-
-	// Any scope/storeId in the request is ignored in favour of the caller's store.
-	other := int64(999)
-	view, err := svc.StoreCreate(context.Background(), 42, BannerInput{
-		ScopeType: BannerScopeGlobal, StoreID: &other, Title: "T", AssetID: 5,
-	})
-	if err != nil {
-		t.Fatalf("StoreCreate: %v", err)
-	}
-	if view.ScopeType != BannerScopeStore || view.StoreID == nil || *view.StoreID != 42 {
-		t.Fatalf("expected banner forced to store scope 42, got %+v", view)
 	}
 }

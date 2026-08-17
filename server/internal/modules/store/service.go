@@ -51,20 +51,6 @@ func (s *Service) GetStore(ctx context.Context, id int64, geo Geo) (StoreView, e
 	return s.storeView(ctx, st, geo), nil
 }
 
-// ListBanners returns the active banners visible for a store.
-func (s *Service) ListBanners(ctx context.Context, storeID int64) ([]BannerView, error) {
-	banners, err := s.repo.ListStoreBanners(ctx, storeID)
-	if err != nil {
-		return nil, err
-	}
-	views := make([]BannerView, 0, len(banners))
-	for _, b := range banners {
-		url, _ := s.assets.PublicURLByID(ctx, b.AssetID)
-		views = append(views, BannerView{ID: b.ID, Title: b.Title, ImageURL: url, LinkURL: b.LinkURL, SortOrder: b.SortOrder})
-	}
-	return views, nil
-}
-
 func (s *Service) storeView(ctx context.Context, st Store, geo Geo) StoreView {
 	view := StoreView{
 		ID:                       st.ID,

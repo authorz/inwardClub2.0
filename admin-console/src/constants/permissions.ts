@@ -26,9 +26,6 @@ export const PERMISSIONS = {
   COUPON_READ: 'admin.coupon.read',
   COUPON_GLOBAL_WRITE: 'admin.coupon.global.write',
 
-  BANNER_READ: 'admin.banner.read',
-  BANNER_WRITE: 'admin.banner.write',
-
   RECHARGE_READ: 'admin.recharge.read',
   RECHARGE_WRITE: 'admin.recharge.write',
 

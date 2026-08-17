@@ -17,7 +17,6 @@ import type {
   ActivityReportRow,
   AccountEntity,
   AuditLog,
-  Banner,
   BusinessOrder,
   CatalogCategory,
   CatalogItem,
@@ -121,7 +120,6 @@ export const couponTemplateService = createResource<CouponTemplate>({
   updateMethod: 'put',
 })
 
-export const bannerService = createResource<Banner>({ base: API_PATHS.banners.list })
 export const rechargeProductService = createResource<RechargeProduct>({
   base: API_PATHS.rechargeProducts.list,
 })

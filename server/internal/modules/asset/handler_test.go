@@ -33,7 +33,7 @@ func claimsFor(st authn.SubjectType, id string) *authn.Claims {
 
 // TestHandler_UploadCredentials_ReusableAcrossConsoles proves the single shared
 // handler issues credentials for a mini caller (member avatar), an admin caller
-// (super_admin product) and a store caller (store_admin banner) — the three
+// (super_admin product) and a store caller (store_admin activity) — the three
 // mount points in the router — without any per-console handler code.
 func TestHandler_UploadCredentials_ReusableAcrossConsoles(t *testing.T) {
 	cases := []struct {
@@ -48,9 +48,9 @@ func TestHandler_UploadCredentials_ReusableAcrossConsoles(t *testing.T) {
 		{"admin-superadmin-product", authn.SubjectSuperAdmin,
 			UploadCredentialRequest{Purpose: "product", Filename: "p.jpg", ContentType: "image/jpeg", SizeBytes: 4096},
 			"inwardclub/test/product/"},
-		{"store-storeadmin-banner", authn.SubjectStoreAdmin,
-			UploadCredentialRequest{Purpose: "banner", Filename: "b.webp", ContentType: "image/webp", SizeBytes: 8192},
-			"inwardclub/test/banner/"},
+		{"store-storeadmin-activity", authn.SubjectStoreAdmin,
+			UploadCredentialRequest{Purpose: "activity", Filename: "a.webp", ContentType: "image/webp", SizeBytes: 8192},
+			"inwardclub/test/activity/"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

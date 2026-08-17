@@ -243,7 +243,6 @@ docs/openapi/v2.yaml
   座位
 员工与收银员
 打印机
-Banner
 报表
   今日总览
   收款趋势
@@ -367,7 +366,6 @@ StoreAssetPreview
 上传 purpose 必须受门店权限限制：
 
 - `store_logo`
-- `banner`
 - `category`
 - `product`
 - `activity`

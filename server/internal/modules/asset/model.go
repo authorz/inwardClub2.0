@@ -51,7 +51,6 @@ var policies = map[UploadPurpose]purposePolicy{
 	UploadPurposeAvatar:         {mimes: imageMimes, maxSize: 5 * mib},
 	UploadPurposeStoreLogo:      {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeStoreContactQR: {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeBanner:         {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeCategory:       {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeProduct:        {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeActivity:       {mimes: imageMimes, maxSize: 10 * mib},

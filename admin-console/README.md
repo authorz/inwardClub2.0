@@ -75,7 +75,6 @@ pnpm preview     # 预览 dist
 | 商品 | 全局商品 | `pages/catalog/ItemListView.vue` | 列表 + 发布/下架 |
 | 活动 | 全局活动 | `pages/activities/ActivityListView.vue` | 列表 + 发布/下架 |
 | 券 | 券模板 | `pages/coupons/CouponTemplateListView.vue` | 列表 + 发布/下架 |
-| 运营 | Banner 管理 | `pages/banners/BannerListView.vue` | 列表 + 新增/编辑/删除 |
 | 运营 | 快捷充值 | `pages/recharge/RechargeProductListView.vue` | 列表 + 新增/编辑/禁用（支付金额、到账金币、赠送积分） |
 | 规则 | VIP 等级 | `pages/rules/MembershipTierListView.vue` | 列表 + 新增/编辑 |
 | 规则 | 规则中心 | `pages/rules/RuleDefinitionListView.vue` | 列表 + 发布/禁用（高风险） |
@@ -109,7 +108,6 @@ pnpm preview     # 预览 dist
 | `/catalog/items` | 全局商品 | `admin.catalog.read` |
 | `/activities` | 全局活动 | `admin.activity.read` |
 | `/coupons` | 券模板 | `admin.coupon.read` |
-| `/banners` | Banner 管理 | `admin.banner.read` |
 | `/recharge-products` | 快捷充值 | `admin.recharge.read` |
 | `/rules/membership-tiers` | VIP 等级 | `admin.rule.read` |
 | `/rules/definitions` | 规则中心 | `admin.rule.read` |
@@ -204,7 +202,7 @@ pnpm preview     # 预览 dist
 | --- | --- |
 | `api/http.ts` | 唯一 axios 实例 + 白/黑名单 + 头注入 + 错误归一化 + 信封解包 |
 | `api/resource.ts` | 通用 REST 资源工厂 `createResource`（list/get/create/update/remove/action） |
-| `api/services/index.ts` | 各领域服务实例（门店/账号/分类/商品/活动/券/Banner/充值/等级/规则/订单/会员）+ 只读列表集合 + 系统/报表服务 |
+| `api/services/index.ts` | 各领域服务实例（门店/账号/分类/商品/活动/券/充值/等级/规则/订单/会员）+ 只读列表集合 + 系统/报表服务 |
 | `api/services/auth.ts` | 认证服务（login/refresh/me/logout） |
 | `api/types.ts` / `api/models.ts` | 响应信封类型、分页 meta、后台实体类型 |
 | `constants/api-paths.ts` | 全部 `/admin/*` 接口路径（单一事实来源） |
@@ -226,7 +224,7 @@ pnpm preview     # 预览 dist
 ### 未抽象复用的原因
 
 - 各列表页的 **columns / filter fields / toolbar 配置**属于业务差异（字段、权限码、动作不同），按设计以「配置」而非「复制代码」区分，已是复用后的最小差异面，无需再抽象。
-- 门店 / 分类 / Banner / 充值 / VIP 等 **新增-编辑表单字段**各不相同，表单容器（`FormDrawer`）已复用，字段本体属于业务差异，未强行套用同一 schema，避免过度抽象。
+- 门店 / 分类 / 充值 / VIP 等 **新增-编辑表单字段**各不相同，表单容器（`FormDrawer`）已复用，字段本体属于业务差异，未强行套用同一 schema，避免过度抽象。
 
 ---
 
@@ -252,7 +250,7 @@ pnpm preview     # 预览 dist
 - 活动（含 sessions/ticket-types/publish/assign-stores/generate-share-assets）/ 券模板（含 publish/assign-stores/applicable-items/grant/void）。
 - 订单只读 / 支付单 / 支付流水 / 退款单 / `POST /admin/refunds`（退款审批，需幂等）。
 - 会员 / `POST /admin/members/{id}/wallet-adjustments`（人工调账，需幂等 + 原因）/ 钱包账本。
-- Banner / 快捷充值 / VIP 等级 / 规则定义（含 publish/disable）。
+- 快捷充值 / VIP 等级 / 规则定义（含 publish/disable）。
 - 报表 `/admin/reports/*`、审计 `/admin/audit-logs`、登录日志、错误事件、支付渠道配置读写。
 
 ## 十、修改文件列表

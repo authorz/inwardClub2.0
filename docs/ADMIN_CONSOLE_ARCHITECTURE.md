@@ -216,7 +216,6 @@ docs/openapi/v2.yaml
   VIP 福利
   充值产品
 运营资源
-  Banner
   资产库
   默认桌座背景
 设备与打印

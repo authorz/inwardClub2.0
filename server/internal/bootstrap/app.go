@@ -70,7 +70,6 @@ type App struct {
 	reportingHandler   *reporting.Handler
 
 	storeConsoleHandler       *store.ConsoleHandler
-	bannerConsoleHandler      *store.BannerConsoleHandler
 	catalogConsoleHandler     *catalog.ConsoleHandler
 	activityConsoleHandler    *activity.ConsoleHandler
 	couponConsoleHandler      *coupon.ConsoleHandler
@@ -188,7 +187,6 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 
 	// Console CRUD services (admin + store) sharing the module repositories.
 	storeConsoleSvc := store.NewConsoleService(store.NewRepository(database), assetSvc)
-	bannerConsoleSvc := store.NewBannerConsoleService(store.NewRepository(database), assetSvc)
 	catalogConsoleSvc := catalog.NewConsoleService(catalog.NewConsoleRepository(database), assetSvc)
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
@@ -232,7 +230,6 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		reportingHandler:   reporting.NewHandler(reportingSvc),
 
 		storeConsoleHandler:       store.NewConsoleHandler(storeConsoleSvc),
-		bannerConsoleHandler:      store.NewBannerConsoleHandler(bannerConsoleSvc),
 		catalogConsoleHandler:     catalog.NewConsoleHandler(catalogConsoleSvc),
 		activityConsoleHandler:    activity.NewConsoleHandler(activityConsoleSvc),
 		couponConsoleHandler:      coupon.NewConsoleHandler(couponConsoleSvc),

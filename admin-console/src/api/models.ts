@@ -138,14 +138,6 @@ export interface CouponTemplate extends AuditableEntity {
   storeId?: string | number | null
 }
 
-export interface Banner extends AuditableEntity {
-  title: string
-  assetId?: string | number | null
-  imageUrl?: string
-  linkUrl?: string
-  sortOrder?: number
-}
-
 export interface RechargeProduct extends AuditableEntity {
   /** 实际支付金额（整数分） */
   amountCent: number

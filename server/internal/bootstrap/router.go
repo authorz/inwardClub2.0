@@ -48,7 +48,6 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	// Public reads (no auth).
 	g.GET("/stores", a.storeHandler.List)
 	g.GET("/stores/:storeID", a.storeHandler.Detail)
-	g.GET("/stores/:storeID/banners", a.storeHandler.Banners)
 	g.GET("/stores/:storeID/catalog/categories", a.catalogHandler.Categories)
 	g.GET("/stores/:storeID/catalog/items", a.catalogHandler.Items)
 	g.GET("/stores/:storeID/activities", a.activityHandler.ListForStore)
@@ -246,13 +245,6 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.GET("/stores/:storeID/settings", a.storeConsoleHandler.AdminGetSettings)
 	p.PUT("/stores/:storeID/settings", a.storeConsoleHandler.AdminUpdateSettings)
 
-	// Banners (global + any store).
-	p.GET("/banners", a.bannerConsoleHandler.AdminList)
-	p.GET("/banners/:id", a.bannerConsoleHandler.AdminGet)
-	p.POST("/banners", a.bannerConsoleHandler.AdminCreate)
-	p.PATCH("/banners/:id", a.bannerConsoleHandler.AdminUpdate)
-	p.DELETE("/banners/:id", a.bannerConsoleHandler.AdminDelete)
-
 	// Tables and seats (cross-store resources; seats always inherit their table's store).
 	p.GET("/tables", a.reservationConsoleHandler.ListTables)
 	p.GET("/tables/:tableID", a.reservationConsoleHandler.GetTable)
@@ -416,13 +408,6 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/seats", a.reservationConsoleHandler.StoreCreateSeat)
 	idem.PATCH("/seats/:seatID", a.reservationConsoleHandler.StoreUpdateSeat)
 	idem.DELETE("/seats/:seatID", a.reservationConsoleHandler.StoreDeleteSeat)
-
-	// Banners (own store only).
-	p.GET("/banners", a.bannerConsoleHandler.StoreList)
-	p.GET("/banners/:id", a.bannerConsoleHandler.StoreGet)
-	idem.POST("/banners", a.bannerConsoleHandler.StoreCreate)
-	idem.PATCH("/banners/:id", a.bannerConsoleHandler.StoreUpdate)
-	idem.DELETE("/banners/:id", a.bannerConsoleHandler.StoreDelete)
 
 	// Catalog categories.
 	p.GET("/catalog/categories", a.catalogConsoleHandler.StoreCategories)

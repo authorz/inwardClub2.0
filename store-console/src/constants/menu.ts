@@ -119,13 +119,6 @@ export const MENU: MenuGroup[] = [
         permissions: [PERM.couponRead, PERM.couponWrite],
       },
       {
-        name: 'banners',
-        path: '/banners',
-        title: '本店广告',
-        icon: 'activity',
-        permissions: [PERM.activityRead, PERM.activityWrite],
-      },
-      {
         name: 'reservations',
         path: '/reservations',
         title: '预约记录',

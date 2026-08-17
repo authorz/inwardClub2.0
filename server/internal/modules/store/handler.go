@@ -44,21 +44,6 @@ func (h *Handler) Detail(c *gin.Context) {
 	httpx.OK(c, view)
 }
 
-// Banners handles GET /mini/stores/{storeID}/banners.
-func (h *Handler) Banners(c *gin.Context) {
-	id, err := pathID(c, "storeID")
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	views, err := h.svc.ListBanners(c.Request.Context(), id)
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	httpx.OK(c, views)
-}
-
 func parseGeo(c *gin.Context) Geo {
 	var geo Geo
 	if v, err := strconv.ParseFloat(c.Query("lat"), 64); err == nil {

@@ -271,18 +271,6 @@ export interface StoreSeat extends AuditFields {
   status: string
 }
 
-export interface StoreBanner extends AuditFields {
-  id: number | string
-  storeId: number | string
-  scopeType: 'global' | 'store'
-  title: string
-  assetId: number | string
-  imageUrl?: string
-  linkUrl?: string
-  sortOrder: number
-  status: string
-}
-
 export interface CouponTemplate extends AuditFields {
   id: number | string
   storeId?: number | string

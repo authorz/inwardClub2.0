@@ -10,8 +10,7 @@ import (
 )
 
 type memRepo struct {
-	stores  []Store
-	banners []Banner
+	stores []Store
 }
 
 func (r *memRepo) ListActiveStores(_ context.Context, limit, offset int) ([]Store, int64, error) {
@@ -32,16 +31,6 @@ func (r *memRepo) GetStore(_ context.Context, id int64) (Store, error) {
 	}
 	return Store{}, nil
 }
-func (r *memRepo) ListStoreBanners(_ context.Context, _ int64) ([]Banner, error) {
-	return r.banners, nil
-}
-func (r *memRepo) ListBanners(_ context.Context, _ *int64) ([]Banner, error) { return r.banners, nil }
-func (r *memRepo) GetBanner(_ context.Context, _ int64) (Banner, error) {
-	return Banner{}, apperr.NotFound("banner not found")
-}
-func (r *memRepo) CreateBanner(_ context.Context, b Banner) (Banner, error) { return b, nil }
-func (r *memRepo) UpdateBanner(_ context.Context, b Banner) (Banner, error) { return b, nil }
-func (r *memRepo) DeleteBanner(_ context.Context, _ int64) error            { return nil }
 func (r *memRepo) UpdateStoreProfile(_ context.Context, _ int64, _ UpdateProfileRequest) (Store, error) {
 	return Store{}, nil
 }

@@ -7,7 +7,6 @@
  */
 import type { Component } from 'vue'
 import {
-  Ad,
   Armchair,
   BuildingStore,
   CalendarEvent,
@@ -182,13 +181,6 @@ export const MENU: MenuNode[] = [
         permission: PERMISSIONS.RECHARGE_READ,
       },
     ],
-  },
-  {
-    key: 'banners',
-    label: '广告管理',
-    path: '/banners',
-    permission: PERMISSIONS.BANNER_READ,
-    icon: Ad,
   },
   {
     key: 'benefits',

@@ -17,7 +17,6 @@ export const pageComponents: Record<string, () => Promise<Component>> = {
   'catalog-categories': () => import('@/pages/catalog/CategoryView.vue'),
   activities: () => import('@/pages/activities/ActivitiesView.vue'),
   coupons: () => import('@/pages/coupons/CouponsView.vue'),
-  banners: () => import('@/pages/banners/BannersView.vue'),
   reservations: () => import('@/pages/reservations/ReservationsView.vue'),
   venues: () => import('@/pages/venues/VenuesView.vue'),
   collection: () => import('@/pages/collection/CollectionView.vue'),

@@ -16,7 +16,6 @@ const (
 	UploadPurposeAvatar         UploadPurpose = "avatar"
 	UploadPurposeStoreLogo      UploadPurpose = "store_logo"
 	UploadPurposeStoreContactQR UploadPurpose = "store_contact_qr"
-	UploadPurposeBanner         UploadPurpose = "banner"
 	UploadPurposeCategory       UploadPurpose = "category"
 	UploadPurposeProduct        UploadPurpose = "product"
 	UploadPurposeActivity       UploadPurpose = "activity"
