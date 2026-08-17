@@ -153,12 +153,19 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
     width: 210,
     render: (row) => {
       const nickname = row.memberNickname?.trim() || '未关联会员'
-      const phone = row.memberPhoneMasked || row.memberPhone || '暂无手机号'
+      const phone = row.memberPhone?.trim() || row.memberPhoneMasked || '暂无手机号'
+      const fallback = () => nickname.slice(0, 1)
       return h('div', { class: 'order-member' }, [
         h(
           NAvatar,
-          { round: true, size: 36, src: row.memberAvatarUrl || undefined, objectFit: 'cover' },
-          () => nickname.slice(0, 1),
+          {
+            class: 'order-member__avatar',
+            round: true,
+            size: 36,
+            src: row.memberAvatarUrl || undefined,
+            objectFit: 'cover',
+          },
+          row.memberAvatarUrl ? { fallback } : { default: fallback },
         ),
         h('div', { class: 'order-member__details' }, [
           h('span', { class: 'order-member__nickname', title: nickname }, nickname),
@@ -184,14 +191,13 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
             {
               permissions: [PERM.refundRequest],
               type: 'error',
-              text: true,
               onClick: () => openRefund(row),
             },
             { default: () => '退款' },
           )
-        : h('span', { class: 'ic-muted' }, '—'),
+        : h('span'),
     '操作',
-    90,
+    100,
   ),
 ])
 </script>
@@ -204,110 +210,118 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
     />
 
     <div class="order-filters">
-      <label class="order-filter">
-        <span>订单类型</span>
-        <NSelect
-          :value="list.filters.orderType as string"
-          :options="orderTypeOptions"
-          placeholder="全部"
-          clearable
-          @update:value="list.filters.orderType = $event ?? ''"
-        />
-      </label>
-      <label class="order-filter">
-        <span>支付状态</span>
-        <NSelect
-          :value="list.filters.paymentStatus as string"
-          :options="paymentStatusOptions"
-          placeholder="全部"
-          clearable
-          @update:value="list.filters.paymentStatus = $event ?? ''"
-        />
-      </label>
-      <label class="order-filter">
-        <span>订单状态</span>
-        <NSelect
-          :value="list.filters.orderStatus as string"
-          :options="orderStatusOptions"
-          placeholder="全部"
-          clearable
-          @update:value="list.filters.orderStatus = $event ?? ''"
-        />
-      </label>
-      <label class="order-filter">
-        <span>支付渠道</span>
-        <NSelect
-          :value="list.filters.payChannel as string"
-          :options="payChannelOptions"
-          placeholder="全部"
-          clearable
-          @update:value="list.filters.payChannel = $event ?? ''"
-        />
-      </label>
-      <label class="order-filter">
-        <span>会员昵称</span>
-        <NInput
-          :value="list.filters.memberNickname as string"
-          placeholder="支持模糊搜索"
-          clearable
-          @update:value="list.filters.memberNickname = $event"
-          @keyup.enter="applyFilters"
-        />
-      </label>
-      <label class="order-filter">
-        <span>会员手机号</span>
-        <NInput
-          :value="list.filters.memberPhone as string"
-          placeholder="支持模糊搜索"
-          clearable
-          @update:value="list.filters.memberPhone = $event"
-          @keyup.enter="applyFilters"
-        />
-      </label>
-      <label class="order-filter">
-        <span>订单号</span>
-        <NInput
-          :value="list.filters.keyword as string"
-          placeholder="支持模糊搜索"
-          clearable
-          @update:value="list.filters.keyword = $event"
-          @keyup.enter="applyFilters"
-        />
-      </label>
-      <label class="order-filter order-filter--date">
-        <span>创建时间</span>
-        <NDatePicker
-          v-model:value="createdRange"
-          type="daterange"
-          clearable
-        />
-      </label>
+      <div class="order-filters__fields">
+        <label class="order-filter">
+          <span>订单类型</span>
+          <NSelect
+            :value="(list.filters.orderType as string) || null"
+            :options="orderTypeOptions"
+            placeholder="全部"
+            clearable
+            @update:value="list.filters.orderType = $event ?? ''"
+          />
+        </label>
+        <label class="order-filter">
+          <span>支付状态</span>
+          <NSelect
+            :value="(list.filters.paymentStatus as string) || null"
+            :options="paymentStatusOptions"
+            placeholder="全部"
+            clearable
+            @update:value="list.filters.paymentStatus = $event ?? ''"
+          />
+        </label>
+        <label class="order-filter">
+          <span>订单状态</span>
+          <NSelect
+            :value="(list.filters.orderStatus as string) || null"
+            :options="orderStatusOptions"
+            placeholder="全部"
+            clearable
+            @update:value="list.filters.orderStatus = $event ?? ''"
+          />
+        </label>
+        <label class="order-filter">
+          <span>支付渠道</span>
+          <NSelect
+            :value="(list.filters.payChannel as string) || null"
+            :options="payChannelOptions"
+            placeholder="全部"
+            clearable
+            @update:value="list.filters.payChannel = $event ?? ''"
+          />
+        </label>
+        <label class="order-filter order-filter--input">
+          <span>会员昵称</span>
+          <NInput
+            :value="list.filters.memberNickname as string"
+            placeholder="支持模糊搜索"
+            clearable
+            @update:value="list.filters.memberNickname = $event"
+            @keyup.enter="applyFilters"
+          />
+        </label>
+        <label class="order-filter order-filter--input">
+          <span>会员手机号</span>
+          <NInput
+            :value="list.filters.memberPhone as string"
+            placeholder="支持模糊搜索"
+            clearable
+            @update:value="list.filters.memberPhone = $event"
+            @keyup.enter="applyFilters"
+          />
+        </label>
+        <label class="order-filter order-filter--input">
+          <span>订单号</span>
+          <NInput
+            :value="list.filters.keyword as string"
+            placeholder="支持模糊搜索"
+            clearable
+            @update:value="list.filters.keyword = $event"
+            @keyup.enter="applyFilters"
+          />
+        </label>
+        <label class="order-filter order-filter--date">
+          <span>创建时间</span>
+          <NDatePicker
+            v-model:value="createdRange"
+            type="daterange"
+            clearable
+          />
+        </label>
+      </div>
       <NSpace class="order-filters__actions">
         <NButton
           type="primary"
+          size="small"
           :loading="list.loading.value"
           @click="applyFilters"
         >
           查询
         </NButton>
-        <NButton @click="resetFilters">
+        <NButton
+          size="small"
+          @click="resetFilters"
+        >
           重置
         </NButton>
       </NSpace>
     </div>
 
-    <DataTable
-      :columns="columns"
-      :data="list.rows.value"
-      :loading="list.loading.value"
-      :page="list.page.value"
-      :page-size="list.pageSize.value"
-      :total="list.total.value"
-      :scroll-x="1320"
-      empty-text="暂无订单"
-      @update:page="list.setPage"
-      @update:page-size="list.setPageSize"
-    />
+    <div class="order-table">
+      <DataTable
+        :columns="columns"
+        :data="list.rows.value"
+        :loading="list.loading.value"
+        :page="list.page.value"
+        :page-size="list.pageSize.value"
+        :total="list.total.value"
+        :scroll-x="1320"
+        empty-text="暂无订单"
+        @update:page="list.setPage"
+        @update:page-size="list.setPageSize"
+      />
+    </div>
 
     <NModal
       v-model:show="refundShow"
@@ -375,7 +389,7 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
 
 <style scoped>
 .collection-records {
-  max-width: 1480px;
+  max-width: 1400px;
 }
 
 .order-filters {
@@ -383,9 +397,18 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
   flex-wrap: wrap;
   gap: var(--ic-space-4);
   align-items: flex-end;
-  padding-bottom: var(--ic-space-4);
+  justify-content: space-between;
+  padding: var(--ic-space-4);
   margin-bottom: var(--ic-space-4);
-  border-bottom: var(--ic-divider);
+  border: var(--ic-divider);
+  border-radius: var(--ic-radius-md);
+  background: var(--ic-color-surface);
+}
+
+.order-filters__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ic-space-4);
 }
 
 .order-filter {
@@ -401,35 +424,54 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
   width: 260px;
 }
 
-.order-filters__actions {
-  margin-left: auto;
+.order-filter--input {
+  width: 180px;
 }
 
-.order-member {
+.order-filters__actions {
+  flex-shrink: 0;
+}
+
+:deep(.order-member) {
   display: flex;
   gap: var(--ic-space-2);
   align-items: center;
   min-width: 0;
+  padding: 2px 0;
 }
 
-.order-member__details {
+:deep(.order-member__avatar) {
+  flex: none;
+}
+
+:deep(.order-member__details) {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 2px;
 }
 
-.order-member__nickname {
+:deep(.order-member__nickname) {
   overflow: hidden;
+  color: var(--ic-color-text);
   font-weight: 600;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.order-member__phone {
-  color: var(--ic-color-text-tertiary);
+:deep(.order-member__phone) {
+  color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
+  line-height: 18px;
   font-variant-numeric: tabular-nums;
+}
+
+.order-table {
+  padding: var(--ic-space-2);
+  border: var(--ic-divider);
+  border-radius: var(--ic-radius-md);
+  background: var(--ic-color-surface);
 }
 
 :global(.refund-modal) {
@@ -462,13 +504,13 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
 
 @media (max-width: 720px) {
   .order-filter,
+  .order-filter--input,
   .order-filter--date {
     width: 100%;
   }
 
   .order-filters__actions {
     width: 100%;
-    margin-left: 0;
     justify-content: flex-end;
   }
 
