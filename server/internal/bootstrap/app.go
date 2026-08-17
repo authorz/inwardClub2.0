@@ -186,7 +186,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	reportingSvc := reporting.NewService(reporting.NewRepository(database))
 
 	// Console CRUD services (admin + store) sharing the module repositories.
-	storeConsoleSvc := store.NewConsoleService(store.NewRepository(database), assetSvc)
+	storeConsoleSvc := store.NewConsoleService(store.NewRepository(database), assetSvc, authSvc)
 	catalogConsoleSvc := catalog.NewConsoleService(catalog.NewConsoleRepository(database), assetSvc)
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))

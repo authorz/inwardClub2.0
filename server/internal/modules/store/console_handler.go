@@ -3,13 +3,15 @@ package store
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/inwardclub/server/internal/platform/audit"
+	"github.com/inwardclub/server/internal/platform/authn"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/storescope"
 )
 
 // ConsoleHandler exposes the store console's own-store profile endpoints and
-// the admin-side store create/update contract. Route wiring decides which
+// the admin-side store create/update/delete contract. Route wiring decides which
 // group (store-console vs admin) mounts which method.
 type ConsoleHandler struct {
 	svc *ConsoleService
@@ -193,4 +195,26 @@ func (h *ConsoleHandler) AdminUpdateStore(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, h.svc.ProfileView(c.Request.Context(), st))
+}
+
+// AdminDeleteStore handles DELETE /admin/stores/:storeID. The current
+// headquarters administrator's password is required in the request body.
+func (h *ConsoleHandler) AdminDeleteStore(c *gin.Context) {
+	id, err := pathID(c, "storeID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req DeleteStoreRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("请输入管理员登录密码"))
+		return
+	}
+	claims := authn.MustFromContext(c)
+	auditEntry := audit.FromContext(c, "store.delete", "store", id)
+	if err := h.svc.DeleteStore(c.Request.Context(), id, claims.SubjectID(), req.Password, auditEntry); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
 }

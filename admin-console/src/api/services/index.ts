@@ -48,7 +48,15 @@ import type {
   WalletLedgerEntry,
 } from '@/api/models'
 
-export const storeService = createResource<Store>({ base: API_PATHS.stores.list })
+const storeResource = createResource<Store>({ base: API_PATHS.stores.list })
+export const storeService = {
+  ...storeResource,
+  remove: (id: string, password: string) =>
+    http.delete<void>(API_PATHS.stores.remove(id), {
+      data: { password },
+      idempotent: true,
+    }),
+}
 export const tableService = createResource<VenueTable>({ base: API_PATHS.tables.list })
 export const seatService = createResource<VenueSeat>({ base: API_PATHS.seats.list })
 const franchiseInquiryResource = createResource<FranchiseInquiry>({

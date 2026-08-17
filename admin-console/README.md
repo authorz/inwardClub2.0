@@ -67,7 +67,7 @@ pnpm preview     # 预览 dist
 | --- | --- | --- | --- |
 | — | 登录 | `pages/LoginView.vue` | 独立登录，登录后校验 token audience |
 | — | 工作台 | `pages/DashboardView.vue` | 运营指标概览 + 快捷入口（非装饰大屏） |
-| 门店 | 门店管理 | `pages/stores/StoreListView.vue` | 列表 + 新增/编辑（审计提示） |
+| 门店 | 门店管理 | `pages/stores/StoreListView.vue` | 列表 + 新增/编辑/删除（删除需管理员登录密码确认） |
 | 账号 | 总后台账号 | `pages/accounts/AdminAccountsView.vue` | 复用 `AccountListView` |
 | 账号 | 门店管理员 | `pages/accounts/StoreAdminAccountsView.vue` | 复用 `AccountListView`（含绑定门店） |
 | 账号 | 员工 | `pages/accounts/StaffAccountsView.vue` | 复用 `AccountListView`（单店绑定） |

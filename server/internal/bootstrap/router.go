@@ -242,6 +242,7 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.POST("/stores", a.storeConsoleHandler.AdminCreateStore)
 	p.GET("/stores/:storeID", a.storeConsoleHandler.AdminGetStore)
 	p.PATCH("/stores/:storeID", a.storeConsoleHandler.AdminUpdateStore)
+	p.DELETE("/stores/:storeID", idempotency.Require(), a.storeConsoleHandler.AdminDeleteStore)
 	p.GET("/stores/:storeID/settings", a.storeConsoleHandler.AdminGetSettings)
 	p.PUT("/stores/:storeID/settings", a.storeConsoleHandler.AdminUpdateSettings)
 

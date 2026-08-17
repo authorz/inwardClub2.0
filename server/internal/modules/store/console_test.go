@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -14,6 +15,8 @@ type consoleFakeRepo struct {
 	gotUpdateFields UpdateProfileRequest
 	gotCreateInput  StoreInput
 	gotUpdateInput  StoreInput
+	gotDeleteID     int64
+	gotDeleteAudit  audit.Entry
 
 	gotStatusID     int64
 	gotStatus       string
@@ -69,6 +72,16 @@ func (r *consoleFakeRepo) UpdateStore(_ context.Context, id int64, input StoreIn
 	r.store.Longitude = input.Longitude
 	r.store.LogoAssetID = input.LogoAssetID
 	return r.store, nil
+}
+
+func (r *consoleFakeRepo) DeleteStore(_ context.Context, id int64, auditEntry audit.Entry) error {
+	if id != r.store.ID {
+		return apperr.NotFound("store not found")
+	}
+	r.gotDeleteID = id
+	r.gotDeleteAudit = auditEntry
+	r.store.Status = StatusDeleted
+	return nil
 }
 
 func (r *consoleFakeRepo) UpdateStoreStatus(_ context.Context, storeID int64, status string) (Store, error) {
@@ -256,6 +269,51 @@ func TestConsoleGetSettingsAndUpdateSettingsForArbitraryStoreID(t *testing.T) {
 	}
 	if view.Settings["tableCount"] != float64(12) {
 		t.Fatalf("expected updated settings reflected, got %+v", view.Settings)
+	}
+}
+
+type consolePasswordVerifier struct {
+	err       error
+	accountID int64
+	password  string
+}
+
+func (v *consolePasswordVerifier) VerifyAccountPassword(_ context.Context, accountID int64, password string) error {
+	v.accountID = accountID
+	v.password = password
+	return v.err
+}
+
+func TestConsoleDeleteStoreVerifiesPasswordAndDeletes(t *testing.T) {
+	repo := &consoleFakeRepo{store: Store{ID: 42, Name: "Store A", Status: StatusActive}}
+	verifier := &consolePasswordVerifier{}
+	svc := NewConsoleService(repo, fakeResolver{}, verifier)
+	auditEntry := audit.Entry{ActorID: 7, Action: "store.delete", TargetID: 42}
+
+	if err := svc.DeleteStore(context.Background(), 42, 7, "secret", auditEntry); err != nil {
+		t.Fatalf("DeleteStore: %v", err)
+	}
+	if verifier.accountID != 7 || verifier.password != "secret" {
+		t.Fatalf("expected password verification for account 7, got account=%d password=%q", verifier.accountID, verifier.password)
+	}
+	if repo.gotDeleteID != 42 || repo.gotDeleteAudit.Action != "store.delete" {
+		t.Fatalf("expected deletion and audit entry, got id=%d audit=%+v", repo.gotDeleteID, repo.gotDeleteAudit)
+	}
+	if repo.store.Status != StatusDeleted {
+		t.Fatalf("expected deleted status, got %q", repo.store.Status)
+	}
+}
+
+func TestConsoleDeleteStoreRejectsInvalidPassword(t *testing.T) {
+	repo := &consoleFakeRepo{store: Store{ID: 42, Name: "Store A", Status: StatusActive}}
+	verifier := &consolePasswordVerifier{err: apperr.Invalid("密码错误")}
+	svc := NewConsoleService(repo, fakeResolver{}, verifier)
+
+	if err := svc.DeleteStore(context.Background(), 42, 7, "wrong", audit.Entry{}); err == nil {
+		t.Fatal("expected password verification error")
+	}
+	if repo.gotDeleteID != 0 || repo.store.Status != StatusActive {
+		t.Fatalf("store should remain unchanged after failed password verification: %+v", repo.store)
 	}
 }
 

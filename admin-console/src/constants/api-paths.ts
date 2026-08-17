@@ -34,6 +34,7 @@ export const API_PATHS = {
     create: '/admin/stores',
     detail: (id: string) => `/admin/stores/${id}`,
     update: (id: string) => `/admin/stores/${id}`,
+    remove: (id: string) => `/admin/stores/${id}`,
   },
 
   franchiseInquiries: {

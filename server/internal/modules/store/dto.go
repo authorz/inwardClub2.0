@@ -75,3 +75,9 @@ type StoreInput struct {
 	Longitude                *float64 `json:"longitude"`
 	LogoAssetID              *int64   `json:"logoAssetId"`
 }
+
+// DeleteStoreRequest re-authenticates the current headquarters administrator
+// before a store is soft-deleted.
+type DeleteStoreRequest struct {
+	Password string `json:"password"`
+}

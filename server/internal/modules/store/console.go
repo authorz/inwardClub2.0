@@ -3,7 +3,9 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -11,13 +13,25 @@ import (
 // store profile operations, layered on top of the same Repository used by the
 // mini-program read paths.
 type ConsoleService struct {
-	repo   Repository
-	assets AssetResolver
+	repo      Repository
+	assets    AssetResolver
+	passwords AccountPasswordVerifier
 }
 
-// NewConsoleService builds the store console service.
-func NewConsoleService(repo Repository, assets AssetResolver) *ConsoleService {
-	return &ConsoleService{repo: repo, assets: assets}
+// AccountPasswordVerifier re-authenticates the current headquarters account
+// before a store is deleted.
+type AccountPasswordVerifier interface {
+	VerifyAccountPassword(ctx context.Context, accountID int64, password string) error
+}
+
+// NewConsoleService builds the store console service. The optional password
+// verifier is required only by the headquarters store-deletion operation.
+func NewConsoleService(repo Repository, assets AssetResolver, passwords ...AccountPasswordVerifier) *ConsoleService {
+	svc := &ConsoleService{repo: repo, assets: assets}
+	if len(passwords) > 0 {
+		svc.passwords = passwords[0]
+	}
+	return svc
 }
 
 // GetProfile returns the console profile view for the caller's own store.
@@ -121,6 +135,21 @@ func (s *ConsoleService) UpdateStore(ctx context.Context, id int64, input StoreI
 		return Store{}, err
 	}
 	return s.repo.UpdateStore(ctx, id, input)
+}
+
+// DeleteStore verifies the acting headquarters administrator and then
+// soft-deletes the target store, preserving its historical business records.
+func (s *ConsoleService) DeleteStore(ctx context.Context, id, accountID int64, password string, auditEntry audit.Entry) error {
+	if id <= 0 {
+		return apperr.Invalid("invalid storeID")
+	}
+	if s.passwords == nil {
+		return apperr.Internal(fmt.Errorf("admin password verifier is not configured"))
+	}
+	if err := s.passwords.VerifyAccountPassword(ctx, accountID, password); err != nil {
+		return err
+	}
+	return s.repo.DeleteStore(ctx, id, auditEntry)
 }
 
 func validateStoreInput(input StoreInput) error {

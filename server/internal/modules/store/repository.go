@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
@@ -17,6 +18,7 @@ type Repository interface {
 	UpdateStoreStatus(ctx context.Context, storeID int64, status string) (Store, error)
 	CreateStore(ctx context.Context, input StoreInput) (Store, error)
 	UpdateStore(ctx context.Context, id int64, input StoreInput) (Store, error)
+	DeleteStore(ctx context.Context, id int64, auditEntry audit.Entry) error
 
 	GetStoreSettings(ctx context.Context, storeID int64) (StoreSettings, error)
 	UpsertStoreSettings(ctx context.Context, storeID int64, settingsJSON []byte) (StoreSettings, error)
@@ -61,8 +63,8 @@ func (r *sqlRepository) ListActiveStores(ctx context.Context, limit, offset int)
 }
 
 func (r *sqlRepository) GetStore(ctx context.Context, id int64) (Store, error) {
-	const q = `SELECT ` + storeColumns + ` FROM stores WHERE id = ?`
-	s, err := scanStore(r.db.QueryRowContext(ctx, q, id))
+	const q = `SELECT ` + storeColumns + ` FROM stores WHERE id = ? AND status <> ?`
+	s, err := scanStore(r.db.QueryRowContext(ctx, q, id, StatusDeleted))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Store{}, apperr.NotFound("store not found")
 	}
@@ -123,6 +125,46 @@ func (r *sqlRepository) UpdateStore(ctx context.Context, id int64, input StoreIn
 		}
 	}
 	return r.GetStore(ctx, id)
+}
+
+// DeleteStore soft-deletes a store while preserving historical business data.
+// Store-scoped back-office and staff sessions are invalidated atomically.
+func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry audit.Entry) error {
+	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		const selectStore = `SELECT ` + storeColumns + ` FROM stores WHERE id = ? AND status <> ? FOR UPDATE`
+		before, err := scanStore(tx.QueryRowContext(ctx, selectStore, id, StatusDeleted))
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("store not found")
+		}
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE stores SET status = ?, updated_at = NOW() WHERE id = ?`, StatusDeleted, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE admin_accounts SET status = 'disabled', token_version = token_version + 1, updated_at = NOW() WHERE store_id = ?`, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE staff_accounts SET status = 'disabled', token_version = token_version + 1, updated_at = NOW() WHERE store_id = ?`, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE printer_devices SET status = 'disabled', updated_at = NOW() WHERE store_id = ?`, id,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+
+		auditEntry.StoreID = id
+		auditEntry.Before = map[string]any{"id": before.ID, "name": before.Name, "status": before.Status}
+		auditEntry.After = map[string]any{"id": before.ID, "name": before.Name, "status": StatusDeleted}
+		return audit.RecordTx(ctx, tx, auditEntry)
+	})
 }
 
 // UpdateStoreStatus updates only the caller's own store's status.

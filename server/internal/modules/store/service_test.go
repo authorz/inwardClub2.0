@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -58,6 +59,7 @@ func (r *memRepo) UpdateStore(_ context.Context, id int64, input StoreInput) (St
 	}
 	return Store{}, apperr.NotFound("store not found")
 }
+func (r *memRepo) DeleteStore(_ context.Context, _ int64, _ audit.Entry) error { return nil }
 
 type fakeResolver struct{}
 

@@ -24,6 +24,7 @@ type Store struct {
 const (
 	StatusActive   = "active"
 	StatusInactive = "inactive"
+	StatusDeleted  = "deleted"
 )
 
 // StoreSettings holds a store's persisted settings blob.

@@ -151,6 +151,8 @@ func filterClauses(f ListFilter, scopeCol, statusCol, keywordCol string) (string
 
 func (r *sqlRepository) ListStores(ctx context.Context, f ListFilter) ([]StoreSummary, int64, error) {
 	where, args := filterClauses(f, "id", "status", "name")
+	where += " AND status <> ?"
+	args = append(args, "deleted")
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM stores WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)

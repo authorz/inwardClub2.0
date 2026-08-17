@@ -1,16 +1,18 @@
 <script setup lang="ts">
 /**
  * 门店管理（全局）。
- * 列表 + 新增/编辑（FormDrawer）。门店是全局资源，写操作展示审计提示。
+ * 列表 + 新增/编辑（FormDrawer）+ 密码确认删除。门店是全局资源，写操作展示审计提示。
  * 复用：ResourceListView（列表骨架）、FormDrawer（表单）、列工厂、PermissionButton。
  */
 import { h, reactive, ref } from 'vue'
 import {
+  NAlert,
   NButton,
   NForm,
   NFormItem,
   NInput,
   NInputNumber,
+  NModal,
   NSpace,
 } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
@@ -47,9 +49,58 @@ const columns = [
         { permission: PERMISSIONS.STORE_WRITE, onClick: () => openEdit(row) },
         () => '编辑',
       ),
+      h(
+        PermissionButton,
+        {
+          permission: PERMISSIONS.STORE_WRITE,
+          type: 'error',
+          onClick: () => openDelete(row),
+        },
+        () => '删除',
+      ),
     ]),
   ),
 ]
+
+// —— 删除门店 ——
+const deleteShow = ref(false)
+const deleteTarget = ref<Store | null>(null)
+const deletePassword = ref('')
+const deleteSubmitting = ref(false)
+
+function openDelete(row: Store): void {
+  deleteTarget.value = row
+  deletePassword.value = ''
+  deleteShow.value = true
+}
+
+function closeDelete(): void {
+  if (deleteSubmitting.value) return
+  deleteShow.value = false
+  deleteTarget.value = null
+  deletePassword.value = ''
+}
+
+async function submitDelete(): Promise<void> {
+  if (!deleteTarget.value) return
+  if (!deletePassword.value) {
+    toastError('请输入管理员登录密码')
+    return
+  }
+  deleteSubmitting.value = true
+  try {
+    await storeService.remove(deleteTarget.value.id, deletePassword.value)
+    toastSuccess('门店已删除')
+    deleteShow.value = false
+    deleteTarget.value = null
+    deletePassword.value = ''
+    await listRef.value?.reload()
+  } catch (e) {
+    toastError((e as { message?: string }).message ?? '删除门店失败')
+  } finally {
+    deleteSubmitting.value = false
+  }
+}
 
 // —— 新增 / 编辑表单 ——
 const drawerShow = ref(false)
@@ -288,6 +339,59 @@ const toolbarActions = [
         坐标用于小程序「距离计算」与「导航前往」。请用<strong>腾讯 / 高德</strong>坐标拾取器（GCJ-02，与微信一致），<strong>勿用百度</strong>（坐标系不同，会偏移数百米）。在拾取器里搜门店地址 → 点地图 → 复制「纬度,经度」粘贴到上方即可。
       </p>
     </FormDrawer>
+
+    <NModal
+      :show="deleteShow"
+      preset="card"
+      title="删除门店"
+      :mask-closable="false"
+      :closable="!deleteSubmitting"
+      style="width: 480px; max-width: 92vw"
+      @update:show="(show) => !show && closeDelete()"
+    >
+      <NAlert
+        type="error"
+        title="删除后门店将停止使用"
+        :bordered="true"
+        class="delete-alert"
+      >
+        门店“{{ deleteTarget?.name }}”将从总后台和小程序中隐藏，门店账号立即失效；历史订单、支付及审计记录仍会保留。
+      </NAlert>
+      <NForm label-placement="top">
+        <NFormItem
+          label="管理员登录密码"
+          required
+        >
+          <NInput
+            v-model:value="deletePassword"
+            type="password"
+            show-password-on="click"
+            autocomplete="current-password"
+            placeholder="请输入当前登录密码确认删除"
+            :disabled="deleteSubmitting"
+            autofocus
+            @keyup.enter="submitDelete"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton
+            :disabled="deleteSubmitting"
+            @click="closeDelete"
+          >
+            取消
+          </NButton>
+          <NButton
+            type="error"
+            :loading="deleteSubmitting"
+            @click="submitDelete"
+          >
+            确认删除
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -296,6 +400,9 @@ const toolbarActions = [
   margin-top: var(--ic-space-md);
   font-size: var(--ic-font-xs);
   color: var(--ic-color-text-tertiary);
+}
+.delete-alert {
+  margin-bottom: var(--ic-space-md);
 }
 .form-row {
   display: flex;
