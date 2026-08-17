@@ -68,11 +68,11 @@ function resetFilters(): void {
 }
 
 const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
-  textColumn<WalletLedgerEntry>('ID', (row) => row.id, { width: 64 }),
+  textColumn<WalletLedgerEntry>('ID', (row) => row.id, { width: 56 }),
   {
     title: '会员信息',
     key: 'member',
-    width: 180,
+    width: 160,
     render: (row) => {
       const nickname = row.memberNickname?.trim() || `会员 ${row.memberId}`
       const phone = row.memberPhone?.trim() || '暂无手机号'
@@ -81,42 +81,49 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         h(
           NAvatar,
           {
-            size: 32,
+            class: 'ledger-member__avatar',
+            size: 30,
             round: true,
             src: row.memberAvatarUrl || undefined,
             objectFit: 'cover',
           },
           row.memberAvatarUrl ? { fallback } : { default: fallback },
         ),
-        h('div', { class: 'ledger-member__identity' }, [
-          h('strong', { title: nickname }, nickname),
-          h('span', phone),
+        h('div', { class: 'ledger-member__details' }, [
+          h('span', { class: 'ledger-member__nickname', title: nickname }, nickname),
+          h('span', { class: 'ledger-member__phone' }, phone),
         ]),
       ])
     },
   },
-  textColumn<WalletLedgerEntry>('门店', (row) => row.storeName, { width: 120 }),
-  statusColumn<WalletLedgerEntry>('资产', WALLET_ASSET_TYPE, (row) => row.assetType, { width: 86 }),
-  statusColumn<WalletLedgerEntry>('方向', WALLET_DIRECTION, (row) => row.direction, { width: 86 }),
-  textColumn<WalletLedgerEntry>('变动数量', (row) => row.amount, { width: 100, align: 'right' }),
-  textColumn<WalletLedgerEntry>('变动后余额', (row) => row.balanceAfter, { width: 112, align: 'right' }),
-  statusColumn<WalletLedgerEntry>('处理状态', WALLET_LEDGER_STATUS, (row) => row.status, { width: 100 }),
+  textColumn<WalletLedgerEntry>('门店', (row) => row.storeName, {
+    width: 110,
+    ellipsis: { tooltip: true },
+  }),
+  statusColumn<WalletLedgerEntry>('资产', WALLET_ASSET_TYPE, (row) => row.assetType, { width: 78 }),
+  statusColumn<WalletLedgerEntry>('方向', WALLET_DIRECTION, (row) => row.direction, { width: 78 }),
+  textColumn<WalletLedgerEntry>('变动数量', (row) => row.amount, { width: 82 }),
+  textColumn<WalletLedgerEntry>('变动后余额', (row) => row.balanceAfter, { width: 90 }),
+  statusColumn<WalletLedgerEntry>('处理状态', WALLET_LEDGER_STATUS, (row) => row.status, { width: 88 }),
   textColumn<WalletLedgerEntry>(
     '业务来源',
     (row) => WALLET_SOURCE_TYPE[row.sourceType ?? '']?.label ?? row.sourceType,
-    { width: 130 },
+    { width: 100, ellipsis: { tooltip: true } },
   ),
-  textColumn<WalletLedgerEntry>('关联订单号', (row) => row.relatedOrderNo, { width: 180 }),
+  textColumn<WalletLedgerEntry>('关联订单号', (row) => row.relatedOrderNo, {
+    width: 140,
+    ellipsis: { tooltip: true },
+  }),
   {
     title: '原因',
     key: 'reason',
-    width: 160,
+    width: 120,
     render: (row) => {
       const reason = WALLET_REASON_LABELS[row.reason ?? ''] ?? row.reason ?? '-'
       return h('span', { class: 'ledger-ellipsis', title: reason }, reason)
     },
   },
-  dateColumn<WalletLedgerEntry>('变动时间', (row) => row.createdAt, { width: 170 }),
+  dateColumn<WalletLedgerEntry>('变动时间', (row) => row.createdAt, { width: 136 }),
 ])
 </script>
 
@@ -129,13 +136,14 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     />
 
     <div class="ledger-filter">
-      <div class="ledger-filter__grid">
+      <div class="ledger-filter__fields">
         <label class="ledger-filter__field">
           <span>流水 ID</span>
           <NInput
             :value="(list.filters.id as string) ?? ''"
             clearable
             placeholder="支持模糊搜索"
+            style="width: 180px"
             @update:value="list.filters.id = $event"
             @keyup.enter="applyFilters"
           />
@@ -146,6 +154,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :value="(list.filters.memberNickname as string) ?? ''"
             clearable
             placeholder="支持模糊搜索"
+            style="width: 180px"
             @update:value="list.filters.memberNickname = $event"
             @keyup.enter="applyFilters"
           />
@@ -156,6 +165,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :value="(list.filters.memberPhone as string) ?? ''"
             clearable
             placeholder="支持模糊搜索"
+            style="width: 180px"
             @update:value="list.filters.memberPhone = $event"
             @keyup.enter="applyFilters"
           />
@@ -167,6 +177,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :options="assetTypeOptions"
             clearable
             placeholder="全部"
+            style="width: 160px"
             @update:value="list.filters.assetType = $event ?? ''"
           />
         </label>
@@ -177,6 +188,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :options="directionOptions"
             clearable
             placeholder="全部"
+            style="width: 160px"
             @update:value="list.filters.direction = $event ?? ''"
           />
         </label>
@@ -188,6 +200,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             clearable
             filterable
             placeholder="全部"
+            style="width: 160px"
             @update:value="list.filters.sourceType = $event ?? ''"
           />
         </label>
@@ -198,6 +211,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :options="statusOptions"
             clearable
             placeholder="全部"
+            style="width: 160px"
             @update:value="list.filters.status = $event ?? ''"
           />
         </label>
@@ -207,16 +221,18 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
             :value="(list.filters.reason as string) ?? ''"
             clearable
             placeholder="支持模糊搜索"
+            style="width: 180px"
             @update:value="list.filters.reason = $event"
             @keyup.enter="applyFilters"
           />
         </label>
-        <label class="ledger-filter__field ledger-filter__field--date">
+        <label class="ledger-filter__field">
           <span>变动时间</span>
           <NDatePicker
             v-model:value="createdRange"
             type="daterange"
             clearable
+            style="width: 260px"
           />
         </label>
       </div>
@@ -247,7 +263,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         :page-size="list.pageSize.value"
         :total="list.total.value"
         :row-key="(row) => row.recordKey"
-        :scroll-x="1540"
+        :scroll-x="1240"
         empty-text="本店暂无资产流水"
         @update:page="list.setPage"
         @update:page-size="list.setPageSize"
@@ -256,20 +272,27 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   </section>
 </template>
 
-<style scoped>
+<style>
 .wallet-ledger {
-  max-width: 1600px;
+  max-width: 1400px;
 }
 
 .ledger-filter {
-  padding: 0 0 var(--ic-space-5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ic-space-4);
+  padding: var(--ic-space-4);
   margin-bottom: var(--ic-space-4);
-  border-bottom: var(--ic-divider);
+  background: var(--ic-color-surface);
+  border: var(--ic-divider);
+  border-radius: var(--ic-radius-md);
+  flex-wrap: wrap;
 }
 
-.ledger-filter__grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+.ledger-filter__fields {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--ic-space-4);
 }
 
@@ -285,19 +308,16 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   font-size: var(--ic-font-xs);
 }
 
-.ledger-filter__field--date {
-  grid-column: span 2;
-}
-
 .ledger-filter__actions {
-  margin-top: var(--ic-space-4);
+  flex-shrink: 0;
 }
 
 .ledger-table {
   overflow: hidden;
+  padding: var(--ic-space-2);
   background: var(--ic-color-surface);
-  border-top: var(--ic-divider);
-  border-bottom: var(--ic-divider);
+  border: var(--ic-divider);
+  border-radius: var(--ic-radius-md);
 }
 
 .ledger-member {
@@ -308,28 +328,31 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   padding: 2px 0;
 }
 
-.ledger-member__identity {
+.ledger-member__avatar {
+  flex: none;
+}
+
+.ledger-member__details {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 2px;
 }
 
-.ledger-member__identity strong,
-.ledger-member__identity span {
+.ledger-member__nickname {
   overflow: hidden;
+  color: var(--ic-color-text);
+  font-weight: 600;
+  font-size: var(--ic-font-sm);
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ledger-member__identity strong {
-  color: var(--ic-color-text);
-  font-size: var(--ic-font-sm);
-}
-
-.ledger-member__identity span {
+.ledger-member__phone {
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -340,25 +363,13 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
-  .ledger-filter__grid {
-    grid-template-columns: repeat(3, minmax(180px, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .ledger-filter__grid {
-    grid-template-columns: repeat(2, minmax(160px, 1fr));
-  }
-}
-
 @media (max-width: 640px) {
-  .ledger-filter__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ledger-filter__field--date {
-    grid-column: span 1;
+  .ledger-filter__field,
+  .ledger-filter__field .n-input,
+  .ledger-filter__field .n-select,
+  .ledger-filter__field .n-base-selection,
+  .ledger-filter__field .n-date-picker {
+    width: 100% !important;
   }
 }
 </style>
