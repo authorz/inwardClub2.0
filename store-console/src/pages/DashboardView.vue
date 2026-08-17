@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NAlert, NButton, NSkeleton } from 'naive-ui'
+import { NAlert, NButton, NModal, NSkeleton } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { reportService } from '@/api/services'
 import type {
@@ -10,6 +10,7 @@ import type {
 } from '@/types/models'
 import { ApiError } from '@/api/error'
 import { PermissionButton } from '@/components/common'
+import { CollectionCreatePanel } from '@/components/collection'
 import { PERM } from '@/constants/permissions'
 
 const router = useRouter()
@@ -17,6 +18,7 @@ const overview = ref<ReportOverview | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
 const updatedAt = ref('')
+const collectionModalShow = ref(false)
 
 const countFormatter = new Intl.NumberFormat('zh-CN')
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
@@ -81,7 +83,7 @@ const summaryMetrics = computed(() => [
     label: '线下收款',
     value: formatCurrency(overview.value?.offlineCollectionRevenueCent),
     detail: '本店累计已支付线下聚合收款',
-    actionPath: '/collection',
+    action: true,
   },
   {
     key: 'members',
@@ -277,10 +279,10 @@ onMounted(loadOverview)
           <div class="summary-card__footer">
             <span class="summary-card__detail">{{ metric.detail }}</span>
             <PermissionButton
-              v-if="metric.actionPath"
+              v-if="metric.action"
               :permissions="[PERM.collectionCreate]"
               type="primary"
-              @click="router.push(metric.actionPath)"
+              @click="collectionModalShow = true"
             >
               发起线下收款
             </PermissionButton>
@@ -438,6 +440,15 @@ onMounted(loadOverview)
         </NButton>
       </nav>
     </template>
+
+    <NModal
+      v-model:show="collectionModalShow"
+      preset="card"
+      title="发起线下收款"
+      style="width: min(560px, calc(100vw - 32px))"
+    >
+      <CollectionCreatePanel @paid="loadOverview" />
+    </NModal>
   </section>
 </template>
 
