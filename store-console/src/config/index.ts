@@ -5,12 +5,8 @@
  * 这样可以保证 API base、audience、appId 在整个站点内唯一来源。
  */
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
-
-if (!rawBaseUrl) {
-  // 缺失 base url 会导致所有请求打到当前站点，属于配置错误，尽早暴露。
-  console.error('[store-console] VITE_API_BASE_URL 未配置，API 请求将失败。')
-}
+// 生产环境默认走同源 /api/v2，由 NGINX 决定实际接口上游，构建产物不绑定服务端域名。
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
 /** 去除结尾斜杠，统一 base 拼接行为。 */
 function normalizeBaseUrl(url: string): string {

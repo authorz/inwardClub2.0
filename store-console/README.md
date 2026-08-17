@@ -45,9 +45,35 @@ pnpm dev          # vite，默认端口 5181
 
 ```dotenv
 VITE_APP_ID=inwardclub-store-console
-VITE_API_BASE_URL=<https://api.inwardclub.cn/api/v2 或本地网关>
+VITE_API_BASE_URL=/api/v2
 VITE_AUTH_AUDIENCE=store
 VITE_ASSET_PUBLIC_DOMAIN=
+```
+
+生产构建默认请求同源 `/api/v2`，部署时由 NGINX 将该路径反向代理至实际 API 服务，前端产物不写入接口域名。
+
+NGINX 部署示例（将 `root` 和 API 服务地址替换为实际值）：
+
+```nginx
+server {
+    listen 80;
+    server_name store.example.com;
+    root /var/www/inwardclub-store-console;
+    index index.html;
+
+    location ^~ /api/v2/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
 ```
 
 ---
