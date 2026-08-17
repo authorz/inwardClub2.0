@@ -19,6 +19,7 @@ type storeMemRepo struct {
 	verifyCalledStore int64
 	verifyCalledCode  string
 	reviewDecision    string
+	previewCalled     bool
 }
 
 func (r *storeMemRepo) VerifyTicket(_ context.Context, storeID int64, code string, byID int64, now time.Time) (TicketVerification, error) {
@@ -52,6 +53,14 @@ func (r *storeMemRepo) GetPointSaving(_ context.Context, storeID, requestID int6
 		}
 	}
 	return PointSaving{}, apperr.NotFound("point-saving request not found")
+}
+
+func (r *storeMemRepo) PreviewPointSaving(_ context.Context, saving PointSaving, _ time.Time) (PointSaving, error) {
+	r.previewCalled = true
+	saving.PointsDivisor = 5
+	saving.AwardedPoints = saving.Points / saving.PointsDivisor
+	saving.CalculationDescription = "实际获得积分 = 存入积分 ÷ 5（向下取整）"
+	return saving, nil
 }
 
 func (r *storeMemRepo) ReviewPointSaving(_ context.Context, storeID, requestID int64, decision, remark, reviewerType string, byID int64, now time.Time) (PointSaving, error) {
@@ -138,6 +147,10 @@ type nopAssets struct{}
 
 func (nopAssets) PublicURLByID(context.Context, int64) (string, error) { return "", nil }
 
+type fixedAssets struct{ url string }
+
+func (a fixedAssets) PublicURLByID(context.Context, int64) (string, error) { return a.url, nil }
+
 func newStoreTestService() (*StoreService, *storeMemRepo) {
 	repo := &storeMemRepo{}
 	svc := NewStoreService(repo, nopAssets{})
@@ -200,6 +213,35 @@ func TestGetPointSavingCrossStoreHidden(t *testing.T) {
 	// A store must not read another store's request.
 	if _, err := svc.GetPointSaving(context.Background(), 7, 1); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for cross-store lookup, got %v", err)
+	}
+}
+
+func TestGetPointSavingPreviewsPendingAward(t *testing.T) {
+	svc, repo := newStoreTestService()
+	repo.pointSavings = []PointSaving{{ID: 1, StoreID: 7, MemberID: 3, Points: 100, Status: PointSavingPending}}
+	view, err := svc.GetPointSaving(context.Background(), 7, 1)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !repo.previewCalled || view.AwardedPoints != 20 || view.CalculationDescription == "" {
+		t.Fatalf("expected pending calculation preview, got %+v", view)
+	}
+}
+
+func TestListPointSavingsResolvesAvatarAsset(t *testing.T) {
+	repo := &storeMemRepo{}
+	svc := NewStoreService(repo, fixedAssets{url: "https://cdn.test/resolved-avatar.webp"})
+	assetID := int64(88)
+	repo.pointSavings = []PointSaving{{
+		ID: 1, StoreID: 7, MemberID: 3, MemberAvatarAssetID: &assetID,
+		Points: 100, Status: PointSavingPending,
+	}}
+	views, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(views) != 1 || views[0].MemberAvatarURL != "https://cdn.test/resolved-avatar.webp" {
+		t.Fatalf("expected resolved avatar, got %+v", views)
 	}
 }
 

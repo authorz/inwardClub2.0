@@ -1,6 +1,7 @@
 package activity
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -46,6 +47,9 @@ func TestCalculatePointReviewRules(t *testing.T) {
 			got := calculatePointReview(tc.when, tc.requested, tc.base, rule)
 			if got.AwardedPoints != tc.wantPoints || got.AwardedCoins != tc.wantCoin || got.ExcessPoints != tc.wantExcess {
 				t.Fatalf("calculation=%+v", got)
+			}
+			if !strings.Contains(got.Description, "实际获得积分 =") || !strings.Contains(got.Description, "向下取整") && tc.name != "inside equal to base" {
+				t.Fatalf("calculation rule is not explicit: %q", got.Description)
 			}
 		})
 	}

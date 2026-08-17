@@ -104,6 +104,7 @@ export const API_PATHS = {
 
   pointSavings: {
     list: '/store/point-savings',
+    detail: (id: string | number) => `/store/point-savings/${id}`,
     review: (id: string | number) => `/store/point-savings/${id}/review`,
   },
 

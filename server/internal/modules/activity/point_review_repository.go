@@ -56,48 +56,15 @@ func (r *storeSQLRepository) ReviewPointSaving(
 			return requireSingleReview(res)
 		}
 
-		rule, err := pointReviewRule(ctx, tx)
+		evaluation, err := evaluatePointReview(ctx, tx, saving, now)
 		if err != nil {
 			return err
 		}
-		window := businessWindow(now)
-		var (
-			basePoints   int64
-			calcStart    *time.Time
-			lastSavingID *int64
-		)
-		if window.InBusiness {
-			start := window.Start.UTC()
-			calcStart = &start
-			var lastAt time.Time
-			const lastApproved = `SELECT id, reviewed_at FROM point_savings
-				WHERE member_id = ? AND id <> ? AND status = ?
-				  AND reviewed_at >= ? AND reviewed_at < ?
-				ORDER BY reviewed_at DESC, id DESC LIMIT 1`
-			var lastID int64
-			err := tx.QueryRowContext(
-				ctx, lastApproved, saving.MemberID, requestID, PointSavingApproved,
-				window.Start.UTC(), now,
-			).Scan(&lastID, &lastAt)
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-			case err != nil:
-				return apperr.Internal(err)
-			default:
-				lastSavingID = &lastID
-				lastAt = lastAt.UTC()
-				calcStart = &lastAt
-			}
-
-			const base = `SELECT COALESCE(SUM(points), 0) FROM point_withdrawals
-				WHERE member_id = ? AND status = 'approved'
-				  AND created_at >= ? AND created_at < ?`
-			if err := tx.QueryRowContext(ctx, base, saving.MemberID, *calcStart, now).Scan(&basePoints); err != nil {
-				return apperr.Internal(err)
-			}
-		}
-
-		calc := calculatePointReview(now, saving.Points, basePoints, rule)
+		calc := evaluation.Calculation
+		rule := evaluation.Rule
+		window := calc.Window
+		calcStart := evaluation.CalculationStartAt
+		lastSavingID := evaluation.LastApprovedSavingID
 		if err := creditPointReviewAsset(
 			ctx, tx, saving.MemberID, "points", calc.AwardedPoints,
 			"point_saving_reward", requestID,
@@ -148,6 +115,99 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		return PointSaving{}, err
 	}
 	return r.GetPointSaving(ctx, storeID, requestID)
+}
+
+type pointReviewQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type pointReviewEvaluation struct {
+	Calculation          PointReviewCalculation
+	Rule                 PointReviewRule
+	CalculationStartAt   *time.Time
+	LastApprovedSavingID *int64
+}
+
+func evaluatePointReview(
+	ctx context.Context,
+	queryer pointReviewQueryer,
+	saving PointSaving,
+	now time.Time,
+) (pointReviewEvaluation, error) {
+	rule, err := pointReviewRule(ctx, queryer)
+	if err != nil {
+		return pointReviewEvaluation{}, err
+	}
+	window := businessWindow(now)
+	var (
+		basePoints   int64
+		calcStart    *time.Time
+		lastSavingID *int64
+	)
+	if window.InBusiness {
+		start := window.Start.UTC()
+		calcStart = &start
+		var lastAt time.Time
+		const lastApproved = `SELECT id, reviewed_at FROM point_savings
+			WHERE member_id = ? AND id <> ? AND status = ?
+			  AND reviewed_at >= ? AND reviewed_at < ?
+			ORDER BY reviewed_at DESC, id DESC LIMIT 1`
+		var lastID int64
+		err := queryer.QueryRowContext(
+			ctx, lastApproved, saving.MemberID, saving.ID, PointSavingApproved,
+			window.Start.UTC(), now,
+		).Scan(&lastID, &lastAt)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return pointReviewEvaluation{}, apperr.Internal(err)
+		default:
+			lastSavingID = &lastID
+			lastAt = lastAt.UTC()
+			calcStart = &lastAt
+		}
+
+		const base = `SELECT COALESCE(SUM(points), 0) FROM point_withdrawals
+			WHERE member_id = ? AND status = 'approved'
+			  AND created_at >= ? AND created_at < ?`
+		if err := queryer.QueryRowContext(ctx, base, saving.MemberID, *calcStart, now).Scan(&basePoints); err != nil {
+			return pointReviewEvaluation{}, apperr.Internal(err)
+		}
+	}
+
+	return pointReviewEvaluation{
+		Calculation:          calculatePointReview(now, saving.Points, basePoints, rule),
+		Rule:                 rule,
+		CalculationStartAt:   calcStart,
+		LastApprovedSavingID: lastSavingID,
+	}, nil
+}
+
+func (r *storeSQLRepository) PreviewPointSaving(
+	ctx context.Context,
+	saving PointSaving,
+	now time.Time,
+) (PointSaving, error) {
+	if saving.Status != PointSavingPending {
+		return saving, nil
+	}
+	evaluation, err := evaluatePointReview(ctx, r.db, saving, now)
+	if err != nil {
+		return PointSaving{}, err
+	}
+	calc := evaluation.Calculation
+	saving.BasePoints = calc.BasePoints
+	saving.ExcessPoints = calc.ExcessPoints
+	saving.AwardedPoints = calc.AwardedPoints
+	saving.CoinBasePoints = calc.CoinBasePoints
+	saving.AwardedCoins = calc.AwardedCoins
+	saving.RuleVersion = evaluation.Rule.Version
+	saving.PointsDivisor = evaluation.Rule.PointsDivisor
+	saving.CoinPointsDivisor = evaluation.Rule.CoinPointsDivisor
+	saving.CalculationStartAt = evaluation.CalculationStartAt
+	saving.LastApprovedSavingID = evaluation.LastApprovedSavingID
+	saving.CalculationDescription = calc.Description
+	return saving, nil
 }
 
 type pointSavingReviewerSnapshot struct {
@@ -213,11 +273,11 @@ func requireSingleReview(result sql.Result) error {
 	return nil
 }
 
-func pointReviewRule(ctx context.Context, tx *sql.Tx) (PointReviewRule, error) {
+func pointReviewRule(ctx context.Context, queryer pointReviewQueryer) (PointReviewRule, error) {
 	var rule PointReviewRule
 	const q = `SELECT points_divisor, coin_points_divisor, version
 		FROM point_review_settings WHERE id = 1`
-	err := tx.QueryRowContext(ctx, q).Scan(
+	err := queryer.QueryRowContext(ctx, q).Scan(
 		&rule.PointsDivisor, &rule.CoinPointsDivisor, &rule.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

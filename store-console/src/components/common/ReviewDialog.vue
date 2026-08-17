@@ -12,10 +12,12 @@ const props = withDefaults(
     show: boolean
     title?: string
     loading?: boolean
+    width?: number
+    approveDisabled?: boolean
     /** 驳回是否必须填写原因。 */
     requireRejectReason?: boolean
   }>(),
-  { title: '审核', loading: false, requireRejectReason: true },
+  { title: '审核', loading: false, width: 460, approveDisabled: false, requireRejectReason: true },
 )
 
 const emit = defineEmits<{
@@ -51,7 +53,7 @@ function onReject() {
     :show="show"
     preset="card"
     :title="title"
-    style="width: 460px"
+    :style="{ width: `min(${width}px, calc(100vw - 32px))` }"
     :mask-closable="!loading"
     @update:show="emit('update:show', $event)"
   >
@@ -85,6 +87,7 @@ function onReject() {
         <NButton
           type="primary"
           :loading="loading"
+          :disabled="approveDisabled"
           @click="onApprove"
         >
           通过

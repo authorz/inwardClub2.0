@@ -4,13 +4,15 @@
  * 审核为高风险写操作，服务端带 Idempotency-Key 与审计。
  */
 import { computed, h, ref } from 'vue'
-import { NAvatar, type DataTableColumns } from 'naive-ui'
+import { NAlert, NAvatar, NSpin, type DataTableColumns } from 'naive-ui'
 import { pointSavingService } from '@/api/services'
+import { ApiError } from '@/api/error'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { REVIEW_STATUS, toOptions } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { dateColumn, phoneColumn, statusColumn, textColumn } from '@/utils/columns'
+import { feedback } from '@/utils/feedback'
 import {
   DataTable,
   PageHeader,
@@ -27,15 +29,35 @@ const action = useAsyncAction()
 
 const dialogShow = ref(false)
 const activeRow = ref<PointSavingRequest | null>(null)
+const detailLoading = ref(false)
+const detailError = ref('')
+let detailRequestVersion = 0
 
-function openReview(row: PointSavingRequest) {
+async function openReview(row: PointSavingRequest) {
   activeRow.value = row
   dialogShow.value = true
+  detailError.value = ''
+  detailLoading.value = true
+  const version = ++detailRequestVersion
+  try {
+    const detail = await pointSavingService.detail(row.id)
+    if (version === detailRequestVersion) activeRow.value = detail
+  } catch (error) {
+    if (version === detailRequestVersion) {
+      detailError.value = error instanceof ApiError ? error.message : '积分计算规则加载失败'
+    }
+  } finally {
+    if (version === detailRequestVersion) detailLoading.value = false
+  }
 }
 
 function submit(decision: 'approved' | 'rejected', reason: string) {
   const row = activeRow.value
   if (!row) return
+  if (decision === 'approved' && detailError.value) {
+    feedback.message.warning('积分计算规则尚未加载，暂不能通过审核')
+    return
+  }
   void action.run(() => pointSavingService.review(row.id, decision, reason), {
     successMessage: decision === 'approved' ? '已通过' : '已驳回',
     onSuccess: () => {
@@ -51,11 +73,12 @@ function initial(value?: string): string {
 
 function memberCell(row: PointSavingRequest) {
   const name = row.memberName || `用户 ${row.memberId}`
+  const fallback = () => initial(name)
   return h('div', { class: 'point-review__identity' }, [
     h(
       NAvatar,
-      { round: true, size: 40, src: row.memberAvatarUrl || undefined },
-      { default: () => initial(name) },
+      { round: true, size: 40, src: row.memberAvatarUrl || undefined, objectFit: 'cover' },
+      row.memberAvatarUrl ? { fallback } : { default: fallback },
     ),
     h('div', { class: 'point-review__identity-copy' }, [
       h('strong', name),
@@ -107,7 +130,7 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
     render: memberCell,
   },
   phoneColumn<PointSavingRequest>('手机号', (r) => r.phone),
-  textColumn<PointSavingRequest>('申请积分', (r) => r.points, { align: 'right' }),
+  textColumn<PointSavingRequest>('存入积分', (r) => r.points, { align: 'right' }),
   statusColumn<PointSavingRequest>('状态', REVIEW_STATUS, (r) => r.status, { width: 100 }),
   {
     title: '审核人',
@@ -130,7 +153,7 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
           type: 'primary',
           text: true,
           disabled: row.status !== 'pending',
-          onClick: () => openReview(row),
+          onClick: () => void openReview(row),
         },
         { default: () => '审核' },
       ),
@@ -173,27 +196,137 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
       v-model:show="dialogShow"
       title="积分存入审核"
       :loading="action.running.value"
+      :width="580"
+      :approve-disabled="detailLoading || Boolean(detailError)"
       @approve="submit('approved', $event)"
       @reject="submit('rejected', $event)"
     >
-      <div
-        v-if="activeRow"
-        class="review-info ic-band"
-      >
-        <div><span class="ic-muted">会员：</span>{{ activeRow.memberName ?? '-' }}</div>
-        <div><span class="ic-muted">申请积分：</span>{{ activeRow.points }}</div>
-      </div>
+      <NSpin :show="detailLoading">
+        <div
+          v-if="activeRow"
+          class="review-info"
+        >
+          <div class="review-member">
+            <NAvatar
+              v-if="activeRow.memberAvatarUrl"
+              round
+              :size="56"
+              :src="activeRow.memberAvatarUrl"
+              object-fit="cover"
+            >
+              <template #fallback>
+                {{ initial(activeRow.memberName) }}
+              </template>
+            </NAvatar>
+            <NAvatar
+              v-else
+              round
+              :size="56"
+            >
+              {{ initial(activeRow.memberName) }}
+            </NAvatar>
+            <div class="review-member__copy">
+              <strong>{{ activeRow.memberName || `用户 ${activeRow.memberId}` }}</strong>
+              <span>手机号：{{ activeRow.phone || '未登记手机号' }}</span>
+            </div>
+          </div>
+
+          <NAlert
+            v-if="detailError"
+            type="error"
+            :show-icon="false"
+          >
+            {{ detailError }}，请关闭弹窗后重试。
+          </NAlert>
+
+          <dl class="review-points">
+            <div>
+              <dt>存入积分</dt>
+              <dd>{{ activeRow.points }}</dd>
+            </div>
+            <div>
+              <dt>实际获得积分</dt>
+              <dd>{{ activeRow.awardedPoints ?? '—' }}</dd>
+            </div>
+          </dl>
+
+          <section class="review-calculation">
+            <h3>积分计算规则</h3>
+            <p>{{ activeRow.calculationDescription || '正在读取当前积分计算规则…' }}</p>
+            <span v-if="activeRow.pointsDivisor">
+              规则版本 v{{ activeRow.ruleVersion }} · 标准换算为每 {{ activeRow.pointsDivisor }} 存入积分获得 1 积分，除法结果向下取整。审核通过时服务端会按同一规则重新校验。
+            </span>
+          </section>
+        </div>
+      </NSpin>
     </ReviewDialog>
   </div>
 </template>
 
 <style scoped>
 .review-info {
-  padding: var(--ic-space-3) var(--ic-space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--ic-space-1);
+  gap: var(--ic-space-4);
   font-size: var(--ic-font-sm);
+}
+.review-member {
+  display: flex;
+  gap: var(--ic-space-3);
+  align-items: center;
+}
+.review-member__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.review-member__copy strong {
+  overflow: hidden;
+  font-size: var(--ic-font-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-member__copy span,
+.review-calculation span {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+}
+.review-points {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid var(--ic-color-border);
+}
+.review-points > div {
+  padding: var(--ic-space-3) 0;
+}
+.review-points > div + div {
+  padding-left: var(--ic-space-4);
+  border-left: 1px solid var(--ic-color-border);
+}
+.review-points dt {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+}
+.review-points dd {
+  margin: 4px 0 0;
+  font-size: var(--ic-font-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.review-calculation h3 {
+  margin: 0;
+  font-size: var(--ic-font-sm);
+  font-weight: 650;
+}
+.review-calculation p {
+  margin: 8px 0 6px;
+  line-height: 1.65;
+}
+.review-calculation span {
+  display: block;
+  line-height: 1.6;
 }
 :global(.point-review__identity) {
   display: flex;

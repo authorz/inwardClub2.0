@@ -222,6 +222,15 @@ export interface PointSavingRequest extends AuditFields {
   memberAvatarUrl?: string
   direction?: string
   points: number
+  basePoints: number
+  excessPoints: number
+  awardedPoints: number
+  coinBasePoints: number
+  awardedCoins: number
+  ruleVersion: number
+  pointsDivisor: number
+  coinPointsDivisor: number
+  calculationDescription?: string
   status: ReviewStatus
   note?: string
   reviewedBy?: number

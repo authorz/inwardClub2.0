@@ -65,9 +65,15 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 		calc.CoinBasePoints = requested
 		calc.AwardedCoins = requested / rule.CoinPointsDivisor
 		if calc.Window.InBusiness {
-			calc.Description = fmt.Sprintf("用户存入积分：%d，实际存入积分：%d（无基数积分）", requested, calc.AwardedPoints)
+			calc.Description = fmt.Sprintf(
+				"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；当前营业时段内无基数积分，按标准规则计算",
+				requested, rule.PointsDivisor, calc.AwardedPoints,
+			)
 		} else {
-			calc.Description = fmt.Sprintf("用户存入积分：%d，实际存入积分：%d（标准规则）", requested, calc.AwardedPoints)
+			calc.Description = fmt.Sprintf(
+				"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；非营业积分时段按标准规则计算",
+				requested, rule.PointsDivisor, calc.AwardedPoints,
+			)
 		}
 		return calc
 	}
@@ -76,16 +82,16 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 	if requested < base {
 		calc.AwardedPoints = requested / belowBasePointsDivisor
 		calc.Description = fmt.Sprintf(
-			"用户存入积分：%d，基数积分：%d，实际存入积分：%d（基数积分规则：存入<基数，按1:2）",
-			requested, base, calc.AwardedPoints,
+			"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；存入积分低于基数积分 %d，按 2:1 计算",
+			requested, belowBasePointsDivisor, calc.AwardedPoints, base,
 		)
 		return calc
 	}
 	if requested == base {
 		calc.AwardedPoints = requested
 		calc.Description = fmt.Sprintf(
-			"用户存入积分：%d，基数积分：%d，实际存入积分：%d（基数积分规则：存入=基数，按1:1）",
-			requested, base, calc.AwardedPoints,
+			"实际获得积分 = 存入积分 %d = %d；存入积分等于基数积分，按 1:1 计算",
+			requested, calc.AwardedPoints,
 		)
 		return calc
 	}
@@ -95,8 +101,8 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 	calc.CoinBasePoints = calc.ExcessPoints
 	calc.AwardedCoins = calc.CoinBasePoints / rule.CoinPointsDivisor
 	calc.Description = fmt.Sprintf(
-		"用户存入积分：%d，基数积分：%d，超出部分：%d，实际存入积分：%d（基数积分规则：存入>基数）",
-		requested, base, calc.ExcessPoints, calc.AwardedPoints,
+		"实际获得积分 = 基数积分 %d +（存入积分 %d - 基数积分 %d）÷ %d（超出部分向下取整）= %d",
+		base, requested, base, rule.PointsDivisor, calc.AwardedPoints,
 	)
 	return calc
 }
