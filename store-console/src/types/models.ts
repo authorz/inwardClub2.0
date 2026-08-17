@@ -358,6 +358,20 @@ export interface ReportOverview {
   trend: ReportOverviewTrendPoint[]
 }
 
+/** 门店收款趋势的单日汇总，金额单位为分。 */
+export interface RevenueReportRow {
+  date: string
+  orderCount: number
+  grossCent: number
+}
+
+export interface RevenueReportQuery {
+  from: string
+  to: string
+  page: number
+  pageSize: number
+}
+
 /** 会员单一资产余额（仅会员详情返回 wallet 数组）。 */
 export interface WalletAccount {
   assetType: string

@@ -208,21 +208,23 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 	return o, nil
 }
 
-// Revenue serves the per-day revenue rollup (order count and paid gross) from
-// the reporting_daily pre-aggregate written by the report:rollup worker. Newest
-// day first. A nil StoreID sums every store row (including the store-less bucket)
-// per day so the cross-store total matches the raw orders; a set StoreID reads
-// that store's rows only. Days with no rollup row simply do not appear.
+// Revenue serves the per-day paid order count and gross directly from successful
+// payment orders. Using paid_at keeps cross-day payments on their actual receipt
+// date and keeps today's report current without waiting for the daily rollup.
+// A set StoreID is always sourced from the store token scope at the handler.
 func (r *sqlRepository) Revenue(ctx context.Context, f ReportFilter) ([]RevenueRow, int64, error) {
-	sd, scopeArgs := scopeDate(f, "store_id", "report_date")
-	args := append([]any{MetricRevenue}, scopeArgs...)
+	sd, args := scopeDate(f, "bo.store_id", "po.paid_at")
+	const reportDate = "DATE(CONVERT_TZ(po.paid_at, '+00:00', '+08:00'))"
+	base := ` FROM payment_orders po
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		WHERE po.status = 'paid'` + sd
 	var total int64
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT report_date) FROM reporting_daily WHERE metric = ?`+sd, args...).Scan(&total); err != nil {
+		`SELECT COUNT(DISTINCT `+reportDate+`)`+base, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT report_date, COALESCE(SUM(quantity), 0), COALESCE(SUM(amount_cent), 0)
-		FROM reporting_daily WHERE metric = ?` + sd + ` GROUP BY report_date ORDER BY report_date DESC LIMIT ? OFFSET ?`
+	q := `SELECT ` + reportDate + `, COUNT(*), COALESCE(SUM(po.amount_cent), 0)` + base +
+		` GROUP BY ` + reportDate + ` ORDER BY ` + reportDate + ` DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

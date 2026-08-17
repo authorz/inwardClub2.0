@@ -9,6 +9,8 @@ import (
 	"github.com/inwardclub/server/internal/platform/storescope"
 )
 
+var reportLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
 // Handler exposes the console analytics read endpoints. Router wiring lives
 // outside this module.
 type Handler struct {
@@ -48,6 +50,12 @@ func reportFilter(c *gin.Context) ReportFilter {
 		f.From = from
 	}
 	if to := parseDateParam(c.Query("to")); to != nil {
+		// A date-only upper bound means the whole local calendar date, rather
+		// than midnight at its start. RFC3339 datetimes retain their exact bound.
+		if _, err := time.Parse("2006-01-02", c.Query("to")); err == nil {
+			endOfDay := to.AddDate(0, 0, 1).Add(-time.Nanosecond)
+			to = &endOfDay
+		}
 		f.To = to
 	}
 	return f
@@ -60,13 +68,13 @@ func parseDateParam(v string) *time.Time {
 	if t, err := time.Parse(time.RFC3339, v); err == nil {
 		return &t
 	}
-	if t, err := time.Parse("2006-01-02", v); err == nil {
+	if t, err := time.ParseInLocation("2006-01-02", v, reportLocation); err == nil {
 		return &t
 	}
 	return nil
 }
 
-// Revenue handles GET /admin/reports/revenue.
+// Revenue handles GET /admin/reports/revenue and GET /store/reports/revenue.
 func (h *Handler) Revenue(c *gin.Context) {
 	f := reportFilter(c)
 	views, total, err := h.svc.GetRevenue(c.Request.Context(), f)

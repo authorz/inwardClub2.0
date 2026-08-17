@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -97,6 +98,12 @@ func TestRevenueStoreScopesToTokenAndParsesWindow(t *testing.T) {
 	}
 	if repo.lastReport.From == nil || repo.lastReport.To == nil {
 		t.Fatalf("expected from/to window parsed, got from=%v to=%v", repo.lastReport.From, repo.lastReport.To)
+	}
+	if got := repo.lastReport.From.Format(time.RFC3339Nano); got != "2026-07-01T00:00:00+08:00" {
+		t.Fatalf("expected date-only from bound in business timezone, got %s", got)
+	}
+	if got := repo.lastReport.To.Format(time.RFC3339Nano); got != "2026-07-18T23:59:59.999999999+08:00" {
+		t.Fatalf("expected date-only to bound to include the full day, got %s", got)
 	}
 }
 

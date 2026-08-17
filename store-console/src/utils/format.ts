@@ -10,6 +10,13 @@ export function formatCent(cent: number | null | undefined): string {
   return `¥${yuan.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/** 整数分 -> 图表紧凑金额，例如 1280000 => ¥1.3万。 */
+export function formatCompactCent(cent: number): string {
+  const yuan = cent / 100
+  if (yuan >= 10_000) return `¥${(yuan / 10_000).toFixed(1)}万`
+  return `¥${yuan.toFixed(yuan >= 100 ? 0 : 2)}`
+}
+
 /** 整数分 -> 纯数字元字符串（用于输入框回填）。 */
 export function centToYuan(cent: number | null | undefined): number {
   if (cent == null || Number.isNaN(cent)) return 0
