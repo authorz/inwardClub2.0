@@ -166,6 +166,7 @@ async function submitRefund(): Promise<void> {
     feedback.message.error('请输入门店管理员登录密码')
     return
   }
+  refundPassword.value = ''
   await refundAction.run(
     () =>
       orderService.requestRefund({

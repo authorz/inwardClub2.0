@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -38,11 +39,12 @@ type Config struct {
 	WeChatPayUseReal   bool `yaml:"wechatPayUseReal"`
 	PaymentDebugMode   bool `yaml:"paymentDebugMode"`
 
-	JWT     JWTConfig     `yaml:"jwt"`
-	WeChat  WeChatConfig  `yaml:"wechat"`
-	Offline OfflineConfig `yaml:"offlineAcquirer"`
-	Qiniu   QiniuConfig   `yaml:"qiniu"`
-	Xpyun   XpyunConfig   `yaml:"xpyun"`
+	JWT                  JWTConfig                  `yaml:"jwt"`
+	CredentialEncryption CredentialEncryptionConfig `yaml:"credentialEncryption"`
+	WeChat               WeChatConfig               `yaml:"wechat"`
+	Offline              OfflineConfig              `yaml:"offlineAcquirer"`
+	Qiniu                QiniuConfig                `yaml:"qiniu"`
+	Xpyun                XpyunConfig                `yaml:"xpyun"`
 }
 
 // JWTConfig holds signing material and token lifetimes. Audiences are fixed in
@@ -52,6 +54,12 @@ type JWTConfig struct {
 	Issuer     string        `yaml:"issuer"`
 	AccessTTL  time.Duration `yaml:"accessTtl"`
 	RefreshTTL time.Duration `yaml:"refreshTtl"`
+}
+
+// CredentialEncryptionConfig holds the RSA private key used to encrypt
+// password confirmations in the two browser consoles.
+type CredentialEncryptionConfig struct {
+	PrivateKeyPath string `yaml:"privateKeyPath"`
 }
 
 type WeChatConfig struct {
@@ -214,6 +222,7 @@ func applyEnv(cfg *Config) {
 	setStr(&cfg.JWT.Issuer, "JWT_ISSUER")
 	setDur(&cfg.JWT.AccessTTL, "JWT_ACCESS_TTL")
 	setDur(&cfg.JWT.RefreshTTL, "JWT_REFRESH_TTL")
+	setStr(&cfg.CredentialEncryption.PrivateKeyPath, "CREDENTIAL_ENCRYPTION_PRIVATE_KEY_PATH")
 
 	setStr(&cfg.WeChat.MiniAppID, "WECHAT_MINI_APP_ID")
 	setStr(&cfg.WeChat.MiniAppSecret, "WECHAT_MINI_APP_SECRET")
@@ -275,6 +284,9 @@ func (c *Config) Validate() error {
 	}
 	if c.JWT.SigningKey == "" {
 		return fmt.Errorf("JWT_SIGNING_KEY is required")
+	}
+	if c.AppEnv == "production" && strings.TrimSpace(c.CredentialEncryption.PrivateKeyPath) == "" {
+		return fmt.Errorf("CREDENTIAL_ENCRYPTION_PRIVATE_KEY_PATH is required in production")
 	}
 	// WeChat login/pay validate independently so one can go real while the
 	// offline acquirer / printer stay faked (they gate on UseFakeAdapters).

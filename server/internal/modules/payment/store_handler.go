@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/inwardclub/server/internal/platform/authn"
+	"github.com/inwardclub/server/internal/platform/credentialcrypto"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -15,11 +16,18 @@ import (
 // StoreHandler exposes the store-console payment endpoints. The store scope is
 // always taken from the JWT via storescope; router wiring lives elsewhere.
 type StoreHandler struct {
-	svc *StoreService
+	svc         *StoreService
+	credentials credentialcrypto.Decryptor
 }
 
 // NewStoreHandler builds the store payment handler.
-func NewStoreHandler(svc *StoreService) *StoreHandler { return &StoreHandler{svc: svc} }
+func NewStoreHandler(svc *StoreService, credentials ...credentialcrypto.Decryptor) *StoreHandler {
+	h := &StoreHandler{svc: svc}
+	if len(credentials) > 0 {
+		h.credentials = credentials[0]
+	}
+	return h
+}
 
 // CreateCollectionOrder handles POST /store/offline-collection-orders.
 func (h *StoreHandler) CreateCollectionOrder(c *gin.Context) {
@@ -91,6 +99,12 @@ func (h *StoreHandler) CreateRefund(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("invalid request body"))
 		return
 	}
+	password, err := credentialcrypto.DecryptPassword(h.credentials, req.PasswordKeyID, req.PasswordCiphertext)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	req.Password = password
 	view, err := h.svc.CreateRefund(c.Request.Context(), storeID,
 		string(claims.SubjectType), claims.SubjectID(), idempotency.Key(c), req)
 	if err != nil {

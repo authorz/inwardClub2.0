@@ -37,6 +37,15 @@ go run ./cmd/worker     # 异步任务（需 Redis）
 默认 `USE_FAKE_ADAPTERS=true`，微信登录/支付、七牛、打印机、线下聚合收单均使用
 fake adapter，本地开发与测试不依赖外网。
 
+生产环境必须为后台二次密码确认配置独立 RSA 私钥，并让所有 API 实例挂载同一文件：
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /run/secrets/credential-encryption.pem
+export CREDENTIAL_ENCRYPTION_PRIVATE_KEY_PATH=/run/secrets/credential-encryption.pem
+```
+
+私钥不得提交到仓库；开发环境未配置时会为当前 API 进程生成临时密钥。该应用层加密不能替代 HTTPS。
+
 ## 验收命令
 
 ```bash

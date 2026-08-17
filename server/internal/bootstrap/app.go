@@ -28,6 +28,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/wallet"
 	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/config"
+	"github.com/inwardclub/server/internal/platform/credentialcrypto"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 )
 
@@ -53,6 +54,7 @@ type App struct {
 	tournamentHandler *tournament.Handler
 	walletHandler     *wallet.Handler
 	paymentHandler    *payment.Handler
+	credentialHandler *credentialcrypto.Handler
 
 	paymentStoreHandler        *payment.StoreHandler
 	paymentAdminHandler        *payment.AdminHandler
@@ -92,6 +94,10 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	}
 
 	tokens := authn.NewManager(cfg.JWT.SigningKey, cfg.JWT.Issuer, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
+	credentialCipher, err := credentialcrypto.New(cfg.CredentialEncryption.PrivateKeyPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Business clock: the configurable "business day" reference shared by the
 	// daily sign-in calendar and the leaderboard windows, so neither drifts with
@@ -214,8 +220,8 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		walletHandler:     wallet.NewHandler(walletSvc, walletPointsSvc),
 		paymentHandler:    payment.NewHandler(wechatPay, offlineAcquirer, payment.NewSettlementService(payment.NewSettlementRepository(database))),
 
-		paymentStoreHandler:        payment.NewStoreHandler(paymentStoreSvc),
-		paymentAdminHandler:        payment.NewAdminHandler(paymentAdminSvc),
+		paymentStoreHandler:        payment.NewStoreHandler(paymentStoreSvc, credentialCipher),
+		paymentAdminHandler:        payment.NewAdminHandler(paymentAdminSvc, credentialCipher),
 		activityStoreHandler:       activity.NewStoreHandler(activityStoreSvc),
 		pointReviewSettingsHandler: activity.NewPointReviewSettingsHandler(pointReviewSettingsSvc),
 		globalSettingsHandler:      systemsetting.NewHandler(globalSettingsSvc),
@@ -229,7 +235,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		adminHandler:       admin.NewHandler(adminSvc),
 		reportingHandler:   reporting.NewHandler(reportingSvc),
 
-		storeConsoleHandler:       store.NewConsoleHandler(storeConsoleSvc),
+		storeConsoleHandler:       store.NewConsoleHandler(storeConsoleSvc, credentialCipher),
 		catalogConsoleHandler:     catalog.NewConsoleHandler(catalogConsoleSvc),
 		activityConsoleHandler:    activity.NewConsoleHandler(activityConsoleSvc),
 		couponConsoleHandler:      coupon.NewConsoleHandler(couponConsoleSvc),
@@ -239,6 +245,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 
 		diagnosticsSvc:     diagnosticsSvc,
 		diagnosticsHandler: diagnostics.NewHandler(diagnosticsSvc),
+		credentialHandler:  credentialcrypto.NewHandler(credentialCipher),
 
 		health: &healthHandler{db: database},
 	}, nil

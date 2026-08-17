@@ -87,9 +87,11 @@ async function submitDelete(): Promise<void> {
     toastError('请输入管理员登录密码')
     return
   }
+  const password = deletePassword.value
+  deletePassword.value = ''
   deleteSubmitting.value = true
   try {
-    await storeService.remove(deleteTarget.value.id, deletePassword.value)
+    await storeService.remove(deleteTarget.value.id, password)
     toastSuccess('门店已删除')
     deleteShow.value = false
     deleteTarget.value = null

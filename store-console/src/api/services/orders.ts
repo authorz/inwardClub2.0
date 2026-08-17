@@ -13,6 +13,7 @@ import type {
   RefundOrder,
   StoreOrder,
 } from '@/types/models'
+import { encryptPassword } from '@/utils/password-encryption'
 
 export const orderService = {
   list(params?: PageQuery) {
@@ -52,12 +53,14 @@ export const orderService = {
     return getPaged<RefundOrder>(API_PATHS.orders.refunds, params)
   },
   /** 发起退款（POST /store/refunds，按支付单退款）。 */
-  requestRefund(body: {
+  async requestRefund(body: {
     paymentOrderId: string | number
     amountCent: number
     reason: string
     password: string
   }) {
-    return post<unknown>(API_PATHS.orders.refunds, body, { idempotent: true })
+    const { password, ...refund } = body
+    const encryptedPassword = await encryptPassword(password)
+    return post<unknown>(API_PATHS.orders.refunds, { ...refund, ...encryptedPassword }, { idempotent: true })
   },
 }

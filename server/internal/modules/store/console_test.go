@@ -2,12 +2,23 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
+
+func TestDeleteStoreRequestDoesNotBindPlaintextPassword(t *testing.T) {
+	var req DeleteStoreRequest
+	if err := json.Unmarshal([]byte(`{"password":"secret"}`), &req); err != nil {
+		t.Fatal(err)
+	}
+	if req.Password != "" || req.PasswordCiphertext != "" || req.PasswordKeyID != "" {
+		t.Fatalf("plaintext password must not bind: %+v", req)
+	}
+}
 
 type consoleFakeRepo struct {
 	store           Store

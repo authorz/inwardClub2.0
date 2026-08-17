@@ -151,6 +151,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p := g.Group("", mw.RequireAuth(authn.SubjectSuperAdmin))
 	p.GET("/auth/me", a.authHandler.AdminMe)
 	p.POST("/auth/logout", a.authHandler.AccountLogout)
+	p.GET("/auth/password-encryption-key", a.credentialHandler.PublicKey)
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 
 	// Representative admin resources (business logic lands in later milestones).
@@ -325,6 +326,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin, authn.SubjectCashier), storescope.Inject())
 	p.GET("/auth/me", a.authHandler.StoreMe)
 	p.POST("/auth/logout", a.authHandler.AccountLogout)
+	p.GET("/auth/password-encryption-key", a.credentialHandler.PublicKey)
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 
 	p.GET("/profile", a.storeConsoleHandler.GetOwnProfile)

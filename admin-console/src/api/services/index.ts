@@ -11,6 +11,7 @@
 import { API_PATHS } from '@/constants/api-paths'
 import { createResource } from '@/api/resource'
 import { http } from '@/api/http'
+import { encryptPassword } from '@/utils/password-encryption'
 import type {
   Activity,
   ActivityTicketType,
@@ -51,11 +52,13 @@ import type {
 const storeResource = createResource<Store>({ base: API_PATHS.stores.list })
 export const storeService = {
   ...storeResource,
-  remove: (id: string, password: string) =>
-    http.delete<void>(API_PATHS.stores.remove(id), {
-      data: { password },
+  remove: async (id: string, password: string) => {
+    const encryptedPassword = await encryptPassword(password)
+    return http.delete<void>(API_PATHS.stores.remove(id), {
+      data: encryptedPassword,
       idempotent: true,
-    }),
+    })
+  },
 }
 export const tableService = createResource<VenueTable>({ base: API_PATHS.tables.list })
 export const seatService = createResource<VenueSeat>({ base: API_PATHS.seats.list })
@@ -147,7 +150,12 @@ export const orderService = {
     amountCent: number
     reason: string
     password: string
-  }) => http.post(API_PATHS.payments.refunds, payload, { idempotent: true }),
+  }) => {
+    const { password, ...refund } = payload
+    return encryptPassword(password).then((encryptedPassword) =>
+      http.post(API_PATHS.payments.refunds, { ...refund, ...encryptedPassword }, { idempotent: true }),
+    )
+  },
 }
 export const memberService = createResource<Member>({ base: API_PATHS.members.list })
 

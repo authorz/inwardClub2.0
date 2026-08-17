@@ -5,6 +5,7 @@ import (
 
 	"github.com/inwardclub/server/internal/platform/audit"
 	"github.com/inwardclub/server/internal/platform/authn"
+	"github.com/inwardclub/server/internal/platform/credentialcrypto"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/storescope"
@@ -14,11 +15,18 @@ import (
 // the admin-side store create/update/delete contract. Route wiring decides which
 // group (store-console vs admin) mounts which method.
 type ConsoleHandler struct {
-	svc *ConsoleService
+	svc         *ConsoleService
+	credentials credentialcrypto.Decryptor
 }
 
 // NewConsoleHandler builds the store console handler.
-func NewConsoleHandler(svc *ConsoleService) *ConsoleHandler { return &ConsoleHandler{svc: svc} }
+func NewConsoleHandler(svc *ConsoleService, credentials ...credentialcrypto.Decryptor) *ConsoleHandler {
+	h := &ConsoleHandler{svc: svc}
+	if len(credentials) > 0 {
+		h.credentials = credentials[0]
+	}
+	return h
+}
 
 // GetOwnProfile handles GET /store/profile-console. The store id comes only
 // from the pinned request scope, never from the client.
@@ -210,6 +218,12 @@ func (h *ConsoleHandler) AdminDeleteStore(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("请输入管理员登录密码"))
 		return
 	}
+	password, err := credentialcrypto.DecryptPassword(h.credentials, req.PasswordKeyID, req.PasswordCiphertext)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	req.Password = password
 	claims := authn.MustFromContext(c)
 	auditEntry := audit.FromContext(c, "store.delete", "store", id)
 	if err := h.svc.DeleteStore(c.Request.Context(), id, claims.SubjectID(), req.Password, auditEntry); err != nil {

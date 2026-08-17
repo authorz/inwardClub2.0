@@ -14,6 +14,7 @@ export const API_PATHS = {
     refresh: '/store/auth/refresh',
     me: '/store/auth/me',
     logout: '/store/auth/logout',
+    passwordEncryptionKey: '/store/auth/password-encryption-key',
   },
 
   profile: {

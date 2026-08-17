@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/inwardclub/server/internal/platform/authn"
+	"github.com/inwardclub/server/internal/platform/credentialcrypto"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -14,11 +15,18 @@ import (
 // AdminHandler exposes the admin-console payment endpoints. Unlike the store
 // console, admin requests are not scoped by a token store_id.
 type AdminHandler struct {
-	svc *AdminService
+	svc         *AdminService
+	credentials credentialcrypto.Decryptor
 }
 
 // NewAdminHandler builds the admin payment handler.
-func NewAdminHandler(svc *AdminService) *AdminHandler { return &AdminHandler{svc: svc} }
+func NewAdminHandler(svc *AdminService, credentials ...credentialcrypto.Decryptor) *AdminHandler {
+	h := &AdminHandler{svc: svc}
+	if len(credentials) > 0 {
+		h.credentials = credentials[0]
+	}
+	return h
+}
 
 // CreateRefund handles POST /api/v2/admin/refunds.
 func (h *AdminHandler) CreateRefund(c *gin.Context) {
@@ -28,6 +36,12 @@ func (h *AdminHandler) CreateRefund(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("invalid request body"))
 		return
 	}
+	password, err := credentialcrypto.DecryptPassword(h.credentials, req.PasswordKeyID, req.PasswordCiphertext)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	req.Password = password
 	view, err := h.svc.CreateRefund(c.Request.Context(),
 		string(claims.SubjectType), claims.SubjectID(), idempotency.Key(c), req)
 	if err != nil {

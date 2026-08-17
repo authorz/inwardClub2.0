@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
 import { NButton, NSpace } from 'naive-ui'
+import DOMPurify from 'dompurify'
 import { assetService } from '@/api/services/assets'
 import { feedback } from '@/utils/feedback'
 
@@ -22,13 +23,19 @@ const imageInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 
 function syncContent(): void {
-  if (editor.value && editor.value.innerHTML !== props.modelValue) {
-    editor.value.innerHTML = props.modelValue || ''
+  const safeHTML = DOMPurify.sanitize(props.modelValue || '', { USE_PROFILES: { html: true } })
+  if (editor.value && editor.value.innerHTML !== safeHTML) {
+    editor.value.innerHTML = safeHTML
   }
 }
 
 function emitContent(): void {
-  emit('update:modelValue', editor.value?.innerHTML ?? '')
+  if (!editor.value) return
+  const safeHTML = DOMPurify.sanitize(editor.value.innerHTML, { USE_PROFILES: { html: true } })
+  if (editor.value.innerHTML !== safeHTML) {
+    editor.value.innerHTML = safeHTML
+  }
+  emit('update:modelValue', safeHTML)
 }
 
 function exec(command: string, value?: string): void {

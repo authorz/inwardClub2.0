@@ -128,13 +128,15 @@ async function submitRefund(): Promise<void> {
     toastError('请输入管理员登录密码')
     return
   }
+  const password = refundForm.password
+  refundForm.password = ''
   refundSubmitting.value = true
   try {
     await orderService.refund({
       paymentOrderId: order.paymentOrderId,
       amountCent,
       reason: refundForm.reason.trim(),
-      password: refundForm.password,
+      password,
     })
     toastSuccess('退款已提交并处理成功')
     closeRefund()

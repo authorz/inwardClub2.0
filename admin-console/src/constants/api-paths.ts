@@ -22,6 +22,7 @@ export const API_PATHS = {
     refresh: '/admin/auth/refresh',
     me: '/admin/auth/me',
     logout: '/admin/auth/logout',
+    passwordEncryptionKey: '/admin/auth/password-encryption-key',
   },
 
   assets: {

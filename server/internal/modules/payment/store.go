@@ -194,10 +194,12 @@ type CreateCollectionOrderRequest struct {
 
 // CreateRefundRequest is the store console refund payload.
 type CreateRefundRequest struct {
-	PaymentOrderID int64  `json:"paymentOrderId"`
-	AmountCent     int64  `json:"amountCent"`
-	Reason         string `json:"reason"`
-	Password       string `json:"password"`
+	PaymentOrderID     int64  `json:"paymentOrderId"`
+	AmountCent         int64  `json:"amountCent"`
+	Reason             string `json:"reason"`
+	PasswordKeyID      string `json:"passwordKeyId"`
+	PasswordCiphertext string `json:"passwordCiphertext"`
+	Password           string `json:"-"`
 }
 
 // CollectionOrderCreate is the fully-resolved row set the repository persists in

@@ -2,6 +2,7 @@ package payment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -10,6 +11,16 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
+
+func TestCreateRefundRequestDoesNotBindPlaintextPassword(t *testing.T) {
+	var req CreateRefundRequest
+	if err := json.Unmarshal([]byte(`{"paymentOrderId":1,"amountCent":100,"reason":"test","password":"secret"}`), &req); err != nil {
+		t.Fatal(err)
+	}
+	if req.Password != "" || req.PasswordCiphertext != "" || req.PasswordKeyID != "" {
+		t.Fatalf("plaintext password must not bind: %+v", req)
+	}
+}
 
 // memStoreRepo is an in-memory StoreRepository for service-level tests.
 type memStoreRepo struct {
