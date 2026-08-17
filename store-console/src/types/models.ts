@@ -396,14 +396,22 @@ export interface Member {
 
 export interface WalletLedgerEntry {
   id: number | string
+  recordKey: string
   memberId: number | string
+  memberNickname?: string
+  memberPhone?: string
+  memberAvatarUrl?: string
+  storeId?: number | string
+  storeName?: string
   assetType: string
   direction: 'credit' | 'debit'
   amount: number
-  balanceAfter: number
+  balanceAfter?: number
+  status: string
   reason?: string
   sourceType?: string
   sourceId?: number | string
+  relatedOrderNo?: string
   createdAt?: string
 }
 

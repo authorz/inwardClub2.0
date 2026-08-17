@@ -22,6 +22,7 @@ export const pageComponents: Record<string, () => Promise<Component>> = {
   collection: () => import('@/pages/collection/CollectionView.vue'),
   'collection-records': () => import('@/pages/collection/CollectionRecordsView.vue'),
   members: () => import('@/pages/members/MembersView.vue'),
+  'wallet-ledger': () => import('@/pages/members/WalletLedgerView.vue'),
   payments: () => import('@/pages/payments/PaymentsView.vue'),
   cashiers: () => import('@/pages/staff/CashiersView.vue'),
   'staff-accounts': () => import('@/pages/staff/StaffAccountsView.vue'),

@@ -28,7 +28,12 @@ import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
 import type { Member, WalletLedgerEntry } from '@/types/models'
-import { ACTIVE_STATUS } from '@/constants/enums'
+import {
+  ACTIVE_STATUS,
+  toOptions,
+  WALLET_ASSET_TYPE,
+  WALLET_REASON_LABELS,
+} from '@/constants/enums'
 
 type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
 const sortBy = ref<MemberSortField | ''>('')
@@ -57,18 +62,10 @@ const ledger = useAsyncList<WalletLedgerEntry>(
 
 const action = useAsyncAction()
 
-const assetTypeOptions = [
-  { label: '积分', value: 'points' },
-  { label: '金币', value: 'coins' },
-  { label: '余额', value: 'cash_balance' },
-  { label: '成长值', value: 'growth_value' },
-]
-const ASSET_LABELS: Record<string, string> = {
-  cash_balance: '余额',
-  points: '积分',
-  coins: '金币',
-  growth_value: '成长值',
-}
+const assetTypeOptions = toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => ({ label, value }))
+const ASSET_LABELS = Object.fromEntries(
+  toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => [value, label]),
+)
 const adjustForm = reactive<{ assetType: string; changeAmount: number | null; reason: string }>({
   assetType: 'cash_balance',
   changeAmount: null,
@@ -251,12 +248,10 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     { align: 'right' },
   ),
   textColumn<WalletLedgerEntry>('变动后余额', (r) => r.balanceAfter, { align: 'right' }),
-  textColumn<WalletLedgerEntry>('原因', (r) => ({
-    food_order_reward: '购买餐品赠送积分',
-    food_order_cancel_clawback: '取消订单扣回赠送积分',
-    food_order_cancel_rollback: '取消订单失败返还积分',
-    order_payment: '订单支付', refund: '订单退款返还',
-  }[r.reason || ''] ?? r.reason)),
+  textColumn<WalletLedgerEntry>(
+    '原因',
+    (r) => WALLET_REASON_LABELS[r.reason || ''] ?? r.reason,
+  ),
   dateColumn<WalletLedgerEntry>('时间', (r) => r.createdAt, { width: 150 }),
 ])
 </script>
@@ -403,6 +398,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
               :page="ledger.page.value"
               :page-size="ledger.pageSize.value"
               :total="ledger.total.value"
+              :row-key="(row) => row.recordKey"
               empty-text="暂无流水"
               @update:page="ledger.setPage"
               @update:page-size="ledger.setPageSize"

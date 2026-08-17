@@ -188,6 +188,70 @@ export const REVIEW_STATUS: Record<ReviewStatus, EnumOption<ReviewStatus>> = {
 }
 
 /* ------------------------------------------------------------------ */
+/* 会员资产流水                                                        */
+/* ------------------------------------------------------------------ */
+
+export type WalletAssetType = 'points' | 'coins' | 'cash_balance' | 'growth_value'
+
+export const WALLET_ASSET_TYPE: Record<WalletAssetType, EnumOption<WalletAssetType>> = {
+  points: { value: 'points', label: '积分', tone: 'default' },
+  coins: { value: 'coins', label: '金币', tone: 'warning' },
+  cash_balance: { value: 'cash_balance', label: '余额', tone: 'info' },
+  growth_value: { value: 'growth_value', label: '成长值', tone: 'default' },
+}
+
+export type WalletDirection = 'credit' | 'debit'
+
+export const WALLET_DIRECTION: Record<WalletDirection, EnumOption<WalletDirection>> = {
+  credit: { value: 'credit', label: '增加', tone: 'success' },
+  debit: { value: 'debit', label: '扣减', tone: 'error' },
+}
+
+export const WALLET_LEDGER_STATUS: Record<string, EnumOption> = {
+  completed: { value: 'completed', label: '已完成', tone: 'success' },
+  pending: { value: 'pending', label: '待审核', tone: 'warning' },
+  approved: { value: 'approved', label: '已通过', tone: 'success' },
+  rejected: { value: 'rejected', label: '已驳回', tone: 'error' },
+}
+
+export const WALLET_SOURCE_TYPE: Record<string, EnumOption> = {
+  point_saving: { value: 'point_saving', label: '存积分', tone: 'success' },
+  point_withdrawal: { value: 'point_withdrawal', label: '取积分', tone: 'warning' },
+  food_order: { value: 'food_order', label: '购买餐品赠送', tone: 'success' },
+  sign_in: { value: 'sign_in', label: '签到奖励', tone: 'success' },
+  recharge_order: { value: 'recharge_order', label: '充值到账', tone: 'info' },
+  first_recharge_reward: { value: 'first_recharge_reward', label: '用户首充奖励', tone: 'success' },
+  high_value_recharge_reward: { value: 'high_value_recharge_reward', label: '满额充值奖励', tone: 'success' },
+  recharge_growth: { value: 'recharge_growth', label: '充值成长值', tone: 'info' },
+  wechat_payment_growth: { value: 'wechat_payment_growth', label: '微信支付成长值', tone: 'info' },
+  payment_order: { value: 'payment_order', label: '订单支付', tone: 'warning' },
+  refund_order: { value: 'refund_order', label: '订单退款', tone: 'success' },
+  admin_adjustment: { value: 'admin_adjustment', label: '管理员调账', tone: 'error' },
+  offline_collection: { value: 'offline_collection', label: '线下收款奖励', tone: 'info' },
+  low_spend_reward: { value: 'low_spend_reward', label: '预约低消奖励', tone: 'success' },
+}
+
+export const WALLET_REASON_LABELS: Record<string, string> = {
+  point_saving: '存积分',
+  point_saving_reward: '存积分审核到账',
+  point_saving_coin_reward: '存积分金币奖励',
+  point_withdrawal: '取积分',
+  food_order_reward: '购买餐品赠送积分',
+  food_order_cancel_clawback: '取消订单扣回赠送积分',
+  food_order_cancel_rollback: '取消订单失败返还积分',
+  sign_in: '签到奖励',
+  recharge: '充值到账',
+  first_recharge_reward: '用户首充获得积分',
+  high_value_recharge_reward: '满额充值获得积分',
+  recharge_growth: '充值成长值',
+  wechat_payment_growth: '微信支付获得成长值',
+  order_payment: '订单支付',
+  refund: '订单退款返还',
+  admin_adjustment: '管理员调账',
+  low_spend_reward: '预约低消达标奖励',
+}
+
+/* ------------------------------------------------------------------ */
 /* 通用上下架 / 启用状态                                               */
 /* ------------------------------------------------------------------ */
 

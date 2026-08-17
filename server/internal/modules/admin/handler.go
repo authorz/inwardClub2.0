@@ -872,6 +872,7 @@ func (h *Handler) StoreWalletLedger(c *gin.Context) {
 		return
 	}
 	f = scopedFilter(f, scope)
+	f.IncludePointRequests = true
 	views, total, err := h.svc.ListWalletLedger(c.Request.Context(), f)
 	if err != nil {
 		httpx.Fail(c, err)

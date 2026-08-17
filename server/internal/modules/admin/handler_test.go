@@ -478,6 +478,9 @@ func TestStoreWalletLedgerHandlerScopesToStore(t *testing.T) {
 	if repo.lastFilter.StoreID == nil || *repo.lastFilter.StoreID != 42 {
 		t.Fatalf("expected store scope pinned to 42 from token, got %v", repo.lastFilter.StoreID)
 	}
+	if !repo.lastFilter.IncludePointRequests {
+		t.Fatal("expected store wallet ledger to include point saving and withdrawal requests")
+	}
 }
 
 func TestStoreWalletLedgerHandlerRequiresScope(t *testing.T) {

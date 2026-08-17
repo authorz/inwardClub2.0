@@ -173,12 +173,22 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
+    name: 'members',
+    title: '会员管理',
+    icon: 'member',
     items: [
       {
         name: 'members',
         path: '/members',
-        title: '会员',
+        title: '会员列表',
         icon: 'member',
+        permissions: [PERM.memberRead, PERM.memberReadLimited],
+      },
+      {
+        name: 'wallet-ledger',
+        path: '/members/wallet-ledger',
+        title: '资产流水',
+        icon: 'records',
         permissions: [PERM.memberRead, PERM.memberReadLimited],
       },
     ],
