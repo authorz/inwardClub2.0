@@ -4,20 +4,21 @@ import "time"
 
 // OverviewView is the dashboard overview payload returned to the console.
 type OverviewView struct {
-	StoreCount               int64                    `json:"storeCount"`
-	MemberCount              int64                    `json:"memberCount"`
-	OrderCount               int64                    `json:"orderCount"`
-	GrossSalesCent           int64                    `json:"grossSalesCent"`
-	TodayOrderCount          int64                    `json:"todayOrderCount"`
-	TodayGrossSalesCent      int64                    `json:"todayGrossSalesCent"`
-	TodayNewMemberCount      int64                    `json:"todayNewMemberCount"`
-	ActivityRevenueCent      int64                    `json:"activityRevenueCent"`
-	TodayActivityRevenueCent int64                    `json:"todayActivityRevenueCent"`
-	CouponsIssued            int64                    `json:"couponsIssued"`
-	CouponsRedeemed          int64                    `json:"couponsRedeemed"`
-	WechatRevenue            OverviewBreakdownView    `json:"wechatRevenue"`
-	CoinConsumption          OverviewBreakdownView    `json:"coinConsumption"`
-	Trend                    []OverviewTrendPointView `json:"trend"`
+	StoreCount                   int64                    `json:"storeCount"`
+	MemberCount                  int64                    `json:"memberCount"`
+	OrderCount                   int64                    `json:"orderCount"`
+	GrossSalesCent               int64                    `json:"grossSalesCent"`
+	OfflineCollectionRevenueCent int64                    `json:"offlineCollectionRevenueCent"`
+	TodayOrderCount              int64                    `json:"todayOrderCount"`
+	TodayGrossSalesCent          int64                    `json:"todayGrossSalesCent"`
+	TodayNewMemberCount          int64                    `json:"todayNewMemberCount"`
+	ActivityRevenueCent          int64                    `json:"activityRevenueCent"`
+	TodayActivityRevenueCent     int64                    `json:"todayActivityRevenueCent"`
+	CouponsIssued                int64                    `json:"couponsIssued"`
+	CouponsRedeemed              int64                    `json:"couponsRedeemed"`
+	WechatRevenue                OverviewBreakdownView    `json:"wechatRevenue"`
+	CoinConsumption              OverviewBreakdownView    `json:"coinConsumption"`
+	Trend                        []OverviewTrendPointView `json:"trend"`
 }
 
 // OverviewBreakdownView is a dashboard payment breakdown.

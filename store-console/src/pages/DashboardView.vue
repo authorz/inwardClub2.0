@@ -9,6 +9,8 @@ import type {
   ReportOverviewTrendPoint,
 } from '@/types/models'
 import { ApiError } from '@/api/error'
+import { PermissionButton } from '@/components/common'
+import { PERM } from '@/constants/permissions'
 
 const router = useRouter()
 const overview = ref<ReportOverview | null>(null)
@@ -32,7 +34,7 @@ const quickEntries = [
 
 const metricIcons: Record<string, string[]> = {
   revenue: ['M7 4l5 8 5-8', 'M6 13h12', 'M6 17h12', 'M12 12v8'],
-  stores: ['M4 10h16', 'M5 10v10h14V10', 'M3 10l2-6h14l2 6', 'M9 20v-6h6v6'],
+  offlineCollection: ['M7 4l5 8 5-8', 'M6 13h12', 'M6 17h12', 'M12 12v8'],
   members: [
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2',
     'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
@@ -75,10 +77,11 @@ const summaryMetrics = computed(() => [
     primary: true,
   },
   {
-    key: 'stores',
-    label: '当前门店',
-    value: formatCount(overview.value?.storeCount),
-    detail: '已锁定登录账号所属门店',
+    key: 'offlineCollection',
+    label: '线下收款',
+    value: formatCurrency(overview.value?.offlineCollectionRevenueCent),
+    detail: '本店累计已支付线下聚合收款',
+    actionPath: '/collection',
   },
   {
     key: 'members',
@@ -271,7 +274,17 @@ onMounted(loadOverview)
             </span>
           </div>
           <strong class="summary-card__value">{{ metric.value }}</strong>
-          <span class="summary-card__detail">{{ metric.detail }}</span>
+          <div class="summary-card__footer">
+            <span class="summary-card__detail">{{ metric.detail }}</span>
+            <PermissionButton
+              v-if="metric.actionPath"
+              :permissions="[PERM.collectionCreate]"
+              type="primary"
+              @click="router.push(metric.actionPath)"
+            >
+              发起线下收款
+            </PermissionButton>
+          </div>
         </article>
       </div>
 
@@ -529,8 +542,15 @@ onMounted(loadOverview)
   letter-spacing: -0.025em;
 }
 
-.summary-card__detail {
+.summary-card__footer {
   margin-top: auto;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.summary-card__detail {
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
 }

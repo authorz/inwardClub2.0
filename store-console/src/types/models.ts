@@ -336,6 +336,7 @@ export interface ReportOverview {
   memberCount: number
   orderCount: number
   grossSalesCent: number
+  offlineCollectionRevenueCent: number
   todayOrderCount: number
   todayGrossSalesCent: number
   todayNewMemberCount: number

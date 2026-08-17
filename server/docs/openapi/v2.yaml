@@ -870,6 +870,7 @@ components:
         memberCount: { type: integer, format: int64 }
         orderCount: { type: integer, format: int64 }
         grossSalesCent: { type: integer, format: int64, description: 'Gross amount of all successfully paid orders, retained for report compatibility.' }
+        offlineCollectionRevenueCent: { type: integer, format: int64, description: 'Gross amount of successfully paid offline collection orders.' }
         todayOrderCount: { type: integer, format: int64 }
         todayGrossSalesCent: { type: integer, format: int64 }
         todayNewMemberCount: { type: integer, format: int64 }

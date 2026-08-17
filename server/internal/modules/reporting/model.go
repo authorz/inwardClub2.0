@@ -18,20 +18,21 @@ type OverviewFilter struct {
 
 // Overview holds the headline counters shown on the console dashboard.
 type Overview struct {
-	StoreCount               int64
-	MemberCount              int64
-	OrderCount               int64
-	GrossSalesCent           int64
-	TodayOrderCount          int64
-	TodayGrossSalesCent      int64
-	TodayNewMemberCount      int64
-	ActivityRevenueCent      int64
-	TodayActivityRevenueCent int64
-	CouponsIssued            int64
-	CouponsRedeemed          int64
-	WechatRevenue            OverviewBreakdown
-	CoinConsumption          OverviewBreakdown
-	Trend                    []OverviewTrendPoint
+	StoreCount                   int64
+	MemberCount                  int64
+	OrderCount                   int64
+	GrossSalesCent               int64
+	OfflineCollectionRevenueCent int64
+	TodayOrderCount              int64
+	TodayGrossSalesCent          int64
+	TodayNewMemberCount          int64
+	ActivityRevenueCent          int64
+	TodayActivityRevenueCent     int64
+	CouponsIssued                int64
+	CouponsRedeemed              int64
+	WechatRevenue                OverviewBreakdown
+	CoinConsumption              OverviewBreakdown
+	Trend                        []OverviewTrendPoint
 }
 
 // OverviewBreakdown splits one payment asset by business type and today.

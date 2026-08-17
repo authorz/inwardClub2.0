@@ -69,14 +69,15 @@ func (f *fakeRepo) Stores(_ context.Context, flt ReportFilter) ([]StoreStat, int
 
 func TestGetOverviewMaps(t *testing.T) {
 	repo := &fakeRepo{out: Overview{
-		StoreCount:          5,
-		MemberCount:         120,
-		OrderCount:          40,
-		GrossSalesCent:      99900,
-		TodayOrderCount:     8,
-		TodayNewMemberCount: 3,
-		CouponsIssued:       30,
-		CouponsRedeemed:     12,
+		StoreCount:                   5,
+		MemberCount:                  120,
+		OrderCount:                   40,
+		GrossSalesCent:               99900,
+		OfflineCollectionRevenueCent: 2600,
+		TodayOrderCount:              8,
+		TodayNewMemberCount:          3,
+		CouponsIssued:                30,
+		CouponsRedeemed:              12,
 		WechatRevenue: OverviewBreakdown{
 			Total: 99900, Today: 12000, Recharge: 50000, Food: 30000, Activity: 19900,
 		},
@@ -91,7 +92,7 @@ func TestGetOverviewMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}
-	if v.StoreCount != 5 || v.GrossSalesCent != 99900 || v.CouponsRedeemed != 12 ||
+	if v.StoreCount != 5 || v.GrossSalesCent != 99900 || v.OfflineCollectionRevenueCent != 2600 || v.CouponsRedeemed != 12 ||
 		v.TodayOrderCount != 8 || v.WechatRevenue.Activity != 19900 ||
 		v.CoinConsumption.Total != 8800 || len(v.Trend) != 1 || v.Trend[0].Date != "2026-07-24" {
 		t.Fatalf("unexpected mapping: %+v", v)

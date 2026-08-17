@@ -25,20 +25,21 @@ func (s *Service) GetOverview(ctx context.Context, f OverviewFilter) (OverviewVi
 		})
 	}
 	return OverviewView{
-		StoreCount:               o.StoreCount,
-		MemberCount:              o.MemberCount,
-		OrderCount:               o.OrderCount,
-		GrossSalesCent:           o.GrossSalesCent,
-		TodayOrderCount:          o.TodayOrderCount,
-		TodayGrossSalesCent:      o.TodayGrossSalesCent,
-		TodayNewMemberCount:      o.TodayNewMemberCount,
-		ActivityRevenueCent:      o.ActivityRevenueCent,
-		TodayActivityRevenueCent: o.TodayActivityRevenueCent,
-		CouponsIssued:            o.CouponsIssued,
-		CouponsRedeemed:          o.CouponsRedeemed,
-		WechatRevenue:            overviewBreakdownView(o.WechatRevenue),
-		CoinConsumption:          overviewBreakdownView(o.CoinConsumption),
-		Trend:                    trend,
+		StoreCount:                   o.StoreCount,
+		MemberCount:                  o.MemberCount,
+		OrderCount:                   o.OrderCount,
+		GrossSalesCent:               o.GrossSalesCent,
+		OfflineCollectionRevenueCent: o.OfflineCollectionRevenueCent,
+		TodayOrderCount:              o.TodayOrderCount,
+		TodayGrossSalesCent:          o.TodayGrossSalesCent,
+		TodayNewMemberCount:          o.TodayNewMemberCount,
+		ActivityRevenueCent:          o.ActivityRevenueCent,
+		TodayActivityRevenueCent:     o.TodayActivityRevenueCent,
+		CouponsIssued:                o.CouponsIssued,
+		CouponsRedeemed:              o.CouponsRedeemed,
+		WechatRevenue:                overviewBreakdownView(o.WechatRevenue),
+		CoinConsumption:              overviewBreakdownView(o.CoinConsumption),
+		Trend:                        trend,
 	}, nil
 }
 
