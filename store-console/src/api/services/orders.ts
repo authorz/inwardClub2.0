@@ -52,7 +52,12 @@ export const orderService = {
     return getPaged<RefundOrder>(API_PATHS.orders.refunds, params)
   },
   /** 发起退款（POST /store/refunds，按支付单退款）。 */
-  requestRefund(body: { paymentOrderId: string | number; amountCent: number; reason: string }) {
+  requestRefund(body: {
+    paymentOrderId: string | number
+    amountCent: number
+    reason: string
+    password: string
+  }) {
     return post<unknown>(API_PATHS.orders.refunds, body, { idempotent: true })
   },
 }

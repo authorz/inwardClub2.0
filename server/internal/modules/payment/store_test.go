@@ -184,9 +184,18 @@ func (r *memStoreRepo) GetPaymentOrder(_ context.Context, id int64, storeID *int
 
 func newTestStoreService() (*StoreService, *memStoreRepo) {
 	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
-	svc := NewStoreService(repo, NewFakeWeChatPayGateway(), 0)
+	svc := NewStoreService(repo, NewFakeWeChatPayGateway(), allowStoreAdminPasswords{}, 0)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
+}
+
+type allowStoreAdminPasswords struct{}
+
+func (allowStoreAdminPasswords) VerifyStoreAdminPassword(_ context.Context, _ int64, password string) error {
+	if password != "secret" {
+		return apperr.Forbidden("门店管理员登录密码错误")
+	}
+	return nil
 }
 
 type allowAdminPasswords struct{}
@@ -278,7 +287,7 @@ func (g *recordingNativeGateway) CloseOrder(_ context.Context, outTradeNo string
 func TestCreateCollectionOrderUsesWechatAmountOverride(t *testing.T) {
 	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
 	gateway := &recordingNativeGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
-	svc := NewStoreService(repo, gateway, 1)
+	svc := NewStoreService(repo, gateway, allowStoreAdminPasswords{}, 1)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 
 	view, err := svc.CreateCollectionOrder(context.Background(), 7, "cashier", 3, "idem-native",
@@ -378,7 +387,7 @@ func TestGetCollectionOrderScope(t *testing.T) {
 func TestCancelCollectionOrder(t *testing.T) {
 	repo := &memStoreRepo{payments: map[int64]int64{}, membersByPhone: map[string]MemberMatch{}}
 	gateway := &recordingNativeGateway{WeChatPayGateway: NewFakeWeChatPayGateway()}
-	svc := NewStoreService(repo, gateway, 0)
+	svc := NewStoreService(repo, gateway, allowStoreAdminPasswords{}, 0)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	view, _ := svc.CreateCollectionOrder(context.Background(), 7, "cashier", 3, "",
 		CreateCollectionOrderRequest{AmountCent: 1500, Subject: "coffee", BusinessType: "food", ExpiresInSeconds: 900})
@@ -400,7 +409,7 @@ func TestCreateRefundScope(t *testing.T) {
 	repo.payments[55] = 7 // payment order 55 belongs to store 7
 
 	view, err := svc.CreateRefund(context.Background(), 7, "store_admin", 2, "idem-r",
-		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged"})
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"})
 	if err != nil {
 		t.Fatalf("refund: %v", err)
 	}
@@ -409,8 +418,24 @@ func TestCreateRefundScope(t *testing.T) {
 	}
 	// A store cannot refund another store's payment order.
 	if _, err := svc.CreateRefund(context.Background(), 99, "store_admin", 2, "",
-		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500}); apperr.From(err).Code != apperr.CodeNotFound {
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"}); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected NOT_FOUND for cross-store refund, got %v", err)
+	}
+}
+
+func TestCreateRefundRequiresStoreAdminPassword(t *testing.T) {
+	svc, repo := newTestStoreService()
+	repo.payments[55] = 7
+
+	for _, password := range []string{"", "wrong"} {
+		_, err := svc.CreateRefund(context.Background(), 7, "cashier", 3, "idem-r",
+			CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "顾客申请", Password: password})
+		if code := apperr.From(err).Code; code != apperr.CodeInvalidArgument && code != apperr.CodePermissionDenied {
+			t.Fatalf("password %q should be rejected, got %v", password, err)
+		}
+	}
+	if len(repo.refunds) != 0 {
+		t.Fatalf("invalid manager password must not create a refund, got %+v", repo.refunds)
 	}
 }
 

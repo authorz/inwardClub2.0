@@ -131,7 +131,6 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	walletSvc := wallet.NewService(wallet.NewRepository(database))
 	walletPointsSvc := wallet.NewPointsService(wallet.NewPointsRepository(database, businessClock))
 	paymentRepo := payment.NewStoreRepository(database)
-	paymentStoreSvc := payment.NewStoreService(paymentRepo, wechatPay, cfg.WeChatPayAmountOverrideCent())
 	activityStoreSvc := activity.NewStoreService(activity.NewStoreRepository(database), assetSvc)
 	pointReviewSettingsSvc := activity.NewPointReviewSettingsService(
 		activity.NewPointReviewSettingsRepository(database),
@@ -153,6 +152,12 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	authSvc := auth.NewService(
 		tokens, wechatLogin, authMembers, authAccounts,
 		memberTierAdapter{memberSvc}, assetSvc, authStaff,
+	)
+	paymentStoreSvc := payment.NewStoreService(
+		paymentRepo,
+		wechatPay,
+		authSvc,
+		cfg.WeChatPayAmountOverrideCent(),
 	)
 	paymentAdminSvc := payment.NewAdminService(
 		paymentRepo,

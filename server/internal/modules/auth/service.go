@@ -565,6 +565,28 @@ func (s *Service) VerifyAccountPassword(ctx context.Context, accountID int64, pa
 	return nil
 }
 
+// VerifyStoreAdminPassword confirms a high-risk store action using any active
+// store administrator account bound to the JWT-scoped store. Cashier passwords
+// never satisfy this check.
+func (s *Service) VerifyStoreAdminPassword(ctx context.Context, storeID int64, password string) error {
+	if storeID <= 0 {
+		return apperr.Invalid("门店范围无效")
+	}
+	if strings.TrimSpace(password) == "" {
+		return apperr.Invalid("请输入门店管理员登录密码")
+	}
+	accounts, err := s.accounts.ListActiveStoreAdminsByStoreID(ctx, storeID)
+	if err != nil {
+		return err
+	}
+	for _, account := range accounts {
+		if bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)) == nil {
+			return nil
+		}
+	}
+	return apperr.Forbidden("门店管理员登录密码错误")
+}
+
 func (s *Service) issueAccountToken(account Account, audience authn.Audience) (authn.TokenPair, error) {
 	pair, err := s.tokens.Issue(authn.Identity{
 		SubjectID:    account.ID,

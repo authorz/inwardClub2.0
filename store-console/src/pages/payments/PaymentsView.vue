@@ -5,15 +5,26 @@
  * 带 Idempotency-Key）；流水/退款单为只读，服务端无对应详情端点，详情弹窗直接复用列表行。
  */
 import { computed, h, ref } from 'vue'
-import { NButton, NModal, NSpace, NSpin, NTabPane, NTabs, type DataTableColumns } from 'naive-ui'
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NSpace,
+  NSpin,
+  NTabPane,
+  NTabs,
+  type DataTableColumns,
+} from 'naive-ui'
 import { orderService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
-import { confirm } from '@/composables/useConfirm'
 import { ORDER_TYPE, PAY_CHANNEL, PAYMENT_STATUS, REFUND_STATUS, toOptions } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { actionColumn, dateColumn, moneyColumn, statusColumn, textColumn } from '@/utils/columns'
 import { formatCent, formatDateTime } from '@/utils/format'
+import { feedback } from '@/utils/feedback'
 import { ApiError } from '@/api/error'
 import { DataTable, PageHeader, PermissionButton, StatusFilterBar, StatusTag } from '@/components/common'
 import type { PaymentOrder, PaymentTransactionRecord, RefundOrder } from '@/types/models'
@@ -36,25 +47,46 @@ function onTabChange(name: string | number) {
 }
 
 const action = useAsyncAction()
+const refundPasswordShow = ref(false)
+const refundPassword = ref('')
+const refundPaymentOrder = ref<PaymentOrder | null>(null)
 
 // 退款按支付单发起：服务端 POST /store/refunds 以 paymentOrderId 为键，可退金额与状态由服务端审批。
-async function onRefund(row: PaymentOrder) {
-  const ok = await confirm({
-    title: '发起退款申请',
-    content: `确认对支付单 ${row.paymentOrderNo} 发起退款申请？退款需按可退金额与状态由服务端审批。`,
-    danger: true,
-  })
-  if (!ok) return
+function onRefund(row: PaymentOrder): void {
+  refundPaymentOrder.value = row
+  refundPassword.value = ''
+  refundPasswordShow.value = true
+}
+
+function closeRefundPassword(): void {
+  if (action.running.value) return
+  refundPasswordShow.value = false
+  refundPassword.value = ''
+  refundPaymentOrder.value = null
+}
+
+async function submitRefund(): Promise<void> {
+  const row = refundPaymentOrder.value
+  if (!row) return
+  const password = refundPassword.value
+  if (!password.trim()) {
+    feedback.message.error('请输入门店管理员登录密码')
+    return
+  }
   await action.run(
     () =>
       orderService.requestRefund({
         paymentOrderId: row.id,
         amountCent: row.amountCent,
         reason: '门店后台发起退款申请',
+        password,
       }),
     {
       successMessage: '退款申请已提交',
       onSuccess: () => {
+        refundPasswordShow.value = false
+        refundPassword.value = ''
+        refundPaymentOrder.value = null
         paymentOrders.refresh()
         if (refunds.total.value > 0) refunds.refresh()
       },
@@ -251,6 +283,56 @@ const refundColumns = computed<DataTableColumns<RefundOrder>>(() => [
     </NTabs>
 
     <NModal
+      v-model:show="refundPasswordShow"
+      preset="card"
+      title="验证门店管理员密码"
+      class="payment-refund-password-modal"
+      :mask-closable="!action.running.value"
+      @after-leave="closeRefundPassword"
+    >
+      <p class="payment-refund-password-note">
+        请输入本店门店管理员的登录密码。验证通过后，系统才会提交退款申请。
+      </p>
+      <div class="payment-refund-password-order">
+        <span>{{ refundPaymentOrder?.paymentOrderNo ?? '—' }}</span>
+        <strong>{{ formatCent(refundPaymentOrder?.amountCent) }}</strong>
+      </div>
+      <NForm label-placement="top">
+        <NFormItem
+          label="门店管理员登录密码"
+          required
+        >
+          <NInput
+            v-model:value="refundPassword"
+            type="password"
+            show-password-on="click"
+            autocomplete="current-password"
+            placeholder="请输入门店管理员登录密码"
+            autofocus
+            @keyup.enter="submitRefund"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton
+            :disabled="action.running.value"
+            @click="closeRefundPassword"
+          >
+            取消
+          </NButton>
+          <NButton
+            type="error"
+            :loading="action.running.value"
+            @click="submitRefund"
+          >
+            验证并退款
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
       v-model:show="orderDetailShow"
       preset="card"
       title="支付订单详情"
@@ -383,6 +465,32 @@ const refundColumns = computed<DataTableColumns<RefundOrder>>(() => [
 </template>
 
 <style scoped>
+:global(.payment-refund-password-modal) {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.payment-refund-password-note {
+  margin: 0 0 var(--ic-space-4);
+  color: var(--ic-color-text-secondary);
+  line-height: 1.6;
+}
+
+.payment-refund-password-order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-3);
+  padding-bottom: var(--ic-space-4);
+  margin-bottom: var(--ic-space-4);
+  border-bottom: var(--ic-divider);
+  color: var(--ic-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.payment-refund-password-order strong {
+  color: var(--ic-color-danger);
+}
+
 .payment-detail__summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

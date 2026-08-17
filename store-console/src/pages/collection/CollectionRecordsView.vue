@@ -76,6 +76,13 @@ const refundForm = reactive<{ amountYuan: number | null; reason: string }>({
   amountYuan: null,
   reason: '',
 })
+const refundPasswordShow = ref(false)
+const refundPassword = ref('')
+const pendingRefund = ref<{
+  paymentOrderId: string | number
+  amountCent: number
+  reason: string
+} | null>(null)
 const refundAction = useAsyncAction()
 
 function canRefund(row: StoreOrder): boolean {
@@ -95,22 +102,37 @@ function openRefund(row: StoreOrder): void {
   refundTarget.value = row
   refundForm.amountYuan = null
   refundForm.reason = ''
+  refundPassword.value = ''
+  pendingRefund.value = null
   refundShow.value = true
 }
 
 function closeRefund(): void {
-  if (refundAction.running.value) return
+  if (refundAction.running.value || refundPasswordShow.value) return
   refundShow.value = false
+}
+
+function clearRefundState(): void {
+  if (refundShow.value || refundPasswordShow.value) return
   refundTarget.value = null
   refundForm.amountYuan = null
   refundForm.reason = ''
+  refundPassword.value = ''
+  pendingRefund.value = null
+}
+
+function closeRefundPassword(): void {
+  if (refundAction.running.value) return
+  refundPasswordShow.value = false
+  refundPassword.value = ''
+  pendingRefund.value = null
 }
 
 function fillFullRefund(): void {
   refundForm.amountYuan = centToYuan(refundTarget.value?.amountCent)
 }
 
-async function submitRefund(): Promise<void> {
+function confirmRefundDetails(): void {
   const order = refundTarget.value
   if (!order?.paymentOrderId) return
   const amountCent = yuanToCent(refundForm.amountYuan)
@@ -127,18 +149,34 @@ async function submitRefund(): Promise<void> {
     feedback.message.error('请输入退款原因')
     return
   }
+  pendingRefund.value = {
+    paymentOrderId: order.paymentOrderId,
+    amountCent,
+    reason,
+  }
+  refundPassword.value = ''
+  refundPasswordShow.value = true
+}
+
+async function submitRefund(): Promise<void> {
+  const payload = pendingRefund.value
+  if (!payload) return
+  const password = refundPassword.value
+  if (!password.trim()) {
+    feedback.message.error('请输入门店管理员登录密码')
+    return
+  }
   await refundAction.run(
     () =>
       orderService.requestRefund({
-        paymentOrderId: order.paymentOrderId!,
-        amountCent,
-        reason,
+        ...payload,
+        password,
       }),
     {
       successMessage: '退款申请已提交',
       onSuccess: () => {
+        refundPasswordShow.value = false
         refundShow.value = false
-        refundTarget.value = null
         list.refresh()
       },
     },
@@ -328,8 +366,8 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
       preset="card"
       title="确认退款"
       class="refund-modal"
-      :mask-closable="!refundAction.running.value"
-      @after-leave="closeRefund"
+      :mask-closable="!refundAction.running.value && !refundPasswordShow"
+      @after-leave="clearRefundState"
     >
       <div class="refund-summary">
         <span>订单号：{{ refundTarget?.orderNo ?? '—' }}</span>
@@ -376,10 +414,59 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
           </NButton>
           <NButton
             type="error"
+            @click="confirmRefundDetails"
+          >
+            确认退款
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="refundPasswordShow"
+      preset="card"
+      title="验证门店管理员密码"
+      class="refund-password-modal"
+      :mask-closable="!refundAction.running.value"
+      @after-leave="clearRefundState"
+    >
+      <p class="refund-password-note">
+        请输入本店门店管理员的登录密码。验证通过后，系统才会提交本次退款申请。
+      </p>
+      <div class="refund-password-order">
+        <span>{{ refundTarget?.orderNo ?? '—' }}</span>
+        <strong>{{ formatCent(pendingRefund?.amountCent) }}</strong>
+      </div>
+      <NForm label-placement="top">
+        <NFormItem
+          label="门店管理员登录密码"
+          required
+        >
+          <NInput
+            v-model:value="refundPassword"
+            type="password"
+            show-password-on="click"
+            autocomplete="current-password"
+            placeholder="请输入门店管理员登录密码"
+            autofocus
+            @keyup.enter="submitRefund"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton
+            :disabled="refundAction.running.value"
+            @click="closeRefundPassword"
+          >
+            返回修改
+          </NButton>
+          <NButton
+            type="error"
             :loading="refundAction.running.value"
             @click="submitRefund"
           >
-            确认退款
+            验证并退款
           </NButton>
         </NSpace>
       </template>
@@ -478,6 +565,10 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
   width: min(520px, calc(100vw - 32px));
 }
 
+:global(.refund-password-modal) {
+  width: min(440px, calc(100vw - 32px));
+}
+
 .refund-summary {
   display: flex;
   gap: var(--ic-space-4);
@@ -500,6 +591,28 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
 
 .refund-amount .n-input-number {
   flex: 1;
+}
+
+.refund-password-note {
+  margin: 0 0 var(--ic-space-4);
+  color: var(--ic-color-text-secondary);
+  line-height: 1.6;
+}
+
+.refund-password-order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-3);
+  padding-bottom: var(--ic-space-4);
+  margin-bottom: var(--ic-space-4);
+  border-bottom: var(--ic-divider);
+  color: var(--ic-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.refund-password-order strong {
+  color: var(--ic-color-danger);
 }
 
 @media (max-width: 720px) {

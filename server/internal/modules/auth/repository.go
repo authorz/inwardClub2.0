@@ -24,6 +24,7 @@ type MemberRepository interface {
 type AccountRepository interface {
 	GetByUsername(ctx context.Context, username string) (Account, error)
 	GetByID(ctx context.Context, id int64) (Account, error)
+	ListActiveStoreAdminsByStoreID(ctx context.Context, storeID int64) ([]Account, error)
 	BumpTokenVersion(ctx context.Context, id int64) error
 }
 
@@ -205,6 +206,29 @@ func (r *sqlAccountRepository) GetByID(ctx context.Context, id int64) (Account, 
 		return Account{}, apperr.Internal(err)
 	}
 	return a, nil
+}
+
+func (r *sqlAccountRepository) ListActiveStoreAdminsByStoreID(ctx context.Context, storeID int64) ([]Account, error) {
+	const q = `SELECT ` + accountColumns + ` FROM admin_accounts
+		WHERE store_id = ? AND role = 'store_admin' AND status = ? ORDER BY id`
+	rows, err := r.db.QueryContext(ctx, q, storeID, StatusActive)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+
+	accounts := make([]Account, 0)
+	for rows.Next() {
+		a, err := scanAccount(rows)
+		if err != nil {
+			return nil, apperr.Internal(err)
+		}
+		accounts = append(accounts, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return accounts, nil
 }
 
 func (r *sqlAccountRepository) BumpTokenVersion(ctx context.Context, id int64) error {

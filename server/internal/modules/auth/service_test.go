@@ -118,6 +118,15 @@ func (r *memAccountRepo) GetByID(_ context.Context, id int64) (Account, error) {
 	}
 	return a, nil
 }
+func (r *memAccountRepo) ListActiveStoreAdminsByStoreID(_ context.Context, storeID int64) ([]Account, error) {
+	accounts := make([]Account, 0)
+	for _, account := range r.byID {
+		if account.StoreID == storeID && account.Role == string(authn.RoleStoreAdmin) && account.Status == StatusActive {
+			accounts = append(accounts, account)
+		}
+	}
+	return accounts, nil
+}
 func (r *memAccountRepo) BumpTokenVersion(_ context.Context, id int64) error {
 	a := r.byID[id]
 	a.TokenVersion++
@@ -159,6 +168,39 @@ func TestVerifyAccountPassword(t *testing.T) {
 	accounts.byID[1] = account
 	if err := svc.VerifyAccountPassword(ctx, 1, "secret"); apperr.From(err).Code != apperr.CodePermissionDenied {
 		t.Fatalf("expected forbidden for disabled account, got %v", err)
+	}
+}
+
+func TestVerifyStoreAdminPasswordUsesActiveManagerFromSameStore(t *testing.T) {
+	svc, _, accounts := newTestService()
+	ctx := context.Background()
+	cashierHash, _ := bcrypt.GenerateFromPassword([]byte("cashier-secret"), bcrypt.MinCost)
+	accounts.byID[4] = Account{
+		ID: 4, Username: "cashier", PasswordHash: string(cashierHash),
+		Role: string(authn.RoleCashier), StoreID: 7, Status: StatusActive,
+	}
+
+	if err := svc.VerifyStoreAdminPassword(ctx, 7, "secret"); err != nil {
+		t.Fatalf("expected same-store manager password to pass, got %v", err)
+	}
+	if err := svc.VerifyStoreAdminPassword(ctx, 8, "secret"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("manager from another store must not pass, got %v", err)
+	}
+	if err := svc.VerifyStoreAdminPassword(ctx, 7, "wrong"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("wrong manager password must be forbidden, got %v", err)
+	}
+	if err := svc.VerifyStoreAdminPassword(ctx, 7, "cashier-secret"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("cashier password must not pass, got %v", err)
+	}
+	if err := svc.VerifyStoreAdminPassword(ctx, 7, " "); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("empty manager password must be invalid, got %v", err)
+	}
+
+	manager := accounts.byID[2]
+	manager.Status = StatusDisabled
+	accounts.byID[2] = manager
+	if err := svc.VerifyStoreAdminPassword(ctx, 7, "secret"); apperr.From(err).Code != apperr.CodePermissionDenied {
+		t.Fatalf("disabled manager password must not pass, got %v", err)
 	}
 }
 

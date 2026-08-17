@@ -276,14 +276,26 @@ type StoreRepository interface {
 type StoreService struct {
 	repo                        StoreRepository
 	wechat                      WeChatPayGateway
+	passwords                   StoreAdminPasswordVerifier
 	wechatPayAmountOverrideCent int64
 	now                         func() time.Time
 }
 
+// StoreAdminPasswordVerifier re-authenticates an active store administrator
+// from the same JWT-scoped store before a refund request is created.
+type StoreAdminPasswordVerifier interface {
+	VerifyStoreAdminPassword(ctx context.Context, storeID int64, password string) error
+}
+
 // NewStoreService builds the store payment service.
-func NewStoreService(repo StoreRepository, wechat WeChatPayGateway, wechatPayAmountOverrideCent int64) *StoreService {
+func NewStoreService(
+	repo StoreRepository,
+	wechat WeChatPayGateway,
+	passwords StoreAdminPasswordVerifier,
+	wechatPayAmountOverrideCent int64,
+) *StoreService {
 	return &StoreService{
-		repo: repo, wechat: wechat,
+		repo: repo, wechat: wechat, passwords: passwords,
 		wechatPayAmountOverrideCent: wechatPayAmountOverrideCent,
 		now:                         time.Now,
 	}
@@ -403,15 +415,29 @@ func (s *StoreService) CancelCollectionOrder(ctx context.Context, storeID, id in
 	return s.repo.CancelCollectionOrder(ctx, storeID, id, s.now().UTC())
 }
 
-// CreateRefund records a pending refund against a payment order that belongs to
-// the acting store. Provider dispatch/settlement runs via the outbox worker and
-// is documented as not-yet-implemented.
+// CreateRefund verifies a manager password, then records a pending refund
+// against a payment order that belongs to the acting store. Provider
+// dispatch/settlement runs via the outbox worker and is documented as
+// not-yet-implemented.
 func (s *StoreService) CreateRefund(ctx context.Context, storeID int64, byType string, byID int64, idemKey string, req CreateRefundRequest) (RefundView, error) {
 	if req.PaymentOrderID <= 0 {
 		return RefundView{}, apperr.Invalid("paymentOrderId is required")
 	}
 	if req.AmountCent <= 0 {
 		return RefundView{}, apperr.Invalid("amountCent must be positive")
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		return RefundView{}, apperr.Invalid("请输入退款原因")
+	}
+	if utf8.RuneCountInString(req.Reason) > 255 {
+		return RefundView{}, apperr.Invalid("退款原因不能超过 255 个字符")
+	}
+	if s.passwords == nil {
+		return RefundView{}, apperr.Internal(fmt.Errorf("store admin password verifier is not configured"))
+	}
+	if err := s.passwords.VerifyStoreAdminPassword(ctx, storeID, req.Password); err != nil {
+		return RefundView{}, err
 	}
 	now := s.now().UTC()
 	refund, err := s.repo.CreateRefund(ctx, RefundCreate{
