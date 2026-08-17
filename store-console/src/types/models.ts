@@ -323,14 +323,39 @@ export interface PrinterDevice extends AuditFields {
   status: ActiveStatus
 }
 
+export interface ReportOverviewBreakdown {
+  total: number
+  today: number
+  recharge: number
+  food: number
+  activity: number
+  todayRecharge: number
+  todayFood: number
+  todayActivity: number
+}
+
+export interface ReportOverviewTrendPoint {
+  date: string
+  wechatRevenueCent: number
+  orderCount: number
+}
+
 // 对齐 server reporting.OverviewView（GET /store/reports/overview，无入参）。
 export interface ReportOverview {
   storeCount: number
   memberCount: number
   orderCount: number
   grossSalesCent: number
+  todayOrderCount: number
+  todayGrossSalesCent: number
+  todayNewMemberCount: number
+  activityRevenueCent: number
+  todayActivityRevenueCent: number
   couponsIssued: number
   couponsRedeemed: number
+  wechatRevenue: ReportOverviewBreakdown
+  coinConsumption: ReportOverviewBreakdown
+  trend: ReportOverviewTrendPoint[]
 }
 
 /** 会员单一资产余额（仅会员详情返回 wallet 数组）。 */

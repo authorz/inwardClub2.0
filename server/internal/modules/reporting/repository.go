@@ -56,9 +56,9 @@ func scopeDate(f ReportFilter, storeCol, dateCol string) (string, []any) {
 }
 
 // Overview computes the dashboard headline counters. A nil StoreID aggregates
-// across every store; a set StoreID pins each counter to that store. Sales count
-// only paid orders; members are not store-scoped, so under a store scope the
-// member count is the distinct set of members who ordered at that store.
+// across every store; a set StoreID pins store-owned counters to that store.
+// Sales count only paid orders. User counters remain global in both audiences
+// because members belong to the platform rather than to an individual store.
 func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overview, error) {
 	const dashboardDays = 7
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -82,23 +82,12 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 		return Overview{}, apperr.Internal(err)
 	}
 
-	if f.StoreID != nil {
-		if err := r.db.QueryRowContext(ctx,
-			`SELECT COUNT(DISTINCT bo.member_id),
-				COUNT(DISTINCT CASE WHEN m.created_at >= ? AND m.created_at < ? THEN m.id END)
-			FROM business_orders bo JOIN members m ON m.id = bo.member_id
-			WHERE bo.store_id = ?`,
-			todayStart, tomorrowStart, *f.StoreID).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
-			return Overview{}, apperr.Internal(err)
-		}
-	} else {
-		if err := r.db.QueryRowContext(ctx,
-			`SELECT COUNT(*),
-				COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
-			FROM members`,
-			todayStart, tomorrowStart).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
-			return Overview{}, apperr.Internal(err)
-		}
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*),
+			COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
+		FROM members`,
+		todayStart, tomorrowStart).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
+		return Overview{}, apperr.Internal(err)
 	}
 
 	paymentArgs := append([]any{todayStart, tomorrowStart}, orderScopeArgs...)

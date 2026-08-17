@@ -32,7 +32,7 @@ export interface MenuGroup {
 export const MENU: MenuGroup[] = [
   {
     items: [
-      { name: 'dashboard', path: '/dashboard', title: '今日概览', icon: 'dashboard' },
+      { name: 'dashboard', path: '/dashboard', title: '概览', icon: 'dashboard' },
     ],
   },
   {
