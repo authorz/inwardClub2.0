@@ -5,7 +5,7 @@
  * 侧边菜单来自 MENU 配置并按权限过滤。顶部展示当前门店（只读，来自 token scope/me），
  * 不提供门店选择器或切换。
  */
-import { computed, h, ref, type Component } from 'vue'
+import { computed, h, ref, watch, type Component } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import {
   NAvatar,
@@ -32,27 +32,52 @@ function renderIcon(name: string) {
   return () => h(AppIcon as Component, { name })
 }
 
-/** 按权限过滤后的菜单，分组渲染。 */
+/** 按权限过滤后的菜单，多入口分组收起为二级导航。 */
 const menuOptions = computed<MenuOption[]>(() => {
   const options: MenuOption[] = []
   for (const group of MENU) {
     const items = group.items.filter((item) => auth.hasPermission(item.permissions))
     if (items.length === 0) continue
-    if (group.title) {
-      options.push({ type: 'group', label: group.title, key: `group:${group.title}`, children: [] })
-    }
-    for (const item of items) {
+    const childOptions = items.map((item) => ({
+      label: item.title,
+      key: item.name,
+      icon: renderIcon(item.icon),
+    }))
+    if (group.name && group.title) {
       options.push({
-        label: item.title,
-        key: item.name,
-        icon: renderIcon(item.icon),
+        label: group.title,
+        key: `section:${group.name}`,
+        icon: group.icon ? renderIcon(group.icon) : undefined,
+        children: childOptions,
       })
+    } else {
+      options.push(...childOptions)
     }
   }
   return options
 })
 
-const activeKey = computed(() => route.name as string)
+const activeKey = computed(() => (typeof route.name === 'string' ? route.name : ''))
+const expandedKeys = ref<Array<string | number>>([])
+
+function sectionKeyForRoute(routeName: string) {
+  const group = MENU.find((entry) => (
+    entry.name
+    && entry.title
+    && entry.items.some((item) => item.name === routeName)
+  ))
+  return group?.name ? `section:${group.name}` : undefined
+}
+
+watch(activeKey, (key) => {
+  const sectionKey = sectionKeyForRoute(key)
+  expandedKeys.value = sectionKey ? [sectionKey] : []
+}, { immediate: true })
+
+function onMenuExpanded(keys: Array<string | number>) {
+  const newlyExpanded = keys.find((key) => !expandedKeys.value.includes(key))
+  expandedKeys.value = newlyExpanded ? [newlyExpanded] : []
+}
 
 function onMenuSelect(key: string) {
   router.push({ name: key })
@@ -121,14 +146,20 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
           </div>
         </div>
       </div>
-      <NMenu
-        :options="menuOptions"
-        :value="activeKey"
-        :collapsed="collapsed"
-        :collapsed-width="64"
-        :indent="18"
-        @update:value="onMenuSelect"
-      />
+      <div class="menu-scroll">
+        <NMenu
+          class="side-menu"
+          :options="menuOptions"
+          :value="activeKey"
+          :expanded-keys="expandedKeys"
+          :collapsed="collapsed"
+          :collapsed-width="64"
+          :indent="18"
+          :root-indent="16"
+          @update:value="onMenuSelect"
+          @update:expanded-keys="onMenuExpanded"
+        />
+      </div>
     </NLayoutSider>
 
     <NLayout>
@@ -188,6 +219,20 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
 .brand--collapsed {
   justify-content: center;
   padding: 0;
+}
+.menu-scroll {
+  height: calc(100vh - var(--ic-header-height));
+  overflow-y: auto;
+  padding: var(--ic-space-2) var(--ic-space-2) var(--ic-space-5);
+}
+.side-menu {
+  --n-item-height: 42px !important;
+}
+.side-menu :deep(.n-menu-item-content) {
+  border-radius: var(--ic-radius-md);
+}
+.side-menu :deep(.n-submenu-children) {
+  padding-bottom: var(--ic-space-1);
 }
 .brand__logo {
   width: 32px;

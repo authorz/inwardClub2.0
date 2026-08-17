@@ -24,8 +24,12 @@ export interface MenuItem {
 }
 
 export interface MenuGroup {
-  /** 分组标题；为空表示无分组标题（如工作台）。 */
+  /** 分组唯一标识，用于可展开菜单的 key。 */
+  name?: string
+  /** 分组标题；为空时直接展示组内入口。 */
   title?: string
+  /** 分组图标。 */
+  icon?: string
   items: MenuItem[]
 }
 
@@ -36,8 +40,24 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
-    title: '订单与履约',
+    name: 'transactions',
+    title: '收款与订单',
+    icon: 'collection',
     items: [
+      {
+        name: 'collection',
+        path: '/collection',
+        title: '线下收款',
+        icon: 'collection',
+        permissions: [PERM.collectionCreate],
+      },
+      {
+        name: 'collection-records',
+        path: '/collection-records',
+        title: '收款记录',
+        icon: 'payment',
+        permissions: [PERM.collectionRead],
+      },
       {
         name: 'orders',
         path: '/orders',
@@ -52,10 +72,19 @@ export const MENU: MenuGroup[] = [
         icon: 'food',
         permissions: [PERM.orderRead],
       },
+      {
+        name: 'payments',
+        path: '/payments',
+        title: '支付与退款',
+        icon: 'payment',
+        permissions: [PERM.orderRead],
+      },
     ],
   },
   {
+    name: 'reviews',
     title: '核销与审核',
+    icon: 'review',
     items: [
       {
         name: 'activity-verify',
@@ -88,19 +117,21 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
-    title: '经营',
+    name: 'catalog',
+    title: '商品与活动',
+    icon: 'catalog',
     items: [
-      {
-        name: 'catalog-categories',
-        path: '/catalog-categories',
-        title: '商品分类',
-        icon: 'catalog',
-        permissions: [PERM.catalogRead, PERM.catalogWrite],
-      },
       {
         name: 'catalog',
         path: '/catalog',
         title: '本店商品',
+        icon: 'catalog',
+        permissions: [PERM.catalogRead, PERM.catalogWrite],
+      },
+      {
+        name: 'catalog-categories',
+        path: '/catalog-categories',
+        title: '商品分类',
         icon: 'catalog',
         permissions: [PERM.catalogRead, PERM.catalogWrite],
       },
@@ -118,6 +149,13 @@ export const MENU: MenuGroup[] = [
         icon: 'coupon',
         permissions: [PERM.couponRead, PERM.couponWrite],
       },
+    ],
+  },
+  {
+    name: 'reservations',
+    title: '预约与场地',
+    icon: 'reservation',
+    items: [
       {
         name: 'reservations',
         path: '/reservations',
@@ -135,46 +173,28 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
-    title: '会员',
     items: [
       {
         name: 'members',
         path: '/members',
-        title: '会员管理',
+        title: '会员',
         icon: 'member',
         permissions: [PERM.memberRead, PERM.memberReadLimited],
       },
     ],
   },
   {
-    title: '收款',
+    name: 'store-management',
+    title: '门店管理',
+    icon: 'store',
     items: [
       {
-        name: 'collection',
-        path: '/collection',
-        title: '线下聚合收款',
-        icon: 'collection',
-        permissions: [PERM.collectionCreate],
+        name: 'reports',
+        path: '/reports',
+        title: '经营报表',
+        icon: 'report',
+        permissions: [PERM.reportRead],
       },
-      {
-        name: 'collection-records',
-        path: '/collection-records',
-        title: '收款记录',
-        icon: 'payment',
-        permissions: [PERM.collectionRead],
-      },
-      {
-        name: 'payments',
-        path: '/payments',
-        title: '支付与退款',
-        icon: 'payment',
-        permissions: [PERM.orderRead],
-      },
-    ],
-  },
-  {
-    title: '运营配置',
-    items: [
       {
         name: 'cashiers',
         path: '/cashiers',
@@ -196,14 +216,7 @@ export const MENU: MenuGroup[] = [
         icon: 'printer',
         permissions: [PERM.printerWrite],
       },
-      {
-        name: 'reports',
-        path: '/reports',
-        title: '本店报表',
-        icon: 'report',
-        permissions: [PERM.reportRead],
-      },
-      { name: 'settings', path: '/settings', title: '设置', icon: 'settings' },
+      { name: 'settings', path: '/settings', title: '门店设置', icon: 'settings' },
     ],
   },
 ]
