@@ -9,9 +9,8 @@ import (
 )
 
 // OverviewFilter scopes an overview query. A nil StoreID aggregates across every
-// store (admin dashboard); a set StoreID pins the metrics to one store (store
-// console). It is never read from a request parameter for store scope — it comes
-// from the JWT scope at the handler.
+// store; a set StoreID selects one store. Store-console scope always comes from
+// the JWT, while the headquarters console may select a store by query.
 type OverviewFilter struct {
 	StoreID *int64
 }
@@ -56,8 +55,8 @@ type OverviewTrendPoint struct {
 
 // ReportFilter scopes a list-style report query. A nil StoreID aggregates across
 // every store; a set StoreID pins the report to one store. From/To bound the
-// query by date; either may be nil for an unbounded edge. Store scope is never
-// read from a request parameter — it comes from the JWT scope at the handler.
+// query by date; either may be nil for an unbounded edge. Store-console scope
+// comes from the JWT; the headquarters console may select a store by query.
 type ReportFilter struct {
 	StoreID *int64
 	From    *time.Time
@@ -118,8 +117,16 @@ type ReservationStat struct {
 
 // StoreStat is a per-store rollup.
 type StoreStat struct {
-	StoreID    int64
-	StoreName  string
-	OrderCount int64
-	GrossCent  int64
+	StoreID               int64
+	StoreName             string
+	OrderCount            int64
+	PaidOrderCount        int64
+	GrossCent             int64
+	FoodOrderCount        int64
+	FoodGrossCent         int64
+	ActivityOrderCount    int64
+	ActivityGrossCent     int64
+	UniqueMemberCount     int64
+	ReservationCount      int64
+	CouponRedemptionCount int64
 }

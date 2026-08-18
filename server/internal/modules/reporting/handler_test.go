@@ -53,6 +53,25 @@ func TestOverviewAdminAggregatesAllStores(t *testing.T) {
 	}
 }
 
+func TestOverviewAdminAcceptsStoreFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{out: Overview{StoreCount: 1}}
+	router := gin.New()
+	router.GET("/admin/reports/overview", newHandler(repo).Overview)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/reports/overview?storeId=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.last.StoreID == nil || *repo.last.StoreID != 7 {
+		t.Fatalf("expected admin overview scoped to store 7, got %v", repo.last.StoreID)
+	}
+}
+
 // TestOverviewStoreScopesToToken: with a store scope in context the overview
 // must be pinned to that store, and a client-supplied ?storeId is ignored.
 func TestOverviewStoreScopesToToken(t *testing.T) {
@@ -104,6 +123,25 @@ func TestRevenueStoreScopesToTokenAndParsesWindow(t *testing.T) {
 	}
 	if got := repo.lastReport.To.Format(time.RFC3339Nano); got != "2026-07-18T23:59:59.999999999+08:00" {
 		t.Fatalf("expected date-only to bound to include the full day, got %s", got)
+	}
+}
+
+func TestRevenueAdminAcceptsStoreFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &fakeRepo{revenue: []RevenueRow{{OrderCount: 2}}, total: 1}
+	router := gin.New()
+	router.GET("/admin/reports/revenue", newHandler(repo).Revenue)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/reports/revenue?storeId=9", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastReport.StoreID == nil || *repo.lastReport.StoreID != 9 {
+		t.Fatalf("expected admin report scoped to store 9, got %v", repo.lastReport.StoreID)
 	}
 }
 

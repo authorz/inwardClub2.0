@@ -57,8 +57,8 @@ func scopeDate(f ReportFilter, storeCol, dateCol string) (string, []any) {
 
 // Overview computes the dashboard headline counters. A nil StoreID aggregates
 // across every store; a set StoreID pins store-owned counters to that store.
-// Sales count only paid orders. User counters remain global in both audiences
-// because members belong to the platform rather than to an individual store.
+// Sales count only paid orders. For a selected store, member counters represent
+// members with paid orders there and members whose first paid store order is today.
 func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overview, error) {
 	const dashboardDays = 7
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -82,12 +82,29 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 		return Overview{}, apperr.Internal(err)
 	}
 
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*),
-			COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
-		FROM members`,
-		todayStart, tomorrowStart).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
-		return Overview{}, apperr.Internal(err)
+	if f.StoreID != nil {
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*),
+				COALESCE(SUM(CASE WHEN first_order_at >= ? AND first_order_at < ? THEN 1 ELSE 0 END), 0)
+			FROM (
+				SELECT member_id, MIN(created_at) AS first_order_at
+				FROM business_orders
+				WHERE store_id = ? AND payment_status = 'paid' AND member_id IS NOT NULL
+				GROUP BY member_id
+			) store_members`,
+			todayStart, tomorrowStart, *f.StoreID,
+		).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
+			return Overview{}, apperr.Internal(err)
+		}
+	} else {
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*),
+				COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
+			FROM members`,
+			todayStart, tomorrowStart,
+		).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
+			return Overview{}, apperr.Internal(err)
+		}
 	}
 
 	paymentArgs := append([]any{todayStart, tomorrowStart}, orderScopeArgs...)
@@ -437,26 +454,48 @@ func (r *sqlRepository) Reservations(ctx context.Context, f ReportFilter) ([]Res
 	return out, total, rows.Err()
 }
 
-// Stores rolls up one row per store: order count and gross of paid orders. Stores
-// with no orders in the window still appear (zero counters). Newest store first.
+// Stores rolls up one row per store with sales, customer, reservation and coupon
+// activity. Stores with no activity in the window still appear. Newest store first.
 func (r *sqlRepository) Stores(ctx context.Context, f ReportFilter) ([]StoreStat, int64, error) {
-	// The store scope constrains which stores are listed; the date window applies
-	// to the joined orders (in the ON clause) so stores without orders survive.
 	storeScope, storeArgs := scopeDate(f, "s.id", "")
-	dateOn, dateArgs := scopeDate(f, "", "bo.created_at")
+	orderDate, orderArgs := scopeDate(f, "", "bo.created_at")
+	reservationDate, reservationArgs := scopeDate(f, "", "r.created_at")
+	redemptionDate, redemptionArgs := scopeDate(f, "", "cr.created_at")
 
 	var total int64
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM stores s WHERE 1 = 1`+storeScope, storeArgs...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT s.id, s.name, COUNT(bo.id),
-			COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' THEN bo.total_amount_cent ELSE 0 END), 0)
-		FROM stores s LEFT JOIN business_orders bo ON bo.store_id = s.id` + dateOn +
-		` WHERE 1 = 1` + storeScope + ` GROUP BY s.id, s.name ORDER BY s.id DESC LIMIT ? OFFSET ?`
-	// Argument order matches the SQL text: join-date bounds, then the outer store
-	// scope and page bounds.
-	args := append(append([]any{}, dateArgs...), storeArgs...)
+	q := `SELECT s.id, s.name,
+			COALESCE(os.order_count, 0), COALESCE(os.paid_order_count, 0),
+			COALESCE(os.gross_cent, 0), COALESCE(os.food_order_count, 0),
+			COALESCE(os.food_gross_cent, 0), COALESCE(os.activity_order_count, 0),
+			COALESCE(os.activity_gross_cent, 0), COALESCE(os.unique_member_count, 0),
+			COALESCE(rs.reservation_count, 0), COALESCE(cs.redemption_count, 0)
+		FROM stores s
+		LEFT JOIN (
+			SELECT bo.store_id,
+				COUNT(*) AS order_count,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' THEN 1 ELSE 0 END), 0) AS paid_order_count,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' THEN bo.total_amount_cent ELSE 0 END), 0) AS gross_cent,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' AND bo.order_type = 'food' THEN 1 ELSE 0 END), 0) AS food_order_count,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' AND bo.order_type = 'food' THEN bo.total_amount_cent ELSE 0 END), 0) AS food_gross_cent,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' AND bo.order_type = 'activity' THEN 1 ELSE 0 END), 0) AS activity_order_count,
+				COALESCE(SUM(CASE WHEN bo.payment_status = 'paid' AND bo.order_type = 'activity' THEN bo.total_amount_cent ELSE 0 END), 0) AS activity_gross_cent,
+				COUNT(DISTINCT CASE WHEN bo.payment_status = 'paid' THEN bo.member_id END) AS unique_member_count
+			FROM business_orders bo WHERE bo.store_id IS NOT NULL` + orderDate + ` GROUP BY bo.store_id
+		) os ON os.store_id = s.id
+		LEFT JOIN (
+			SELECT r.store_id, COUNT(*) AS reservation_count
+			FROM reservations r WHERE 1 = 1` + reservationDate + ` GROUP BY r.store_id
+		) rs ON rs.store_id = s.id
+		LEFT JOIN (
+			SELECT cr.store_id, COUNT(*) AS redemption_count
+			FROM coupon_redemptions cr WHERE 1 = 1` + redemptionDate + ` GROUP BY cr.store_id
+		) cs ON cs.store_id = s.id
+		WHERE 1 = 1` + storeScope + ` ORDER BY s.id DESC LIMIT ? OFFSET ?`
+	args := append(append(append(append([]any{}, orderArgs...), reservationArgs...), redemptionArgs...), storeArgs...)
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -466,7 +505,12 @@ func (r *sqlRepository) Stores(ctx context.Context, f ReportFilter) ([]StoreStat
 	out := make([]StoreStat, 0)
 	for rows.Next() {
 		var s StoreStat
-		if err := rows.Scan(&s.StoreID, &s.StoreName, &s.OrderCount, &s.GrossCent); err != nil {
+		if err := rows.Scan(
+			&s.StoreID, &s.StoreName, &s.OrderCount, &s.PaidOrderCount,
+			&s.GrossCent, &s.FoodOrderCount, &s.FoodGrossCent,
+			&s.ActivityOrderCount, &s.ActivityGrossCent, &s.UniqueMemberCount,
+			&s.ReservationCount, &s.CouponRedemptionCount,
+		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, s)

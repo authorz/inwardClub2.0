@@ -147,3 +147,28 @@ func TestGetCouponsMapsAndPassesScope(t *testing.T) {
 		t.Fatalf("expected scope 3, got %v", repo.lastReport.StoreID)
 	}
 }
+
+func TestGetStoresMapsDetailedMetrics(t *testing.T) {
+	repo := &fakeRepo{
+		stores: []StoreStat{{
+			StoreID: 7, StoreName: "静安店", OrderCount: 12, PaidOrderCount: 10,
+			GrossCent: 12345, FoodOrderCount: 6, FoodGrossCent: 7000,
+			ActivityOrderCount: 4, ActivityGrossCent: 5345, UniqueMemberCount: 8,
+			ReservationCount: 9, CouponRedemptionCount: 3,
+		}},
+		total: 1,
+	}
+
+	views, total, err := NewService(repo).GetStores(context.Background(), ReportFilter{})
+	if err != nil {
+		t.Fatalf("stores: %v", err)
+	}
+	if total != 1 || len(views) != 1 {
+		t.Fatalf("unexpected store result: %+v total=%d", views, total)
+	}
+	view := views[0]
+	if view.AverageOrderCent != 1234 || view.UniqueMemberCount != 8 ||
+		view.ReservationCount != 9 || view.CouponRedemptionCount != 3 {
+		t.Fatalf("unexpected detailed store mapping: %+v", view)
+	}
+}

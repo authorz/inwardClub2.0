@@ -155,7 +155,19 @@ func (s *Service) GetStores(ctx context.Context, f ReportFilter) ([]StoreView, i
 	}
 	views := make([]StoreView, 0, len(rows))
 	for _, r := range rows {
-		views = append(views, StoreView{StoreID: r.StoreID, StoreName: r.StoreName, OrderCount: r.OrderCount, GrossCent: r.GrossCent})
+		averageOrderCent := int64(0)
+		if r.PaidOrderCount > 0 {
+			averageOrderCent = r.GrossCent / r.PaidOrderCount
+		}
+		views = append(views, StoreView{
+			StoreID: r.StoreID, StoreName: r.StoreName,
+			OrderCount: r.OrderCount, PaidOrderCount: r.PaidOrderCount,
+			GrossCent: r.GrossCent, AverageOrderCent: averageOrderCent,
+			FoodOrderCount: r.FoodOrderCount, FoodGrossCent: r.FoodGrossCent,
+			ActivityOrderCount: r.ActivityOrderCount, ActivityGrossCent: r.ActivityGrossCent,
+			UniqueMemberCount: r.UniqueMemberCount, ReservationCount: r.ReservationCount,
+			CouponRedemptionCount: r.CouponRedemptionCount,
+		})
 	}
 	return views, total, nil
 }

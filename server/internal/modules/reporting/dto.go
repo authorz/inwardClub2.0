@@ -93,8 +93,17 @@ type ReservationView struct {
 
 // StoreView is a per-store rollup.
 type StoreView struct {
-	StoreID    int64  `json:"storeId"`
-	StoreName  string `json:"storeName"`
-	OrderCount int64  `json:"orderCount"`
-	GrossCent  int64  `json:"grossCent"`
+	StoreID               int64  `json:"storeId"`
+	StoreName             string `json:"storeName"`
+	OrderCount            int64  `json:"orderCount"`
+	PaidOrderCount        int64  `json:"paidOrderCount"`
+	GrossCent             int64  `json:"grossCent"`
+	AverageOrderCent      int64  `json:"averageOrderCent"`
+	FoodOrderCount        int64  `json:"foodOrderCount"`
+	FoodGrossCent         int64  `json:"foodGrossCent"`
+	ActivityOrderCount    int64  `json:"activityOrderCount"`
+	ActivityGrossCent     int64  `json:"activityGrossCent"`
+	UniqueMemberCount     int64  `json:"uniqueMemberCount"`
+	ReservationCount      int64  `json:"reservationCount"`
+	CouponRedemptionCount int64  `json:"couponRedemptionCount"`
 }

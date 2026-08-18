@@ -481,5 +481,14 @@ export interface StoreReportRow {
   storeId: string
   storeName: string
   orderCount: number
+  paidOrderCount: number
   grossCent: number
+  averageOrderCent: number
+  foodOrderCount: number
+  foodGrossCent: number
+  activityOrderCount: number
+  activityGrossCent: number
+  uniqueMemberCount: number
+  reservationCount: number
+  couponRedemptionCount: number
 }

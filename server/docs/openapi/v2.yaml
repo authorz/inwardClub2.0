@@ -950,12 +950,21 @@ components:
         count: { type: integer, format: int64 }
     StoreReportRow:
       type: object
-      description: Per-store rollup (gross counts paid orders only).
+      description: Per-store operating rollup for the selected time window.
       properties:
         storeId: { type: integer, format: int64 }
         storeName: { type: string }
         orderCount: { type: integer, format: int64 }
+        paidOrderCount: { type: integer, format: int64 }
         grossCent: { type: integer, format: int64 }
+        averageOrderCent: { type: integer, format: int64 }
+        foodOrderCount: { type: integer, format: int64 }
+        foodGrossCent: { type: integer, format: int64 }
+        activityOrderCount: { type: integer, format: int64 }
+        activityGrossCent: { type: integer, format: int64 }
+        uniqueMemberCount: { type: integer, format: int64 }
+        reservationCount: { type: integer, format: int64 }
+        couponRedemptionCount: { type: integer, format: int64 }
     ConsoleCategoryView:
       type: object
       description: Store-bound console catalog category.
@@ -1367,6 +1376,11 @@ components:
       name: pageSize
       in: query
       schema: { type: integer, default: 20, maximum: 100 }
+    ReportStoreId:
+      name: storeId
+      in: query
+      description: Optional headquarters-console store filter. Store-console routes ignore it and remain pinned to the JWT store scope.
+      schema: { type: integer, format: int64, minimum: 1 }
     StoreID:
       name: storeID
       in: path
@@ -4168,14 +4182,15 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
-  # Console reports (read models). Admin aggregates across every store; store
-  # reuses the same handlers but is pinned to the token's store scope, so a
-  # client-supplied storeId is never honoured on these routes.
+  # Console reports (read models). Admin may aggregate across every store or
+  # select one store by query. Store routes remain pinned to the token scope.
   /api/v2/admin/reports/overview:
     get:
       tags: [admin]
       security: [{ bearerAuth: [] }]
-      summary: Dashboard overview counters (aggregated across all stores)
+      summary: Dashboard overview counters (all stores or one selected store)
+      parameters:
+        - { $ref: '#/components/parameters/ReportStoreId' }
       responses:
         '200':
           description: overview counters
@@ -4193,6 +4208,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4213,6 +4229,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4233,6 +4250,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4253,6 +4271,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4273,6 +4292,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4293,6 +4313,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4313,6 +4334,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
@@ -4333,6 +4355,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/ReportStoreId' }
         - { $ref: '#/components/parameters/ReportFrom' }
         - { $ref: '#/components/parameters/ReportTo' }
       responses:
