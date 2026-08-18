@@ -369,7 +369,6 @@ StoreAssetPreview
 - `category`
 - `product`
 - `activity`
-- `table_layout`
 - `seat_layout`
 - `rich_content`
 

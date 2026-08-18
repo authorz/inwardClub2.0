@@ -14,26 +14,19 @@ import (
 // Service provides reservation, waitlist and arrival operations for both the
 // mini program (member scope) and the store console (store scope).
 type Service struct {
-	repo               Repository
-	assets             AssetResolver
-	backgroundSettings TableBackgroundSettings
-	location           *time.Location
-	now                func() time.Time
-}
-
-// TableBackgroundSettings supplies the headquarters default table background.
-type TableBackgroundSettings interface {
-	TableDefaultBackgroundURL(ctx context.Context) (string, error)
+	repo     Repository
+	assets   AssetResolver
+	location *time.Location
+	now      func() time.Time
 }
 
 // NewService builds the reservation service.
-func NewService(repo Repository, assets AssetResolver, backgroundSettings TableBackgroundSettings, location *time.Location) *Service {
+func NewService(repo Repository, assets AssetResolver, location *time.Location) *Service {
 	if location == nil {
 		location = time.UTC
 	}
 	return &Service{
-		repo: repo, assets: assets, backgroundSettings: backgroundSettings,
-		location: location, now: time.Now,
+		repo: repo, assets: assets, location: location, now: time.Now,
 	}
 }
 
@@ -43,23 +36,9 @@ func (s *Service) ListTables(ctx context.Context, storeID int64) ([]TableView, e
 	if err != nil {
 		return nil, err
 	}
-	defaultBackgroundURL := ""
-	if s.backgroundSettings != nil {
-		defaultBackgroundURL, err = s.backgroundSettings.TableDefaultBackgroundURL(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
 	views := make([]TableView, 0, len(tables))
 	for _, t := range tables {
-		view := tableView(t)
-		if t.LayoutAssetID != nil && s.assets != nil {
-			view.LayoutURL, _ = s.assets.PublicURLByID(ctx, *t.LayoutAssetID)
-		}
-		if view.LayoutURL == "" {
-			view.LayoutURL = defaultBackgroundURL
-		}
-		views = append(views, view)
+		views = append(views, tableView(t))
 	}
 	return views, nil
 }

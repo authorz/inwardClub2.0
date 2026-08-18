@@ -172,7 +172,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		cfg.WeChatPayAmountOverrideCent(),
 	)
 	reservationSvc := reservation.NewService(
-		reservation.NewRepository(database), assetSvc, globalSettingsSvc, businessClock.Location(),
+		reservation.NewRepository(database), assetSvc, businessClock.Location(),
 	)
 	couponSvc := coupon.NewService(coupon.NewRepository(database), catalogSvc)
 	wechatPayAmountOverrideCent := cfg.WeChatPayAmountOverrideCent()
@@ -197,7 +197,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
-	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database), assetSvc)
+	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database))
 	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc, assetSvc)
 
 	// Diagnostics: durable admin error-events feed backed by the error_events

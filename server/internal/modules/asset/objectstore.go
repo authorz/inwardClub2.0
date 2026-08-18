@@ -19,7 +19,6 @@ const (
 	UploadPurposeCategory       UploadPurpose = "category"
 	UploadPurposeProduct        UploadPurpose = "product"
 	UploadPurposeActivity       UploadPurpose = "activity"
-	UploadPurposeTableLayout    UploadPurpose = "table_layout"
 	UploadPurposeSeatLayout     UploadPurpose = "seat_layout"
 	UploadPurposeVipIcon        UploadPurpose = "vip_icon"
 	UploadPurposeVipBanner      UploadPurpose = "vip_banner"

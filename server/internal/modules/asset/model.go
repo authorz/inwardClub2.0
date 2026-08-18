@@ -54,7 +54,6 @@ var policies = map[UploadPurpose]purposePolicy{
 	UploadPurposeCategory:       {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeProduct:        {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeActivity:       {mimes: imageMimes, maxSize: 10 * mib},
-	UploadPurposeTableLayout:    {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeSeatLayout:     {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeVipIcon:        {mimes: imageMimes, maxSize: 10 * mib},
 	UploadPurposeVipBanner:      {mimes: imageMimes, maxSize: 10 * mib},

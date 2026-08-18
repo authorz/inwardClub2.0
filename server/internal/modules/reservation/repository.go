@@ -44,7 +44,7 @@ type sqlRepository struct{ db *platdb.DB }
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 func (r *sqlRepository) ListTables(ctx context.Context, storeID int64) ([]Table, error) {
-	const q = `SELECT id, store_id, name, capacity, layout_asset_id, status FROM tables
+	const q = `SELECT id, store_id, name, capacity, status FROM tables
 		WHERE store_id = ? ORDER BY id ASC`
 	rows, err := r.db.QueryContext(ctx, q, storeID)
 	if err != nil {
@@ -54,7 +54,7 @@ func (r *sqlRepository) ListTables(ctx context.Context, storeID int64) ([]Table,
 	var out []Table
 	for rows.Next() {
 		var t Table
-		if err := rows.Scan(&t.ID, &t.StoreID, &t.Name, &t.Capacity, &t.LayoutAssetID, &t.Status); err != nil {
+		if err := rows.Scan(&t.ID, &t.StoreID, &t.Name, &t.Capacity, &t.Status); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, t)

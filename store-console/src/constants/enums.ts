@@ -349,7 +349,6 @@ export type AssetPurpose =
   | 'category'
   | 'product'
   | 'activity'
-  | 'table_layout'
   | 'seat_layout'
   | 'rich_content'
 
@@ -358,7 +357,6 @@ export const STORE_ASSET_PURPOSES: AssetPurpose[] = [
   'category',
   'product',
   'activity',
-  'table_layout',
   'seat_layout',
   'rich_content',
 ]

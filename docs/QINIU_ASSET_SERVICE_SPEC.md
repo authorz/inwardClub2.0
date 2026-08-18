@@ -59,7 +59,6 @@ const (
     UploadPurposeCategory     UploadPurpose = "category"
     UploadPurposeProduct      UploadPurpose = "product"
     UploadPurposeActivity     UploadPurpose = "activity"
-    UploadPurposeTableLayout  UploadPurpose = "table_layout"
     UploadPurposeSeatLayout   UploadPurpose = "seat_layout"
     UploadPurposeVipIcon      UploadPurpose = "vip_icon"
     UploadPurposeRichContent  UploadPurpose = "rich_content"
@@ -160,7 +159,7 @@ CREATE TABLE assets (
 | 用途 | 可接受 MIME | 最大大小 | 可见性 | 调用者 |
 | --- | --- | ---: | --- | --- |
 | `avatar` | JPEG、PNG、WebP | 5 MiB | public | 本人 |
-| `store_logo`、`banner`、`category`、`product`、`activity`、`table_layout`、`seat_layout`、`vip_icon` | JPEG、PNG、WebP | 10 MiB | public | 有对应后台权限者 |
+| `store_logo`、`banner`、`category`、`product`、`activity`、`seat_layout`、`vip_icon` | JPEG、PNG、WebP | 10 MiB | public | 有对应后台权限者 |
 | `rich_content` | JPEG、PNG、WebP、MP4 | 图片 10 MiB；视频 200 MiB | public | 总后台/门店后台内容权限者 |
 | 私有凭证/内部附件（后续启用） | 由专用用途白名单定义 | 20 MiB | private | 仅获授权角色 |
 

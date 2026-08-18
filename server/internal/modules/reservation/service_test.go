@@ -221,7 +221,7 @@ func newTestService() (*Service, *memRepo) {
 			ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable,
 		}},
 	}
-	svc := NewService(repo, fakeAssetResolver{}, nil, time.UTC)
+	svc := NewService(repo, fakeAssetResolver{}, time.UTC)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
 }
@@ -235,74 +235,6 @@ func TestLatestSeatResetUsesBusinessFourAM(t *testing.T) {
 	want := time.Date(2026, 7, 17, 4, 0, 0, 0, svc.location).UTC()
 	if got := svc.latestSeatReset(); !got.Equal(want) {
 		t.Fatalf("latest reset: got %s, want %s", got, want)
-	}
-}
-
-func TestListTablesIncludesCustomLayoutURL(t *testing.T) {
-	svc, repo := newTestService()
-	layoutAssetID := int64(23)
-	repo.tables = []Table{{
-		ID: 1, StoreID: 8, Name: "A1", Capacity: 9,
-		LayoutAssetID: &layoutAssetID, Status: AvailabilityAvailable,
-	}}
-
-	views, err := svc.ListTables(context.Background(), 8)
-	if err != nil {
-		t.Fatalf("list tables: %v", err)
-	}
-	if len(views) != 1 {
-		t.Fatalf("expected one table, got %d", len(views))
-	}
-	if views[0].LayoutURL != "https://cdn.example.com/assets/23" {
-		t.Fatalf("unexpected layout URL: %q", views[0].LayoutURL)
-	}
-}
-
-type fakeTableBackgroundSettings struct{ url string }
-
-func (f fakeTableBackgroundSettings) TableDefaultBackgroundURL(context.Context) (string, error) {
-	return f.url, nil
-}
-
-func TestListTablesFallsBackToGlobalBackgroundURL(t *testing.T) {
-	repo := &memRepo{dailyClaims: make(map[string]bool)}
-	repo.tables = []Table{{
-		ID: 1, StoreID: 8, Name: "A1", Capacity: 9, Status: AvailabilityAvailable,
-	}}
-	svc := NewService(
-		repo, fakeAssetResolver{},
-		fakeTableBackgroundSettings{url: "https://cdn.example.com/default-table.png"},
-		time.UTC,
-	)
-
-	views, err := svc.ListTables(context.Background(), 8)
-	if err != nil {
-		t.Fatalf("list tables: %v", err)
-	}
-	if got := views[0].LayoutURL; got != "https://cdn.example.com/default-table.png" {
-		t.Fatalf("layout URL = %q, want global default", got)
-	}
-}
-
-func TestListTablesCustomBackgroundOverridesGlobalDefault(t *testing.T) {
-	repo := &memRepo{dailyClaims: make(map[string]bool)}
-	layoutAssetID := int64(23)
-	repo.tables = []Table{{
-		ID: 1, StoreID: 8, Name: "A1", Capacity: 9,
-		LayoutAssetID: &layoutAssetID, Status: AvailabilityAvailable,
-	}}
-	svc := NewService(
-		repo, fakeAssetResolver{},
-		fakeTableBackgroundSettings{url: "https://cdn.example.com/default-table.png"},
-		time.UTC,
-	)
-
-	views, err := svc.ListTables(context.Background(), 8)
-	if err != nil {
-		t.Fatalf("list tables: %v", err)
-	}
-	if got := views[0].LayoutURL; got != "https://cdn.example.com/assets/23" {
-		t.Fatalf("layout URL = %q, want custom table background", got)
 	}
 }
 

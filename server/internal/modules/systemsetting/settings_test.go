@@ -18,24 +18,15 @@ func (r *memoryRepository) UpdateGlobalSettings(_ context.Context, settings Glob
 	return r.settings, nil
 }
 
-func TestUpdateGlobalSettingsValidatesBackgroundURL(t *testing.T) {
+func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	svc := NewService(&memoryRepository{})
-	if _, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
-		TableDefaultBackgroundURL: "javascript:alert(1)",
-	}, 1); err == nil {
-		t.Fatal("expected invalid URL error")
-	}
 	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
-		TableDefaultBackgroundURL:           " https://assets.inwardclub.com/table.png ",
 		FirstRechargeDoublePointsEnabled:    true,
 		RechargeDoublePointsThresholdAmount: 1200,
 		PhoneChangeIntervalDays:             45,
 	}, 1)
 	if err != nil {
 		t.Fatalf("update settings: %v", err)
-	}
-	if got.TableDefaultBackgroundURL != "https://assets.inwardclub.com/table.png" {
-		t.Fatalf("unexpected background URL %q", got.TableDefaultBackgroundURL)
 	}
 	if !got.FirstRechargeDoublePointsEnabled {
 		t.Fatal("expected first-recharge reward switch to be enabled")
@@ -45,20 +36,6 @@ func TestUpdateGlobalSettingsValidatesBackgroundURL(t *testing.T) {
 	}
 	if got.PhoneChangeIntervalDays != 45 {
 		t.Fatalf("unexpected phone change interval %d", got.PhoneChangeIntervalDays)
-	}
-}
-
-func TestUpdateGlobalSettingsAllowsClearingBackground(t *testing.T) {
-	svc := NewService(&memoryRepository{})
-	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
-		RechargeDoublePointsThresholdAmount: 1000,
-		PhoneChangeIntervalDays:             30,
-	}, 1)
-	if err != nil {
-		t.Fatalf("clear settings: %v", err)
-	}
-	if got.TableDefaultBackgroundURL != "" {
-		t.Fatalf("expected empty background URL, got %q", got.TableDefaultBackgroundURL)
 	}
 }
 

@@ -11,17 +11,13 @@ import {
   NSwitch,
   NText,
 } from 'naive-ui'
-import AssetUpload from '@/components/AssetUpload.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { systemService } from '@/api/services'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const loading = ref(false)
 const saving = ref(false)
-const uploadedPath = ref<string | null>(null)
-const uploadedAssetId = ref<string | null>(null)
 const form = reactive({
-  tableDefaultBackgroundUrl: '',
   firstRechargeDoublePointsEnabled: false,
   rechargeDoublePointsThresholdAmount: 1000,
   franchiseInquirySources: [] as string[],
@@ -35,7 +31,6 @@ async function load(): Promise<void> {
   loading.value = true
   try {
     const settings = await systemService.getGlobalSettings()
-    form.tableDefaultBackgroundUrl = settings.tableDefaultBackgroundUrl || ''
     form.firstRechargeDoublePointsEnabled = Boolean(
       settings.firstRechargeDoublePointsEnabled,
     )
@@ -51,21 +46,7 @@ async function load(): Promise<void> {
   }
 }
 
-function isValidURL(value: string): boolean {
-  if (!value) return true
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 async function save(): Promise<void> {
-  const value = form.tableDefaultBackgroundUrl.trim()
-  if (!isValidURL(value)) {
-    return toastError('请输入有效的 HTTP 或 HTTPS 图片地址')
-  }
   if (
     !Number.isInteger(form.rechargeDoublePointsThresholdAmount)
     || form.rechargeDoublePointsThresholdAmount <= 0
@@ -88,14 +69,12 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     const settings = await systemService.updateGlobalSettings({
-      tableDefaultBackgroundUrl: value,
       firstRechargeDoublePointsEnabled: form.firstRechargeDoublePointsEnabled,
       rechargeDoublePointsThresholdAmount: form.rechargeDoublePointsThresholdAmount,
       franchiseInquirySources: sources,
       franchiseHotline: hotline,
       phoneChangeIntervalDays: form.phoneChangeIntervalDays,
     })
-    form.tableDefaultBackgroundUrl = settings.tableDefaultBackgroundUrl || ''
     form.firstRechargeDoublePointsEnabled = Boolean(
       settings.firstRechargeDoublePointsEnabled,
     )
@@ -126,28 +105,6 @@ async function save(): Promise<void> {
           label-placement="left"
           label-width="160"
         >
-          <NFormItem label="桌子默认背景">
-            <div class="background-field">
-              <AssetUpload
-                v-model:path="uploadedPath"
-                v-model:asset-id="uploadedAssetId"
-                v-model:public-url="form.tableDefaultBackgroundUrl"
-                purpose="table_layout"
-                :preview-url="form.tableDefaultBackgroundUrl"
-                :width="320"
-                :height="200"
-              />
-              <NInput
-                v-model:value="form.tableDefaultBackgroundUrl"
-                clearable
-                placeholder="https://assets.example.com/table-background.png"
-              />
-              <NText depth="3">
-                可直接填写图片 URL，也可以上传图片；上传成功后会自动回填七牛公开地址。
-                单张桌子设置了自定义背景时，优先显示自定义背景。
-              </NText>
-            </div>
-          </NFormItem>
           <NFormItem label="新用户首充奖励">
             <div class="reward-field">
               <NSwitch v-model:value="form.firstRechargeDoublePointsEnabled">
@@ -241,13 +198,6 @@ async function save(): Promise<void> {
   background: var(--ic-color-surface);
   border: 1px solid var(--ic-color-border);
   border-radius: var(--ic-radius-md);
-}
-
-.background-field {
-  display: flex;
-  width: min(100%, 560px);
-  flex-direction: column;
-  gap: var(--ic-space-sm);
 }
 
 .reward-field {

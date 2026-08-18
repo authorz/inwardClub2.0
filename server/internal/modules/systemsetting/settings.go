@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +17,6 @@ import (
 )
 
 const (
-	tableDefaultBackgroundKey              = "table_default_background_url"
 	firstRechargeDoublePointsEnabledKey    = "first_recharge_double_points_enabled"
 	rechargeDoublePointsThresholdAmountKey = "recharge_double_points_threshold_amount"
 	franchiseInquirySourcesKey             = "franchise_inquiry_sources"
@@ -30,9 +28,8 @@ const (
 
 var defaultFranchiseInquirySources = []string{"美团", "抖音", "小红书", "店员", "微信小程序"}
 
-// GlobalSettings contains headquarters-level presentation defaults.
+// GlobalSettings contains headquarters-level business settings.
 type GlobalSettings struct {
-	TableDefaultBackgroundURL           string     `json:"tableDefaultBackgroundUrl"`
 	FirstRechargeDoublePointsEnabled    bool       `json:"firstRechargeDoublePointsEnabled"`
 	RechargeDoublePointsThresholdAmount int64      `json:"rechargeDoublePointsThresholdAmount"`
 	FranchiseInquirySources             []string   `json:"franchiseInquirySources"`
@@ -43,7 +40,6 @@ type GlobalSettings struct {
 
 // UpdateGlobalSettingsRequest is the writable global-settings payload.
 type UpdateGlobalSettingsRequest struct {
-	TableDefaultBackgroundURL           string   `json:"tableDefaultBackgroundUrl"`
 	FirstRechargeDoublePointsEnabled    bool     `json:"firstRechargeDoublePointsEnabled"`
 	RechargeDoublePointsThresholdAmount int64    `json:"rechargeDoublePointsThresholdAmount"`
 	FranchiseInquirySources             []string `json:"franchiseInquirySources"`
@@ -69,10 +65,9 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 		PhoneChangeIntervalDays:             defaultPhoneChangeIntervalDays,
 	}
 	const q = `SELECT setting_key, setting_value, updated_at FROM system_settings
-		WHERE setting_key IN (?, ?, ?, ?, ?, ?)`
+		WHERE setting_key IN (?, ?, ?, ?, ?)`
 	rows, err := r.db.QueryContext(
 		ctx, q,
-		tableDefaultBackgroundKey,
 		firstRechargeDoublePointsEnabledKey,
 		rechargeDoublePointsThresholdAmountKey,
 		franchiseInquirySourcesKey,
@@ -90,8 +85,6 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 			return GlobalSettings{}, apperr.Internal(err)
 		}
 		switch key {
-		case tableDefaultBackgroundKey:
-			settings.TableDefaultBackgroundURL = value
 		case firstRechargeDoublePointsEnabledKey:
 			settings.FirstRechargeDoublePointsEnabled, _ = strconv.ParseBool(value)
 		case rechargeDoublePointsThresholdAmountKey:
@@ -143,7 +136,6 @@ func (r *sqlRepository) UpdateGlobalSettings(
 			key   string
 			value string
 		}{
-			{tableDefaultBackgroundKey, settings.TableDefaultBackgroundURL},
 			{firstRechargeDoublePointsEnabledKey, strconv.FormatBool(settings.FirstRechargeDoublePointsEnabled)},
 			{rechargeDoublePointsThresholdAmountKey, strconv.FormatInt(settings.RechargeDoublePointsThresholdAmount, 10)},
 			{franchiseInquirySourcesKey, string(sourcesJSON)},
@@ -177,15 +169,6 @@ func (s *Service) Get(ctx context.Context) (GlobalSettings, error) {
 	return s.repo.GetGlobalSettings(ctx)
 }
 
-// TableDefaultBackgroundURL provides the mini-program table fallback.
-func (s *Service) TableDefaultBackgroundURL(ctx context.Context) (string, error) {
-	settings, err := s.repo.GetGlobalSettings(ctx)
-	if err != nil {
-		return "", err
-	}
-	return settings.TableDefaultBackgroundURL, nil
-}
-
 // FranchiseInquirySources provides the configured public form options.
 func (s *Service) FranchiseInquirySources(ctx context.Context) ([]string, error) {
 	settings, err := s.repo.GetGlobalSettings(ctx)
@@ -215,10 +198,6 @@ func (s *Service) PhoneChangeIntervalDays(ctx context.Context) (int, error) {
 
 // Update validates and persists the headquarters settings.
 func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, updatedBy int64) (GlobalSettings, error) {
-	backgroundURL := strings.TrimSpace(req.TableDefaultBackgroundURL)
-	if err := validateHTTPURL(backgroundURL); err != nil {
-		return GlobalSettings{}, err
-	}
 	if req.RechargeDoublePointsThresholdAmount <= 0 {
 		return GlobalSettings{}, apperr.Invalid("满额双倍积分门槛必须大于 0")
 	}
@@ -247,7 +226,6 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 		}
 	}
 	return s.repo.UpdateGlobalSettings(ctx, GlobalSettings{
-		TableDefaultBackgroundURL:           backgroundURL,
 		FirstRechargeDoublePointsEnabled:    req.FirstRechargeDoublePointsEnabled,
 		RechargeDoublePointsThresholdAmount: req.RechargeDoublePointsThresholdAmount,
 		FranchiseInquirySources:             sources,
@@ -283,20 +261,6 @@ func normalizeFranchiseInquirySources(raw []string) ([]string, error) {
 		return nil, apperr.Invalid("加盟咨询信息渠道至少保留一项")
 	}
 	return result, nil
-}
-
-func validateHTTPURL(raw string) error {
-	if raw == "" {
-		return nil
-	}
-	if len(raw) > 2048 {
-		return apperr.Invalid("tableDefaultBackgroundUrl is too long")
-	}
-	parsed, err := url.ParseRequestURI(raw)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return apperr.Invalid("tableDefaultBackgroundUrl must be a valid HTTP or HTTPS URL")
-	}
-	return nil
 }
 
 // Handler exposes headquarters global settings.

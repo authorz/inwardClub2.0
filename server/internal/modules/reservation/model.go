@@ -9,18 +9,17 @@ import "time"
 
 // Table is a bookable table in a store.
 type Table struct {
-	ID            int64
-	StoreID       int64
-	StoreName     string
-	Name          string
-	Code          string
-	Capacity      int
-	BasePoints    int
-	LayoutAssetID *int64
-	Status        string
-	SeatCount     int
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID         int64
+	StoreID    int64
+	StoreName  string
+	Name       string
+	Code       string
+	Capacity   int
+	BasePoints int
+	Status     string
+	SeatCount  int
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Seat is a bookable seat, optionally attached to a table.

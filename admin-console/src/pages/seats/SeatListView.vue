@@ -60,6 +60,7 @@ const fields = computed<FilterField[]>(() => [
 ])
 
 const columns = [
+  textColumn<VenueSeat>('座位 ID', 'id', { width: 100 }),
   textColumn<VenueSeat>('座位名称', 'name', { width: 160 }),
   textColumn<VenueSeat>('所属桌子', 'tableName', { width: 180 }),
   textColumn<VenueSeat>('所属门店', 'storeName', { width: 180 }),

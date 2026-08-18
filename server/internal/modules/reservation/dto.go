@@ -4,11 +4,10 @@ import "time"
 
 // TableView is the public table representation.
 type TableView struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	Capacity  int    `json:"capacity"`
-	LayoutURL string `json:"layoutUrl,omitempty"`
-	Status    string `json:"status"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Capacity int    `json:"capacity"`
+	Status   string `json:"status"`
 }
 
 // SeatView is the public seat representation.

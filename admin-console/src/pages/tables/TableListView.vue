@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace } from 'naive-ui'
+import { NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
-import AssetImage from '@/components/AssetImage.vue'
-import AssetUpload from '@/components/AssetUpload.vue'
 import type { FilterField, ResourceListInstance } from '@/components/ui-types'
 import { actionsColumn, dateTimeColumn, renderColumn, statusColumn, textColumn } from '@/utils/columns'
 import { TABLE_SEAT_STATUS_OPTIONS } from '@/constants/enums'
@@ -21,8 +19,6 @@ interface TableForm {
   code: string
   capacity: number | null
   basePoints: number | null
-  layoutAssetId: string | null
-  layoutUrl: string
   status: string
 }
 
@@ -31,15 +27,12 @@ const storeOptions = ref<Array<{ label: string; value: string }>>([])
 const drawerShow = ref(false)
 const submitting = ref(false)
 const editingId = ref<string | null>(null)
-const uploadKey = ref(0)
 const form = reactive<TableForm>({
   storeId: null,
   name: '',
   code: '',
   capacity: 0,
   basePoints: 0,
-  layoutAssetId: null,
-  layoutUrl: '',
   status: 'available',
 })
 
@@ -62,12 +55,7 @@ const fields = computed<FilterField[]>(() => [
 ])
 
 const columns = [
-  renderColumn<VenueTable>(
-    '桌子背景',
-    'layoutUrl',
-    (row) => h(AssetImage, { src: row.layoutUrl, width: 112, height: 64 }),
-    140,
-  ),
+  textColumn<VenueTable>('桌子 ID', 'id', { width: 100 }),
   textColumn<VenueTable>('桌子名称', 'name', { width: 160 }),
   textColumn<VenueTable>('桌子编号', 'code', { width: 120 }),
   textColumn<VenueTable>('所属门店', 'storeName', { width: 180 }),
@@ -120,10 +108,7 @@ function resetForm(): void {
   form.code = ''
   form.capacity = 0
   form.basePoints = 0
-  form.layoutAssetId = null
-  form.layoutUrl = ''
   form.status = 'available'
-  uploadKey.value += 1
 }
 
 function openCreate(): void {
@@ -139,17 +124,8 @@ function openEdit(row: VenueTable): void {
   form.code = row.code
   form.capacity = row.capacity
   form.basePoints = row.basePoints
-  form.layoutAssetId = row.layoutAssetId == null ? null : String(row.layoutAssetId)
-  form.layoutUrl = row.layoutUrl ?? ''
   form.status = row.status ?? 'available'
-  uploadKey.value += 1
   drawerShow.value = true
-}
-
-function clearLayout(): void {
-  form.layoutAssetId = null
-  form.layoutUrl = ''
-  uploadKey.value += 1
 }
 
 async function submit(): Promise<void> {
@@ -165,7 +141,6 @@ async function submit(): Promise<void> {
     code: form.code.trim(),
     capacity: form.capacity,
     basePoints: form.basePoints,
-    layoutAssetId: form.layoutAssetId ? Number(form.layoutAssetId) : null,
     status: form.status,
   }
   submitting.value = true
@@ -297,31 +272,6 @@ onMounted(loadStores)
             placeholder="请选择状态"
           />
         </NFormItem>
-        <NFormItem
-          label="桌子背景图（选填）"
-          class="form-grid__full"
-        >
-          <div class="layout-editor">
-            <AssetUpload
-              :key="uploadKey"
-              v-model:asset-id="form.layoutAssetId"
-              purpose="table_layout"
-              :preview-url="form.layoutUrl"
-              :width="240"
-              :height="135"
-            />
-            <NButton
-              v-if="form.layoutAssetId || form.layoutUrl"
-              secondary
-              type="error"
-              size="small"
-              @click="clearLayout"
-            >
-              移除背景
-            </NButton>
-            <small v-if="!form.layoutAssetId && !form.layoutUrl">未设置自定义背景，将使用默认桌面</small>
-          </div>
-        </NFormItem>
       </div>
     </NForm>
   </FormDrawer>
@@ -332,22 +282,6 @@ onMounted(loadStores)
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
-}
-
-.form-grid__full {
-  grid-column: 1 / -1;
-}
-
-.layout-editor {
-  display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.layout-editor small {
-  color: var(--ic-color-text-secondary);
-  font-size: 12px;
 }
 
 @media (max-width: 640px) {

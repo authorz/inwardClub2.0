@@ -14,12 +14,11 @@ type AssetResolver interface {
 
 // ConsoleService provides headquarters table and seat management.
 type ConsoleService struct {
-	repo   ConsoleRepository
-	assets AssetResolver
+	repo ConsoleRepository
 }
 
-func NewConsoleService(repo ConsoleRepository, assets AssetResolver) *ConsoleService {
-	return &ConsoleService{repo: repo, assets: assets}
+func NewConsoleService(repo ConsoleRepository) *ConsoleService {
+	return &ConsoleService{repo: repo}
 }
 
 func (s *ConsoleService) ListTables(ctx context.Context, filter AdminTableFilter, page httpx.Page) ([]AdminTableView, int64, error) {
@@ -33,7 +32,7 @@ func (s *ConsoleService) ListTables(ctx context.Context, filter AdminTableFilter
 	}
 	views := make([]AdminTableView, 0, len(items))
 	for _, item := range items {
-		views = append(views, s.tableView(ctx, item))
+		views = append(views, adminTableView(item))
 	}
 	return views, total, nil
 }
@@ -43,7 +42,7 @@ func (s *ConsoleService) GetTable(ctx context.Context, id int64) (AdminTableView
 	if err != nil {
 		return AdminTableView{}, err
 	}
-	return s.tableView(ctx, table), nil
+	return adminTableView(table), nil
 }
 
 func (s *ConsoleService) CreateTable(ctx context.Context, req TableWriteRequest) (AdminTableView, error) {
@@ -55,7 +54,7 @@ func (s *ConsoleService) CreateTable(ctx context.Context, req TableWriteRequest)
 	if err != nil {
 		return AdminTableView{}, err
 	}
-	return s.tableView(ctx, created), nil
+	return adminTableView(created), nil
 }
 
 func (s *ConsoleService) UpdateTable(ctx context.Context, id int64, req TableWriteRequest) (AdminTableView, error) {
@@ -77,7 +76,7 @@ func (s *ConsoleService) UpdateTable(ctx context.Context, id int64, req TableWri
 	if err != nil {
 		return AdminTableView{}, err
 	}
-	return s.tableView(ctx, updated), nil
+	return adminTableView(updated), nil
 }
 
 func (s *ConsoleService) DeleteTable(ctx context.Context, id int64) error {
@@ -141,9 +140,6 @@ func (s *ConsoleService) validatedTable(ctx context.Context, req TableWriteReque
 	if req.BasePoints < 0 {
 		return Table{}, apperr.Invalid("basePoints cannot be negative")
 	}
-	if req.LayoutAssetID != nil && *req.LayoutAssetID <= 0 {
-		return Table{}, apperr.Invalid("layoutAssetId must be positive")
-	}
 	if !validAvailabilityStatus(req.Status) {
 		return Table{}, apperr.Invalid("invalid status")
 	}
@@ -156,17 +152,8 @@ func (s *ConsoleService) validatedTable(ctx context.Context, req TableWriteReque
 	}
 	return Table{
 		StoreID: req.StoreID, Name: req.Name, Code: req.Code,
-		Capacity: req.Capacity, BasePoints: req.BasePoints,
-		LayoutAssetID: req.LayoutAssetID, Status: req.Status,
+		Capacity: req.Capacity, BasePoints: req.BasePoints, Status: req.Status,
 	}, nil
-}
-
-func (s *ConsoleService) tableView(ctx context.Context, table Table) AdminTableView {
-	view := adminTableView(table)
-	if table.LayoutAssetID != nil && s.assets != nil {
-		view.LayoutURL, _ = s.assets.PublicURLByID(ctx, *table.LayoutAssetID)
-	}
-	return view
 }
 
 func (s *ConsoleService) ListSeats(ctx context.Context, filter AdminSeatFilter, page httpx.Page) ([]AdminSeatView, int64, error) {

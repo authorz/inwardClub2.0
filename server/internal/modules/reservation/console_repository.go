@@ -41,7 +41,7 @@ func (r *sqlConsoleRepository) StoreExists(ctx context.Context, storeID int64) (
 }
 
 const adminTableColumns = `t.id, t.store_id, s.name, t.name, t.code, t.capacity,
-	t.base_points, t.layout_asset_id, t.status, COALESCE(sc.seat_count, 0), t.created_at, t.updated_at`
+	t.base_points, t.status, COALESCE(sc.seat_count, 0), t.created_at, t.updated_at`
 
 func tableFilterWhere(filter AdminTableFilter) (string, []any) {
 	where := []string{"1=1"}
@@ -66,7 +66,7 @@ func scanAdminTable(row interface{ Scan(...any) error }) (Table, error) {
 	var table Table
 	err := row.Scan(
 		&table.ID, &table.StoreID, &table.StoreName, &table.Name, &table.Code,
-		&table.Capacity, &table.BasePoints, &table.LayoutAssetID, &table.Status, &table.SeatCount,
+		&table.Capacity, &table.BasePoints, &table.Status, &table.SeatCount,
 		&table.CreatedAt, &table.UpdatedAt,
 	)
 	return table, err
@@ -122,10 +122,10 @@ func (r *sqlConsoleRepository) GetAdminTable(ctx context.Context, id int64) (Tab
 func (r *sqlConsoleRepository) CreateAdminTable(ctx context.Context, table Table) (Table, error) {
 	now := time.Now().UTC()
 	result, err := r.db.ExecContext(ctx, `INSERT INTO tables
-		(store_id, name, code, capacity, base_points, layout_asset_id, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(store_id, name, code, capacity, base_points, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		table.StoreID, table.Name, table.Code, table.Capacity, table.BasePoints,
-		table.LayoutAssetID, table.Status, now, now,
+		table.Status, now, now,
 	)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
@@ -148,10 +148,10 @@ func (r *sqlConsoleRepository) UpdateAdminTable(ctx context.Context, id int64, t
 	now := time.Now().UTC()
 	err = r.db.WithinTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE tables
-			SET store_id = ?, name = ?, code = ?, capacity = ?, base_points = ?, layout_asset_id = ?, status = ?, updated_at = ?
+			SET store_id = ?, name = ?, code = ?, capacity = ?, base_points = ?, status = ?, updated_at = ?
 			WHERE id = ?`,
 			table.StoreID, table.Name, table.Code, table.Capacity, table.BasePoints,
-			table.LayoutAssetID, table.Status, now, id,
+			table.Status, now, id,
 		); err != nil {
 			if platdb.IsDuplicate(err) {
 				return apperr.Conflict("table code already exists in this store")

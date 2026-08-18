@@ -51,7 +51,7 @@ func (r *consoleRepoStub) DeleteAdminSeat(context.Context, int64) error { return
 
 func TestConsoleServiceCreateTableValidatesAndNormalizes(t *testing.T) {
 	repo := &consoleRepoStub{storeExists: true}
-	svc := NewConsoleService(repo, nil)
+	svc := NewConsoleService(repo)
 
 	view, err := svc.CreateTable(context.Background(), TableWriteRequest{
 		StoreID: 7, Name: "  靠窗桌  ", Code: " A-01 ", Capacity: 4,
@@ -80,7 +80,7 @@ func TestConsoleServiceCreateTableRejectsInvalidInput(t *testing.T) {
 	}
 	for i, req := range tests {
 		repo := &consoleRepoStub{storeExists: true}
-		if _, err := NewConsoleService(repo, nil).CreateTable(context.Background(), req); err == nil {
+		if _, err := NewConsoleService(repo).CreateTable(context.Background(), req); err == nil {
 			t.Fatalf("case %d: expected validation error", i)
 		}
 	}
@@ -88,7 +88,7 @@ func TestConsoleServiceCreateTableRejectsInvalidInput(t *testing.T) {
 
 func TestConsoleServiceCreateTableRequiresExistingStore(t *testing.T) {
 	repo := &consoleRepoStub{storeExists: false}
-	_, err := NewConsoleService(repo, nil).CreateTable(context.Background(), TableWriteRequest{
+	_, err := NewConsoleService(repo).CreateTable(context.Background(), TableWriteRequest{
 		StoreID: 99, Name: "A", Code: "A1", Status: AvailabilityAvailable,
 	})
 	if err == nil {
@@ -101,31 +101,11 @@ func TestConsoleServiceUpdateTableRejectsCapacityBelowSeatCount(t *testing.T) {
 		storeExists: true,
 		table:       Table{ID: 1, StoreID: 7, SeatCount: 3},
 	}
-	_, err := NewConsoleService(repo, nil).UpdateTable(context.Background(), 1, TableWriteRequest{
+	_, err := NewConsoleService(repo).UpdateTable(context.Background(), 1, TableWriteRequest{
 		StoreID: 7, Name: "A", Code: "A1", Capacity: 2, Status: AvailabilityAvailable,
 	})
 	if err == nil {
 		t.Fatal("expected capacity conflict")
-	}
-}
-
-func TestConsoleServiceUpdateTableAllowsClearingLayout(t *testing.T) {
-	assetID := int64(36)
-	repo := &consoleRepoStub{
-		storeExists: true,
-		table: Table{
-			ID: 1, StoreID: 7, SeatCount: 2, LayoutAssetID: &assetID,
-		},
-	}
-	view, err := NewConsoleService(repo, nil).UpdateTable(context.Background(), 1, TableWriteRequest{
-		StoreID: 7, Name: "A", Code: "A1", Capacity: 2,
-		LayoutAssetID: nil, Status: AvailabilityAvailable,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if repo.updatedTable.LayoutAssetID != nil || view.LayoutAssetID != nil {
-		t.Fatalf("layout asset was not cleared: updated=%+v view=%+v", repo.updatedTable, view)
 	}
 }
 
@@ -134,7 +114,7 @@ func TestConsoleServiceUpdateTableAllowsChangingStoreWithSeats(t *testing.T) {
 		storeExists: true,
 		table:       Table{ID: 1, StoreID: 7, SeatCount: 3},
 	}
-	view, err := NewConsoleService(repo, nil).UpdateTable(context.Background(), 1, TableWriteRequest{
+	view, err := NewConsoleService(repo).UpdateTable(context.Background(), 1, TableWriteRequest{
 		StoreID: 8, Name: "A", Code: "A1", Capacity: 3, Status: AvailabilityAvailable,
 	})
 	if err != nil {
@@ -147,7 +127,7 @@ func TestConsoleServiceUpdateTableAllowsChangingStoreWithSeats(t *testing.T) {
 
 func TestConsoleServiceCreateSeatRequiresTable(t *testing.T) {
 	repo := &consoleRepoStub{}
-	svc := NewConsoleService(repo, nil)
+	svc := NewConsoleService(repo)
 	if _, err := svc.CreateSeat(context.Background(), SeatWriteRequest{
 		Name: "1号位", Status: AvailabilityAvailable,
 	}); err == nil {
@@ -169,7 +149,7 @@ func TestConsoleServiceStoreScopeRejectsOtherStore(t *testing.T) {
 		table:       Table{ID: 1, StoreID: 8, Name: "其他门店桌子"},
 		seat:        Seat{ID: 2, StoreID: 8, Name: "其他门店座位"},
 	}
-	svc := NewConsoleService(repo, nil)
+	svc := NewConsoleService(repo)
 	if _, err := svc.StoreGetTable(context.Background(), 7, 1); err == nil {
 		t.Fatal("expected cross-store table to be hidden")
 	}
@@ -180,7 +160,7 @@ func TestConsoleServiceStoreScopeRejectsOtherStore(t *testing.T) {
 
 func TestConsoleServiceStoreCreatePinsStore(t *testing.T) {
 	repo := &consoleRepoStub{storeExists: true}
-	svc := NewConsoleService(repo, nil)
+	svc := NewConsoleService(repo)
 	_, err := svc.StoreCreateTable(context.Background(), 7, TableWriteRequest{
 		StoreID: 99, Name: "本店桌子", Code: "T1", Capacity: 2, Status: AvailabilityAvailable,
 	})

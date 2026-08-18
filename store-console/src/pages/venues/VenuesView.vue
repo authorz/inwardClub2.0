@@ -11,7 +11,7 @@ import { feedback } from '@/utils/feedback'
 import { AVAILABILITY_STATUS, toOptions } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import {
-  AssetImage, AssetUpload, DataTable, PageHeader, PermissionButton, StatusFilterBar,
+  DataTable, PageHeader, PermissionButton, StatusFilterBar,
 } from '@/components/common'
 import { dateColumn, statusColumn, textColumn } from '@/utils/columns'
 import type { StoreSeat, StoreTable } from '@/types/models'
@@ -38,24 +38,18 @@ const tableSaving = ref(false)
 const tableForm = reactive({
   id: null as string | number | null,
   name: '', code: '', capacity: 1, basePoints: 0,
-  layoutAssetId: null as string | null, layoutUrl: '', status: 'available',
+  status: 'available',
 })
 
 function openTable(row?: StoreTable): void {
   Object.assign(tableForm, row ? {
     id: row.id, name: row.name, code: row.code, capacity: row.capacity,
-    basePoints: row.basePoints, layoutAssetId: row.layoutAssetId == null ? null : String(row.layoutAssetId),
-    layoutUrl: row.layoutUrl ?? '', status: row.status,
+    basePoints: row.basePoints, status: row.status,
   } : {
     id: null, name: '', code: '', capacity: 1, basePoints: 0,
-    layoutAssetId: null, layoutUrl: '', status: 'available',
+    status: 'available',
   })
   tableShow.value = true
-}
-
-function clearTableLayout(): void {
-  tableForm.layoutAssetId = null
-  tableForm.layoutUrl = ''
 }
 
 async function saveTable(): Promise<void> {
@@ -68,7 +62,6 @@ async function saveTable(): Promise<void> {
     const body = {
       name: tableForm.name.trim(), code: tableForm.code.trim(),
       capacity: tableForm.capacity, basePoints: tableForm.basePoints,
-      layoutAssetId: tableForm.layoutAssetId ? Number(tableForm.layoutAssetId) : null,
       status: tableForm.status,
     }
     if (tableForm.id == null) await venueService.createTable(body)
@@ -142,7 +135,7 @@ async function removeSeat(row: StoreSeat): Promise<void> {
 }
 
 const tableColumns = computed<DataTableColumns<StoreTable>>(() => [
-  { title: '背景', key: 'layoutUrl', width: 130, render: (row) => h(AssetImage, { src: row.layoutUrl, width: 96, height: 54 }) },
+  textColumn<StoreTable>('桌子 ID', (row) => row.id, { width: 100 }),
   textColumn<StoreTable>('桌子名称', (row) => row.name),
   textColumn<StoreTable>('编号', (row) => row.code, { width: 110 }),
   textColumn<StoreTable>('座位', (row) => `${row.seatCount} / ${row.capacity}`, { width: 90 }),
@@ -158,6 +151,7 @@ const tableColumns = computed<DataTableColumns<StoreTable>>(() => [
   },
 ])
 const seatColumns = computed<DataTableColumns<StoreSeat>>(() => [
+  textColumn<StoreSeat>('座位 ID', (row) => row.id, { width: 100 }),
   textColumn<StoreSeat>('座位名称', (row) => row.name),
   textColumn<StoreSeat>('所属桌子', (row) => row.tableName),
   statusColumn<StoreSeat>('状态', AVAILABILITY_STATUS, (row) => row.status, { width: 110 }),
@@ -305,27 +299,6 @@ const seatColumns = computed<DataTableColumns<StoreSeat>>(() => [
             :min="0"
           />
         </NFormItem>
-        <NFormItem label="桌子背景（选填）">
-          <div class="layout-editor">
-            <AssetUpload
-              v-model:asset-id="tableForm.layoutAssetId"
-              v-model:preview-url="tableForm.layoutUrl"
-              purpose="table_layout"
-              :width="240"
-              :height="135"
-            />
-            <NButton
-              v-if="tableForm.layoutAssetId || tableForm.layoutUrl"
-              secondary
-              type="error"
-              size="small"
-              @click="clearTableLayout"
-            >
-              移除背景
-            </NButton>
-            <small v-if="!tableForm.layoutAssetId && !tableForm.layoutUrl">未设置自定义背景，将使用默认桌面</small>
-          </div>
-        </NFormItem>
         <NFormItem label="状态">
           <NSelect
             v-model:value="tableForm.status"
@@ -392,8 +365,3 @@ const seatColumns = computed<DataTableColumns<StoreSeat>>(() => [
     </NModal>
   </div>
 </template>
-
-<style scoped>
-.layout-editor { display: flex; align-items: flex-start; flex-direction: column; gap: var(--ic-space-3); }
-.layout-editor small { color: var(--ic-color-text-secondary); font-size: var(--ic-font-xs); }
-</style>

@@ -41,8 +41,6 @@ export interface VenueTable extends AuditableEntity {
   capacity: number
   seatCount: number
   basePoints: number
-  layoutAssetId?: string | number | null
-  layoutUrl?: string
 }
 
 export interface VenueSeat extends AuditableEntity {
@@ -354,7 +352,6 @@ export interface PointReviewSettings {
 
 /** 总后台统一展示配置。 */
 export interface GlobalSettings {
-  tableDefaultBackgroundUrl: string
   firstRechargeDoublePointsEnabled: boolean
   rechargeDoublePointsThresholdAmount: number
   franchiseInquirySources: string[]

@@ -265,8 +265,6 @@ export interface StoreTable extends AuditFields {
   capacity: number
   seatCount: number
   basePoints: number
-  layoutAssetId?: number | string | null
-  layoutUrl?: string
   status: string
 }
 

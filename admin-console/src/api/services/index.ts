@@ -188,7 +188,6 @@ export const readonlyLists = {
 export const systemService = {
   getGlobalSettings: () => http.get<GlobalSettings>(API_PATHS.system.globalSettings),
   updateGlobalSettings: (settings: {
-    tableDefaultBackgroundUrl: string
     firstRechargeDoublePointsEnabled: boolean
     rechargeDoublePointsThresholdAmount: number
     franchiseInquirySources: string[]
