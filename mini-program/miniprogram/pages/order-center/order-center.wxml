@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-scroll-shell">
 <ic-page-nav title="订单中心" />
 <scroll-view class="oce__scroll ic-scroll-view" scroll-y="{{scrollEnabled}}" enhanced show-scrollbar="{{false}}" bounces="{{false}}">

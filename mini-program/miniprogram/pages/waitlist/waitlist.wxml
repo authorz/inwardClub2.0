@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="wt">
   <ic-loading wx:if="{{loading}}" />
 

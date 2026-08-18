@@ -1,3 +1,4 @@
+<ic-app-background />
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{item}}" class="od">

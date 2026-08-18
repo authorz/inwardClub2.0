@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-page franchise">
   <view
     wx:if="{{hotline}}"

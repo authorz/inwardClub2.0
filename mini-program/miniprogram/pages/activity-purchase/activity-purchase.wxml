@@ -1,3 +1,4 @@
+<ic-app-background />
 <ic-loading wx:if="{{loading}}" theme="dark" />
 
 <view wx:elif="{{loadError}}" class="ap__empty">

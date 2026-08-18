@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ord">
   <ic-page-nav title="点餐" back="{{false}}" left-text="{{store.name || '选择门店'}}" bind:lefttap="openStoreSheet" />
 

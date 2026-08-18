@@ -1,0 +1,18 @@
+<video
+  id="appBackgroundVideo"
+  class="app-background__video"
+  src="https://assets.inwardclub.com/public/video/65228957986573fe1ec65d3ba8c87484.mp4"
+  autoplay="{{true}}"
+  loop="{{true}}"
+  muted="{{true}}"
+  controls="{{false}}"
+  show-center-play-btn="{{false}}"
+  show-play-btn="{{false}}"
+  show-fullscreen-btn="{{false}}"
+  show-mute-btn="{{false}}"
+  enable-progress-gesture="{{false}}"
+  object-fit="cover"
+  bindcanplay="play"
+  binderror="onError"
+  aria-hidden="true"
+/>

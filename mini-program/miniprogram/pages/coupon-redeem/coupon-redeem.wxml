@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="cr">
   <ic-page-nav
     title="券兑换"

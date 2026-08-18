@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-scroll-shell">
 <ic-page-nav title="会员权益" />
 <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">

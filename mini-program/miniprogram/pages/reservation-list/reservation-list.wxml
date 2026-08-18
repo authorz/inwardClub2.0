@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="rl">
   <ic-loading wx:if="{{loading}}" />
   <ic-empty wx:elif="{{!list.length}}" text="暂无预约记录" />

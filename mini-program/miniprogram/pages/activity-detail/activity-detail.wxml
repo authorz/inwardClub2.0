@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ad">
   <view class="ad__nav {{navSolid ? 'is-solid' : ''}}" style="padding-top: {{navStatusBar}}px;">
     <view class="ad__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">

@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="al">
   <!-- The active poster softly fills the upper half behind the page content. -->
   <view wx:if="{{mode === 'current' && currentItem && currentItem.imageUrl}}" class="al__backdrop">

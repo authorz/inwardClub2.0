@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-scroll-shell">
 <ic-page-nav title="钱包流水" />
 <scroll-view class="wl__scroll ic-scroll-view" scroll-y="{{scrollEnabled}}" enhanced show-scrollbar="{{false}}" bounces="{{false}}">

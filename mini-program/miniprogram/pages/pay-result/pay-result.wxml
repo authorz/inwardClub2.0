@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="pr">
   <view class="pr__icon {{success ? 'is-ok' : 'is-fail'}}">
     <view wx:if="{{success}}" class="ic-ic ic-ic-check"></view>

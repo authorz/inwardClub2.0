@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-scroll-shell home">
   <view wx:if="{{currentActivityImage}}" class="home__ambient" aria-hidden="true">
     <image class="home__ambient-image" src="{{currentActivityImage}}" mode="aspectFill" />

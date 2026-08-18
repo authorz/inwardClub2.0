@@ -39,6 +39,9 @@
     "pages/staff-today/staff-today",
     "pages/staff-verifications/staff-verifications"
   ],
+  "usingComponents": {
+    "ic-app-background": "/components/app-background/app-background"
+  },
   "window": {
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",

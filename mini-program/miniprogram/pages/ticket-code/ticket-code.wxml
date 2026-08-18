@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="tc">
   <ic-loading wx:if="{{loading}}" theme="dark" />
 

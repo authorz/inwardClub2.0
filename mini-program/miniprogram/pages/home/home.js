@@ -39,13 +39,13 @@ Page({
     memberMenuEntries: [
       { label: '充值', icon: MINE_MENU_ASSET_BASE + 'recharge-coins.png', action: 'recharge' },
       { label: '存积分', icon: '/assets/mine-menu/save-points.png', action: 'point', dir: POINT_SAVING.DEPOSIT },
-      { label: '取积分', icon: MINE_MENU_ASSET_BASE + 'withdraw-points.png', action: 'point', dir: POINT_SAVING.WITHDRAW },
+      // { label: '取积分', icon: MINE_MENU_ASSET_BASE + 'withdraw-points.png', action: 'point', dir: POINT_SAVING.WITHDRAW },
       { label: '排行榜', icon: MINE_MENU_ASSET_BASE + 'rankings.png', action: 'nav', url: '/pages/rankings/rankings' },
       { label: '邀请有礼', icon: MINE_MENU_ASSET_BASE + 'invite-gift.png', action: 'nav', url: '/pages/invitations/invitations' },
       { label: '交易记录', icon: MINE_MENU_ASSET_BASE + 'transactions.png', action: 'nav', url: '/pages/wallet-ledger/wallet-ledger' },
       // { label: '会员权益', icon: MINE_MENU_ASSET_BASE + 'member-benefits.png', action: 'nav', url: '/pages/benefits/benefits' },
       { label: '咨询客服', icon: '/assets/mine-menu/customer-service.png', action: 'nav', url: '/pages/customer-service/customer-service' },
-      { label: '加入社群', icon: MINE_MENU_ASSET_BASE + 'community.png', action: 'toast' },
+      // { label: '加入社群', icon: MINE_MENU_ASSET_BASE + 'community.png', action: 'toast' },
     ],
     // 工作人员功能 grid — 仅员工选中自己的绑定门店时显示
     staffMenuEntries: [

@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ss">
   <view class="ss__brand">
     <text class="ss__brand-name">InwardClub</text>

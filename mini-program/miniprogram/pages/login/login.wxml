@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="login-page">
   <view class="login-page__hero">
     <image class="login-page__logo" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="widthFix" />

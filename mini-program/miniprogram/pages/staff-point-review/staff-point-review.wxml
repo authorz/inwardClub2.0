@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="ic-scroll-shell">
 <scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="spr">

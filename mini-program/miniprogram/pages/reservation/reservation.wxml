@@ -1,4 +1,5 @@
 <page-meta page-style="{{ (showConfirm || showSignInSheet) ? 'overflow: hidden;' : '' }}"></page-meta>
+<ic-app-background />
 
 <view class="rsv-shell">
   <ic-page-nav

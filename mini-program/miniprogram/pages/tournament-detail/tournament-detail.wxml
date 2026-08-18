@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="td">
   <view class="td__nav" style="padding-top: {{navStatusBar}}px;">
     <view class="td__nav-bar" style="height: {{navContentHeight}}px; padding-right: {{navRightGap}}px;">

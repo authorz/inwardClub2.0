@@ -1,3 +1,4 @@
+<ic-app-background />
 <view class="sto">
   <ic-loading wx:if="{{loading}}" />
   <ic-empty wx:elif="{{!list.length}}" text="今日暂无活动" />
