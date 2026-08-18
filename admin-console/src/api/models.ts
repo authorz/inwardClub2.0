@@ -345,6 +345,7 @@ export interface PaymentChannelSetting {
 /** 员工审核存积分时使用的总部统一比例配置。 */
 export interface PointReviewSettings {
   pointsDivisor: number
+  belowBasePointsDivisor: number
   coinPointsDivisor: number
   version: number
   updatedAt?: string

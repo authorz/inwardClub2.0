@@ -6,17 +6,18 @@ import (
 )
 
 const (
-	defaultPointsDivisor     int64 = 5
-	defaultCoinPointsDivisor int64 = 2000
-	belowBasePointsDivisor   int64 = 2
+	defaultPointsDivisor          int64 = 5
+	defaultBelowBasePointsDivisor int64 = 2
+	defaultCoinPointsDivisor      int64 = 2000
 )
 
 var pointReviewLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 type PointReviewRule struct {
-	PointsDivisor     int64
-	CoinPointsDivisor int64
-	Version           int64
+	PointsDivisor          int64
+	BelowBasePointsDivisor int64
+	CoinPointsDivisor      int64
+	Version                int64
 }
 
 type pointReviewWindow struct {
@@ -56,6 +57,9 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 	if rule.PointsDivisor <= 0 {
 		rule.PointsDivisor = defaultPointsDivisor
 	}
+	if rule.BelowBasePointsDivisor <= 0 {
+		rule.BelowBasePointsDivisor = defaultBelowBasePointsDivisor
+	}
 	if rule.CoinPointsDivisor <= 0 {
 		rule.CoinPointsDivisor = defaultCoinPointsDivisor
 	}
@@ -80,10 +84,10 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 
 	calc.BasePoints = base
 	if requested < base {
-		calc.AwardedPoints = requested / belowBasePointsDivisor
+		calc.AwardedPoints = requested / rule.BelowBasePointsDivisor
 		calc.Description = fmt.Sprintf(
-			"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；存入积分低于基数积分 %d，按 2:1 计算",
-			requested, belowBasePointsDivisor, calc.AwardedPoints, base,
+			"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；存入积分低于基数积分 %d",
+			requested, rule.BelowBasePointsDivisor, calc.AwardedPoints, base,
 		)
 		return calc
 	}

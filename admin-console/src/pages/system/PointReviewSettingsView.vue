@@ -12,11 +12,15 @@ const saving = ref(false)
 const version = ref(0)
 const form = reactive({
   pointsDivisor: 5,
+  belowBasePointsDivisor: 2,
   coinPointsDivisor: 2000,
 })
 
 const pointRatioText = computed(
   () => `每 ${form.pointsDivisor || 0} 原始积分折算为 1 到账积分`,
+)
+const belowBaseRatioText = computed(
+  () => `存入积分低于基数时，每 ${form.belowBasePointsDivisor || 0} 原始积分折算为 1 到账积分`,
 )
 const coinRatioText = computed(
   () => `每 ${form.coinPointsDivisor || 0} 个金币计算基数积分兑换 1 金币`,
@@ -29,6 +33,7 @@ async function load(): Promise<void> {
   try {
     const settings = await systemService.getPointReviewSettings()
     form.pointsDivisor = settings.pointsDivisor
+    form.belowBasePointsDivisor = settings.belowBasePointsDivisor
     form.coinPointsDivisor = settings.coinPointsDivisor
     version.value = settings.version
   } catch (e) {
@@ -41,6 +46,9 @@ async function load(): Promise<void> {
 async function save(): Promise<void> {
   if (!Number.isInteger(form.pointsDivisor) || form.pointsDivisor <= 0) {
     return toastError('积分比例必须是大于 0 的整数')
+  }
+  if (!Number.isInteger(form.belowBasePointsDivisor) || form.belowBasePointsDivisor <= 0) {
+    return toastError('低于基数折算比例必须是大于 0 的整数')
   }
   if (!Number.isInteger(form.coinPointsDivisor) || form.coinPointsDivisor <= 0) {
     return toastError('金币兑换比例必须是大于 0 的整数')
@@ -55,6 +63,7 @@ async function save(): Promise<void> {
       execute: async () => {
         const settings = await systemService.updatePointReviewSettings({
           pointsDivisor: form.pointsDivisor,
+          belowBasePointsDivisor: form.belowBasePointsDivisor,
           coinPointsDivisor: form.coinPointsDivisor,
         })
         version.value = settings.version
@@ -84,7 +93,7 @@ async function save(): Promise<void> {
           label-placement="left"
           label-width="150"
         >
-          <NFormItem label="积分折算比例">
+          <NFormItem label="标准及超出部分比例">
             <div class="field-stack">
               <NInputNumber
                 v-model:value="form.pointsDivisor"
@@ -93,7 +102,20 @@ async function save(): Promise<void> {
                 class="number-input"
               />
               <NText depth="3">
-                {{ pointRatioText }}。1.0 默认值为 5。
+                {{ pointRatioText }}。用于非营业时段、无基数和高于基数的超出部分，默认值为 5。
+              </NText>
+            </div>
+          </NFormItem>
+          <NFormItem label="低于基数折算比例">
+            <div class="field-stack">
+              <NInputNumber
+                v-model:value="form.belowBasePointsDivisor"
+                :min="1"
+                :precision="0"
+                class="number-input"
+              />
+              <NText depth="3">
+                {{ belowBaseRatioText }}，不足 1 积分的部分向下取整，默认值为 2。
               </NText>
             </div>
           </NFormItem>

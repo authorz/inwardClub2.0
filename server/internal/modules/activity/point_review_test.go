@@ -66,3 +66,18 @@ func TestCalculatePointReviewUsesConfiguredRatios(t *testing.T) {
 		t.Fatalf("configured calculation=%+v", got)
 	}
 }
+
+func TestCalculatePointReviewUsesConfiguredBelowBaseRatio(t *testing.T) {
+	got := calculatePointReview(
+		time.Date(2026, 7, 26, 20, 0, 0, 0, pointReviewLocation),
+		800,
+		1000,
+		PointReviewRule{
+			PointsDivisor: 5, BelowBasePointsDivisor: 4,
+			CoinPointsDivisor: 2000, Version: 2,
+		},
+	)
+	if got.AwardedPoints != 200 || got.AwardedCoins != 0 {
+		t.Fatalf("configured below-base calculation=%+v", got)
+	}
+}

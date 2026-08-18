@@ -45,6 +45,7 @@ type PointSavingView struct {
 	AwardedCoins           int64           `json:"awardedCoins"`
 	RuleVersion            int64           `json:"ruleVersion"`
 	PointsDivisor          int64           `json:"pointsDivisor"`
+	BelowBasePointsDivisor int64           `json:"belowBasePointsDivisor"`
 	CoinPointsDivisor      int64           `json:"coinPointsDivisor"`
 	BusinessDate           *time.Time      `json:"businessDate,omitempty"`
 	BusinessStartAt        *time.Time      `json:"businessStartAt,omitempty"`
@@ -124,7 +125,8 @@ func pointSavingView(p PointSaving) PointSavingView {
 		BasePoints: p.BasePoints, ExcessPoints: p.ExcessPoints, AwardedPoints: p.AwardedPoints,
 		CoinBasePoints: p.CoinBasePoints, AwardedCoins: p.AwardedCoins,
 		RuleVersion: p.RuleVersion, PointsDivisor: p.PointsDivisor,
-		CoinPointsDivisor: p.CoinPointsDivisor, BusinessDate: p.BusinessDate,
+		BelowBasePointsDivisor: p.BelowBasePointsDivisor,
+		CoinPointsDivisor:      p.CoinPointsDivisor, BusinessDate: p.BusinessDate,
 		BusinessStartAt: p.BusinessStartAt, BusinessEndAt: p.BusinessEndAt,
 		CalculationStartAt: p.CalculationStartAt, CalculationEndAt: p.CalculationEndAt,
 		LastApprovedSavingID:   p.LastApprovedSavingID,

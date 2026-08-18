@@ -93,7 +93,7 @@ func (r *storeSQLRepository) ReviewPointSaving(
 			status = ?, remark = ?, reviewed_by = ?, reviewed_by_type = ?,
 			reviewer_snapshot_json = ?, reviewed_at = ?, updated_at = ?,
 			base_points = ?, excess_points = ?, awarded_points = ?, coin_base_points = ?,
-			awarded_coins = ?, rule_version = ?, points_divisor = ?, coin_points_divisor = ?,
+			awarded_coins = ?, rule_version = ?, points_divisor = ?, below_base_points_divisor = ?, coin_points_divisor = ?,
 			business_date = ?, business_start_at = ?, business_end_at = ?,
 			calculation_start_at = ?, calculation_end_at = ?, last_approved_saving_id = ?,
 			calculation_description = ?
@@ -102,7 +102,7 @@ func (r *storeSQLRepository) ReviewPointSaving(
 			ctx, approve,
 			PointSavingApproved, remark, byID, reviewerType, reviewerSnapshot, now, now,
 			calc.BasePoints, calc.ExcessPoints, calc.AwardedPoints, calc.CoinBasePoints,
-			calc.AwardedCoins, rule.Version, rule.PointsDivisor, rule.CoinPointsDivisor,
+			calc.AwardedCoins, rule.Version, rule.PointsDivisor, rule.BelowBasePointsDivisor, rule.CoinPointsDivisor,
 			businessDate, businessStart, businessEnd, calcStart, now, lastSavingID,
 			calc.Description, requestID, storeID, PointSavingPending,
 		)
@@ -203,6 +203,7 @@ func (r *storeSQLRepository) PreviewPointSaving(
 	saving.AwardedCoins = calc.AwardedCoins
 	saving.RuleVersion = evaluation.Rule.Version
 	saving.PointsDivisor = evaluation.Rule.PointsDivisor
+	saving.BelowBasePointsDivisor = evaluation.Rule.BelowBasePointsDivisor
 	saving.CoinPointsDivisor = evaluation.Rule.CoinPointsDivisor
 	saving.CalculationStartAt = evaluation.CalculationStartAt
 	saving.LastApprovedSavingID = evaluation.LastApprovedSavingID
@@ -275,20 +276,21 @@ func requireSingleReview(result sql.Result) error {
 
 func pointReviewRule(ctx context.Context, queryer pointReviewQueryer) (PointReviewRule, error) {
 	var rule PointReviewRule
-	const q = `SELECT points_divisor, coin_points_divisor, version
+	const q = `SELECT points_divisor, below_base_points_divisor, coin_points_divisor, version
 		FROM point_review_settings WHERE id = 1`
 	err := queryer.QueryRowContext(ctx, q).Scan(
-		&rule.PointsDivisor, &rule.CoinPointsDivisor, &rule.Version,
+		&rule.PointsDivisor, &rule.BelowBasePointsDivisor, &rule.CoinPointsDivisor, &rule.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PointReviewRule{
-			PointsDivisor: defaultPointsDivisor, CoinPointsDivisor: defaultCoinPointsDivisor, Version: 1,
+			PointsDivisor: defaultPointsDivisor, BelowBasePointsDivisor: defaultBelowBasePointsDivisor,
+			CoinPointsDivisor: defaultCoinPointsDivisor, Version: 1,
 		}, nil
 	}
 	if err != nil {
 		return PointReviewRule{}, apperr.Internal(err)
 	}
-	if rule.PointsDivisor <= 0 || rule.CoinPointsDivisor <= 0 {
+	if rule.PointsDivisor <= 0 || rule.BelowBasePointsDivisor <= 0 || rule.CoinPointsDivisor <= 0 {
 		return PointReviewRule{}, apperr.Internal(errors.New("invalid point review settings"))
 	}
 	return rule, nil

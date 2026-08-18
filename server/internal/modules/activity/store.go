@@ -80,6 +80,7 @@ type PointSaving struct {
 	AwardedCoins           int64
 	RuleVersion            int64
 	PointsDivisor          int64
+	BelowBasePointsDivisor int64
 	CoinPointsDivisor      int64
 	BusinessDate           *time.Time
 	BusinessStartAt        *time.Time
@@ -217,7 +218,7 @@ const pointSavingSelect = `SELECT ps.id, ps.store_id, ps.member_id,
 	COALESCE(m.nickname,''), COALESCE(m.phone,''), m.avatar_asset_id, COALESCE(m.avatar_url,''), COALESCE(s.name,''),
 	ps.points, ps.base_points, ps.excess_points, ps.awarded_points,
 	ps.coin_base_points, ps.awarded_coins, ps.rule_version, ps.points_divisor,
-	ps.coin_points_divisor, ps.business_date, ps.business_start_at, ps.business_end_at,
+	ps.below_base_points_divisor, ps.coin_points_divisor, ps.business_date, ps.business_start_at, ps.business_end_at,
 	ps.calculation_start_at, ps.calculation_end_at, ps.last_approved_saving_id,
 	COALESCE(ps.calculation_description,''), ps.status, COALESCE(ps.remark,''),
 	ps.reviewed_by, COALESCE(ps.reviewed_by_type,''), ps.reviewer_snapshot_json,
@@ -231,7 +232,7 @@ func scanPointSaving(row interface{ Scan(...any) error }) (PointSaving, error) {
 	if err := row.Scan(&p.ID, &p.StoreID, &p.MemberID, &p.MemberName, &p.Phone, &p.MemberAvatarAssetID, &p.MemberAvatarURL, &p.StoreName,
 		&p.Points, &p.BasePoints, &p.ExcessPoints, &p.AwardedPoints,
 		&p.CoinBasePoints, &p.AwardedCoins, &p.RuleVersion, &p.PointsDivisor,
-		&p.CoinPointsDivisor, &p.BusinessDate, &p.BusinessStartAt, &p.BusinessEndAt,
+		&p.BelowBasePointsDivisor, &p.CoinPointsDivisor, &p.BusinessDate, &p.BusinessStartAt, &p.BusinessEndAt,
 		&p.CalculationStartAt, &p.CalculationEndAt, &p.LastApprovedSavingID,
 		&p.CalculationDescription, &p.Status, &p.Remark, &p.ReviewedBy,
 		&p.ReviewedByType, &p.ReviewerSnapshotJSON,
