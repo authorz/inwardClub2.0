@@ -26,7 +26,7 @@ import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import { dateTimeColumn, statusColumn, textColumn, actionsColumn, renderColumn } from '@/utils/columns'
-import { ASSET_TYPE_OPTIONS, RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
+import { ASSET_TYPE, ASSET_TYPE_OPTIONS, RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
 import { useDataTable } from '@/composables/useDataTable'
@@ -44,6 +44,9 @@ type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
 const sortBy = ref<MemberSortField | ''>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const balanceFormatter = new Intl.NumberFormat('zh-CN')
+const adjustAssetTypeOptions = ASSET_TYPE_OPTIONS.filter(
+  ({ value }) => value !== ASSET_TYPE.CASH_BALANCE,
+).map(({ label, value }) => ({ label, value }))
 
 const fields: FilterField[] = [
   {
@@ -274,7 +277,7 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
   try {
     const ok = await runAudited({
       title: '确认人工调账',
-      content: `将对会员「${member.nickname ?? member.id}」的 ${adjust.assetType} 调整 ${adjust.amount}，原因：${adjust.reason}。该操作不可逆，携带幂等键并写入审计。`,
+      content: `将对会员「${member.nickname ?? member.id}」的${assetTypeLabel(adjust.assetType)}调整 ${adjust.amount}，原因：${adjust.reason}。该操作不可逆，携带幂等键并写入审计。`,
       highRisk: true,
       positiveText: '确认调账',
       execute: () =>
@@ -332,7 +335,7 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
         >
           <NSelect
             v-model:value="adjust.assetType"
-            :options="ASSET_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.value }))"
+            :options="adjustAssetTypeOptions"
             placeholder="选择资产类型"
           />
         </NFormItem>
@@ -460,7 +463,7 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
                 >
                   <NSelect
                     v-model:value="adjust.assetType"
-                    :options="ASSET_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.value }))"
+                    :options="adjustAssetTypeOptions"
                     placeholder="选择资产类型"
                   />
                 </NFormItem>

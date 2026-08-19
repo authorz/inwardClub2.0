@@ -62,12 +62,14 @@ const ledger = useAsyncList<WalletLedgerEntry>(
 
 const action = useAsyncAction()
 
-const assetTypeOptions = toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => ({ label, value }))
+const adjustAssetTypeOptions = toOptions(WALLET_ASSET_TYPE)
+  .filter(({ value }) => value !== WALLET_ASSET_TYPE.cash_balance.value)
+  .map(({ label, value }) => ({ label, value }))
 const ASSET_LABELS = Object.fromEntries(
   toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => [value, label]),
 )
 const adjustForm = reactive<{ assetType: string; changeAmount: number | null; reason: string }>({
-  assetType: 'cash_balance',
+  assetType: WALLET_ASSET_TYPE.coins.value,
   changeAmount: null,
   reason: '',
 })
@@ -115,7 +117,7 @@ async function openMember(row: Member, tab: 'ledger' | 'adjust') {
   detailTab.value = tab
   detailShow.value = true
   detailLoading.value = true
-  adjustForm.assetType = 'cash_balance'
+  adjustForm.assetType = WALLET_ASSET_TYPE.coins.value
   adjustForm.changeAmount = null
   adjustForm.reason = ''
   try {
@@ -414,7 +416,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
                 <span class="ic-muted">调账类型</span>
                 <NSelect
                   v-model:value="adjustForm.assetType"
-                  :options="assetTypeOptions"
+                  :options="adjustAssetTypeOptions"
                 />
               </label>
               <label>
