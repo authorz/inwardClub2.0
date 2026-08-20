@@ -152,9 +152,9 @@ func (f *fakeRepo) ListAuditLogs(_ context.Context, flt ListFilter) ([]AuditLog,
 		ActorSnapshotJSON:  json.RawMessage(`{"type":"store_admin","id":9,"username":"store-admin","displayName":"门店管理员"}`),
 		TargetSnapshotJSON: json.RawMessage(`{"type":"member","id":7,"nickname":"测试会员","phone":"13800138000"}`),
 		ScopeSnapshotJSON:  json.RawMessage(`{"storeId":1,"storeName":"新壹街店"}`),
-		BeforeJSON: json.RawMessage(`{"assetType":"points","availableAmount":100}`),
-		AfterJSON:  json.RawMessage(`{"assetType":"points","availableAmount":120}`),
-		Reason:     "客服补偿", RequestID: "req-audit-1",
+		BeforeJSON:         json.RawMessage(`{"assetType":"points","availableAmount":100}`),
+		AfterJSON:          json.RawMessage(`{"assetType":"points","availableAmount":120}`),
+		Reason:             "客服补偿", RequestID: "req-audit-1",
 	}}, 1, nil
 }
 func (f *fakeRepo) ListRuleDefinitions(_ context.Context, flt ListFilter) ([]RuleDefinition, int64, error) {
@@ -449,6 +449,20 @@ func (f *fakeRepo) CreateStaffAccount(_ context.Context, storeID, memberID int64
 	}
 	if name == "" {
 		name = "会员"
+	}
+	for id, existing := range f.staffAccounts {
+		if existing.MemberID != memberID {
+			continue
+		}
+		if existing.Status != "disabled" {
+			return StaffAccount{}, apperr.Conflict("该会员已被绑定为员工")
+		}
+		existing.StoreID = storeID
+		existing.Name = name
+		existing.Phone = phone
+		existing.Status = StatusActive
+		f.staffAccounts[id] = existing
+		return existing, nil
 	}
 	f.nextID++
 	id := f.nextID
@@ -1375,6 +1389,39 @@ func TestStoreCreateStaffAccountRejectsMissingMember(t *testing.T) {
 	_, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 0})
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+	}
+}
+
+func TestStoreCreateStaffAccountReactivatesDisabledBindingAtCurrentStore(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	created, err := svc.StoreCreateStaffAccount(context.Background(), 99, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
+		t.Fatalf("create old binding: %v", err)
+	}
+	if _, err := svc.StoreDisableStaffAccount(context.Background(), 99, created.ID); err != nil {
+		t.Fatalf("disable old binding: %v", err)
+	}
+
+	reactivated, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
+		t.Fatalf("reactivate: %v", err)
+	}
+	if reactivated.ID != created.ID || reactivated.StoreID != 42 || reactivated.Status != StatusActive {
+		t.Fatalf("unexpected reactivated binding: %+v", reactivated)
+	}
+}
+
+func TestStoreCreateStaffAccountKeepsActiveCrossStoreBindingProtected(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	if _, err := svc.StoreCreateStaffAccount(context.Background(), 99, StaffAccountCreateRequest{MemberID: 7}); err != nil {
+		t.Fatalf("create old binding: %v", err)
+	}
+
+	_, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
+	if apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected active binding conflict, got %v", err)
 	}
 }
 

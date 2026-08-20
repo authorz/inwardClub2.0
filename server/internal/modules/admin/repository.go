@@ -1296,31 +1296,78 @@ func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) 
 }
 
 // CreateStaffAccount binds an existing mini-program member (by id) as store
-// staff, copying the member's openid into the staff_accounts row in a single
-// INSERT...SELECT. The staff display name is the provided name, falling back to
-// the member's nickname when blank. A member who does not exist inserts no row
-// (NotFound); a member already bound as staff collides on the member_id/openid
-// unique keys (Conflict).
+// staff. A disabled binding is reusable: it is moved to the requested store and
+// reactivated, while an active binding remains protected from cross-store
+// takeover. The member token version is bumped so an already-open mini-program
+// session must re-resolve its identity and receive a staff-scoped token.
 func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID, memberID int64, name string) (StaffAccount, error) {
-	const q = `INSERT INTO staff_accounts (member_id, wechat_openid, name, store_id, status, token_version, created_at, updated_at)
-		SELECT m.id, m.wechat_openid, COALESCE(NULLIF(?,''), NULLIF(m.nickname,''), '会员'), ?, 'active',
-			CAST(UNIX_TIMESTAMP(NOW(6)) * 1000000 AS UNSIGNED), NOW(), NOW()
-		FROM members m WHERE m.id = ? AND m.status = 'active'`
-	res, err := r.db.ExecContext(ctx, q, name, storeID, memberID)
-	if err != nil {
-		if platdb.IsDuplicate(err) {
-			return StaffAccount{}, apperr.Conflict("该会员已被绑定为员工")
+	var staffID int64
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var openID, nickname, memberStatus string
+		err := tx.QueryRowContext(ctx, `SELECT COALESCE(wechat_openid,''), nickname, status
+			FROM members WHERE id = ? FOR UPDATE`, memberID).Scan(&openID, &nickname, &memberStatus)
+		if err == sql.ErrNoRows || memberStatus != StatusActive {
+			return apperr.NotFound("member not found")
 		}
-		return StaffAccount{}, apperr.Internal(err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return StaffAccount{}, apperr.NotFound("member not found")
-	}
-	id, err := res.LastInsertId()
+		if err != nil {
+			return apperr.Internal(err)
+		}
+
+		displayName := strings.TrimSpace(name)
+		if displayName == "" {
+			displayName = strings.TrimSpace(nickname)
+		}
+		if displayName == "" {
+			displayName = "会员"
+		}
+
+		var existingStatus string
+		err = tx.QueryRowContext(ctx, `SELECT id, status FROM staff_accounts
+			WHERE member_id = ? OR (wechat_openid IS NOT NULL AND wechat_openid <> '' AND wechat_openid = ?)
+			FOR UPDATE`, memberID, openID).Scan(&staffID, &existingStatus)
+		switch {
+		case err == nil && existingStatus != "disabled":
+			return apperr.Conflict("该会员已被绑定为员工")
+		case err == nil:
+			res, updateErr := tx.ExecContext(ctx, `UPDATE staff_accounts
+				SET member_id = ?, wechat_openid = ?, name = ?, store_id = ?, status = 'active',
+					token_version = token_version + 1, updated_at = NOW()
+				WHERE id = ? AND status = 'disabled'`, memberID, openID, displayName, storeID, staffID)
+			if updateErr != nil {
+				return apperr.Internal(updateErr)
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return apperr.Conflict("该会员已被绑定为员工")
+			}
+		case err == sql.ErrNoRows:
+			res, insertErr := tx.ExecContext(ctx, `INSERT INTO staff_accounts
+				(member_id, wechat_openid, name, store_id, status, token_version, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'active', CAST(UNIX_TIMESTAMP(NOW(6)) * 1000000 AS UNSIGNED), NOW(), NOW())`,
+				memberID, openID, displayName, storeID)
+			if insertErr != nil {
+				if platdb.IsDuplicate(insertErr) {
+					return apperr.Conflict("该会员已被绑定为员工")
+				}
+				return apperr.Internal(insertErr)
+			}
+			staffID, err = res.LastInsertId()
+			if err != nil {
+				return apperr.Internal(err)
+			}
+		default:
+			return apperr.Internal(err)
+		}
+
+		if _, err := tx.ExecContext(ctx, `UPDATE members
+			SET token_version = token_version + 1, updated_at = NOW() WHERE id = ?`, memberID); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
 	if err != nil {
-		return StaffAccount{}, apperr.Internal(err)
+		return StaffAccount{}, err
 	}
-	return r.GetStaffAccount(ctx, storeID, id)
+	return r.GetStaffAccount(ctx, storeID, staffID)
 }
 
 func (r *sqlRepository) UpdateStaffAccount(ctx context.Context, storeID, id int64, name string) (StaffAccount, error) {

@@ -7,6 +7,7 @@ const ui = require('../../utils/ui');
 const http = require('../../utils/request');
 const pay = require('../../utils/pay');
 const storeCtx = require('../../utils/store-context');
+const silentLogin = require('../../utils/silent-login');
 const { amount } = require('../../utils/format');
 const { mergeCachedProfile } = require('../../utils/member-profile');
 const { POINT_SAVING } = require('../../constants/index');
@@ -154,6 +155,16 @@ Page({
       genderIcon: '',
       isStaff: false,
     });
+    if (this.identityRecovery) return;
+    this.identityRecovery = silentLogin
+      .ensure()
+      .then(() => {
+        if (auth.isLoggedIn()) this.loadProfile();
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.identityRecovery = null;
+      });
   },
 
   // Gate member-only actions through the dedicated login/registration page.
