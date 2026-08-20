@@ -36,7 +36,10 @@ function renderIcon(name: string) {
 const menuOptions = computed<MenuOption[]>(() => {
   const options: MenuOption[] = []
   for (const group of MENU) {
-    const items = group.items.filter((item) => auth.hasPermission(item.permissions))
+    const items = group.items.filter((item) => {
+      const roleAllowed = !item.roles?.length || (auth.account?.role && item.roles.includes(auth.account.role))
+      return roleAllowed && auth.hasPermission(item.permissions)
+    })
     if (items.length === 0) continue
     const childOptions = items.map((item) => ({
       label: item.title,
@@ -100,9 +103,9 @@ const accountName = computed(() => auth.account?.name ?? '门店账号')
 const roleLabel = computed(() => {
   switch (auth.account?.role) {
     case 'store_admin':
-      return '门店管理员'
+      return '超级管理员'
     case 'cashier':
-      return '收银员'
+      return '门店管理员'
     case 'store_operator':
       return '门店运营'
     default:

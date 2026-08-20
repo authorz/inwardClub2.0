@@ -15,8 +15,8 @@ import type { OptionItem } from '@/constants/enums'
 
 const ACTOR_TYPE_LABELS: Record<string, string> = {
   super_admin: '总后台管理员',
-  store_admin: '门店管理员',
-  cashier: '收银员',
+  store_admin: '门店超级管理员',
+  cashier: '门店管理员',
   staff: '员工',
   member: '会员',
   pre_member: '待完善资料会员',
@@ -25,8 +25,8 @@ const ACTOR_TYPE_LABELS: Record<string, string> = {
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: '超级管理员',
-  store_admin: '门店管理员',
-  cashier: '收银员',
+  store_admin: '门店超级管理员',
+  cashier: '门店管理员',
   staff: '员工',
   member: '会员',
   pre_member: '待完善资料会员',
@@ -51,7 +51,7 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   store: '门店',
   staff: '员工账号',
   staff_account: '员工账号',
-  cashier: '收银员账号',
+  cashier: '门店管理员账号',
   admin_account: '管理员账号',
   catalog_item: '商品',
   catalog_category: '商品分类',

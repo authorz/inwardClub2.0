@@ -66,6 +66,8 @@ export interface AccountEntity extends AuditableEntity {
   phone?: string
   /** 绑定门店名称（门店管理员 / 员工列表） */
   storeName?: string | null
+  /** 仅密码重置响应返回：一次性明文初始密码。 */
+  initialPassword?: string
 }
 
 export interface CatalogCategory extends AuditableEntity {

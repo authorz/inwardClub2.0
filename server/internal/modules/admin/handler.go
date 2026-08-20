@@ -724,6 +724,35 @@ func (h *Handler) DisableStoreAdminAccount(c *gin.Context) {
 	httpx.OK(c, view)
 }
 
+// ResetStoreAdminPassword handles POST /admin/store-admin-accounts/:accountID/password-reset.
+func (h *Handler) ResetStoreAdminPassword(c *gin.Context) {
+	id, err := pathID(c, "accountID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	view, err := h.svc.ResetStoreAdminPassword(c.Request.Context(), id)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// DeleteStoreAdminAccount handles DELETE /admin/store-admin-accounts/:accountID.
+func (h *Handler) DeleteStoreAdminAccount(c *gin.Context) {
+	id, err := pathID(c, "accountID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.DeleteStoreAdmin(c.Request.Context(), id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
+}
+
 // --- Store console (audience: store, scope pinned from JWT) ---
 
 // StoreProfile handles GET /store/profile.

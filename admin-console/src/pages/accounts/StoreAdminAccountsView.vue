@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 门店管理员账号：复用 AccountListView，展示绑定门店。 */
+/** 门店管理员账号：展示总后台和门店后台创建的全部管理员。 */
 import AccountListView from './AccountListView.vue'
 import { storeAdminAccountService } from '@/api/services'
 import { API_PATHS } from '@/constants/api-paths'
@@ -8,7 +8,7 @@ import { API_PATHS } from '@/constants/api-paths'
 <template>
   <AccountListView
     title="门店管理员"
-    description="门店后台管理员账号，绑定唯一门店"
+    description="统一管理各门店的超级管理员与普通管理员账号"
     variant="store-admin"
     :service="storeAdminAccountService"
     :disable-path="API_PATHS.storeAdminAccounts.disable"

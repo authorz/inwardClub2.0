@@ -918,6 +918,52 @@ func TestUpdateStoreAdminAccountAcceptsNewPassword(t *testing.T) {
 	}
 }
 
+func TestResetStoreAdminPasswordReturnsOneTimePassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "manager1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.POST("/admin/store-admin-accounts/:accountID/password-reset", h.ResetStoreAdminPassword)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/store-admin-accounts/1/password-reset", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "initialPassword") || strings.Contains(rec.Body.String(), repo.lastPasswordHash) {
+		t.Fatalf("unexpected credential response: %s", rec.Body.String())
+	}
+}
+
+func TestDeleteStoreAdminAccountRemovesStoreCreatedManager(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "manager1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.DELETE("/admin/store-admin-accounts/:accountID", h.DeleteStoreAdminAccount)
+
+	req := httptest.NewRequest(http.MethodDelete, "/admin/store-admin-accounts/1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := repo.adminAccounts[1]; ok {
+		t.Fatal("expected store manager account to be deleted")
+	}
+}
+
 func TestAdminUpdateStaffAccountHandlerReachesAnyStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

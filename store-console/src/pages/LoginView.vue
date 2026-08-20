@@ -62,7 +62,7 @@ async function onSubmit() {
         <NFormItem>
           <NInput
             v-model:value="model.username"
-            placeholder="门店账号 / 收银员账号"
+            placeholder="门店管理员账号"
             size="large"
             :input-props="{ autocomplete: 'username' }"
           />

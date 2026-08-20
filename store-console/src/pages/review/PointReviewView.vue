@@ -112,7 +112,7 @@ function reviewerCell(row: PointSavingRequest) {
   }
 
   const name = reviewer.displayName || reviewer.username || '后台管理员'
-  const role = reviewer.type === 'cashier' ? '收银员' : '门店管理员'
+  const role = reviewer.type === 'cashier' ? '门店管理员' : '门店超级管理员'
   return h('div', { class: 'point-review__identity' }, [
     h(NAvatar, { round: true, size: 40 }, { default: () => initial(name) }),
     h('div', { class: 'point-review__identity-copy' }, [

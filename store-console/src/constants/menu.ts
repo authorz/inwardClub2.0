@@ -5,7 +5,7 @@
  * 侧边栏据此渲染，路由守卫据此做权限判断，避免菜单与路由/权限三处各写一套。
  */
 
-import { PERM, type PermissionCode } from './permissions'
+import { PERM, type PermissionCode, type StoreRole } from './permissions'
 
 export interface MenuItem {
   /** 路由 name，同时作为菜单 key。 */
@@ -21,6 +21,8 @@ export interface MenuItem {
    * 命中任一权限即可访问（OR 语义）。
    */
   permissions?: PermissionCode[]
+  /** 仅指定门店角色可见；用于超级管理员专属入口。 */
+  roles?: StoreRole[]
 }
 
 export interface MenuGroup {
@@ -208,9 +210,10 @@ export const MENU: MenuGroup[] = [
       {
         name: 'cashiers',
         path: '/cashiers',
-        title: '收银员管理',
+        title: '管理员管理',
         icon: 'staff',
         permissions: [PERM.staffWrite],
+        roles: ['store_admin'],
       },
       {
         name: 'staff-accounts',

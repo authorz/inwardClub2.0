@@ -9,7 +9,7 @@
 
 import type { Router } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import type { PermissionCode } from '@/constants/permissions'
+import type { PermissionCode, StoreRole } from '@/constants/permissions'
 
 export function installRouterGuards(router: Router): void {
   router.beforeEach(async (to) => {
@@ -37,6 +37,12 @@ export function installRouterGuards(router: Router): void {
 
     const required = (to.meta.permissions as PermissionCode[] | undefined) ?? []
     if (required.length > 0 && !auth.hasPermission(required)) {
+      return { name: 'forbidden' }
+    }
+
+    const allowedRoles = (to.meta.roles as StoreRole[] | undefined) ?? []
+    const currentRole = auth.account?.role ?? auth.claims?.role
+    if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole as StoreRole)) {
       return { name: 'forbidden' }
     }
 

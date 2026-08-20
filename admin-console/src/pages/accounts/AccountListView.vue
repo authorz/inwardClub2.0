@@ -5,9 +5,8 @@
  * 总后台账号 / 门店管理员 / 员工三类账号后端契约并不一致：
  *  - super（总后台账号，admin_accounts role=super_admin）：支持新增、编辑、
  *    修改密码、禁用和删除；系统管理员不可禁用或删除。
- *  - store-admin（门店管理员，admin_accounts）：列表 + 新增
- *    （storeId/username/password/displayName）+ 编辑（仅 displayName）+ 禁用；
- *    字段含绑定门店 storeName。
+ *  - store-admin（门店管理员，admin_accounts）：统一展示总后台创建的超级管理员
+ *    与门店后台创建的普通管理员；支持新增超级管理员、编辑、重置密码、禁用和删除。
  *  - staff（员工，staff_accounts）：列表 + 新增（storeId/name）+ 编辑（仅 name）+ 禁用；
  *    只有 name，无 username/role。
  *
@@ -21,6 +20,7 @@ import {
   NFormItem,
   NInput,
   NInputGroup,
+  NModal,
   NRadio,
   NRadioGroup,
   NSelect,
@@ -54,6 +54,7 @@ const props = defineProps<{
 
 // variant 在路由维度固定，setup 期求值一次即可。
 const isStaff = props.variant === 'staff'
+const isStoreAdmin = props.variant === 'store-admin'
 const showStore = props.variant !== 'super'
 
 const listRef = ref<ResourceListInstance | null>(null)
@@ -122,8 +123,23 @@ const baseColumns: TableColumnList<AccountEntity> = isStaff
         title: '账号类型',
         key: 'accountType',
         width: 140,
-        render: (row) => (row.isSystem ? '系统管理员' : props.variant === 'super' ? '管理员' : row.role),
+        render: (row) => {
+          if (row.isSystem) return '系统管理员'
+          if (props.variant === 'super') return '管理员'
+          if (isStoreAdmin) return row.role === 'store_admin' ? '超级管理员' : '普通管理员'
+          return row.role
+        },
       },
+      ...(isStoreAdmin
+        ? [
+            {
+              title: '创建来源',
+              key: 'source',
+              width: 140,
+              render: (row: AccountEntity) => row.role === 'store_admin' ? '总后台创建' : '门店后台创建',
+            },
+          ]
+        : []),
     ]
 
 const columns: TableColumnList<AccountEntity> = [
@@ -178,14 +194,31 @@ const columns: TableColumnList<AccountEntity> = [
                   PermissionButton,
                   {
                     permission: PERMISSIONS.ACCOUNT_WRITE,
+                    onClick: () => resetStoreAdminPassword(row),
+                  },
+                  () => '重置密码',
+                ),
+                h(
+                  PermissionButton,
+                  {
+                    permission: PERMISSIONS.ACCOUNT_WRITE,
                     type: 'error',
                     onClick: () => disable(row),
                   },
                   () => '禁用',
                 ),
+                h(
+                  PermissionButton,
+                  {
+                    permission: PERMISSIONS.ACCOUNT_WRITE,
+                    type: 'error',
+                    onClick: () => removeStoreAdmin(row),
+                  },
+                  () => '删除',
+                ),
               ]),
       ]),
-    220,
+    isStoreAdmin ? 300 : 220,
   ),
 ]
 
@@ -211,6 +244,9 @@ const form = reactive<{
   displayName: string
   name: string
 }>({ storeId: null, username: '', password: '', displayName: '', name: '' })
+
+const credentialShow = ref(false)
+const credential = reactive({ username: '', password: '' })
 
 // 员工绑定态：按手机号查会员（仅 staff 新增用）
 const searchPhone = ref('')
@@ -394,10 +430,48 @@ async function removeAdmin(row: AccountEntity): Promise<void> {
   if (ok) listRef.value?.reload()
 }
 
+async function resetStoreAdminPassword(row: AccountEntity): Promise<void> {
+  const result: { value?: AccountEntity } = {}
+  const label = row.username ?? row.id
+  const ok = await runAudited({
+    title: '重置门店管理员密码',
+    content: `确认重置账号「${label}」的登录密码？原密码将立即失效，新密码仅展示一次。`,
+    highRisk: true,
+    positiveText: '确认重置',
+    execute: async () => {
+      result.value = await props.service.action<AccountEntity>(
+        API_PATHS.storeAdminAccounts.passwordReset(row.id),
+        undefined,
+        true,
+      )
+    },
+    successText: '密码已重置',
+  })
+  if (ok && result.value?.initialPassword) {
+    credential.username = result.value.username ?? label
+    credential.password = result.value.initialPassword
+    credentialShow.value = true
+  }
+}
+
+async function removeStoreAdmin(row: AccountEntity): Promise<void> {
+  const label = row.username ?? row.id
+  const accountType = row.role === 'store_admin' ? '超级管理员' : '普通管理员'
+  const ok = await runAudited({
+    title: '删除门店管理员',
+    content: `确认永久删除${accountType}「${label}」？删除后该账号将立即无法登录，且无法恢复。`,
+    highRisk: true,
+    positiveText: '确认删除',
+    execute: () => props.service.remove(row.id),
+    successText: '管理员已删除',
+  })
+  if (ok) listRef.value?.reload()
+}
+
 const toolbarActions = [
   {
     key: 'create',
-    label: '新增账号',
+    label: isStoreAdmin ? '新增超级管理员' : '新增账号',
     type: 'primary' as const,
     permission: PERMISSIONS.ACCOUNT_WRITE,
     onClick: openCreate,
@@ -420,7 +494,7 @@ const toolbarActions = [
 
     <FormDrawer
       v-model:show="drawerShow"
-      :title="editingId ? '编辑账号' : '新增账号'"
+      :title="editingId ? '编辑账号' : isStoreAdmin ? '新增超级管理员' : '新增账号'"
       :submitting="submitting"
       @submit="submit"
     >
@@ -553,9 +627,36 @@ const toolbarActions = [
         v-if="showStore"
         class="form-note"
       >
-        同一员工 / 门店管理员只能绑定一个门店；编辑时不可更换绑定门店。
+        {{
+          isStoreAdmin
+            ? '总后台新增的账号为门店超级管理员，可在门店后台管理普通管理员；编辑时不可更换绑定门店。'
+            : '同一员工只能绑定一个门店；编辑时不可更换绑定门店。'
+        }}
       </p>
     </FormDrawer>
+
+    <NModal
+      v-model:show="credentialShow"
+      preset="card"
+      title="新密码已生成"
+      style="width: 400px"
+    >
+      <div class="credential">
+        <div><span>登录账号</span><strong>{{ credential.username }}</strong></div>
+        <div><span>新密码</span><strong class="credential__password">{{ credential.password }}</strong></div>
+        <p>该密码仅展示一次，请立即保存并交给对应管理员。</p>
+      </div>
+      <template #footer>
+        <div class="credential__footer">
+          <NButton
+            type="primary"
+            @click="credentialShow = false"
+          >
+            我已保存
+          </NButton>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -634,6 +735,32 @@ const toolbarActions = [
 .found__phone {
   flex: 0 0 auto;
   color: var(--ic-color-text-tertiary);
+}
+.credential {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-md);
+}
+.credential > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ic-space-md);
+}
+.credential span,
+.credential p {
+  color: var(--ic-color-text-tertiary);
+}
+.credential p {
+  margin: 0;
+  font-size: var(--ic-font-xs);
+}
+.credential__password {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+.credential__footer {
+  display: flex;
+  justify-content: flex-end;
 }
 @media (prefers-reduced-motion: reduce) {
   .lookup-result {

@@ -204,7 +204,10 @@ func (f *fakeRepo) ListStoreAdmins(_ context.Context, flt ListFilter) ([]AdminAc
 		return nil, 0, f.err
 	}
 	storeID := int64(42)
-	return []AdminAccount{{ID: 94, Username: "store_admin1", DisplayName: "Store Admin One", Role: "store_admin", StoreID: &storeID}}, 1, nil
+	return []AdminAccount{
+		{ID: 94, Username: "store_admin1", DisplayName: "Store Admin One", Role: "store_admin", StoreID: &storeID},
+		{ID: 95, Username: "manager1", DisplayName: "Manager One", Role: "cashier", StoreID: &storeID},
+	}, 2, nil
 }
 
 type fakeActivityAssetResolver struct{}
@@ -298,7 +301,7 @@ func (f *fakeRepo) UpdateStoreAdminByID(_ context.Context, id int64, storeID *in
 		return AdminAccount{}, f.err
 	}
 	a, ok := f.adminAccounts[id]
-	if !ok || a.Role != "store_admin" {
+	if !ok || (a.Role != "store_admin" && a.Role != "cashier") {
 		return AdminAccount{}, apperr.NotFound("store admin account not found")
 	}
 	if displayName != nil {
@@ -312,6 +315,28 @@ func (f *fakeRepo) UpdateStoreAdminByID(_ context.Context, id int64, storeID *in
 	}
 	f.adminAccounts[id] = a
 	return a, nil
+}
+func (f *fakeRepo) ResetStoreAdminPasswordByID(_ context.Context, id int64, passwordHash string) (AdminAccount, error) {
+	if f.err != nil {
+		return AdminAccount{}, f.err
+	}
+	a, ok := f.adminAccounts[id]
+	if !ok || (a.Role != "store_admin" && a.Role != "cashier") {
+		return AdminAccount{}, apperr.NotFound("store admin account not found")
+	}
+	f.lastPasswordHash = passwordHash
+	return a, nil
+}
+func (f *fakeRepo) DeleteStoreAdminByID(_ context.Context, id int64) error {
+	if f.err != nil {
+		return f.err
+	}
+	a, ok := f.adminAccounts[id]
+	if !ok || (a.Role != "store_admin" && a.Role != "cashier") {
+		return apperr.NotFound("store admin account not found")
+	}
+	delete(f.adminAccounts, id)
+	return nil
 }
 func (f *fakeRepo) DisableAdminAccountByID(_ context.Context, id int64) (AdminAccount, error) {
 	if f.err != nil {
@@ -980,10 +1005,10 @@ func TestListStoreAdminsMapsAndPassesTotal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if total != 1 {
-		t.Fatalf("expected total 1, got %d", total)
+	if total != 2 {
+		t.Fatalf("expected total 2, got %d", total)
 	}
-	if len(views) != 1 || views[0].Role != "store_admin" || views[0].StoreID == nil || *views[0].StoreID != 42 {
+	if len(views) != 2 || views[0].Role != "store_admin" || views[1].Role != "cashier" || views[0].StoreID == nil || *views[0].StoreID != 42 {
 		t.Fatalf("unexpected views: %+v", views)
 	}
 }
@@ -1094,6 +1119,43 @@ func TestDisableStoreAdminWorksAcrossStores(t *testing.T) {
 	}
 	if v.Status != "disabled" {
 		t.Fatalf("expected disabled, got %+v", v)
+	}
+}
+
+func TestResetStoreCreatedManagerPasswordReturnsOneTimeCredential(t *testing.T) {
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "manager1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	view, err := svc.ResetStoreAdminPassword(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	if view.Username != "manager1" || view.InitialPassword == "" {
+		t.Fatalf("unexpected credential view: %+v", view)
+	}
+	if repo.lastPasswordHash == view.InitialPassword {
+		t.Fatal("plaintext password was passed to the repository")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(repo.lastPasswordHash), []byte(view.InitialPassword)); err != nil {
+		t.Fatalf("stored hash does not match generated password: %v", err)
+	}
+}
+
+func TestDeleteStoreCreatedManager(t *testing.T) {
+	storeID := int64(42)
+	repo := &fakeRepo{adminAccounts: map[int64]AdminAccount{
+		1: {ID: 1, Username: "manager1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	if err := svc.DeleteStoreAdmin(context.Background(), 1); err != nil {
+		t.Fatalf("delete manager: %v", err)
+	}
+	if _, ok := repo.adminAccounts[1]; ok {
+		t.Fatal("expected manager account to be deleted")
 	}
 }
 

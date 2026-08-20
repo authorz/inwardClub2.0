@@ -17,6 +17,7 @@ const businessRoutes: RouteRecordRaw[] = FLAT_MENU.map((item) => ({
   meta: {
     title: item.title,
     permissions: item.permissions ?? [],
+    roles: item.roles ?? [],
     requiresAuth: true,
   },
 }))

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 收银员管理：本店收银员账号增改、停用与密码重置。
+ * 管理员管理：超级管理员维护本店普通管理员账号。
  * 服务端仅接受用户名(username)+显示名(displayName)；初始密码由服务端生成，
  * 在新增/重置密码响应的 initialPassword 中一次性返回，展示后不可再查询。
  * 停用为不可逆写操作，均带 Idempotency-Key。
@@ -70,7 +70,7 @@ function save() {
         const creating = form.id == null
         editShow.value = false
         list.refresh()
-        if (creating) showCredential('新增收银员成功', res)
+        if (creating) showCredential('新增管理员成功', res)
       },
     },
   )
@@ -78,7 +78,7 @@ function save() {
 
 function disable(row: Cashier) {
   void action.run(() => cashierService.disable(row.id), {
-    confirm: { content: `确认停用收银员「${row.displayName}」？停用后该账号将无法登录`, danger: true },
+    confirm: { content: `确认停用管理员「${row.displayName}」？停用后该账号将无法登录`, danger: true },
     successMessage: '已停用',
     onSuccess: () => list.refresh(),
   })
@@ -86,7 +86,7 @@ function disable(row: Cashier) {
 
 function resetPassword(row: Cashier) {
   void action.run(() => cashierService.resetPassword(row.id), {
-    confirm: { content: `确认重置收银员「${row.displayName}」的登录密码？将生成新的初始密码` },
+    confirm: { content: `确认重置管理员「${row.displayName}」的登录密码？将生成新的初始密码` },
     successMessage: '密码已重置',
     onSuccess: (res) => showCredential('密码已重置', res),
   })
@@ -134,8 +134,8 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
 <template>
   <div>
     <PageHeader
-      title="收银员管理"
-      description="维护本店收银员账号"
+      title="管理员管理"
+      description="超级管理员可维护本店普通管理员账号"
     >
       <template #actions>
         <PermissionButton
@@ -143,7 +143,7 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
           type="primary"
           @click="openCreate"
         >
-          新增收银员
+          新增管理员
         </PermissionButton>
       </template>
     </PageHeader>
@@ -167,7 +167,7 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
-      empty-text="暂无收银员"
+      empty-text="暂无普通管理员"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
     />
@@ -175,7 +175,7 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
     <NModal
       v-model:show="editShow"
       preset="card"
-      :title="form.id == null ? '新增收银员' : '编辑收银员'"
+      :title="form.id == null ? '新增管理员' : '编辑管理员'"
       style="width: 400px"
     >
       <div class="cashier-form">
@@ -191,11 +191,11 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
           <span class="ic-muted">姓名</span>
           <NInput
             v-model:value="form.displayName"
-            placeholder="收银员姓名"
+            placeholder="管理员姓名"
           />
         </label>
         <p class="ic-muted cashier-form__hint">
-          初始密码由系统生成，保存后展示，请及时告知收银员。
+          初始密码由系统生成，保存后仅展示一次，请及时交给管理员。
         </p>
       </div>
       <template #footer>
@@ -229,7 +229,7 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
           <span class="ic-muted">初始密码：</span><strong>{{ credential.password }}</strong>
         </div>
         <p class="ic-muted cashier-form__hint">
-          该密码仅展示一次，请立即复制并交给收银员，关闭后无法再次查看。
+          该密码仅展示一次，请立即复制并交给管理员，关闭后无法再次查看。
         </p>
       </div>
       <template #footer>

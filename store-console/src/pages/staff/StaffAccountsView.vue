@@ -3,7 +3,7 @@
  * 员工账号管理：本店 staff_accounts 绑定/改名/删除。
  * 员工须先在小程序注册；新增时按手机号查到会员后绑定为员工（不再手输姓名）。
  * 删除仅移除员工权限绑定，不删除其小程序会员账号。写操作带 Idempotency-Key。
- * 收银员账号在独立页面管理。
+ * 门店管理员账号在独立页面管理。
  */
 import { computed, h, reactive, ref } from 'vue'
 import {

@@ -103,6 +103,8 @@ type Repository interface {
 	DeleteSuperAdminByID(ctx context.Context, id int64) error
 	CreateStoreAdmin(ctx context.Context, storeID int64, username, passwordHash, displayName string) (AdminAccount, error)
 	UpdateStoreAdminByID(ctx context.Context, id int64, storeID *int64, displayName, passwordHash *string) (AdminAccount, error)
+	ResetStoreAdminPasswordByID(ctx context.Context, id int64, passwordHash string) (AdminAccount, error)
+	DeleteStoreAdminByID(ctx context.Context, id int64) error
 	DisableAdminAccountByID(ctx context.Context, id int64) (AdminAccount, error)
 
 	// Staff accounts (staff_accounts), always scoped to the caller's own store.
@@ -967,7 +969,7 @@ func (r *sqlRepository) ListSuperAdmins(ctx context.Context, f ListFilter) ([]Ad
 
 func (r *sqlRepository) ListStoreAdmins(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error) {
 	where, args := filterClauses(f, "aa.store_id", "aa.status", "aa.username")
-	where += " AND aa.role = 'store_admin'"
+	where += " AND aa.role IN ('store_admin', 'cashier')"
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -1121,7 +1123,7 @@ func (r *sqlRepository) UpdateStoreAdminByID(ctx context.Context, id int64, stor
 	}
 	set = append(set, "updated_at = NOW()")
 	args = append(args, id)
-	res, err := r.db.ExecContext(ctx, `UPDATE admin_accounts SET `+strings.Join(set, ", ")+` WHERE id = ? AND role = 'store_admin'`, args...)
+	res, err := r.db.ExecContext(ctx, `UPDATE admin_accounts SET `+strings.Join(set, ", ")+` WHERE id = ? AND role IN ('store_admin', 'cashier')`, args...)
 	if err != nil {
 		return AdminAccount{}, apperr.Internal(err)
 	}
@@ -1140,10 +1142,43 @@ func (r *sqlRepository) getStoreAdminByID(ctx context.Context, id int64) (AdminA
 	if err != nil {
 		return AdminAccount{}, err
 	}
-	if a.Role != "store_admin" {
+	if a.Role != "store_admin" && a.Role != "cashier" {
 		return AdminAccount{}, apperr.NotFound("store admin account not found")
 	}
 	return a, nil
+}
+
+// ResetStoreAdminPasswordByID changes the password of either a headquarters-
+// created store super administrator or a store-created ordinary administrator.
+func (r *sqlRepository) ResetStoreAdminPasswordByID(ctx context.Context, id int64, passwordHash string) (AdminAccount, error) {
+	const q = `UPDATE admin_accounts
+		SET password_hash = ?, token_version = token_version + 1, updated_at = NOW()
+		WHERE id = ? AND role IN ('store_admin', 'cashier')`
+	res, err := r.db.ExecContext(ctx, q, passwordHash, id)
+	if err != nil {
+		return AdminAccount{}, apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := r.getStoreAdminByID(ctx, id); err != nil {
+			return AdminAccount{}, err
+		}
+	}
+	return r.GetAdminAccountByID(ctx, id)
+}
+
+// DeleteStoreAdminByID permanently removes a store-scoped administrator.
+func (r *sqlRepository) DeleteStoreAdminByID(ctx context.Context, id int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM admin_accounts
+		WHERE id = ? AND role IN ('store_admin', 'cashier')`, id)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := r.getStoreAdminByID(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DisableAdminAccountByID marks any admin_accounts row disabled and bumps

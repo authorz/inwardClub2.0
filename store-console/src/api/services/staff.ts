@@ -1,5 +1,5 @@
 /**
- * 收银员与员工账号服务。
+ * 门店普通管理员（内部兼容 cashier 角色）与员工账号服务。
  * 停用、重置密码为高风险写操作，带 Idempotency-Key。
  */
 
@@ -8,13 +8,13 @@ import { API_PATHS } from '@/constants/apiPaths'
 import type { PageQuery } from '@/types/api'
 import type { Cashier, StaffAccount } from '@/types/models'
 
-/** 新增收银员：服务端仅接受登录用户名与显示名，初始密码由服务端生成并一次性返回。 */
+/** 新增普通管理员：服务端仅接受登录用户名与显示名，初始密码由服务端生成并一次性返回。 */
 export interface CashierCreatePayload {
   username: string
   displayName: string
 }
 
-/** 编辑收银员：仅显示名可改，用户名/角色/门店在创建时固定。 */
+/** 编辑普通管理员：仅显示名可改，用户名/角色/门店在创建时固定。 */
 export interface CashierUpdatePayload {
   displayName: string
 }

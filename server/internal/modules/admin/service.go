@@ -603,8 +603,9 @@ func (s *Service) DisableAdminAccount(ctx context.Context, id int64) (AdminAccou
 	return adminAccountView(row), nil
 }
 
-// ListStoreAdmins returns a page of store_admin accounts. An optional
-// f.StoreID narrows the result to a single store.
+// ListStoreAdmins returns headquarters-created store super administrators and
+// store-created ordinary administrators. An optional f.StoreID narrows the
+// result to a single store.
 func (s *Service) ListStoreAdmins(ctx context.Context, f ListFilter) ([]AdminAccountView, int64, error) {
 	rows, total, err := s.repo.ListStoreAdmins(ctx, f)
 	if err != nil {
@@ -678,15 +679,14 @@ func (s *Service) UpdateStoreAdmin(ctx context.Context, id int64, req StoreAdmin
 	return adminAccountView(row), nil
 }
 
-// DisableStoreAdmin disables a store_admin account by id and invalidates any
-// outstanding session. It rejects ids that do not belong to a store_admin
-// account so this endpoint cannot be used to disable a super_admin.
+// DisableStoreAdmin disables either kind of store administrator by id and
+// invalidates any outstanding session.
 func (s *Service) DisableStoreAdmin(ctx context.Context, id int64) (AdminAccountView, error) {
 	row, err := s.repo.GetAdminAccountByID(ctx, id)
 	if err != nil {
 		return AdminAccountView{}, err
 	}
-	if row.Role != "store_admin" {
+	if row.Role != "store_admin" && row.Role != "cashier" {
 		return AdminAccountView{}, apperr.NotFound("store admin account not found")
 	}
 	row, err = s.repo.DisableAdminAccountByID(ctx, id)
@@ -694,6 +694,43 @@ func (s *Service) DisableStoreAdmin(ctx context.Context, id int64) (AdminAccount
 		return AdminAccountView{}, err
 	}
 	return adminAccountView(row), nil
+}
+
+// ResetStoreAdminPassword generates a one-time replacement password for either
+// kind of store administrator. Only the bcrypt hash is persisted.
+func (s *Service) ResetStoreAdminPassword(ctx context.Context, id int64) (CashierCredentialView, error) {
+	row, err := s.repo.GetAdminAccountByID(ctx, id)
+	if err != nil {
+		return CashierCredentialView{}, err
+	}
+	if row.Role != "store_admin" && row.Role != "cashier" {
+		return CashierCredentialView{}, apperr.NotFound("store admin account not found")
+	}
+	password, err := generatePassword()
+	if err != nil {
+		return CashierCredentialView{}, apperr.Internal(err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return CashierCredentialView{}, apperr.Internal(err)
+	}
+	row, err = s.repo.ResetStoreAdminPasswordByID(ctx, id, string(hash))
+	if err != nil {
+		return CashierCredentialView{}, err
+	}
+	return CashierCredentialView{AdminAccountView: adminAccountView(row), InitialPassword: password}, nil
+}
+
+// DeleteStoreAdmin permanently removes either kind of store administrator.
+func (s *Service) DeleteStoreAdmin(ctx context.Context, id int64) error {
+	row, err := s.repo.GetAdminAccountByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if row.Role != "store_admin" && row.Role != "cashier" {
+		return apperr.NotFound("store admin account not found")
+	}
+	return s.repo.DeleteStoreAdminByID(ctx, id)
 }
 
 func adminAccountView(r AdminAccount) AdminAccountView {

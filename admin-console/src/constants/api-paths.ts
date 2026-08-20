@@ -65,6 +65,7 @@ export const API_PATHS = {
     create: '/admin/store-admin-accounts',
     update: (id: string) => `/admin/store-admin-accounts/${id}`,
     disable: (id: string) => `/admin/store-admin-accounts/${id}/disable`,
+    passwordReset: (id: string) => `/admin/store-admin-accounts/${id}/password-reset`,
   },
 
   staffAccounts: {

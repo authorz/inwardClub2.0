@@ -199,6 +199,8 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/store-admin-accounts", a.adminHandler.CreateStoreAdminAccount)
 	p.PATCH("/store-admin-accounts/:accountID", a.adminHandler.UpdateStoreAdminAccount)
 	p.POST("/store-admin-accounts/:accountID/disable", a.adminHandler.DisableStoreAdminAccount)
+	p.POST("/store-admin-accounts/:accountID/password-reset", a.adminHandler.ResetStoreAdminPassword)
+	p.DELETE("/store-admin-accounts/:accountID", a.adminHandler.DeleteStoreAdminAccount)
 	p.GET("/staff-accounts", a.adminHandler.StaffAccounts)
 	p.POST("/staff-accounts", a.adminHandler.AdminCreateStaffAccount)
 	p.PATCH("/staff-accounts/:staffID", a.adminHandler.AdminUpdateStaffAccount)
@@ -351,7 +353,6 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/member-lookup", a.adminHandler.StoreLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.StoreMemberDetail)
 	p.GET("/wallet-ledger", a.adminHandler.StoreWalletLedger)
-	p.GET("/cashiers", a.adminHandler.StoreCashiers)
 	p.GET("/staff-accounts", a.adminHandler.StoreStaffAccounts)
 
 	// Store operational reads (offline collection orders, point savings review
@@ -383,6 +384,17 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.StoreCreateWalletAdjustment)
 
 	a.registerStoreConsole(p, idem)
+
+	// Only a headquarters-created store super administrator may manage the
+	// ordinary administrators of its own store. Ordinary administrator tokens
+	// retain store operations but cannot list or mutate peer accounts.
+	managerRead := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin), storescope.Inject())
+	managerRead.GET("/cashiers", a.adminHandler.StoreCashiers)
+	managerWrite := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin), storescope.Inject(), idempotency.Require())
+	managerWrite.POST("/cashiers", a.adminHandler.StoreCreateCashier)
+	managerWrite.PATCH("/cashiers/:cashierID", a.adminHandler.StoreUpdateCashier)
+	managerWrite.POST("/cashiers/:cashierID/disable", a.adminHandler.StoreDisableCashier)
+	managerWrite.POST("/cashiers/:cashierID/password-reset", a.adminHandler.StoreResetCashierPassword)
 }
 
 // registerStoreConsole wires the store console CRUD onto the store audience.
@@ -478,13 +490,6 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/printer-devices", a.printerConsoleHandler.StoreCreate)
 	idem.PATCH("/printer-devices/:id", a.printerConsoleHandler.StoreUpdate)
 	idem.DELETE("/printer-devices/:id", a.printerConsoleHandler.StoreDelete)
-
-	// Cashier accounts (admin_accounts, role=cashier; own store only). List read
-	// already registered as adminHandler.StoreCashiers.
-	idem.POST("/cashiers", a.adminHandler.StoreCreateCashier)
-	idem.PATCH("/cashiers/:cashierID", a.adminHandler.StoreUpdateCashier)
-	idem.POST("/cashiers/:cashierID/disable", a.adminHandler.StoreDisableCashier)
-	idem.POST("/cashiers/:cashierID/password-reset", a.adminHandler.StoreResetCashierPassword)
 
 	// Staff accounts (staff_accounts; own store only). List read already
 	// registered as adminHandler.StoreStaffAccounts.
