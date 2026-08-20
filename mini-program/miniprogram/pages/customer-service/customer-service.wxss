@@ -12,9 +12,9 @@
   padding: 52rpx 0 38rpx;
   text-align: center;
 }
-.cs__intro-icon {
-  width: 92rpx;
-  height: 92rpx;
+.cs__intro-logo {
+  width: 244rpx;
+  height: auto;
 }
 .cs__title { margin-top: 22rpx; font-size: 30rpx; font-weight: 700; color: rgba(255, 255, 255, 0.96); }
 .cs__subtitle { margin-top: 10rpx; font-size: 22rpx; color: rgba(255, 255, 255, 0.58); }
