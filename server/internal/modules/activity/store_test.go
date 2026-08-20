@@ -38,7 +38,9 @@ func (r *storeMemRepo) VerifyTicket(_ context.Context, storeID int64, code strin
 func (r *storeMemRepo) ListPointSavings(_ context.Context, storeID int64, status, phone string, limit, offset int) ([]PointSaving, int64, error) {
 	var all []PointSaving
 	for _, p := range r.pointSavings {
-		if p.StoreID == storeID && (status == "" || p.Status == status) &&
+		statusMatches := status == "" || p.Status == status ||
+			(status == PointSavingReviewed && (p.Status == PointSavingApproved || p.Status == PointSavingRejected))
+		if p.StoreID == storeID && statusMatches &&
 			(phone == "" || strings.Contains(p.Phone, phone)) {
 			all = append(all, p)
 		}
@@ -111,10 +113,11 @@ func (r *storeMemRepo) ListTodayActivitySummaries(_ context.Context, storeID int
 	return out, nil
 }
 
-func (r *storeMemRepo) ListVerifications(_ context.Context, storeID int64, limit, offset int) ([]Verification, int64, error) {
+func (r *storeMemRepo) ListVerifications(_ context.Context, storeID int64, kind, keyword string, limit, offset int) ([]Verification, int64, error) {
 	var all []Verification
 	for _, v := range r.verifications {
-		if v.StoreID == storeID {
+		if v.StoreID == storeID && (kind == "" || v.Kind == kind) &&
+			(keyword == "" || strings.Contains(v.Code, keyword) || strings.Contains(v.ActivityTitle, keyword) || strings.Contains(v.MemberName, keyword)) {
 			all = append(all, v)
 		}
 	}
@@ -272,6 +275,25 @@ func TestListPointSavingsFiltersPendingByPhone(t *testing.T) {
 	}
 }
 
+func TestListPointSavingsFiltersReviewedHistory(t *testing.T) {
+	svc, repo := newStoreTestService()
+	repo.pointSavings = []PointSaving{
+		{ID: 1, StoreID: 7, Status: PointSavingPending},
+		{ID: 2, StoreID: 7, Status: PointSavingApproved},
+		{ID: 3, StoreID: 7, Status: PointSavingRejected},
+		{ID: 4, StoreID: 99, Status: PointSavingApproved},
+	}
+	views, total, err := svc.ListPointSavings(
+		context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, PointSavingReviewed, "",
+	)
+	if err != nil {
+		t.Fatalf("list reviewed: %v", err)
+	}
+	if total != 2 || len(views) != 2 || views[0].Status == PointSavingPending || views[1].Status == PointSavingPending {
+		t.Fatalf("expected approved and rejected history, got %+v (total %d)", views, total)
+	}
+}
+
 func TestGetPointSavingCrossStoreHidden(t *testing.T) {
 	svc, repo := newStoreTestService()
 	repo.pointSavings = []PointSaving{{ID: 1, StoreID: 99, MemberID: 3, Points: 10, Status: PointSavingPending}}
@@ -353,12 +375,30 @@ func TestListVerificationsScoped(t *testing.T) {
 		{ID: 1, StoreID: 7, Kind: "ticket", RefID: 10},
 		{ID: 2, StoreID: 99, Kind: "ticket", RefID: 11},
 	}
-	views, total, err := svc.ListVerifications(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20})
+	views, total, err := svc.ListVerifications(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "ticket", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if total != 1 || len(views) != 1 || views[0].RefID != 10 {
 		t.Fatalf("expected 1 verification for store 7, got %+v (total %d)", views, total)
+	}
+}
+
+func TestListVerificationsFiltersKindAndKeyword(t *testing.T) {
+	svc, repo := newStoreTestService()
+	repo.verifications = []Verification{
+		{ID: 1, StoreID: 7, Kind: "ticket", Code: "ACT-001", ActivityTitle: "夏日活动", MemberName: "会员甲"},
+		{ID: 2, StoreID: 7, Kind: "coupon", Code: "CP-001", MemberName: "会员甲"},
+		{ID: 3, StoreID: 7, Kind: "ticket", Code: "ACT-002", ActivityTitle: "秋日活动", MemberName: "会员乙"},
+	}
+	views, total, err := svc.ListVerifications(
+		context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "ticket", "夏日",
+	)
+	if err != nil {
+		t.Fatalf("list filtered: %v", err)
+	}
+	if total != 1 || len(views) != 1 || views[0].Code != "ACT-001" {
+		t.Fatalf("expected matching activity ticket, got %+v (total %d)", views, total)
 	}
 }
 

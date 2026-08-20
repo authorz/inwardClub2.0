@@ -25,6 +25,7 @@ const (
 	PointSavingPending  = "pending"
 	PointSavingApproved = "approved"
 	PointSavingRejected = "rejected"
+	PointSavingReviewed = "reviewed"
 )
 
 // PointSavingDirection is fixed for this endpoint: every point_savings row is an
@@ -171,7 +172,7 @@ type StoreRepository interface {
 	ReviewPointSaving(ctx context.Context, storeID, requestID int64, decision, remark, reviewerType string, byID int64, now time.Time) (PointSaving, error)
 	ListTodayActivities(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]Activity, error)
 	ListTodayActivitySummaries(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]TodayActivity, error)
-	ListVerifications(ctx context.Context, storeID int64, limit, offset int) ([]Verification, int64, error)
+	ListVerifications(ctx context.Context, storeID int64, kind, keyword string, limit, offset int) ([]Verification, int64, error)
 	StaffHome(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) (StaffHomeData, error)
 	StaffTodayOperations(ctx context.Context, storeID int64, dayStart, dayEnd time.Time, operationType string, limit, offset int) (StaffTodayOperationsData, error)
 }
@@ -276,8 +277,13 @@ func (r *storeSQLRepository) ListPointSavings(ctx context.Context, storeID int64
 	where := "ps.store_id = ?"
 	args := []any{storeID}
 	if status != "" {
-		where += " AND ps.status = ?"
-		args = append(args, status)
+		if status == PointSavingReviewed {
+			where += " AND ps.status IN (?, ?)"
+			args = append(args, PointSavingApproved, PointSavingRejected)
+		} else {
+			where += " AND ps.status = ?"
+			args = append(args, status)
+		}
 	}
 	if phone != "" {
 		where += " AND m.phone LIKE ?"
@@ -372,24 +378,37 @@ func (r *storeSQLRepository) ListTodayActivitySummaries(ctx context.Context, sto
 	return out, rows.Err()
 }
 
-func (r *storeSQLRepository) ListVerifications(ctx context.Context, storeID int64, limit, offset int) ([]Verification, int64, error) {
+func (r *storeSQLRepository) ListVerifications(ctx context.Context, storeID int64, kind, keyword string, limit, offset int) ([]Verification, int64, error) {
+	where := "v.store_id = ?"
+	args := []any{storeID}
+	if kind != "" {
+		where += " AND v.target_type = ?"
+		args = append(args, kind)
+	}
+	if keyword != "" {
+		where += ` AND (COALESCE(t.verification_code, v.verification_no, '') LIKE ?
+			OR COALESCE(a.title, '') LIKE ? OR COALESCE(m.nickname, '') LIKE ?)`
+		like := "%" + keyword + "%"
+		args = append(args, like, like, like)
+	}
+	from := ` FROM verifications v
+		LEFT JOIN tickets t ON v.target_type = 'ticket' AND t.id = v.target_id
+		LEFT JOIN activities a ON a.id = t.activity_id
+		LEFT JOIN members m ON m.id = v.member_id`
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM verifications WHERE store_id = ?`, storeID).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)`+from+` WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
 	// Join the ticket→activity chain for the activity title, and members for the
 	// member name. Joins are ticket-specific; non-ticket targets simply leave the
 	// activity title empty.
 	q := `SELECT v.id, v.store_id, v.target_type, v.target_id,
-			COALESCE(t.verification_code, v.verification_no),
+			COALESCE(t.verification_code, v.verification_no, ''),
 			COALESCE(a.title,''), COALESCE(m.nickname,''),
-			v.verified_by_id, v.created_at
-		FROM verifications v
-		LEFT JOIN tickets t ON v.target_type = 'ticket' AND t.id = v.target_id
-		LEFT JOIN activities a ON a.id = t.activity_id
-		LEFT JOIN members m ON m.id = v.member_id
-		WHERE v.store_id = ? ORDER BY v.id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, storeID, limit, offset)
+			v.verified_by_id, v.created_at` + from + `
+		WHERE ` + where + ` ORDER BY v.id DESC LIMIT ? OFFSET ?`
+	queryArgs := append(append([]any(nil), args...), limit, offset)
+	rows, err := r.db.QueryContext(ctx, q, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -553,7 +572,7 @@ func (s *StoreService) VerifyTicket(ctx context.Context, storeID int64, code str
 func (s *StoreService) ListPointSavings(ctx context.Context, storeID int64, page httpx.Page, status, phone string) ([]PointSavingView, int64, error) {
 	status = strings.TrimSpace(status)
 	switch status {
-	case "", PointSavingPending, PointSavingApproved, PointSavingRejected:
+	case "", PointSavingPending, PointSavingApproved, PointSavingRejected, PointSavingReviewed:
 	default:
 		return nil, 0, apperr.Invalid("invalid status")
 	}
@@ -642,8 +661,16 @@ func (s *StoreService) TodayActivities(ctx context.Context, storeID int64) ([]To
 }
 
 // ListVerifications returns the store's verification history, newest first.
-func (s *StoreService) ListVerifications(ctx context.Context, storeID int64, page httpx.Page) ([]VerificationView, int64, error) {
-	items, total, err := s.repo.ListVerifications(ctx, storeID, page.Limit(), page.Offset())
+func (s *StoreService) ListVerifications(ctx context.Context, storeID int64, page httpx.Page, kind, keyword string) ([]VerificationView, int64, error) {
+	kind = strings.TrimSpace(kind)
+	if kind != "" && kind != verificationTicket && kind != "coupon" {
+		return nil, 0, apperr.Invalid("invalid verification kind")
+	}
+	keyword = strings.TrimSpace(keyword)
+	if len([]rune(keyword)) > 100 {
+		return nil, 0, apperr.Invalid("核销记录搜索内容不能超过 100 个字符")
+	}
+	items, total, err := s.repo.ListVerifications(ctx, storeID, kind, keyword, page.Limit(), page.Offset())
 	if err != nil {
 		return nil, 0, err
 	}

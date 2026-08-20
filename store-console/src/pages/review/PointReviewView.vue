@@ -22,8 +22,14 @@ import {
 } from '@/components/common'
 import type { PointSavingRequest } from '@/types/models'
 
-const list = useAsyncList<PointSavingRequest>((params) => pointSavingService.list(params), {
-  initialFilters: { status: 'pending', keyword: '' },
+const props = withDefaults(defineProps<{ mode?: 'pending' | 'history' }>(), { mode: 'pending' })
+const isHistory = props.mode === 'history'
+const historyStatusOptions = toOptions(REVIEW_STATUS).filter((item) => item.value !== 'pending')
+const list = useAsyncList<PointSavingRequest>((params) => pointSavingService.list({
+  ...params,
+  status: params.status || (isHistory ? 'reviewed' : 'pending'),
+}), {
+  initialFilters: { status: '', keyword: '' },
 })
 const action = useAsyncAction()
 
@@ -122,58 +128,64 @@ function reviewerCell(row: PointSavingRequest) {
   ])
 }
 
-const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
-  {
-    title: '会员',
-    key: 'member',
-    width: 230,
-    render: memberCell,
-  },
-  phoneColumn<PointSavingRequest>('手机号', (r) => r.phone),
-  textColumn<PointSavingRequest>('存入积分', (r) => r.points, { align: 'right' }),
-  statusColumn<PointSavingRequest>('状态', REVIEW_STATUS, (r) => r.status, { width: 100 }),
-  {
-    title: '审核人',
-    key: 'reviewer',
-    width: 260,
-    render: reviewerCell,
-  },
-  dateColumn<PointSavingRequest>('提交时间', (r) => r.submittedAt ?? r.createdAt, { width: 150 }),
-  dateColumn<PointSavingRequest>('审核时间', (r) => r.reviewedAt, { width: 150 }),
-  {
-    title: '操作',
-    key: 'actions',
-    width: 100,
-    fixed: 'right',
-    render: (row: PointSavingRequest) =>
-      h(
-        PermissionButton,
-        {
-          permissions: [PERM.pointReview],
-          type: 'primary',
-          text: true,
-          disabled: row.status !== 'pending',
-          onClick: () => void openReview(row),
-        },
-        { default: () => '审核' },
-      ),
-  },
-])
+const columns = computed<DataTableColumns<PointSavingRequest>>(() => {
+  const baseColumns: DataTableColumns<PointSavingRequest> = [
+    {
+      title: '会员',
+      key: 'member',
+      width: 230,
+      render: memberCell,
+    },
+    phoneColumn<PointSavingRequest>('手机号', (r) => r.phone),
+    textColumn<PointSavingRequest>('存入积分', (r) => r.points, { align: 'right' }),
+    statusColumn<PointSavingRequest>('状态', REVIEW_STATUS, (r) => r.status, { width: 100 }),
+    {
+      title: '审核人',
+      key: 'reviewer',
+      width: 260,
+      render: reviewerCell,
+    },
+    dateColumn<PointSavingRequest>('提交时间', (r) => r.submittedAt ?? r.createdAt, { width: 150 }),
+    dateColumn<PointSavingRequest>('审核时间', (r) => r.reviewedAt, { width: 150 }),
+  ]
+  if (isHistory) return baseColumns
+  return [
+    ...baseColumns,
+    {
+      title: '操作',
+      key: 'actions',
+      width: 100,
+      fixed: 'right',
+      render: (row: PointSavingRequest) =>
+        h(
+          PermissionButton,
+          {
+            permissions: [PERM.pointReview],
+            type: 'primary',
+            text: true,
+            disabled: row.status !== 'pending',
+            onClick: () => void openReview(row),
+          },
+          { default: () => '审核' },
+        ),
+    },
+  ]
+})
 </script>
 
 <template>
   <div>
     <PageHeader
-      title="积分审核"
-      description="审核会员存积分申请"
+      :title="isHistory ? '审核记录' : '积分审核'"
+      :description="isHistory ? '查看本店已处理的积分存入申请' : '审核会员存积分申请'"
     />
 
     <StatusFilterBar
-      :status-options="toOptions(REVIEW_STATUS)"
+      :status-options="isHistory ? historyStatusOptions : []"
       :status="(list.filters.status as string) ?? null"
       :keyword="(list.filters.keyword as string) ?? ''"
       :loading="list.loading.value"
-      search-placeholder="搜索会员"
+      search-placeholder="输入手机号，支持模糊搜索"
       @update:status="list.filters.status = $event ?? ''"
       @update:keyword="list.filters.keyword = $event"
       @apply="list.applyFilters({})"
@@ -187,12 +199,13 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => [
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
-      empty-text="暂无待审核申请"
+      :empty-text="isHistory ? '暂无审核记录' : '暂无待审核申请'"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
     />
 
     <ReviewDialog
+      v-if="!isHistory"
       v-model:show="dialogShow"
       title="积分存入审核"
       :loading="action.running.value"

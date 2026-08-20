@@ -11,7 +11,11 @@ import type { ReviewStatus } from '@/constants/enums'
 
 export const pointSavingService = {
   list(params?: PageQuery) {
-    return getPaged<PointSavingRequest>(API_PATHS.pointSavings.list, params)
+    const { keyword, ...query } = params ?? {}
+    return getPaged<PointSavingRequest>(API_PATHS.pointSavings.list, {
+      ...query,
+      ...(keyword ? { phone: keyword } : {}),
+    })
   },
   detail(id: string | number) {
     return get<PointSavingRequest>(API_PATHS.pointSavings.detail(id))

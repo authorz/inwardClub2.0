@@ -84,30 +84,23 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
-    name: 'reviews',
-    title: '核销与审核',
-    icon: 'review',
+    name: 'activity-management',
+    title: '活动管理',
+    icon: 'activity',
     items: [
+      {
+        name: 'activities',
+        path: '/activities',
+        title: '活动列表',
+        icon: 'activity',
+        permissions: [PERM.activityRead, PERM.activityWrite],
+      },
       {
         name: 'activity-verify',
         path: '/activity-verify',
         title: '活动核销',
         icon: 'ticket',
         permissions: [PERM.ticketVerify],
-      },
-      {
-        name: 'ticket-verify',
-        path: '/ticket-verify',
-        title: '票券核销',
-        icon: 'coupon',
-        permissions: [PERM.ticketVerify],
-      },
-      {
-        name: 'point-review',
-        path: '/point-review',
-        title: '积分审核',
-        icon: 'review',
-        permissions: [PERM.pointReview],
       },
       {
         name: 'verifications',
@@ -119,8 +112,29 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
+    name: 'point-reviews',
+    title: '积分审核',
+    icon: 'review',
+    items: [
+      {
+        name: 'point-review',
+        path: '/point-review',
+        title: '积分审核',
+        icon: 'review',
+        permissions: [PERM.pointReview],
+      },
+      {
+        name: 'point-review-records',
+        path: '/point-review-records',
+        title: '审核记录',
+        icon: 'records',
+        permissions: [PERM.pointReview],
+      },
+    ],
+  },
+  {
     name: 'catalog',
-    title: '商品与活动',
+    title: '商品管理',
     icon: 'catalog',
     items: [
       {
@@ -136,13 +150,6 @@ export const MENU: MenuGroup[] = [
         title: '商品分类',
         icon: 'catalog',
         permissions: [PERM.catalogRead, PERM.catalogWrite],
-      },
-      {
-        name: 'activities',
-        path: '/activities',
-        title: '本店活动',
-        icon: 'activity',
-        permissions: [PERM.activityRead, PERM.activityWrite],
       },
       {
         name: 'coupons',

@@ -152,7 +152,9 @@ func (h *StoreHandler) ListVerifications(c *gin.Context) {
 		return
 	}
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListVerifications(c.Request.Context(), storeID, page)
+	views, total, err := h.svc.ListVerifications(
+		c.Request.Context(), storeID, page, c.Query("kind"), c.Query("keyword"),
+	)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
