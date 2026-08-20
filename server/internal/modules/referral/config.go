@@ -44,6 +44,9 @@ type ConfigView struct {
 	FirstLowSpendRewardCoins  int64 `json:"firstLowSpendRewardCoins"`
 	FirstLowSpendRewardPoints int64 `json:"firstLowSpendRewardPoints"`
 	CommissionRateBasisPoints int64 `json:"commissionRateBasisPoints"`
+	RewardedMembers           int64 `json:"rewardedMembers"`
+	CumulativeRewardCoins     int64 `json:"cumulativeRewardCoins"`
+	CumulativeRewardPoints    int64 `json:"cumulativeRewardPoints"`
 }
 
 // ParseConfig validates the admin-authored invite reward document.
@@ -69,6 +72,13 @@ func ParseConfig(raw []byte) (Config, error) {
 
 type Repository interface {
 	ActiveRule(ctx context.Context) (Rule, bool, error)
+	RewardSummary(ctx context.Context, inviterMemberID int64) (RewardSummary, error)
+}
+
+type RewardSummary struct {
+	RewardedMembers int64
+	Coins           int64
+	Points          int64
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -96,19 +106,49 @@ func (r *sqlRepository) ActiveRule(ctx context.Context) (Rule, bool, error) {
 	return Rule{Version: version, Config: cfg}, true, nil
 }
 
+func (r *sqlRepository) RewardSummary(ctx context.Context, inviterMemberID int64) (RewardSummary, error) {
+	const q = `SELECT COUNT(*), COALESCE(SUM(invitee_rewards.coins), 0),
+		COALESCE(SUM(invitee_rewards.points), 0)
+		FROM (
+			SELECT invitee_member_id, SUM(coin_delta) AS coins, SUM(points_delta) AS points
+			FROM invitation_reward_events
+			WHERE inviter_member_id = ?
+			GROUP BY invitee_member_id
+			HAVING coins > 0 OR points > 0
+		) AS invitee_rewards`
+	var summary RewardSummary
+	if err := r.db.QueryRowContext(ctx, q, inviterMemberID).Scan(
+		&summary.RewardedMembers, &summary.Coins, &summary.Points,
+	); err != nil {
+		return RewardSummary{}, apperr.Internal(err)
+	}
+	return summary, nil
+}
+
 type Service struct{ repo Repository }
 
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
 
-func (s *Service) Config(ctx context.Context) (ConfigView, error) {
-	rule, ok, err := s.repo.ActiveRule(ctx)
-	if err != nil || !ok {
+func (s *Service) Config(ctx context.Context, inviterMemberID int64) (ConfigView, error) {
+	summary, err := s.repo.RewardSummary(ctx, inviterMemberID)
+	if err != nil {
 		return ConfigView{}, err
 	}
-	return ConfigView{
-		Enabled:                   true,
-		FirstLowSpendRewardCoins:  rule.Config.FirstLowSpendRewardCoins,
-		FirstLowSpendRewardPoints: rule.Config.FirstLowSpendRewardPoints,
-		CommissionRateBasisPoints: rule.Config.CommissionRateBasisPoints,
-	}, nil
+	rule, ok, err := s.repo.ActiveRule(ctx)
+	if err != nil {
+		return ConfigView{}, err
+	}
+	view := ConfigView{
+		RewardedMembers:        summary.RewardedMembers,
+		CumulativeRewardCoins:  summary.Coins,
+		CumulativeRewardPoints: summary.Points,
+	}
+	if !ok {
+		return view, nil
+	}
+	view.Enabled = true
+	view.FirstLowSpendRewardCoins = rule.Config.FirstLowSpendRewardCoins
+	view.FirstLowSpendRewardPoints = rule.Config.FirstLowSpendRewardPoints
+	view.CommissionRateBasisPoints = rule.Config.CommissionRateBasisPoints
+	return view, nil
 }

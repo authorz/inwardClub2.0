@@ -41,8 +41,7 @@
     inset 0 1rpx 0 rgba(255, 255, 255, 0.18);
 }
 .iv__pass-head,
-.iv__reward-head,
-.iv__overview-head {
+.iv__reward-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -176,10 +175,14 @@
 .iv__step-title { display: block; font-size: 26rpx; font-weight: 600; line-height: 1.4; }
 .iv__step-desc { display: block; margin-top: 6rpx; color: rgba(255, 255, 255, 0.58); font-size: 24rpx; line-height: 1.5; }
 
-.iv__overview-head { align-items: flex-end; }
-.iv__overview-total { flex: none; padding-bottom: 2rpx; text-align: right; }
-.iv__overview-num { font-size: 52rpx; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
-.iv__overview-unit { margin-left: 8rpx; color: rgba(255, 255, 255, 0.58); font-size: 20rpx; }
+.iv__overview-metrics { display: flex; margin-top: 30rpx; border-top: 1rpx solid rgba(255, 255, 255, 0.16); border-bottom: 1rpx solid rgba(255, 255, 255, 0.16); }
+.iv__overview-metric { flex: 1; min-width: 0; padding: 26rpx 18rpx 28rpx; }
+.iv__overview-metric:first-child { padding-left: 0; }
+.iv__overview-metric:last-child { padding-right: 0; }
+.iv__overview-metric + .iv__overview-metric { border-left: 1rpx solid rgba(255, 255, 255, 0.14); }
+.iv__overview-label { display: block; min-height: 60rpx; color: rgba(255, 255, 255, 0.58); font-size: 20rpx; line-height: 1.5; }
+.iv__overview-value { display: block; margin-top: 8rpx; color: rgba(255, 255, 255, 0.96); font-size: 46rpx; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.iv__overview-points { display: block; margin-top: 18rpx; color: rgba(255, 255, 255, 0.58); font-size: 22rpx; line-height: 1.5; }
 .iv__record-list { margin-top: 30rpx; border-top: 1rpx solid rgba(255, 255, 255, 0.16); }
 .iv__record-row { display: flex; align-items: center; gap: 20rpx; min-height: 112rpx; border-bottom: 1rpx solid rgba(255, 255, 255, 0.14); }
 .iv__record-avatar { flex: none; width: 64rpx; height: 64rpx; overflow: hidden; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.12); }

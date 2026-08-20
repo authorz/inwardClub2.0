@@ -45,6 +45,9 @@ function rewardView(config) {
     awardStep: hasCommission
       ? `邀请人首奖 ${firstSummary || '按配置发放'}，后续继续累计金币`
       : `邀请人获得 ${firstSummary}`,
+    rewardedMembers: Number((config && config.rewardedMembers) || 0),
+    cumulativeRewardCoins: Number((config && config.cumulativeRewardCoins) || 0),
+    cumulativeRewardPoints: Number((config && config.cumulativeRewardPoints) || 0),
     rules: rules.map((copy, index) => ({ no: index < 9 ? `0${index + 1}` : String(index + 1), copy })),
   };
 }
@@ -66,10 +69,16 @@ Page({
       wx.reLaunch({ url });
       return;
     }
-    // Server GET /mini/invitations returns an ARRAY of InvitationView
-    // {memberId,nickname,avatarUrl,joinedAt} — no invite code and no
-    // effective/pending/rules aggregates. The invite code comes from the member
-    // profile (MemberProfile.inviteCode).
+    this.canLoadInvitationData = true;
+  },
+
+  onShow() {
+    if (!this.canLoadInvitationData || !auth.isLoggedIn()) return;
+    this.loadInvitationData();
+  },
+
+  loadInvitationData() {
+    this.setData({ loading: true });
     Promise.all([
       api.getInvitations().catch(() => ({ data: [] })),
       api.getMe().catch(() => ({ data: {} })),

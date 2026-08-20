@@ -6,13 +6,18 @@ import (
 )
 
 type fakeRepository struct {
-	rule Rule
-	ok   bool
-	err  error
+	rule    Rule
+	summary RewardSummary
+	ok      bool
+	err     error
 }
 
 func (f fakeRepository) ActiveRule(context.Context) (Rule, bool, error) {
 	return f.rule, f.ok, f.err
+}
+
+func (f fakeRepository) RewardSummary(context.Context, int64) (RewardSummary, error) {
+	return f.summary, f.err
 }
 
 func TestParseConfig(t *testing.T) {
@@ -44,25 +49,33 @@ func TestParseConfigRejectsEmptyRewards(t *testing.T) {
 }
 
 func TestServiceConfigHidesInactiveValues(t *testing.T) {
-	svc := NewService(fakeRepository{})
-	view, err := svc.Config(context.Background())
+	svc := NewService(fakeRepository{summary: RewardSummary{RewardedMembers: 1, Coins: 80}})
+	view, err := svc.Config(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Config: %v", err)
 	}
 	if view.Enabled || view.FirstLowSpendRewardCoins != 0 || view.CommissionRateBasisPoints != 0 {
 		t.Fatalf("inactive config leaked values: %+v", view)
 	}
+	if view.RewardedMembers != 1 || view.CumulativeRewardCoins != 80 {
+		t.Fatalf("inactive rule hid historical summary: %+v", view)
+	}
 }
 
 func TestServiceConfigReturnsActiveValues(t *testing.T) {
-	svc := NewService(fakeRepository{ok: true, rule: Rule{Version: 2, Config: Config{
+	svc := NewService(fakeRepository{ok: true, summary: RewardSummary{
+		RewardedMembers: 2, Coins: 120, Points: 2000,
+	}, rule: Rule{Version: 2, Config: Config{
 		FirstLowSpendRewardCoins: 50, FirstLowSpendRewardPoints: 2000, CommissionRateBasisPoints: 1000,
 	}}})
-	view, err := svc.Config(context.Background())
+	view, err := svc.Config(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Config: %v", err)
 	}
 	if !view.Enabled || view.FirstLowSpendRewardCoins != 50 || view.FirstLowSpendRewardPoints != 2000 || view.CommissionRateBasisPoints != 1000 {
 		t.Fatalf("unexpected view: %+v", view)
+	}
+	if view.RewardedMembers != 2 || view.CumulativeRewardCoins != 120 || view.CumulativeRewardPoints != 2000 {
+		t.Fatalf("unexpected summary: %+v", view)
 	}
 }

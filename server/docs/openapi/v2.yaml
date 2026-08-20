@@ -652,12 +652,15 @@ components:
         joinedAt: { type: string, format: date-time, description: 'When the invited member joined' }
     InvitationRewardConfigView:
       type: object
-      description: Effective global invitation rewards displayed by the mini program.
+      description: Effective global invitation rewards and the current inviter's reward summary displayed by the mini program.
       properties:
         enabled: { type: boolean }
         firstLowSpendRewardCoins: { type: integer, format: int64, description: 'Whole coins granted to the inviter after the invitee first completes the store low-spend rule with WeChat payments' }
         firstLowSpendRewardPoints: { type: integer, format: int64 }
         commissionRateBasisPoints: { type: integer, format: int64, description: 'Commission rate for WeChat-paid food, activity, coin recharge and member-bound store collection orders; 1000 = 10%' }
+        rewardedMembers: { type: integer, format: int64, description: 'Distinct invited members whose net invitation reward remains positive' }
+        cumulativeRewardCoins: { type: integer, format: int64, description: 'Net whole coins credited after refund reversals' }
+        cumulativeRewardPoints: { type: integer, format: int64, description: 'Net points credited after refund reversals' }
     BindInvitationRequest:
       type: object
       required: [inviteCode]
@@ -2132,7 +2135,8 @@ paths:
       summary: Get the effective invitation reward configuration
       description: >
         Returns only the active published global invite_reward rule. When the
-        rule is disabled, enabled is false and all numeric values are zero.
+        rule is disabled, enabled is false and configured reward values are
+        zero; the authenticated inviter's historical reward summary is still returned.
       responses:
         '200':
           description: effective invitation reward configuration

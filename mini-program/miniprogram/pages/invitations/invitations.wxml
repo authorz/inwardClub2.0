@@ -117,16 +117,25 @@
       </view>
 
       <view class="iv__section iv__overview">
-        <view class="iv__overview-head">
-          <view class="iv__section-head">
-            <text class="iv__section-title">邀请概览</text>
-            <text class="iv__section-desc">记录已通过你的邀请完成注册的好友</text>
+        <view class="iv__section-head">
+          <text class="iv__section-title">邀请概览</text>
+          <text class="iv__section-desc">记录邀请人数、已获奖励人数和累计金币</text>
+        </view>
+        <view class="iv__overview-metrics">
+          <view class="iv__overview-metric">
+            <text class="iv__overview-label">邀请好友</text>
+            <text class="iv__overview-value">{{info.invited}}</text>
           </view>
-          <view class="iv__overview-total">
-            <text class="iv__overview-num">{{info.invited}}</text>
-            <text class="iv__overview-unit">位好友</text>
+          <view class="iv__overview-metric">
+            <text class="iv__overview-label">累计金币奖励</text>
+            <text class="iv__overview-value">{{info.reward.cumulativeRewardCoins}}</text>
+          </view>
+          <view class="iv__overview-metric">
+            <text class="iv__overview-label">已获奖励</text>
+            <text class="iv__overview-value">{{info.reward.rewardedMembers}}</text>
           </view>
         </view>
+        <text wx:if="{{info.reward.cumulativeRewardPoints}}" class="iv__overview-points">另累计获得 {{info.reward.cumulativeRewardPoints}} 积分</text>
 
         <view class="iv__record-list" wx:if="{{info.records.length}}">
           <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">

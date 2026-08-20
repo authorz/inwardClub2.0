@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -14,7 +15,9 @@ import (
 	"github.com/pressly/goose/v3"
 
 	appdb "github.com/inwardclub/server/db"
+	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/platform/config"
+	platdb "github.com/inwardclub/server/internal/platform/db"
 )
 
 const migrationsDir = "migrations"
@@ -53,7 +56,10 @@ func run() error {
 
 	switch command {
 	case "up":
-		return goose.Up(db, migrationsDir)
+		if err := goose.Up(db, migrationsDir); err != nil {
+			return err
+		}
+		return referral.ReconcileMissedRechargeRewards(context.Background(), &platdb.DB{DB: db})
 	case "down":
 		return goose.Down(db, migrationsDir)
 	case "status":
