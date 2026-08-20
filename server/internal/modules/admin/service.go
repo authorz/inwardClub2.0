@@ -827,6 +827,12 @@ func (s *Service) StoreResetCashierPassword(ctx context.Context, storeID, id int
 	return CashierCredentialView{AdminAccountView: adminAccountView(row), InitialPassword: password}, nil
 }
 
+// StoreDeleteCashier permanently removes one ordinary administrator from the
+// caller's own store. Repository scoping prevents cross-store deletion.
+func (s *Service) StoreDeleteCashier(ctx context.Context, storeID, id int64) error {
+	return s.repo.DeleteCashier(ctx, storeID, id)
+}
+
 // AdminCreateStaffAccount creates a staff_accounts row for any store; unlike
 // the store console, the caller supplies the target storeId.
 func (s *Service) AdminCreateStaffAccount(ctx context.Context, req AdminStaffAccountCreateRequest) (StaffAccountView, error) {

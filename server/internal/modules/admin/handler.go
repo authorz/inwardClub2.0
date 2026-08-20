@@ -1073,6 +1073,24 @@ func (h *Handler) StoreResetCashierPassword(c *gin.Context) {
 	httpx.OK(c, view)
 }
 
+// StoreDeleteCashier handles DELETE /store/cashiers/:cashierID.
+func (h *Handler) StoreDeleteCashier(c *gin.Context) {
+	scope, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "cashierID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreDeleteCashier(c.Request.Context(), scope, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.NoData(c)
+}
+
 // StoreCreateStaffAccount handles POST /store/staff-accounts.
 func (h *Handler) StoreCreateStaffAccount(c *gin.Context) {
 	scope, ok := storescope.MustFromContext(c)

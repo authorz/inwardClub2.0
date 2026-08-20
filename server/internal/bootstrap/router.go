@@ -395,6 +395,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	managerWrite.PATCH("/cashiers/:cashierID", a.adminHandler.StoreUpdateCashier)
 	managerWrite.POST("/cashiers/:cashierID/disable", a.adminHandler.StoreDisableCashier)
 	managerWrite.POST("/cashiers/:cashierID/password-reset", a.adminHandler.StoreResetCashierPassword)
+	managerWrite.DELETE("/cashiers/:cashierID", a.adminHandler.StoreDeleteCashier)
 }
 
 // registerStoreConsole wires the store console CRUD onto the store audience.

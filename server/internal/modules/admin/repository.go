@@ -91,6 +91,7 @@ type Repository interface {
 	UpdateCashier(ctx context.Context, storeID, id int64, displayName string) (AdminAccount, error)
 	DisableCashier(ctx context.Context, storeID, id int64) (AdminAccount, error)
 	ResetCashierPassword(ctx context.Context, storeID, id int64, passwordHash string) (AdminAccount, error)
+	DeleteCashier(ctx context.Context, storeID, id int64) error
 
 	// Headquarters account management (admin_accounts, role=super_admin or
 	// role=store_admin). Not scoped to a single store: headquarters manages
@@ -1311,6 +1312,22 @@ func (r *sqlRepository) ResetCashierPassword(ctx context.Context, storeID, id in
 		}
 	}
 	return r.GetCashier(ctx, storeID, id)
+}
+
+// DeleteCashier permanently removes an ordinary administrator belonging to the
+// caller's own store. The role predicate protects store super administrators.
+func (r *sqlRepository) DeleteCashier(ctx context.Context, storeID, id int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM admin_accounts
+		WHERE id = ? AND store_id = ? AND role = 'cashier'`, id, storeID)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := r.GetCashier(ctx, storeID, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) (StaffAccount, error) {

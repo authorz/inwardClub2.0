@@ -1,6 +1,6 @@
 /**
  * 门店普通管理员（内部兼容 cashier 角色）与员工账号服务。
- * 停用、重置密码为高风险写操作，带 Idempotency-Key。
+ * 停用、重置密码和删除为高风险写操作，带 Idempotency-Key。
  */
 
 import { del, getPaged, patch, post } from '../request'
@@ -47,6 +47,10 @@ export const cashierService = {
   /** 重置密码：服务端生成新密码并在响应 initialPassword 中一次性返回，不接受入参密码。 */
   resetPassword(id: string | number) {
     return post<Cashier>(API_PATHS.staff.cashierPasswordReset(id), undefined, { idempotent: true })
+  },
+  /** 永久删除本门店普通管理员账号。 */
+  remove(id: string | number) {
+    return del<void>(API_PATHS.staff.cashier(id), { idempotent: true })
   },
 }
 

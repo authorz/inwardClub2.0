@@ -446,6 +446,18 @@ func (f *fakeRepo) ResetCashierPassword(_ context.Context, storeID, id int64, pa
 	return a, nil
 }
 
+func (f *fakeRepo) DeleteCashier(_ context.Context, storeID, id int64) error {
+	if f.err != nil {
+		return f.err
+	}
+	a, ok := f.cashiers[id]
+	if !ok || a.StoreID == nil || *a.StoreID != storeID || a.Role != "cashier" {
+		return apperr.NotFound("cashier not found")
+	}
+	delete(f.cashiers, id)
+	return nil
+}
+
 func (f *fakeRepo) GetStaffAccount(_ context.Context, storeID, id int64) (StaffAccount, error) {
 	if f.err != nil {
 		return StaffAccount{}, f.err
@@ -1432,6 +1444,37 @@ func TestStoreResetCashierPasswordGeneratesNewPassword(t *testing.T) {
 	}
 	if len(view.InitialPassword) != generatedPasswordLength {
 		t.Fatalf("expected generated password of length %d, got %q", generatedPasswordLength, view.InitialPassword)
+	}
+}
+
+func TestStoreDeleteCashierRemovesOwnStoreAdministrator(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo, fakeStores{}, nil)
+	created, err := svc.StoreCreateCashier(context.Background(), 42, CashierCreateRequest{Username: "cashier1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := svc.StoreDeleteCashier(context.Background(), 42, created.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, ok := repo.cashiers[created.ID]; ok {
+		t.Fatal("expected cashier to be deleted")
+	}
+}
+
+func TestStoreDeleteCashierCannotReachOtherStore(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo, fakeStores{}, nil)
+	created, err := svc.StoreCreateCashier(context.Background(), 42, CashierCreateRequest{Username: "cashier1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	err = svc.StoreDeleteCashier(context.Background(), 99, created.ID)
+	if apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected NOT_FOUND for cross-store delete, got %v", err)
+	}
+	if _, ok := repo.cashiers[created.ID]; !ok {
+		t.Fatal("cross-store delete must not remove cashier")
 	}
 }
 

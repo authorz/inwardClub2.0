@@ -92,6 +92,18 @@ function resetPassword(row: Cashier) {
   })
 }
 
+function remove(row: Cashier) {
+  const label = row.displayName || row.username || String(row.id)
+  void action.run(() => cashierService.remove(row.id), {
+    confirm: {
+      content: `确认永久删除管理员「${label}」？删除后该账号将立即无法登录，且无法恢复`,
+      danger: true,
+    },
+    successMessage: '管理员已删除',
+    onSuccess: () => list.refresh(),
+  })
+}
+
 const columns = computed<DataTableColumns<Cashier>>(() => [
   textColumn<Cashier>('姓名', (r) => r.displayName),
   textColumn<Cashier>('登录账号', (r) => r.username),
@@ -99,7 +111,7 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 200,
+    width: 260,
     fixed: 'right',
     render: (row: Cashier) =>
       h(NSpace, { size: 4 }, {
@@ -124,6 +136,16 @@ const columns = computed<DataTableColumns<Cashier>>(() => [
               onClick: () => disable(row),
             },
             { default: () => '停用' },
+          ),
+          h(
+            PermissionButton,
+            {
+              permissions: [PERM.staffWrite],
+              type: 'error',
+              text: true,
+              onClick: () => remove(row),
+            },
+            { default: () => '删除' },
           ),
         ],
       }),

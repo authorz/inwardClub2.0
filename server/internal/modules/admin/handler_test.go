@@ -735,6 +735,52 @@ func TestStoreDisableCashierHandlerCannotReachOtherStore(t *testing.T) {
 	}
 }
 
+func TestStoreDeleteCashierHandlerRemovesOwnStoreAdministrator(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storeID := int64(42)
+	repo := &fakeRepo{cashiers: map[int64]AdminAccount{
+		1: {ID: 1, Username: "cashier1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.DELETE("/store/cashiers/:cashierID", withStoreScope(42), h.StoreDeleteCashier)
+
+	req := httptest.NewRequest(http.MethodDelete, "/store/cashiers/1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := repo.cashiers[1]; ok {
+		t.Fatal("expected cashier to be deleted")
+	}
+}
+
+func TestStoreDeleteCashierHandlerCannotReachOtherStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storeID := int64(42)
+	repo := &fakeRepo{cashiers: map[int64]AdminAccount{
+		1: {ID: 1, Username: "cashier1", Role: "cashier", StoreID: &storeID, Status: StatusActive},
+	}}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.DELETE("/store/cashiers/:cashierID", withStoreScope(99), h.StoreDeleteCashier)
+
+	req := httptest.NewRequest(http.MethodDelete, "/store/cashiers/1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := repo.cashiers[1]; !ok {
+		t.Fatal("cross-store delete must not remove cashier")
+	}
+}
+
 func TestStoreCreateStaffAccountHandlerScopesToStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
