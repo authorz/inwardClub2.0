@@ -6,7 +6,7 @@
 
 <view wx:elif="{{store}}" class="cs">
   <view class="cs__intro">
-    <image class="cs__intro-icon" src="/assets/mine-menu/customer-service.png" mode="aspectFit" />
+    <image class="cs__intro-icon" src="https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png" mode="aspectFit" />
     <text class="cs__title">咨询客服</text>
     <text class="cs__subtitle">当前门店客服将为你提供帮助</text>
   </view>
