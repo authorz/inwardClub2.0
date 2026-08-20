@@ -42,16 +42,17 @@
       </view>
 
       <button class="ic-btn ic-btn-block iv__share" open-type="share">
-        <view class="ic-ic ic-ic-share ic-ic--sm iv__share-icon"></view>
+        <image class="iv__share-icon" src="/pages/invitations/assets/invite-share.svg" mode="aspectFit" />
         <text>邀请微信好友</text>
       </button>
-      <view class="iv__invite-meta">
-        <text class="iv__invite-hint">分享后，邀请奖励会自动累计</text>
+      <view class="iv__code-line">
+        <text class="iv__code-label">我的邀请码</text>
         <view class="iv__code-action" bindtap="copyCode" aria-role="button" aria-label="复制邀请码 {{info.inviteCode}}">
-          <view class="ic-ic ic-ic-copy ic-ic--sm iv__copy-icon"></view>
           <text class="iv__code">{{info.inviteCode}}</text>
+          <image class="iv__copy-icon" src="/pages/invitations/assets/invite-copy.svg" mode="aspectFit" />
         </view>
       </view>
+      <text class="iv__invite-hint">分享后，邀请奖励会自动累计</text>
 
       <view wx:if="{{!info.inviterBound}}" class="iv__bind">
         <view class="iv__section-head">
