@@ -12,16 +12,30 @@
 
   <view wx:else class="spr__list">
     <view class="spr__row" wx:for="{{list}}" wx:key="id">
-      <view class="spr__top" data-id="{{item.id}}" bindtap="goDetail">
-        <view class="spr__head">
-          <text class="spr__member">{{item.memberName}}</text>
-          <text class="spr__phone">{{item.phoneText}}</text>
+      <view class="spr__content" data-id="{{item.id}}" bindtap="goDetail" hover-class="spr__content--hover" aria-role="button" aria-label="{{item.memberName}}，{{item.phoneText}}，存入 {{item.pointsText}} 积分，{{item.timeText}}">
+        <view class="spr__top">
+          <view class="spr__identity">
+            <view class="spr__avatar">
+              <image wx:if="{{item.memberAvatarUrl}}" class="spr__avatar-image" src="{{item.memberAvatarUrl}}" mode="aspectFill" />
+              <text wx:else class="spr__avatar-text">{{item.memberAvatarText}}</text>
+            </view>
+            <view class="spr__head">
+              <text class="spr__member ic-ellipsis">{{item.memberName}}</text>
+              <text class="spr__phone">{{item.phoneText}}</text>
+            </view>
+          </view>
+          <view class="spr__points">
+            <text class="spr__points-value">+{{item.pointsText}}</text>
+            <text class="spr__points-label">存入积分</text>
+          </view>
         </view>
-        <text class="spr__points">{{item.points}} 积分</text>
-      </view>
-      <view class="spr__meta" data-id="{{item.id}}" bindtap="goDetail">
-        <text class="spr__store ic-ellipsis">{{item.directionLabel}} · {{item.storeName}}</text>
-        <text class="spr__time">{{item.timeText}}</text>
+        <view class="spr__meta">
+          <view class="spr__store">
+            <image class="spr__store-icon" src="/assets/icons/location-address.svg" mode="aspectFit" />
+            <text class="spr__store-name ic-ellipsis">{{item.storeName}}</text>
+          </view>
+          <text class="spr__time">{{item.timeText}}</text>
+        </view>
       </view>
       <view wx:if="{{item.pending}}" class="spr__actions">
         <button class="ic-btn ic-btn-ghost ic-btn-sm" data-id="{{item.id}}" data-decision="reject" catchtap="review">驳回</button>

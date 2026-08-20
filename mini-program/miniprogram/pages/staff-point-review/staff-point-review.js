@@ -3,7 +3,6 @@ const api = require('../../services/api');
 const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const http = require('../../utils/request');
-const { POINT_SAVING_LABEL } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
 const PS_STATUS = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
@@ -22,19 +21,23 @@ Page({
     api
       .staff.getPointSavings(params)
       .then((res) => {
-        const list = (res.data || []).map((p) => ({
-          id: p.id,
-          memberName: p.memberName,
-          phone: p.phone || '',
-          phoneText: fmt.maskPhone(p.phone) || '未绑定手机号',
-          directionLabel: POINT_SAVING_LABEL[p.direction] || p.direction,
-          points: p.points,
-          storeName: p.storeName,
-          status: p.status,
-          statusLabel: PS_STATUS[p.status] || p.status,
-          timeText: fmt.dateTime(p.createdAt),
-          pending: p.status === 'pending',
-        }));
+        const list = (res.data || []).map((p) => {
+          const memberName = p.memberName || '未命名会员';
+          return {
+            id: p.id,
+            memberName,
+            memberAvatarUrl: p.memberAvatarUrl || '',
+            memberAvatarText: String(memberName).trim().slice(0, 1) || '会',
+            phone: p.phone || '',
+            phoneText: fmt.maskPhone(p.phone) || '未绑定手机号',
+            pointsText: fmt.amount(p.points),
+            storeName: p.storeName || '当前门店',
+            status: p.status,
+            statusLabel: PS_STATUS[p.status] || p.status,
+            timeText: fmt.dateTime(p.createdAt),
+            pending: p.status === 'pending',
+          };
+        });
         this.setData({ loading: false, list });
       })
       .catch(() => this.setData({ loading: false }));
