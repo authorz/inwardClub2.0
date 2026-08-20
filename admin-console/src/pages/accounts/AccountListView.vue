@@ -72,7 +72,12 @@ function staffInitial(row: AccountEntity): string {
 }
 
 function staffAvatar(row: AccountEntity) {
-  const props = { class: 'staff-user__avatar', size: 36, round: true, objectFit: 'cover' as const }
+  const props = {
+    size: 36,
+    round: true,
+    objectFit: 'cover' as const,
+    style: { flex: '0 0 auto' },
+  }
   return row.avatarUrl
     ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
     : h(NAvatar, props, { default: () => staffInitial(row) })
@@ -85,9 +90,27 @@ const baseColumns: TableColumnList<AccountEntity> = isStaff
         key: 'member',
         width: 200,
         render: (row) =>
-          h('div', { class: 'staff-user' }, [
+          h('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'nowrap',
+              gap: 'var(--ic-space-sm)',
+              minWidth: 0,
+            },
+          }, [
             staffAvatar(row),
-            h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
+            h('span', {
+              style: {
+                minWidth: 0,
+                overflow: 'hidden',
+                color: 'var(--ic-color-text)',
+                fontWeight: 600,
+                lineHeight: 1.4,
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              },
+            }, staffNickname(row)),
           ]),
       },
       textColumn<AccountEntity>('手机号', 'phone', { width: 150 }),
@@ -537,23 +560,6 @@ const toolbarActions = [
 </template>
 
 <style scoped>
-.staff-user {
-  display: flex;
-  align-items: center;
-  gap: var(--ic-space-sm);
-  min-width: 0;
-}
-.staff-user__nickname {
-  min-width: 0;
-  overflow: hidden;
-  font-weight: 600;
-  color: var(--ic-color-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-user__avatar {
-  flex: 0 0 auto;
-}
 .form-note {
   margin-top: var(--ic-space-sm);
   font-size: var(--ic-font-xs);

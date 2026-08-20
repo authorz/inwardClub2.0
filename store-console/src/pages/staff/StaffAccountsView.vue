@@ -70,7 +70,12 @@ function staffInitial(row: StaffAccount) {
 }
 
 function staffAvatar(row: StaffAccount) {
-  const props = { class: 'staff-user__avatar', size: 36, round: true, objectFit: 'cover' as const }
+  const props = {
+    size: 36,
+    round: true,
+    objectFit: 'cover' as const,
+    style: { flex: '0 0 auto' },
+  }
   return row.avatarUrl
     ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
     : h(NAvatar, props, { default: () => staffInitial(row) })
@@ -213,9 +218,26 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
     key: 'member',
     width: 200,
     render: (row: StaffAccount) =>
-      h('div', { class: 'staff-user' }, [
+      h('div', {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'nowrap',
+          gap: 'var(--ic-space-3)',
+          minWidth: 0,
+        },
+      }, [
         staffAvatar(row),
-        h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
+        h('span', {
+          style: {
+            minWidth: 0,
+            overflow: 'hidden',
+            fontWeight: 600,
+            lineHeight: 1.4,
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          },
+        }, staffNickname(row)),
       ]),
   },
   textColumn<StaffAccount>('手机号', (r) => r.phone || '—', { width: 150 }),
@@ -410,22 +432,6 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
 </template>
 
 <style scoped>
-.staff-user {
-  display: flex;
-  align-items: center;
-  gap: var(--ic-space-3);
-  min-width: 0;
-}
-.staff-user__nickname {
-  min-width: 0;
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-user__avatar {
-  flex: 0 0 auto;
-}
 .staff-form {
   display: flex;
   flex-direction: column;
