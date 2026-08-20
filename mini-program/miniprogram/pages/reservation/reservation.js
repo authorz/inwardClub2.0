@@ -5,7 +5,7 @@ const auth = require('../../utils/auth');
 const http = require('../../utils/request');
 const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
-const { saveProfile } = require('../../utils/member-profile');
+const silentLogin = require('../../utils/silent-login');
 
 const RESERVATION_DAY_START_HOUR = 4;
 
@@ -380,51 +380,7 @@ Page({
 
   ensureReservationIdentity() {
     if (auth.hasReservationIdentity()) return Promise.resolve();
-    return this.requestSilentReservationIdentity(0);
-  },
-
-  requestSilentReservationIdentity(attempt) {
-    return new Promise((resolve, reject) => {
-      wx.login({
-        success: (loginRes) => {
-          if (!loginRes || !loginRes.code) {
-            reject(new Error('微信身份获取失败，请重试'));
-            return;
-          }
-          resolve(loginRes.code);
-        },
-        fail: () => reject(new Error('微信身份获取失败，请重试')),
-      });
-    })
-      .then((code) => api.preRegister({ code }))
-      .then((res) => {
-        const result = (res && res.data) || {};
-        const token = result.token || {};
-        if (!token.accessToken || !token.refreshToken) {
-          throw new Error('微信身份获取失败，请重试');
-        }
-        const subjectType = result.subjectType || 'pre_member';
-        auth.save({
-          accessToken: token.accessToken,
-          refreshToken: token.refreshToken,
-          subjectType,
-          storeId: result.storeId,
-        });
-        if (subjectType !== 'pre_member') {
-          const profile = result.profile || {};
-          saveProfile({
-            avatarUrl: profile.avatarUrl || '',
-            nickname: profile.nickname || '',
-            gender: profile.gender || '',
-          });
-        }
-      })
-      .catch((err) => {
-        if (attempt < 1 && err && (err.httpStatus === 401 || err.code === 'UNAUTHENTICATED')) {
-          return this.requestSilentReservationIdentity(attempt + 1);
-        }
-        throw err;
-      });
+    return silentLogin.ensure();
   },
 
   onWaitlist() {

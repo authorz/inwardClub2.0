@@ -3,6 +3,7 @@ const auth = require('../../utils/auth');
 const invitation = require('../../utils/invitation');
 const ui = require('../../utils/ui');
 const validation = require('../../utils/validation');
+const silentLogin = require('../../utils/silent-login');
 const { saveProfile } = require('../../utils/member-profile');
 
 function freshForm() {
@@ -31,43 +32,50 @@ Page({
   startLogin() {
     if (this.data.submitting) return;
     this.setData({ submitting: true });
-    wx.login({
-      success: (loginRes) => {
-        api
-          .wechatLogin({ code: loginRes.code })
-          .then((res) => {
-            const result = res.data || {};
-            const token = result.token || {};
-            const profile = result.profile || {};
-            if (result.isNew) {
-              this._registerTicket = result.registerTicket || '';
-              this.setData({ mode: 'register', submitting: false, form: freshForm() });
-              return;
-            }
+    // Let an app-launch silent login finish before the deliberate login flow so
+    // an older pre_member response can never overwrite the completed session.
+    silentLogin
+      .ensure()
+      .catch(() => null)
+      .then(() => {
+        wx.login({
+          success: (loginRes) => {
+            api
+              .wechatLogin({ code: loginRes.code })
+              .then((res) => {
+                const result = res.data || {};
+                const token = result.token || {};
+                const profile = result.profile || {};
+                if (result.isNew) {
+                  this._registerTicket = result.registerTicket || '';
+                  this.setData({ mode: 'register', submitting: false, form: freshForm() });
+                  return;
+                }
 
-            auth.save({
-              accessToken: token.accessToken,
-              refreshToken: token.refreshToken,
-              subjectType: result.subjectType,
-              storeId: result.storeId,
-            });
-            this._returningProfile = profile;
-            if (!profile.phone) {
-              this.setData({ mode: 'bindPhone', submitting: false, form: freshForm() });
-              return;
-            }
-            this.finishLogin(profile);
-          })
-          .catch((err) => {
+                auth.save({
+                  accessToken: token.accessToken,
+                  refreshToken: token.refreshToken,
+                  subjectType: result.subjectType,
+                  storeId: result.storeId,
+                });
+                this._returningProfile = profile;
+                if (!profile.phone) {
+                  this.setData({ mode: 'bindPhone', submitting: false, form: freshForm() });
+                  return;
+                }
+                this.finishLogin(profile);
+              })
+              .catch((err) => {
+                this.setData({ submitting: false });
+                ui.error((err && err.message) || '登录失败，请重试');
+              });
+          },
+          fail: () => {
             this.setData({ submitting: false });
-            ui.error((err && err.message) || '登录失败，请重试');
-          });
-      },
-      fail: () => {
-        this.setData({ submitting: false });
-        ui.error('登录失败，请重试');
-      },
-    });
+            ui.error('登录失败，请重试');
+          },
+        });
+      });
   },
 
   onChooseAvatar(e) {

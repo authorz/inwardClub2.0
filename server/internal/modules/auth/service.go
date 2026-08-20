@@ -103,8 +103,8 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 }
 
 // MiniPreRegister creates or reuses an OpenID-backed member. Completed members
-// recover their ordinary session; new users receive reservation-only access
-// without completing registration.
+// recover their ordinary session; new users receive restricted reservation and
+// activity-purchase access without completing registration.
 func (s *Service) MiniPreRegister(ctx context.Context, code string) (LoginResponse, error) {
 	var err error
 	code, err = inputvalidation.OpaqueToken("微信登录凭证", code, 2048)
@@ -252,6 +252,9 @@ func (s *Service) completePreRegisteredMember(ctx context.Context, memberID int6
 		if err == nil {
 			return nil
 		}
+		if platdb.IsDuplicateKey(err, "uq_members_phone") {
+			return apperr.Conflict("该手机号已绑定其他会员账号")
+		}
 		if platdb.IsDuplicate(err) {
 			continue
 		}
@@ -377,6 +380,12 @@ func (s *Service) createMember(ctx context.Context, openID, avatarURL, nickname,
 		})
 		if err == nil {
 			return id, nil
+		}
+		if platdb.IsDuplicateKey(err, "uq_members_phone") {
+			return 0, apperr.Conflict("该手机号已绑定其他会员账号")
+		}
+		if platdb.IsDuplicateKey(err, "uq_members_openid") {
+			return 0, apperr.Conflict("微信身份已绑定其他会员账号")
 		}
 		if platdb.IsDuplicate(err) {
 			continue // invite_code collided — retry with a fresh code

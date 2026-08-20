@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -92,6 +93,17 @@ func IsDuplicate(err error) bool {
 	var myErr *mysql.MySQLError
 	if errors.As(err, &myErr) {
 		return myErr.Number == 1062
+	}
+	return false
+}
+
+// IsDuplicateKey reports whether err is a duplicate-key violation for a named
+// MySQL unique index. It lets callers distinguish user-facing identity
+// conflicts from retryable random-code collisions without exposing SQL errors.
+func IsDuplicateKey(err error, key string) bool {
+	var myErr *mysql.MySQLError
+	if errors.As(err, &myErr) {
+		return myErr.Number == 1062 && strings.Contains(myErr.Message, key)
 	}
 	return false
 }

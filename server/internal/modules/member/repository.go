@@ -156,6 +156,9 @@ func (r *sqlRepository) UpdatePhone(ctx context.Context, id int64, phone string,
 		const updatePhone = `UPDATE members SET phone = ?, phone_changed_at = ?, updated_at = ? WHERE id = ?`
 		nowUTC := now.UTC()
 		if _, err := tx.ExecContext(ctx, updatePhone, phone, nowUTC, nowUTC, id); err != nil {
+			if platdb.IsDuplicateKey(err, "uq_members_phone") {
+				return apperr.Conflict("该手机号已绑定其他会员账号")
+			}
 			return apperr.Internal(err)
 		}
 		result.Changed = true

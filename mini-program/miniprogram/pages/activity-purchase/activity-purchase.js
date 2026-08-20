@@ -3,6 +3,8 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const http = require('../../utils/request');
 const pay = require('../../utils/pay');
+const auth = require('../../utils/auth');
+const silentLogin = require('../../utils/silent-login');
 const { PAY_METHOD } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
@@ -27,9 +29,8 @@ Page({
       this.setData({ loading: false, loadError: '缺少活动信息，请返回后重试' });
       return;
     }
-    api
-      .getActivity(id)
-      .then((res) => {
+    Promise.all([api.getActivity(id), silentLogin.ensure().catch(() => null)])
+      .then(([res]) => {
         const a = res.data || {};
         const activityPayChannels = a.payChannels && a.payChannels.length ? a.payChannels : [];
         const purchaseLimit = Math.max(0, Number(a.purchaseLimit) || 0);
@@ -58,7 +59,9 @@ Page({
             priceCent: t.priceCent,
             priceText: fmt.centToYuan(t.priceCent),
             stockText,
-            payChannels: t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels,
+            payChannels: this.availablePayMethods(
+              t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels
+            ),
             maxQuantity: limits.length ? Math.min.apply(null, limits) : 99,
             limitText,
             disabled: Boolean(disabledReason),
@@ -87,6 +90,11 @@ Page({
         });
       })
       .catch(() => this.setData({ loading: false, loadError: '活动加载失败，请返回后重试' }));
+  },
+
+  availablePayMethods(methods) {
+    const list = methods || [];
+    return auth.isLoggedIn() ? list : list.filter((method) => method === PAY_METHOD.WECHAT);
   },
 
   onPickTicket(e) {
@@ -136,21 +144,27 @@ Page({
       ui.toast('请选择支付方式');
       return;
     }
-	let quantity;
-	try {
-	  quantity = validation.integer(this.data.qty, { label: '购票数量', min: 1, max: Math.min(ticket.maxQuantity || 99, 99) });
-	} catch (err) {
-	  ui.toast(err.message);
-	  return;
-	}
-	const amountCent = ticket.priceCent * quantity;
+    let quantity;
+    try {
+      quantity = validation.integer(this.data.qty, { label: '购票数量', min: 1, max: Math.min(ticket.maxQuantity || 99, 99) });
+    } catch (err) {
+      ui.toast(err.message);
+      return;
+    }
+    const amountCent = ticket.priceCent * quantity;
     this.setData({ submitting: true });
     ui.showLoading('提交中');
-    api
-      .createActivityOrder(
-		{ activityId: activity.id, ticketTypeId: ticket.id, qty: quantity, amountCent, payChannel: payMethod },
-        http.uuid()
-      )
+    silentLogin
+      .ensure()
+      .then(() => {
+        if (auth.isPreRegistered() && payMethod !== PAY_METHOD.WECHAT) {
+          throw new Error('完善会员资料后才可使用金币支付');
+        }
+        return api.createActivityOrder(
+          { activityId: activity.id, ticketTypeId: ticket.id, qty: quantity, amountCent, payChannel: payMethod },
+          http.uuid()
+        );
+      })
       .then((res) => {
         const paymentOrderId = (res.data && res.data.paymentOrderId) || 'po_activity';
         return payMethod === PAY_METHOD.COIN

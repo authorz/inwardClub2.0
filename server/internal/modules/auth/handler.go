@@ -37,7 +37,7 @@ func (h *Handler) MiniLogin(c *gin.Context) {
 
 // MiniPreRegister silently exchanges wx.login's code. Registered members
 // recover a full login session; new users receive an OpenID-backed,
-// reservation-only identity.
+// restricted transaction identity.
 func (h *Handler) MiniPreRegister(c *gin.Context) {
 	var req WeChatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

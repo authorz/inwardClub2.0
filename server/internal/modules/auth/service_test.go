@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/inwardclub/server/internal/platform/authn"
@@ -12,9 +13,10 @@ import (
 )
 
 type memMemberRepo struct {
-	seq    int64
-	byID   map[int64]Member
-	byOpen map[string]int64
+	seq                     int64
+	byID                    map[int64]Member
+	byOpen                  map[string]int64
+	completeRegistrationErr error
 }
 
 func newMemMemberRepo() *memMemberRepo {
@@ -52,6 +54,9 @@ func (r *memMemberRepo) Create(_ context.Context, m Member) (int64, error) {
 	return m.ID, nil
 }
 func (r *memMemberRepo) CompleteRegistration(_ context.Context, id int64, update Member) error {
+	if r.completeRegistrationErr != nil {
+		return r.completeRegistrationErr
+	}
 	m, ok := r.byID[id]
 	if !ok {
 		return apperr.NotFound("member not found")
@@ -69,6 +74,20 @@ func (r *memMemberRepo) CompleteRegistration(_ context.Context, id int64, update
 	m.TokenVersion++
 	r.byID[id] = m
 	return nil
+}
+
+func TestCompletePreRegisteredMemberRejectsDuplicatePhone(t *testing.T) {
+	repo := newMemMemberRepo()
+	repo.completeRegistrationErr = apperr.Internal(&mysql.MySQLError{
+		Number:  1062,
+		Message: "Duplicate entry '13800000000' for key 'members.uq_members_phone'",
+	})
+	svc := &Service{members: repo}
+
+	err := svc.completePreRegisteredMember(context.Background(), 1, "https://example.com/a.jpg", "会员", "other", "13800000000", nil)
+	if code := apperr.From(err).Code; code != apperr.CodeConflict {
+		t.Fatalf("duplicate phone: got %s, want %s", code, apperr.CodeConflict)
+	}
 }
 func (r *memMemberRepo) BumpTokenVersion(_ context.Context, id int64) error {
 	m := r.byID[id]

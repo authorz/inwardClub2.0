@@ -24,14 +24,12 @@ type storeSQLRepository struct{ db *platdb.DB }
 // NewStoreRepository builds the MySQL store-scoped payment repository.
 func NewStoreRepository(db *platdb.DB) StoreRepository { return &storeSQLRepository{db: db} }
 
-// ResolveMemberByPhone matches a registered member by exact phone and returns
-// only masked identifiers. When several rows share a phone (the members schema
-// does not enforce uniqueness) the lowest id wins deterministically. A miss maps
-// to MEMBER_NOT_FOUND so the operator can proceed without binding a member. The
-// raw phone is neither returned nor logged.
+// ResolveMemberByPhone matches the unique registered member phone and returns
+// only masked identifiers. A miss maps to MEMBER_NOT_FOUND so the operator can
+// proceed without binding a member. The raw phone is neither returned nor logged.
 func (r *storeSQLRepository) ResolveMemberByPhone(ctx context.Context, phone string) (MemberMatch, error) {
 	const q = `SELECT id, COALESCE(nickname,''), COALESCE(phone,'')
-		FROM members WHERE phone = ? ORDER BY id ASC LIMIT 1`
+		FROM members WHERE phone = ? LIMIT 1`
 	var (
 		id       int64
 		nickname string

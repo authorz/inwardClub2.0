@@ -1,5 +1,6 @@
 const auth = require('./utils/auth');
 const invitation = require('./utils/invitation');
+const silentLogin = require('./utils/silent-login');
 const { clearProfile } = require('./utils/member-profile');
 
 App({
@@ -12,8 +13,12 @@ App({
     try {
       this.globalData.systemInfo = wx.getWindowInfo();
     } catch {}
-    // Login starts from the dedicated login page after an explicit user action,
-    // never automatically during app launch.
+    // Establish an OpenID-only identity without interrupting the entry page.
+    // Profile completion remains an explicit action from 首页/我的.
+    silentLogin
+      .ensure()
+      .then(() => this.syncPendingInvitation(options))
+      .catch(() => {});
   },
 
   onShow(options) {

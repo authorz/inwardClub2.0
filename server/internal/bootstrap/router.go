@@ -89,13 +89,24 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/coupon-redemptions/:id", a.couponHandler.GetRedemption)
 
 	// Reservations also accept a restricted OpenID-only pre-registration
-	// identity. No other member capability is exposed to pre_member tokens.
+	// identity.
 	reservationRead := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember))
 	reservationRead.GET("/reservations", a.reservationHandler.ListReservations)
 	reservationRead.GET("/reservations/:reservationID", a.reservationHandler.GetReservation)
 	reservationWrite := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember), idempotency.Require())
 	reservationWrite.POST("/reservations", a.reservationHandler.CreateReservation)
 	reservationWrite.POST("/reservations/:reservationID/cancel", a.reservationHandler.CancelReservation)
+
+	// OpenID-only identities may buy an activity with WeChat and read the
+	// resulting order/tickets. Coin payment and all other member assets remain
+	// restricted to completed member/staff identities.
+	activityBuyer := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember))
+	activityBuyer.GET("/activity-orders", a.orderHandler.ListActivityOrders)
+	activityBuyer.GET("/activity-orders/:orderID", a.orderHandler.GetActivityOrder)
+	activityBuyer.GET("/tickets", a.orderHandler.ListTickets)
+	activityBuyerIdem := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember), idempotency.Require())
+	activityBuyerIdem.POST("/activity-orders", a.orderHandler.CreateActivityOrder)
+	activityBuyerIdem.POST("/payment-orders/:paymentOrderID/wechat-jsapi", a.orderHandler.WeChatJSAPI)
 
 	// Money/asset-mutating endpoints require an Idempotency-Key.
 	idem := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff), idempotency.Require())
@@ -105,10 +116,8 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/invitations/bind", a.memberHandler.BindInvitation)
 	idem.POST("/food-orders", a.orderHandler.CreateFoodOrder)
 	idem.POST("/recharge-orders", a.orderHandler.CreateRechargeOrder)
-	idem.POST("/activity-orders", a.orderHandler.CreateActivityOrder)
 	idem.POST("/waitlist-entries", a.reservationHandler.CreateWaitlistEntry)
 	idem.POST("/coupon-redemptions", a.couponHandler.Redeem)
-	idem.POST("/payment-orders/:paymentOrderID/wechat-jsapi", a.orderHandler.WeChatJSAPI)
 	idem.POST("/payment-orders/:paymentOrderID/pay-by-coin", a.orderHandler.PayByCoin)
 
 	// Order reads.
@@ -116,9 +125,6 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/food-orders/:orderID", a.orderHandler.GetFoodOrder)
 	p.GET("/recharge-orders", a.orderHandler.ListRechargeOrders)
 	p.GET("/recharge-orders/:orderID", a.orderHandler.GetRechargeOrder)
-	p.GET("/activity-orders", a.orderHandler.ListActivityOrders)
-	p.GET("/activity-orders/:orderID", a.orderHandler.GetActivityOrder)
-	p.GET("/tickets", a.orderHandler.ListTickets)
 
 	// Mini-program staff operations use the mini audience with a staff-only
 	// subject. Store scope comes from the bound staff account in the JWT.

@@ -122,18 +122,29 @@ func (h *Handler) ListActivityOrders(c *gin.Context) {
 
 // CreateActivityOrder handles POST /mini/activity-orders.
 func (h *Handler) CreateActivityOrder(c *gin.Context) {
-	memberID := authn.MustFromContext(c).SubjectID()
+	claims := authn.MustFromContext(c)
 	var req CreateActivityOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.Fail(c, apperr.Invalid(err.Error()))
 		return
 	}
-	view, err := h.svc.CreateActivityOrder(c.Request.Context(), memberID, idempotency.Key(c), req)
+	if err := validateActivityPayMethodForSubject(claims.SubjectType, req.PayMethod); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	view, err := h.svc.CreateActivityOrder(c.Request.Context(), claims.SubjectID(), idempotency.Key(c), req)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
 	}
 	httpx.Created(c, view)
+}
+
+func validateActivityPayMethodForSubject(subject authn.SubjectType, payMethod string) error {
+	if subject == authn.SubjectPreMember && payMethod != PayMethodWeChat {
+		return apperr.Forbidden("完善会员资料后才可使用金币支付")
+	}
+	return nil
 }
 
 // GetActivityOrder handles GET /mini/activity-orders/{orderID}.
