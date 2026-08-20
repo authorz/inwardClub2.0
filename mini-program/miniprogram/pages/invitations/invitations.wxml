@@ -1,81 +1,170 @@
 <ic-app-background />
 <view class="ic-scroll-shell">
-<ic-page-nav title="邀请好友" />
-<scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
-<ic-loading wx:if="{{loading}}" />
+  <ic-page-nav title="邀请好友" />
+  <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+    <ic-loading wx:if="{{loading}}" />
 
-<view wx:elif="{{info}}" class="iv">
-  <view class="iv__code-card ic-glass-recessed">
-    <text class="iv__code-label">我的邀请码</text>
-    <view class="iv__code-row">
-      <view class="iv__code-main">
-        <text class="iv__code">{{info.inviteCode}}</text>
-        <view class="iv__copy" bindtap="copyCode" aria-role="button" aria-label="复制邀请码">
-          <view class="ic-ic ic-ic-copy ic-ic--sm"></view>
+    <view wx:elif="{{info}}" class="iv">
+      <view class="iv__hero">
+        <text class="iv__brand">INWARD CLUB MEMBER INVITE</text>
+        <text class="iv__headline">把好友带进 Inward Club</text>
+        <text class="iv__headline iv__headline--muted">奖励持续到账</text>
+      </view>
+
+      <view class="iv__pass" aria-label="Inward Club 会员邀请凭证">
+        <view class="iv__pass-head">
+          <view class="iv__pass-brand">
+            <text class="iv__pass-logo">inward club</text>
+            <text class="iv__pass-type">MEMBER INVITE</text>
+          </view>
+          <text class="iv__pass-index">IC / INVITE</text>
+        </view>
+
+        <view class="iv__reward-head">
+          <view>
+            <text class="iv__reward-kicker">首达标奖励</text>
+            <text class="iv__reward-title">首次充值或现金消费</text>
+          </view>
+          <text class="iv__reward-target">68元达标</text>
+        </view>
+
+        <view class="iv__reward-grid">
+          <view class="iv__reward-item">
+            <text class="iv__reward-value">1000</text>
+            <text class="iv__reward-label">双方首奖积分</text>
+          </view>
+          <view class="iv__reward-item">
+            <text class="iv__reward-value">1:1</text>
+            <text class="iv__reward-label">后续积分奖励</text>
+          </view>
+        </view>
+        <text class="iv__reward-note">首奖后，好友后续充值或现金消费继续贡献积分。</text>
+      </view>
+
+      <button class="ic-btn ic-btn-block iv__share" open-type="share">
+        <view class="ic-ic ic-ic-share ic-ic--sm iv__share-icon"></view>
+        <text>邀请微信好友</text>
+      </button>
+      <view class="iv__invite-meta">
+        <text class="iv__invite-hint">分享后，邀请奖励会自动累计</text>
+        <view class="iv__code-action" bindtap="copyCode" aria-role="button" aria-label="复制邀请码 {{info.inviteCode}}">
+          <view class="ic-ic ic-ic-copy ic-ic--sm iv__copy-icon"></view>
+          <text class="iv__code">{{info.inviteCode}}</text>
         </view>
       </view>
-      <view class="iv__invited">
-        <text class="iv__invited-num">{{info.invited}}</text>
-        <text class="iv__invited-label">已邀请</text>
-      </view>
-    </view>
-    <button class="ic-btn ic-btn-primary ic-btn-block iv__share" open-type="share">
-      <view class="ic-ic ic-ic-share ic-ic--sm iv__share-ico"></view>
-      <text>分享给好友</text>
-    </button>
-  </view>
 
-  <view wx:if="{{info.rules.length}}" class="iv__rules ic-glass-recessed">
-    <view class="iv__rule" wx:for="{{info.rules}}" wx:key="title">
-      <view class="ic-ic {{item.icon}} ic-ic--sm"></view>
-      <view class="iv__rule-main">
-        <text class="iv__rule-title">{{item.title}}</text>
-        <text class="iv__rule-desc">{{item.desc}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{!info.inviterBound}}" class="iv__bind ic-glass-recessed">
-    <view class="iv__bind-copy">
-      <text class="iv__bind-title">绑定邀请码</text>
-      <text class="iv__bind-desc">填写邀请人的邀请码，绑定后不可更改</text>
-    </view>
-    <view class="iv__bind-row">
-      <input
-        class="iv__bind-input"
-        value="{{bindCode}}"
-        maxlength="32"
-        placeholder="请输入邀请码"
-        placeholder-class="iv__bind-placeholder"
-        confirm-type="done"
-        bindinput="onBindCodeInput"
-        bindconfirm="bindInvitation"
-      />
-      <button
-        class="ic-btn ic-btn-primary iv__bind-btn {{binding || !bindCode ? 'ic-disabled' : ''}}"
-        loading="{{binding}}"
-        disabled="{{binding || !bindCode}}"
-        bindtap="bindInvitation"
-      >绑定</button>
-    </view>
-  </view>
-
-  <view class="iv__records">
-    <text class="ic-h2 iv__records-title">邀请记录</text>
-    <view class="iv__record ic-glass-recessed" wx:if="{{info.records.length}}">
-      <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">
-        <view class="iv__record-avatar">
-          <image wx:if="{{item.avatarUrl}}" class="iv__record-avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
-          <text wx:else class="iv__record-avatar-text">{{item.avatarText}}</text>
+      <view wx:if="{{!info.inviterBound}}" class="iv__bind">
+        <view class="iv__section-head">
+          <text class="iv__section-title">绑定邀请码</text>
+          <text class="iv__section-desc">填写邀请人的邀请码，绑定后不可更改</text>
         </view>
-        <view class="iv__record-main">
-          <text class="iv__record-name">{{item.name}}</text>
-          <text class="iv__record-date">{{item.registeredAt}}</text>
+        <view class="iv__bind-row">
+          <input
+            class="iv__bind-input"
+            value="{{bindCode}}"
+            maxlength="32"
+            placeholder="请输入邀请码"
+            placeholder-class="iv__bind-placeholder"
+            confirm-type="done"
+            bindinput="onBindCodeInput"
+            bindconfirm="bindInvitation"
+          />
+          <button
+            class="ic-btn iv__bind-btn {{binding || !bindCode ? 'ic-disabled' : ''}}"
+            loading="{{binding}}"
+            disabled="{{binding || !bindCode}}"
+            bindtap="bindInvitation"
+          >绑定</button>
         </view>
       </view>
+
+      <view class="iv__section iv__steps">
+        <view class="iv__section-head">
+          <text class="iv__section-title">参与步骤</text>
+          <text class="iv__section-desc">分享邀请，好友达标后奖励自动入账</text>
+        </view>
+        <view class="iv__step-list">
+          <view class="iv__step">
+            <text class="iv__step-no">01</text>
+            <view class="iv__step-copy">
+              <text class="iv__step-title">分享邀请</text>
+              <text class="iv__step-desc">发送小程序链接给微信好友</text>
+            </view>
+          </view>
+          <view class="iv__step">
+            <text class="iv__step-no">02</text>
+            <view class="iv__step-copy">
+              <text class="iv__step-title">好友注册</text>
+              <text class="iv__step-desc">通过链接进入并完成手机号注册</text>
+            </view>
+          </view>
+          <view class="iv__step">
+            <text class="iv__step-no">03</text>
+            <view class="iv__step-copy">
+              <text class="iv__step-title">首次达标</text>
+              <text class="iv__step-desc">充值或现金消费满68元</text>
+            </view>
+          </view>
+          <view class="iv__step">
+            <text class="iv__step-no">04</text>
+            <view class="iv__step-copy">
+              <text class="iv__step-title">奖励到账</text>
+              <text class="iv__step-desc">双方拿首奖，邀请人后续继续累计</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="iv__section iv__overview">
+        <view class="iv__overview-head">
+          <view class="iv__section-head">
+            <text class="iv__section-title">邀请概览</text>
+            <text class="iv__section-desc">记录已通过你的邀请完成注册的好友</text>
+          </view>
+          <view class="iv__overview-total">
+            <text class="iv__overview-num">{{info.invited}}</text>
+            <text class="iv__overview-unit">位好友</text>
+          </view>
+        </view>
+
+        <view class="iv__record-list" wx:if="{{info.records.length}}">
+          <view class="iv__record-row" wx:for="{{info.records}}" wx:key="id">
+            <view class="iv__record-avatar">
+              <image wx:if="{{item.avatarUrl}}" class="iv__record-avatar-img" src="{{item.avatarUrl}}" mode="aspectFill" />
+              <text wx:else class="iv__record-avatar-text">{{item.avatarText}}</text>
+            </view>
+            <view class="iv__record-main">
+              <text class="iv__record-name">{{item.name}}</text>
+              <text class="iv__record-date">{{item.registeredAt}}</text>
+            </view>
+            <text class="iv__record-status">已注册</text>
+          </view>
+        </view>
+        <view wx:else class="iv__empty">
+          <text class="iv__empty-title">暂无邀请记录</text>
+          <text class="iv__empty-desc">邀请好友注册后，记录会显示在这里</text>
+        </view>
+      </view>
+
+      <view class="iv__section iv__rules">
+        <view class="iv__section-head">
+          <text class="iv__section-title">邀请规则</text>
+        </view>
+        <view class="iv__rule-list">
+          <view class="iv__rule">
+            <text class="iv__rule-no">01</text>
+            <text class="iv__rule-copy">新用户可通过邀请链接或邀请码绑定邀请人，已消费过的用户不支持补绑。</text>
+          </view>
+          <view class="iv__rule">
+            <text class="iv__rule-no">02</text>
+            <text class="iv__rule-copy">好友首次充值或现金消费满68元后，双方获得1000积分。</text>
+          </view>
+          <view class="iv__rule">
+            <text class="iv__rule-no">03</text>
+            <text class="iv__rule-copy">邀请人后续可继续获得好友充值或现金消费带来的 1:1 积分奖励。</text>
+          </view>
+        </view>
+      </view>
     </view>
-    <ic-empty wx:else text="暂无邀请记录" compact="{{true}}" />
-  </view>
-</view>
-</scroll-view>
+  </scroll-view>
 </view>
