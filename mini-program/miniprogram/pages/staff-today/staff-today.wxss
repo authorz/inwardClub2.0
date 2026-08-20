@@ -23,3 +23,8 @@
 .sto__value { flex: none; max-width: 230rpx; display: flex; flex-direction: column; align-items: flex-end; gap: 9rpx; }
 .sto__amount { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 24rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .sto__status { font-size: 19rpx; color: var(--ic-text-3); }
+.sto__state { padding: 100rpx 0; display: flex; flex-direction: column; align-items: center; gap: 22rpx; }
+.sto__state-text, .sto__footer { font-size: 21rpx; color: var(--ic-text-3); text-align: center; }
+.sto__retry { min-width: 168rpx; height: 64rpx; margin: 0; padding: 0 28rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 999rpx; background: transparent; font-size: 22rpx; line-height: 62rpx; color: var(--ic-black); }
+.sto__retry::after { border: none; }
+.sto__footer { padding: 28rpx 0 12rpx; }

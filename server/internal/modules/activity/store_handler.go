@@ -62,7 +62,8 @@ func (h *StoreHandler) StaffTodayOperations(c *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.svc.StaffTodayOperations(c.Request.Context(), storeID)
+	page := httpx.ParsePage(c)
+	view, err := h.svc.StaffTodayOperations(c.Request.Context(), storeID, page, c.Query("type"))
 	if err != nil {
 		httpx.Fail(c, err)
 		return

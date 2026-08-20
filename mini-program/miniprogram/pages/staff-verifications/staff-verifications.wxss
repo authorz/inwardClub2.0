@@ -10,3 +10,8 @@
 .svl__result { font-size: 22rpx; flex: none; }
 .svl__result.is-ok { color: var(--ic-black); }
 .svl__result.is-fail { color: var(--ic-text-3); }
+.svl__state { padding: 100rpx 0; display: flex; flex-direction: column; align-items: center; gap: 22rpx; }
+.svl__state-text, .svl__footer { font-size: 21rpx; color: var(--ic-text-3); text-align: center; }
+.svl__retry { min-width: 168rpx; height: 64rpx; margin: 0; padding: 0 28rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 999rpx; background: transparent; font-size: 22rpx; line-height: 62rpx; color: var(--ic-black); }
+.svl__retry::after { border: none; }
+.svl__footer { padding: 28rpx 0 12rpx; }

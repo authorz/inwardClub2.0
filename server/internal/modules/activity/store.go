@@ -173,7 +173,7 @@ type StoreRepository interface {
 	ListTodayActivitySummaries(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) ([]TodayActivity, error)
 	ListVerifications(ctx context.Context, storeID int64, limit, offset int) ([]Verification, int64, error)
 	StaffHome(ctx context.Context, storeID int64, dayStart, dayEnd time.Time) (StaffHomeData, error)
-	StaffTodayOperations(ctx context.Context, storeID int64, dayStart, dayEnd time.Time, limit int) (StaffTodayOperationsData, error)
+	StaffTodayOperations(ctx context.Context, storeID int64, dayStart, dayEnd time.Time, operationType string, limit, offset int) (StaffTodayOperationsData, error)
 }
 
 type storeSQLRepository struct{ db *platdb.DB }
@@ -438,7 +438,7 @@ func (r *storeSQLRepository) StaffHome(ctx context.Context, storeID int64, daySt
 // deposit/withdrawal records for one business-day window. Coin spending is
 // attributed through payment_orders -> business_orders, which is the same
 // authoritative store relationship used by reporting.
-func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID int64, dayStart, dayEnd time.Time, limit int) (StaffTodayOperationsData, error) {
+func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID int64, dayStart, dayEnd time.Time, operationType string, limit, offset int) (StaffTodayOperationsData, error) {
 	var data StaffTodayOperationsData
 	const coinSummary = `SELECT COUNT(*), COALESCE(SUM(w.amount), 0)
 		FROM wallet_ledger_entries w
@@ -452,7 +452,7 @@ func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID i
 		return StaffTodayOperationsData{}, apperr.Internal(err)
 	}
 	const pointSummary = `SELECT COUNT(*), COALESCE(SUM(points), 0) FROM %s
-		WHERE store_id = ? AND created_at >= ? AND created_at < ?`
+		WHERE store_id = ? AND status = 'approved' AND created_at >= ? AND created_at < ?`
 	if err := r.db.QueryRowContext(ctx, fmt.Sprintf(pointSummary, "point_savings"), storeID, dayStart, dayEnd).
 		Scan(&data.PointDepositCount, &data.PointDepositAmount); err != nil {
 		return StaffTodayOperationsData{}, apperr.Internal(err)
@@ -489,12 +489,13 @@ func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID i
 			LEFT JOIN members m ON m.id = pw.member_id
 			WHERE pw.store_id = ? AND pw.created_at >= ? AND pw.created_at < ?
 		) operations
-		ORDER BY created_at DESC, record_key DESC LIMIT ?`
+		WHERE (? = '' OR operation_type = ?)
+		ORDER BY created_at DESC, record_key DESC LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, q,
 		storeID, dayStart, dayEnd,
 		storeID, dayStart, dayEnd,
 		storeID, dayStart, dayEnd,
-		limit,
+		operationType, operationType, limit, offset,
 	)
 	if err != nil {
 		return StaffTodayOperationsData{}, apperr.Internal(err)
@@ -676,9 +677,14 @@ func (s *StoreService) StaffHome(ctx context.Context, storeID int64) (StaffHomeV
 
 // StaffTodayOperations returns today's coin consumption and point request
 // details for the staff account's bound store.
-func (s *StoreService) StaffTodayOperations(ctx context.Context, storeID int64) (StaffTodayOperationsView, error) {
+func (s *StoreService) StaffTodayOperations(ctx context.Context, storeID int64, page httpx.Page, operationType string) (StaffTodayOperationsView, error) {
+	switch operationType {
+	case "", "coin_consumption", "point_deposit", "point_withdrawal":
+	default:
+		return StaffTodayOperationsView{}, apperr.Invalid("invalid operation type")
+	}
 	dayStart, dayEnd, date := s.todayBounds()
-	data, err := s.repo.StaffTodayOperations(ctx, storeID, dayStart, dayEnd, 100)
+	data, err := s.repo.StaffTodayOperations(ctx, storeID, dayStart, dayEnd, operationType, page.Limit(), page.Offset())
 	if err != nil {
 		return StaffTodayOperationsView{}, err
 	}

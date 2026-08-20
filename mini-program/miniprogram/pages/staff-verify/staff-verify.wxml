@@ -1,6 +1,6 @@
 <ic-app-background />
 <view class="ic-scroll-shell">
-<scroll-view class="ic-scroll-view sv__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="ic-scroll-view sv__scroll" scroll-y enhanced show-scrollbar="{{false}}" lower-threshold="120" bindscrolltolower="loadMore" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="onPullDownRefresh">
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:else class="sv">
@@ -40,16 +40,18 @@
   <view class="sv__stats ic-card">
     <view class="sv__stats-head"><view class="ic-ic ic-ic-doc ic-ic--sm"></view><text>核销结果</text></view>
     <view class="sv__stats-row">
-      <view class="sv__stat"><text class="sv__stat-num">{{stats.verified}}</text><text class="sv__stat-label">已核销</text></view>
-      <view class="sv__stat"><text class="sv__stat-num">{{stats.success}}</text><text class="sv__stat-label">成功</text></view>
-      <view class="sv__stat"><text class="sv__stat-num">{{stats.failed}}</text><text class="sv__stat-label">失败</text></view>
-      <view class="sv__stat"><text class="sv__stat-num">{{stats.void}}</text><text class="sv__stat-label">退款/作废</text></view>
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.today}}</text><text class="sv__stat-label">今日核销</text></view>
+      <view class="sv__stat"><text class="sv__stat-num">{{stats.total}}</text><text class="sv__stat-label">累计核销</text></view>
     </view>
   </view>
 
   <view class="sv__history">
     <text class="ic-h2 sv__history-title">核销历史</text>
-    <view class="sv__hist ic-card" wx:if="{{verifications.length}}">
+    <view class="sv__state" wx:if="{{errorText && !verifications.length}}">
+      <text class="sv__state-text">{{errorText}}</text>
+      <button class="sv__retry" bindtap="retry">重新加载</button>
+    </view>
+    <view class="sv__hist ic-card" wx:elif="{{verifications.length}}">
       <view class="sv__hist-row" wx:for="{{verifications}}" wx:key="id">
         <view class="sv__hist-main">
           <text class="sv__hist-code">{{item.code}}</text>
@@ -59,6 +61,8 @@
       </view>
     </view>
     <ic-empty wx:else text="暂无核销记录" compact="{{true}}" />
+    <view wx:if="{{loadingMore}}" class="sv__footer">正在加载…</view>
+    <view wx:elif="{{verifications.length && !hasMore}}" class="sv__footer">已经到底了</view>
   </view>
 </view>
 </scroll-view>

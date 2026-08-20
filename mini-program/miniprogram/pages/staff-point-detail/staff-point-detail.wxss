@@ -1,1 +1,5 @@
 /* uses shared .od / .od-card / .od-row scaffold from styles/tokens.wxss */
+.od-error { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22rpx; }
+.od-error__text { font-size: 22rpx; color: var(--ic-text-3); }
+.od-error__retry { min-width: 168rpx; height: 64rpx; margin: 0; padding: 0 28rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 999rpx; background: transparent; font-size: 22rpx; line-height: 62rpx; color: var(--ic-black); }
+.od-error__retry::after { border: none; }

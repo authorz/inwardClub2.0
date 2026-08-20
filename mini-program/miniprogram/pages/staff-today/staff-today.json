@@ -3,5 +3,6 @@
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading"
   },
+  "disableScroll": true,
   "navigationBarTitleText": "今日营业明细"
 }

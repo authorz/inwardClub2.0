@@ -1,8 +1,12 @@
 <ic-app-background />
 <view class="ic-scroll-shell">
-<scroll-view class="ic-scroll-view svl__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="ic-scroll-view svl__scroll" scroll-y enhanced show-scrollbar="{{false}}" lower-threshold="120" bindscrolltolower="loadMore" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="onPullDownRefresh">
 <view class="svl">
   <ic-loading wx:if="{{loading}}" />
+  <view class="svl__state" wx:elif="{{errorText && !list.length}}">
+    <text class="svl__state-text">{{errorText}}</text>
+    <button class="svl__retry" bindtap="retry">重新加载</button>
+  </view>
   <ic-empty wx:elif="{{!list.length}}" text="暂无核销记录" />
 
   <view wx:else class="svl__list ic-card">
@@ -15,6 +19,8 @@
       <text class="svl__result {{item.success ? 'is-ok' : 'is-fail'}}">{{item.resultLabel}}</text>
     </view>
   </view>
+  <view wx:if="{{loadingMore}}" class="svl__footer">正在加载…</view>
+  <view wx:elif="{{list.length && !hasMore}}" class="svl__footer">已经到底了</view>
 </view>
 </scroll-view>
 </view>

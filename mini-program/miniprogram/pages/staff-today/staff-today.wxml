@@ -1,6 +1,6 @@
 <ic-app-background />
 <view class="ic-scroll-shell">
-<scroll-view class="ic-scroll-view sto__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="ic-scroll-view sto__scroll" scroll-y enhanced show-scrollbar="{{false}}" lower-threshold="120" bindscrolltolower="loadMore" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="onPullDownRefresh">
 <view class="sto">
   <view class="sto__head">
     <text class="sto__title">今日营业明细</text>
@@ -29,6 +29,10 @@
   </scroll-view>
 
   <ic-loading wx:if="{{loading}}" />
+  <view class="sto__state" wx:elif="{{errorText && !list.length}}">
+    <text class="sto__state-text">{{errorText}}</text>
+    <button class="sto__retry" bindtap="retry">重新加载</button>
+  </view>
   <view wx:elif="{{list.length}}" class="sto__list">
     <view class="sto__row" wx:for="{{list}}" wx:key="recordKey">
       <view class="sto__main">
@@ -46,6 +50,8 @@
     </view>
   </view>
   <ic-empty wx:else text="今日暂无此类营业记录" />
+  <view wx:if="{{loadingMore}}" class="sto__footer">正在加载…</view>
+  <view wx:elif="{{list.length && !hasMore}}" class="sto__footer">已经到底了</view>
 </view>
 </scroll-view>
 </view>

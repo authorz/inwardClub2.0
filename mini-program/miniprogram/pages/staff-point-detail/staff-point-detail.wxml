@@ -1,6 +1,11 @@
 <ic-app-background />
 <ic-loading wx:if="{{loading}}" />
 
+<view wx:elif="{{errorText}}" class="od-error">
+  <text class="od-error__text">{{errorText}}</text>
+  <button class="od-error__retry" bindtap="load">重新加载</button>
+</view>
+
 <view wx:elif="{{item}}" class="od">
   <view class="od-head">
     <view class="od-head__icon"><view class="ic-ic ic-ic-shield ic-ic--sm"></view></view>
@@ -24,7 +29,7 @@
   </view>
 
   <view wx:if="{{pending}}" class="od-bar">
-    <button class="ic-btn ic-btn-ghost" data-decision="reject" bindtap="review">驳回</button>
-    <button class="ic-btn ic-btn-primary" data-decision="approve" bindtap="review">通过</button>
+    <button class="ic-btn ic-btn-ghost" disabled="{{submitting}}" data-decision="reject" bindtap="review">驳回</button>
+    <button class="ic-btn ic-btn-primary" disabled="{{submitting}}" data-decision="approve" bindtap="review">通过</button>
   </view>
 </view>

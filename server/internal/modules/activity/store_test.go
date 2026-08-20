@@ -24,6 +24,9 @@ type storeMemRepo struct {
 	previewCalled     bool
 	operationsStart   time.Time
 	operationsEnd     time.Time
+	operationsType    string
+	operationsLimit   int
+	operationsOffset  int
 }
 
 func (r *storeMemRepo) VerifyTicket(_ context.Context, storeID int64, code string, byID int64, now time.Time) (TicketVerification, error) {
@@ -148,10 +151,28 @@ func (r *storeMemRepo) StaffHome(_ context.Context, storeID int64, dayStart, day
 	return data, nil
 }
 
-func (r *storeMemRepo) StaffTodayOperations(_ context.Context, _ int64, dayStart, dayEnd time.Time, _ int) (StaffTodayOperationsData, error) {
+func (r *storeMemRepo) StaffTodayOperations(_ context.Context, _ int64, dayStart, dayEnd time.Time, operationType string, limit, offset int) (StaffTodayOperationsData, error) {
 	r.operationsStart = dayStart
 	r.operationsEnd = dayEnd
-	return r.operations, nil
+	r.operationsType = operationType
+	r.operationsLimit = limit
+	r.operationsOffset = offset
+	data := r.operations
+	var entries []StaffOperation
+	for _, entry := range data.Entries {
+		if operationType == "" || entry.Type == operationType {
+			entries = append(entries, entry)
+		}
+	}
+	if offset > len(entries) {
+		offset = len(entries)
+	}
+	end := offset + limit
+	if end > len(entries) {
+		end = len(entries)
+	}
+	data.Entries = entries[offset:end]
+	return data, nil
 }
 
 type nopAssets struct{}
@@ -398,7 +419,7 @@ func TestStaffTodayOperationsUsesBusinessDayAndSeparateAssetTotals(t *testing.T)
 			MemberName: "会员甲", Amount: 18, Status: "completed",
 		}},
 	}
-	view, err := svc.StaffTodayOperations(context.Background(), 7)
+	view, err := svc.StaffTodayOperations(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "coin_consumption")
 	if err != nil {
 		t.Fatalf("today operations: %v", err)
 	}
@@ -411,7 +432,18 @@ func TestStaffTodayOperationsUsesBusinessDayAndSeparateAssetTotals(t *testing.T)
 	if !repo.operationsStart.Equal(wantStart) || !repo.operationsEnd.Equal(wantEnd) {
 		t.Fatalf("unexpected business-day bounds: %v - %v", repo.operationsStart, repo.operationsEnd)
 	}
+	if repo.operationsType != "coin_consumption" || repo.operationsLimit != 20 || repo.operationsOffset != 0 {
+		t.Fatalf("unexpected operations page request: type=%q limit=%d offset=%d", repo.operationsType, repo.operationsLimit, repo.operationsOffset)
+	}
 	if len(view.Entries) != 1 || view.Entries[0].Type != "coin_consumption" {
 		t.Fatalf("unexpected entries: %+v", view.Entries)
+	}
+}
+
+func TestStaffTodayOperationsRejectsUnknownType(t *testing.T) {
+	svc, _ := newStoreTestService()
+	_, err := svc.StaffTodayOperations(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "unknown")
+	if err == nil || apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid argument, got %v", err)
 	}
 }

@@ -1,6 +1,6 @@
 <ic-app-background />
 <view class="ic-scroll-shell">
-<scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
+<scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" lower-threshold="120" bindscrolltolower="loadMore" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="onPullDownRefresh">
 <view class="spr">
   <view class="spr__search">
     <input class="spr__search-input" type="number" maxlength="11" value="{{keyword}}" placeholder="输入手机号任意数字，常用后四位" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
@@ -8,6 +8,10 @@
     <text class="spr__search-button" bindtap="search">搜索</text>
   </view>
   <ic-loading wx:if="{{loading}}" />
+  <view class="spr__state" wx:elif="{{errorText && !list.length}}">
+    <text class="spr__state-text">{{errorText}}</text>
+    <button class="spr__retry" bindtap="retry">重新加载</button>
+  </view>
   <ic-empty wx:elif="{{!list.length}}" text="{{keyword ? '未找到匹配手机号的待审核申请' : '当前门店暂无待审核积分存入'}}" />
 
   <view wx:else class="spr__list">
@@ -36,11 +40,13 @@
         </view>
       </view>
       <view wx:if="{{item.pending}}" class="spr__actions">
-        <button class="ic-btn ic-btn-ghost ic-btn-sm" data-id="{{item.id}}" data-decision="reject" catchtap="review">驳回</button>
-        <button class="ic-btn ic-btn-primary ic-btn-sm" data-id="{{item.id}}" data-decision="approve" catchtap="review">通过</button>
+        <button class="ic-btn ic-btn-ghost ic-btn-sm" disabled="{{submittingId !== ''}}" data-id="{{item.id}}" data-decision="reject" catchtap="review">驳回</button>
+        <button class="ic-btn ic-btn-primary ic-btn-sm" disabled="{{submittingId !== ''}}" data-id="{{item.id}}" data-decision="approve" catchtap="review">通过</button>
       </view>
     </view>
   </view>
+  <view wx:if="{{loadingMore}}" class="spr__footer">正在加载…</view>
+  <view wx:elif="{{list.length && !hasMore}}" class="spr__footer">已经到底了</view>
 </view>
 </scroll-view>
 </view>
