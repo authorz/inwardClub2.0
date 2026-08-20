@@ -35,3 +35,12 @@ func TestClientMessageFallsBackToChineseByCode(t *testing.T) {
 		t.Fatalf("clientMessage() = %q", got)
 	}
 }
+
+func TestClientMessageDistinguishesInvalidCredentialsFromInvalidArguments(t *testing.T) {
+	if got := clientMessage(apperr.CodeUnauthenticated, "invalid credentials"); got != "账号或密码错误" {
+		t.Fatalf("invalid credentials message = %q", got)
+	}
+	if got := clientMessage(apperr.CodeInvalidArgument, "invalid storeID"); got != "请求参数格式不正确" {
+		t.Fatalf("invalid argument message = %q", got)
+	}
+}

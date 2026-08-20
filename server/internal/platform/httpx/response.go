@@ -76,6 +76,7 @@ func Fail(c *gin.Context, err error) {
 
 var clientMessageTranslations = map[string]string{
 	"invalid request body":                               "请求内容格式不正确",
+	"invalid credentials":                                "账号或密码错误",
 	"table code already exists in this store":            "当前门店已存在相同的桌子编号",
 	"capacity cannot be lower than existing seat count":  "座位数量不能小于该桌子已有的座位数",
 	"table seat capacity has been reached":               "该桌子的座位数量已达到上限",
