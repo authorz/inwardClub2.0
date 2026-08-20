@@ -87,13 +87,117 @@
         </view>
       </view>
 
-      <!-- 工作人员功能（仅员工当前选中其绑定门店时可见） -->
-      <view wx:if="{{isStaff}}" class="mine__services mine__services--staff">
-        <text class="mine__services-title">工作人员功能</text>
-        <view class="mine__service-grid">
-          <view class="mine__service-item" wx:for="{{staffMenuEntries}}" wx:key="label" data-index="{{index}}" bindtap="goStaffMenu" hover-class="mine__service-item--hover">
-            <view class="mine__service-icon-box"><image class="mine__service-image" src="{{item.icon}}" mode="aspectFit" /></view>
-            <text class="mine__service-label">{{item.label}}</text>
+      <!-- 工作人员工作台（仅员工当前选中其绑定门店时可见） -->
+      <view wx:if="{{isStaff}}" class="mine__staff">
+        <view class="mine__staff-head">
+          <view class="mine__staff-heading">
+            <text class="mine__staff-title">工作人员工作台</text>
+            <text class="mine__staff-store ic-ellipsis">{{staffStoreName || '当前绑定门店'}}</text>
+          </view>
+          <text class="mine__staff-scope">仅当前门店</text>
+        </view>
+
+        <view class="mine__staff-actions">
+          <view
+            class="mine__staff-action"
+            wx:for="{{staffActionEntries}}"
+            wx:key="label"
+            data-index="{{index}}"
+            bindtap="goStaffMenu"
+            hover-class="mine__staff-action--hover"
+            aria-role="button"
+            aria-label="{{item.label}}，{{item.note}}"
+          >
+            <image class="mine__staff-action-icon" src="{{item.icon}}" mode="aspectFit" />
+            <view class="mine__staff-action-copy">
+              <text class="mine__staff-action-label">{{item.label}}</text>
+              <text class="mine__staff-action-note">{{item.note}}</text>
+            </view>
+            <view class="ic-arrow mine__staff-arrow"></view>
+          </view>
+        </view>
+
+        <view class="mine__staff-section">
+          <view class="mine__staff-section-head">
+            <view class="mine__staff-section-titleline">
+              <text class="mine__staff-section-title">待审核积分存入</text>
+              <text class="mine__staff-count">{{pendingReviewCount}}</text>
+            </view>
+            <text class="mine__staff-link" bindtap="goStaffReviewList">查看全部</text>
+          </view>
+          <view class="mine__staff-search">
+            <input
+              class="mine__staff-search-input"
+              type="number"
+              maxlength="11"
+              value="{{staffPhone}}"
+              placeholder="输入手机号或尾号搜索"
+              placeholder-class="mine__staff-search-ph"
+              confirm-type="search"
+              bindinput="onStaffPhoneInput"
+              bindconfirm="searchStaffPhone"
+            />
+            <text wx:if="{{staffPhone}}" class="mine__staff-search-clear" bindtap="clearStaffPhone">清除</text>
+            <text class="mine__staff-search-btn" bindtap="searchStaffPhone">搜索</text>
+          </view>
+          <text wx:if="{{staffLoading}}" class="mine__staff-loading">正在更新门店数据…</text>
+          <view wx:if="{{pendingSavings.length}}" class="mine__review-list">
+            <view class="mine__review-row" wx:for="{{pendingSavings}}" wx:key="id">
+              <view class="mine__review-main" data-id="{{item.id}}" bindtap="goStaffPointDetail">
+                <view class="mine__review-primary">
+                  <text class="mine__review-name ic-ellipsis">{{item.memberName}}</text>
+                  <text class="mine__review-points">{{item.pointsText}} 积分</text>
+                </view>
+                <text class="mine__review-meta">{{item.phoneText}} · {{item.timeText}}</text>
+              </view>
+              <view class="mine__review-actions">
+                <button class="mine__review-btn mine__review-btn--ghost" data-id="{{item.id}}" data-decision="reject" catchtap="reviewPendingSaving">驳回</button>
+                <button class="mine__review-btn mine__review-btn--primary" data-id="{{item.id}}" data-decision="approve" catchtap="reviewPendingSaving">通过</button>
+              </view>
+            </view>
+          </view>
+          <view wx:elif="{{!staffLoading}}" class="mine__staff-empty">
+            <text>{{staffPhone ? '未找到该手机号的待审核申请' : '当前门店暂无待审核积分存入'}}</text>
+          </view>
+        </view>
+
+        <view class="mine__staff-section mine__staff-section--today">
+          <view class="mine__staff-section-head">
+            <view class="mine__staff-section-titleline">
+              <text class="mine__staff-section-title">今日营业明细</text>
+              <text class="mine__staff-date">实时</text>
+            </view>
+            <text class="mine__staff-link" bindtap="goStaffToday">查看全部</text>
+          </view>
+          <view class="mine__staff-totals">
+            <view class="mine__staff-total">
+              <text class="mine__staff-total-num">{{todaySummary.coinConsumptionAmountText}}</text>
+              <text class="mine__staff-total-label">金币消费 · {{todaySummary.coinConsumptionCount}} 笔</text>
+            </view>
+            <view class="mine__staff-total">
+              <text class="mine__staff-total-num">{{todaySummary.pointDepositAmountText}}</text>
+              <text class="mine__staff-total-label">积分存入 · {{todaySummary.pointDepositCount}} 笔</text>
+            </view>
+            <view class="mine__staff-total">
+              <text class="mine__staff-total-num">{{todaySummary.pointWithdrawalAmountText}}</text>
+              <text class="mine__staff-total-label">积分提取 · {{todaySummary.pointWithdrawalCount}} 笔</text>
+            </view>
+          </view>
+          <view wx:if="{{todayOperations.length}}" class="mine__operation-list">
+            <view class="mine__operation-row" wx:for="{{todayOperations}}" wx:key="recordKey">
+              <view class="mine__operation-main">
+                <view class="mine__operation-titleline">
+                  <text class="mine__operation-type">{{item.typeLabel}}</text>
+                  <text class="mine__operation-member ic-ellipsis">{{item.memberName}}</text>
+                </view>
+                <text class="mine__operation-meta">{{item.phoneText || item.statusLabel}} · {{item.timeText}}</text>
+              </view>
+              <text class="mine__operation-amount">{{item.amountText}}</text>
+            </view>
+          </view>
+          <view wx:else class="mine__staff-empty"><text>今日暂无金币消费或积分存取记录</text></view>
+          <view class="mine__staff-records" bindtap="goStaffRecords">
+            <text>查看门票核销记录</text><view class="ic-arrow mine__staff-records-arrow"></view>
           </view>
         </view>
       </view>

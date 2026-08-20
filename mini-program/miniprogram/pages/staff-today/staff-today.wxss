@@ -1,13 +1,25 @@
-.sto { min-height: 100vh; background: var(--ic-bg); padding: 24rpx; box-sizing: border-box; }
-.sto__card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 30rpx 32rpx; margin-bottom: 20rpx; }
-.sto__card--hover { opacity: 0.85; }
-.sto__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24rpx; }
-.sto__info { flex: 1; min-width: 0; }
-.sto__title { font-size: 26rpx; font-weight: 500; color: var(--ic-black); }
-.sto__meta { display: flex; align-items: center; gap: 14rpx; margin-top: 14rpx; }
-.sto__time, .sto__store { font-size: 22rpx; color: var(--ic-text-2); min-width: 0; }
-.sto__icon { width: 28rpx; height: 28rpx; flex: none; display: block; opacity: 0.72; }
-.sto__stats { flex: none; display: flex; align-items: flex-start; gap: 24rpx; margin-top: 0; padding-top: 0; border-top: none; }
-.sto__stat { display: flex; flex-direction: column; align-items: flex-end; gap: 8rpx; }
-.sto__num { font-size: 30rpx; font-weight: 600; color: var(--ic-black); font-variant-numeric: tabular-nums; }
-.sto__label { font-size: 20rpx; color: var(--ic-text-3); }
+.sto__scroll { background: var(--ic-bg); }
+.sto { min-height: 0; padding: 34rpx 32rpx calc(36rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: var(--ic-bg); }
+.sto__head { display: flex; align-items: baseline; justify-content: space-between; gap: 20rpx; }
+.sto__title { font-size: 32rpx; font-weight: 700; color: var(--ic-black); }
+.sto__date { font-size: 21rpx; color: var(--ic-text-3); }
+.sto__summary { display: flex; margin-top: 34rpx; padding: 28rpx 0; border-top: 1rpx solid var(--ic-line); border-bottom: 1rpx solid var(--ic-line); }
+.sto__summary-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 0 12rpx; border-right: 1rpx solid var(--ic-line); }
+.sto__summary-item:last-child { border-right: none; }
+.sto__summary-num { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 32rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.sto__summary-label { font-size: 19rpx; line-height: 1.35; color: var(--ic-text-3); text-align: center; white-space: nowrap; }
+.sto__tabs { width: 100%; margin-top: 28rpx; white-space: nowrap; }
+.sto__tabs-inner { display: inline-flex; align-items: center; gap: 12rpx; padding-bottom: 6rpx; }
+.sto__tab { min-height: 68rpx; padding: 0 24rpx; display: inline-flex; align-items: center; border: 1rpx solid var(--ic-line-strong); border-radius: 999rpx; box-sizing: border-box; font-size: 21rpx; color: var(--ic-text-2); background: transparent; }
+.sto__tab.is-active { border-color: var(--ic-black); background: var(--ic-black); color: var(--ic-white); }
+.sto__list { margin-top: 22rpx; border-top: 1rpx solid var(--ic-line); }
+.sto__row { min-height: 128rpx; padding: 26rpx 0; display: flex; align-items: center; gap: 24rpx; border-bottom: 1rpx solid var(--ic-line); box-sizing: border-box; }
+.sto__main { flex: 1; min-width: 0; }
+.sto__row-head { display: flex; align-items: center; gap: 14rpx; }
+.sto__type { flex: none; font-size: 24rpx; font-weight: 650; color: var(--ic-black); }
+.sto__member { min-width: 0; font-size: 21rpx; color: var(--ic-text-2); }
+.sto__meta, .sto__order { display: block; margin-top: 8rpx; font-size: 19rpx; line-height: 1.35; color: var(--ic-text-3); }
+.sto__order { max-width: 430rpx; color: var(--ic-text-4); }
+.sto__value { flex: none; max-width: 230rpx; display: flex; flex-direction: column; align-items: flex-end; gap: 9rpx; }
+.sto__amount { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 24rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
+.sto__status { font-size: 19rpx; color: var(--ic-text-3); }

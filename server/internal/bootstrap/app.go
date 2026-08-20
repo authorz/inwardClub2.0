@@ -138,7 +138,9 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	walletSvc := wallet.NewService(wallet.NewRepository(database))
 	walletPointsSvc := wallet.NewPointsService(wallet.NewPointsRepository(database, businessClock))
 	paymentRepo := payment.NewStoreRepository(database)
-	activityStoreSvc := activity.NewStoreService(activity.NewStoreRepository(database), assetSvc)
+	activityStoreSvc := activity.NewStoreService(
+		activity.NewStoreRepository(database), assetSvc, businessClock.Location(),
+	)
 	pointReviewSettingsSvc := activity.NewPointReviewSettingsService(
 		activity.NewPointReviewSettingsRepository(database),
 	)

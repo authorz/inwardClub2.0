@@ -46,12 +46,28 @@ func (h *StoreHandler) ListPointSavings(c *gin.Context) {
 		return
 	}
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListPointSavings(c.Request.Context(), storeID, page)
+	views, total, err := h.svc.ListPointSavings(
+		c.Request.Context(), storeID, page, c.Query("status"), c.Query("phone"),
+	)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
 	}
 	httpx.List(c, views, httpx.MetaFor(page, total))
+}
+
+// StaffTodayOperations handles GET /mini/staff/operations/today.
+func (h *StoreHandler) StaffTodayOperations(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	view, err := h.svc.StaffTodayOperations(c.Request.Context(), storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
 }
 
 // GetPointSaving handles GET /api/v2/store/point-savings/{requestID}.

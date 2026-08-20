@@ -10,17 +10,19 @@ Page({
   },
 
   load() {
-    api
-      .staff.home()
-      .then((res) => {
-        const d = res.data || {};
+    Promise.all([api.staff.home(), api.staff.getTodayOperations()])
+      .then(([homeRes, operationsRes]) => {
+        const d = homeRes.data || {};
+        const summary = (operationsRes.data && operationsRes.data.summary) || {};
         this.setData({
           loading: false,
           home: {
             storeName: (d.store && d.store.name) || '',
             pendingReview: d.pendingReview || 0,
             todayVerifications: d.todayVerifications || 0,
-            todayActivity: d.todayActivity || null,
+            coinConsumption: summary.coinConsumptionAmount || 0,
+            pointDeposit: summary.pointDepositAmount || 0,
+            pointWithdrawal: summary.pointWithdrawalAmount || 0,
           },
         });
       })

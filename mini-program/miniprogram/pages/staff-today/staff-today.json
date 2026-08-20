@@ -3,5 +3,5 @@
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading"
   },
-  "navigationBarTitleText": "今日活动"
+  "navigationBarTitleText": "今日营业明细"
 }

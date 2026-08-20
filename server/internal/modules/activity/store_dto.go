@@ -110,6 +110,38 @@ type StaffHomeView struct {
 	TodayActivity      *ActivityView `json:"todayActivity"`
 }
 
+// StaffOperationSummaryView carries integer asset quantities for the current
+// business day. Coin and point values intentionally remain separate fields.
+type StaffOperationSummaryView struct {
+	CoinConsumptionAmount int64 `json:"coinConsumptionAmount"`
+	CoinConsumptionCount  int64 `json:"coinConsumptionCount"`
+	PointDepositAmount    int64 `json:"pointDepositAmount"`
+	PointDepositCount     int64 `json:"pointDepositCount"`
+	PointWithdrawalAmount int64 `json:"pointWithdrawalAmount"`
+	PointWithdrawalCount  int64 `json:"pointWithdrawalCount"`
+}
+
+// StaffOperationView is one store-scoped coin consumption or point request.
+type StaffOperationView struct {
+	RecordKey       string    `json:"recordKey"`
+	Type            string    `json:"type"`
+	MemberID        int64     `json:"memberId"`
+	MemberName      string    `json:"memberName"`
+	Phone           string    `json:"phone"`
+	Amount          int64     `json:"amount"`
+	Status          string    `json:"status"`
+	OrderType       string    `json:"orderType,omitempty"`
+	BusinessOrderNo string    `json:"businessOrderNo,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// StaffTodayOperationsView powers the staff mini-program's current-day ledger.
+type StaffTodayOperationsView struct {
+	Date    string                    `json:"date"`
+	Summary StaffOperationSummaryView `json:"summary"`
+	Entries []StaffOperationView      `json:"entries"`
+}
+
 func ticketVerificationView(v TicketVerification) TicketVerificationView {
 	return TicketVerificationView{
 		ID: v.ID, TicketID: v.TicketID, TicketNo: v.TicketNo, ActivityID: v.ActivityID,
@@ -163,5 +195,14 @@ func verificationView(v Verification) VerificationView {
 		ID: v.ID, Kind: v.Kind, RefID: v.RefID, Code: v.Code, ActivityTitle: v.ActivityTitle,
 		MemberName: v.MemberName, Status: verificationStatusUsed, Result: verificationResultSuccess,
 		VerifiedBy: v.VerifiedBy, VerifiedAt: v.VerifiedAt, At: v.VerifiedAt, CreatedAt: v.VerifiedAt,
+	}
+}
+
+func staffOperationView(entry StaffOperation) StaffOperationView {
+	return StaffOperationView{
+		RecordKey: entry.RecordKey, Type: entry.Type, MemberID: entry.MemberID,
+		MemberName: entry.MemberName, Phone: entry.Phone, Amount: entry.Amount,
+		Status: entry.Status, OrderType: entry.OrderType,
+		BusinessOrderNo: entry.BusinessOrderNo, CreatedAt: entry.CreatedAt,
 	}
 }

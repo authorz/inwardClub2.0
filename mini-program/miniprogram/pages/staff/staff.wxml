@@ -13,10 +13,10 @@
   </view>
 
   <view class="st__list ic-card">
-    <ic-cell label="活动核销" label2="扫码核销 · 输入核销码" arrow="{{true}}" bind:tap="goVerify">
+    <ic-cell label="门票核销" label2="扫码核销 · 输入核销码" arrow="{{true}}" bind:tap="goVerify">
       <view slot="icon" class="ic-ic ic-ic-ticket"></view>
     </ic-cell>
-    <ic-cell label="积分审核" arrow="{{true}}" bind:tap="goReview">
+    <ic-cell label="积分核销" arrow="{{true}}" bind:tap="goReview">
       <view slot="icon" class="ic-ic ic-ic-shield"></view>
       <view slot="value" class="st__badge">待审核 {{home.pendingReview}}</view>
     </ic-cell>
@@ -24,9 +24,9 @@
       <view slot="icon" class="ic-ic ic-ic-doc"></view>
       <view slot="value" class="st__count">今日 {{home.todayVerifications}} 条</view>
     </ic-cell>
-    <ic-cell label="今日活动" arrow="{{true}}" bordered="{{false}}" bind:tap="goToday">
+    <ic-cell label="今日营业明细" arrow="{{true}}" bordered="{{false}}" bind:tap="goToday">
       <view slot="icon" class="ic-ic ic-ic-calendar"></view>
-      <view slot="value" class="st__count" wx:if="{{home.todayActivity}}">{{home.todayActivity.title}} {{home.todayActivity.timeText}}</view>
+      <view slot="value" class="st__count">金币 {{home.coinConsumption}} · 积分 {{home.pointDeposit}}/{{home.pointWithdrawal}}</view>
     </ic-cell>
   </view>
 

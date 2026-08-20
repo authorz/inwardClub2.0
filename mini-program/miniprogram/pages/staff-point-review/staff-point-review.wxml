@@ -3,22 +3,24 @@
 <scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="spr">
   <view class="spr__search">
-    <input class="spr__search-input" maxlength="50" value="{{keyword}}" placeholder="搜索昵称或手机号" placeholder-class="spr__search-ph" bindinput="onSearch" />
+    <input class="spr__search-input" type="number" maxlength="11" value="{{keyword}}" placeholder="输入手机号或尾号" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
+    <text wx:if="{{keyword}}" class="spr__search-clear" bindtap="clearSearch">清除</text>
+    <text class="spr__search-button" bindtap="search">搜索</text>
   </view>
   <ic-loading wx:if="{{loading}}" />
-  <ic-empty wx:elif="{{!list.length}}" text="暂无积分审核申请" />
+  <ic-empty wx:elif="{{!list.length}}" text="{{keyword ? '未找到该手机号的待审核申请' : '当前门店暂无待审核积分存入'}}" />
 
   <view wx:else class="spr__list">
-    <view class="spr__card" wx:for="{{list}}" wx:key="id">
+    <view class="spr__row" wx:for="{{list}}" wx:key="id">
       <view class="spr__top" data-id="{{item.id}}" bindtap="goDetail">
         <view class="spr__head">
           <text class="spr__member">{{item.memberName}}</text>
-          <text class="spr__dir">{{item.directionLabel}}</text>
+          <text class="spr__phone">{{item.phoneText}}</text>
         </view>
         <text class="spr__points">{{item.points}} 积分</text>
       </view>
       <view class="spr__meta" data-id="{{item.id}}" bindtap="goDetail">
-        <text class="spr__store ic-ellipsis">{{item.storeName}}</text>
+        <text class="spr__store ic-ellipsis">{{item.directionLabel}} · {{item.storeName}}</text>
         <text class="spr__time">{{item.timeText}}</text>
       </view>
       <view wx:if="{{item.pending}}" class="spr__actions">

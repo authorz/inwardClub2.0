@@ -509,6 +509,7 @@ const api = {
     reviewPointSaving: (id, data, key) =>
       http.post(s(`/point-savings/${id}/review`), data, { idempotent: true, idempotencyKey: key }),
     getTodayActivities: () => http.get(s('/activities/today')),
+    getTodayOperations: () => http.get(s('/operations/today')),
     verifyTicket: (data, key) =>
       http.post(s('/tickets/verify'), data, { idempotent: true, idempotencyKey: key }),
     getVerifications: (params) => http.get(s('/verifications') + qs(params)),

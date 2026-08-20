@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,11 +16,14 @@ type storeMemRepo struct {
 	pointSavings  []PointSaving
 	verifications []Verification
 	activities    []Activity
+	operations    StaffTodayOperationsData
 
 	verifyCalledStore int64
 	verifyCalledCode  string
 	reviewDecision    string
 	previewCalled     bool
+	operationsStart   time.Time
+	operationsEnd     time.Time
 }
 
 func (r *storeMemRepo) VerifyTicket(_ context.Context, storeID int64, code string, byID int64, now time.Time) (TicketVerification, error) {
@@ -28,10 +32,11 @@ func (r *storeMemRepo) VerifyTicket(_ context.Context, storeID int64, code strin
 	return TicketVerification{ID: 1, StoreID: storeID, TicketNo: code, Status: "verified", VerifiedBy: byID, VerifiedAt: now}, nil
 }
 
-func (r *storeMemRepo) ListPointSavings(_ context.Context, storeID int64, limit, offset int) ([]PointSaving, int64, error) {
+func (r *storeMemRepo) ListPointSavings(_ context.Context, storeID int64, status, phone string, limit, offset int) ([]PointSaving, int64, error) {
 	var all []PointSaving
 	for _, p := range r.pointSavings {
-		if p.StoreID == storeID {
+		if p.StoreID == storeID && (status == "" || p.Status == status) &&
+			(phone == "" || strings.Contains(p.Phone, phone)) {
 			all = append(all, p)
 		}
 	}
@@ -143,6 +148,12 @@ func (r *storeMemRepo) StaffHome(_ context.Context, storeID int64, dayStart, day
 	return data, nil
 }
 
+func (r *storeMemRepo) StaffTodayOperations(_ context.Context, _ int64, dayStart, dayEnd time.Time, _ int) (StaffTodayOperationsData, error) {
+	r.operationsStart = dayStart
+	r.operationsEnd = dayEnd
+	return r.operations, nil
+}
+
 type nopAssets struct{}
 
 func (nopAssets) PublicURLByID(context.Context, int64) (string, error) { return "", nil }
@@ -153,7 +164,7 @@ func (a fixedAssets) PublicURLByID(context.Context, int64) (string, error) { ret
 
 func newStoreTestService() (*StoreService, *storeMemRepo) {
 	repo := &storeMemRepo{}
-	svc := NewStoreService(repo, nopAssets{})
+	svc := NewStoreService(repo, nopAssets{}, time.FixedZone("Asia/Shanghai", 8*60*60))
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
 }
@@ -194,7 +205,7 @@ func TestListPointSavingsScoped(t *testing.T) {
 		{ID: 2, StoreID: 7, MemberID: 2, Points: 50, Status: PointSavingPending},
 		{ID: 3, StoreID: 99, MemberID: 3, Points: 10, Status: PointSavingPending},
 	}
-	views, total, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20})
+	views, total, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -204,6 +215,30 @@ func TestListPointSavingsScoped(t *testing.T) {
 	if views[0].MemberID != 1 || views[0].MemberAvatarURL == "" ||
 		views[0].ReviewedByType != "store_admin" || string(views[0].Reviewer) != `{"type":"store_admin","id":2,"username":"storeadmin"}` {
 		t.Fatalf("expected member and reviewer identity fields, got %+v", views[0])
+	}
+}
+
+func TestListPointSavingsFiltersPendingByPhone(t *testing.T) {
+	svc, repo := newStoreTestService()
+	repo.pointSavings = []PointSaving{
+		{ID: 1, StoreID: 7, Phone: "13800001111", Status: PointSavingPending},
+		{ID: 2, StoreID: 7, Phone: "13800002222", Status: PointSavingApproved},
+		{ID: 3, StoreID: 7, Phone: "13900001111", Status: PointSavingPending},
+		{ID: 4, StoreID: 99, Phone: "13800001111", Status: PointSavingPending},
+	}
+	views, total, err := svc.ListPointSavings(
+		context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, PointSavingPending, "1111",
+	)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if total != 2 || len(views) != 2 || views[0].Status != PointSavingPending {
+		t.Fatalf("expected two pending phone matches, got %+v (total %d)", views, total)
+	}
+	for _, phone := range []string{"12", "12A", "123456789012"} {
+		if _, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{}, PointSavingPending, phone); apperr.From(err).Code != apperr.CodeInvalidArgument {
+			t.Fatalf("expected invalid phone filter %q, got %v", phone, err)
+		}
 	}
 }
 
@@ -230,13 +265,13 @@ func TestGetPointSavingPreviewsPendingAward(t *testing.T) {
 
 func TestListPointSavingsResolvesAvatarAsset(t *testing.T) {
 	repo := &storeMemRepo{}
-	svc := NewStoreService(repo, fixedAssets{url: "https://cdn.test/resolved-avatar.webp"})
+	svc := NewStoreService(repo, fixedAssets{url: "https://cdn.test/resolved-avatar.webp"}, time.UTC)
 	assetID := int64(88)
 	repo.pointSavings = []PointSaving{{
 		ID: 1, StoreID: 7, MemberID: 3, MemberAvatarAssetID: &assetID,
 		Points: 100, Status: PointSavingPending,
 	}}
-	views, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20})
+	views, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, "", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -337,5 +372,37 @@ func TestStaffHomeNoActivity(t *testing.T) {
 	}
 	if view.TodayActivity != nil {
 		t.Fatalf("expected nil today activity, got %+v", view.TodayActivity)
+	}
+}
+
+func TestStaffTodayOperationsUsesBusinessDayAndSeparateAssetTotals(t *testing.T) {
+	svc, repo := newStoreTestService()
+	repo.operations = StaffTodayOperationsData{
+		CoinConsumptionAmount: 18,
+		CoinConsumptionCount:  2,
+		PointDepositAmount:    300,
+		PointDepositCount:     1,
+		PointWithdrawalAmount: 120,
+		PointWithdrawalCount:  1,
+		Entries: []StaffOperation{{
+			RecordKey: "coin:1", Type: "coin_consumption", MemberID: 8,
+			MemberName: "会员甲", Amount: 18, Status: "completed",
+		}},
+	}
+	view, err := svc.StaffTodayOperations(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("today operations: %v", err)
+	}
+	if view.Date != "2026-07-17" || view.Summary.CoinConsumptionAmount != 18 ||
+		view.Summary.PointDepositAmount != 300 || view.Summary.PointWithdrawalAmount != 120 {
+		t.Fatalf("unexpected daily view: %+v", view)
+	}
+	wantStart := time.Date(2026, 7, 16, 16, 0, 0, 0, time.UTC)
+	wantEnd := time.Date(2026, 7, 17, 16, 0, 0, 0, time.UTC)
+	if !repo.operationsStart.Equal(wantStart) || !repo.operationsEnd.Equal(wantEnd) {
+		t.Fatalf("unexpected business-day bounds: %v - %v", repo.operationsStart, repo.operationsEnd)
+	}
+	if len(view.Entries) != 1 || view.Entries[0].Type != "coin_consumption" {
+		t.Fatalf("unexpected entries: %+v", view.Entries)
 	}
 }

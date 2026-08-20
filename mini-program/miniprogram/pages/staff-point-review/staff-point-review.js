@@ -12,18 +12,21 @@ Page({
   data: { loading: true, list: [], keyword: '' },
 
   onShow() {
-    this.load();
+    this.load(this.data.keyword.length >= 3 ? this.data.keyword : '');
   },
 
-  load() {
+  load(phone) {
     this.setData({ loading: true });
+    const params = { status: 'pending', pageSize: 50 };
+    if (phone) params.phone = phone;
     api
-      .staff.getPointSavings({ pageSize: 50 })
+      .staff.getPointSavings(params)
       .then((res) => {
-        this.all = (res.data || []).map((p) => ({
+        const list = (res.data || []).map((p) => ({
           id: p.id,
           memberName: p.memberName,
           phone: p.phone || '',
+          phoneText: fmt.maskPhone(p.phone) || '未绑定手机号',
           directionLabel: POINT_SAVING_LABEL[p.direction] || p.direction,
           points: p.points,
           storeName: p.storeName,
@@ -32,30 +35,31 @@ Page({
           timeText: fmt.dateTime(p.createdAt),
           pending: p.status === 'pending',
         }));
-        this.setData({ loading: false });
-        this.filter();
+        this.setData({ loading: false, list });
       })
       .catch(() => this.setData({ loading: false }));
   },
 
   onSearch(e) {
-    this.setData({ keyword: e.detail.value });
-    this.filter();
+    const keyword = (e.detail.value || '').replace(/\D/g, '').slice(0, 11);
+    this.setData({ keyword });
+    if (!keyword) this.load();
   },
 
-  filter() {
-	let kw = '';
-	try {
-	  kw = validation.plainText(this.data.keyword, { label: '搜索内容', max: 50, allowEmpty: true }).toLowerCase();
-	} catch {
-	  this.setData({ list: [] });
-	  return;
-	}
-    const all = this.all || [];
-    const list = kw
-      ? all.filter((p) => (p.memberName || '').toLowerCase().includes(kw) || (p.phone || '').includes(kw))
-      : all;
-    this.setData({ list });
+  search() {
+    let phone = '';
+    try {
+      phone = validation.plainText(this.data.keyword, { label: '手机号', min: 3, max: 11 });
+    } catch (err) {
+      ui.toast(err.message);
+      return;
+    }
+    this.load(phone);
+  },
+
+  clearSearch() {
+    this.setData({ keyword: '' });
+    this.load();
   },
 
   review(e) {

@@ -137,6 +137,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	staff.GET("/point-savings", a.activityStoreHandler.ListPointSavings)
 	staff.GET("/point-savings/:requestID", a.activityStoreHandler.GetPointSaving)
 	staff.GET("/activities/today", a.activityStoreHandler.TodayActivities)
+	staff.GET("/operations/today", a.activityStoreHandler.StaffTodayOperations)
 	staff.GET("/verifications", a.activityStoreHandler.ListVerifications)
 
 	staffIdem := g.Group(

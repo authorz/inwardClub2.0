@@ -26,6 +26,7 @@ Page({
           item: {
             status: p.status,
             memberName: p.memberName,
+            phoneText: fmt.maskPhone(p.phone) || '未绑定手机号',
             directionLabel: POINT_SAVING_LABEL[p.direction] || p.direction,
             points: p.points,
             basePoints: p.basePoints || 0,

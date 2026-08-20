@@ -1,13 +1,16 @@
 .spr__scroll { background: var(--ic-bg); }
-.spr { min-height: 0; background: var(--ic-bg); padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.spr__search { background: var(--ic-white); border-radius: var(--ic-radius); padding: 20rpx 28rpx; margin-bottom: 20rpx; }
-.spr__search-input { font-size: 24rpx; color: var(--ic-black); }
+.spr { min-height: 0; background: var(--ic-bg); padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.spr__search { height: 84rpx; display: flex; align-items: center; gap: 18rpx; border: 1rpx solid var(--ic-line-strong); border-radius: 12rpx; padding: 0 22rpx; margin-bottom: 24rpx; background: var(--ic-white); box-sizing: border-box; }
+.spr__search-input { flex: 1; min-width: 0; height: 82rpx; font-size: 24rpx; color: var(--ic-black); }
 .spr__search-ph { color: var(--ic-text-4); }
-.spr__card { background: var(--ic-white); border-radius: var(--ic-radius); padding: 30rpx 32rpx; margin-bottom: 20rpx; }
+.spr__search-clear { padding: 20rpx 0; font-size: 21rpx; color: var(--ic-text-3); }
+.spr__search-button { padding: 20rpx 0 20rpx 8rpx; font-size: 22rpx; font-weight: 600; color: var(--ic-black); }
+.spr__list { border-top: 1rpx solid var(--ic-line); }
+.spr__row { padding: 30rpx 0; border-bottom: 1rpx solid var(--ic-line); }
 .spr__top { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
-.spr__head { display: flex; align-items: center; gap: 16rpx; }
+.spr__head { min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
 .spr__member { font-size: 26rpx; font-weight: 700; color: var(--ic-black); }
-.spr__dir { font-size: 20rpx; color: var(--ic-text-2); padding: 4rpx 14rpx; background: var(--ic-fill); border-radius: 8rpx; }
+.spr__phone { font-size: 20rpx; color: var(--ic-text-3); }
 .spr__points { font-size: 26rpx; font-weight: 700; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .spr__meta { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 14rpx; }
 .spr__store { font-size: 22rpx; color: var(--ic-text-2); min-width: 0; }
