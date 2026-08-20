@@ -54,7 +54,7 @@
       <text wx:if="{{store.phone}}" class="cs__copy">点击复制</text>
     </view>
     <button
-      class="ic-btn ic-btn-primary ic-btn-block cs__call"
+      class="ic-btn ic-btn-primary ic-btn-block ic-glass-recessed cs__call"
       disabled="{{!store.phone}}"
       bindtap="onCall"
     >
