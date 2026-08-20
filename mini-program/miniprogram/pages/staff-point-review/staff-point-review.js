@@ -3,7 +3,6 @@ const api = require('../../services/api');
 const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const http = require('../../utils/request');
-const validation = require('../../utils/validation');
 
 const PS_STATUS = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
 
@@ -11,7 +10,7 @@ Page({
   data: { loading: true, list: [], keyword: '' },
 
   onShow() {
-    this.load(this.data.keyword.length >= 3 ? this.data.keyword : '');
+    this.load(this.data.keyword.length >= 4 ? this.data.keyword : '');
   },
 
   load(phone) {
@@ -50,11 +49,9 @@ Page({
   },
 
   search() {
-    let phone = '';
-    try {
-      phone = validation.plainText(this.data.keyword, { label: '手机号', min: 3, max: 11 });
-    } catch (err) {
-      ui.toast(err.message);
+    const phone = this.data.keyword;
+    if (!/^\d{4,11}$/.test(phone)) {
+      ui.toast('请输入手机号后四位或完整手机号');
       return;
     }
     this.load(phone);

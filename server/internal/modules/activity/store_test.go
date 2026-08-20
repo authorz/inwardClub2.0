@@ -235,7 +235,7 @@ func TestListPointSavingsFiltersPendingByPhone(t *testing.T) {
 	if total != 2 || len(views) != 2 || views[0].Status != PointSavingPending {
 		t.Fatalf("expected two pending phone matches, got %+v (total %d)", views, total)
 	}
-	for _, phone := range []string{"12", "12A", "123456789012"} {
+	for _, phone := range []string{"123", "12A4", "123456789012"} {
 		if _, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{}, PointSavingPending, phone); apperr.From(err).Code != apperr.CodeInvalidArgument {
 			t.Fatalf("expected invalid phone filter %q, got %v", phone, err)
 		}
