@@ -54,7 +54,8 @@ function assertPathAllowed(url: string): void {
 }
 
 const instance: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  // 生产默认走同源 /api/v2，由 Nginx 反向代理到实际 API 服务。
+  baseURL: import.meta.env.VITE_API_BASE_URL?.trim() || '/api/v2',
   timeout: 20_000,
   headers: {
     'Content-Type': 'application/json',

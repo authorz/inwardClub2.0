@@ -37,9 +37,33 @@ pnpm preview     # 预览 dist
 | 变量 | 说明 | 默认（dev） |
 | --- | --- | --- |
 | `VITE_APP_ID` | 应用标识（错误监控 / 埋点区分） | `inwardclub-admin-console` |
-| `VITE_API_BASE_URL` | API 根地址，必须指向 `/api/v2` 网关 | `http://localhost:8081/api/v2` |
+| `VITE_API_BASE_URL` | API 根路径，生产由 Nginx 同源代理 | `/api/v2` |
 | `VITE_AUTH_AUDIENCE` | token audience，固定 `admin` | `admin` |
 | `VITE_ASSET_PUBLIC_DOMAIN` | 资产公共访问域名（可选，展示 assetId 图片） | 空 |
+
+生产构建默认请求同源 `/api/v2`，前端产物不包含 API 服务域名。部署时由 Nginx 反向代理到实际 API 服务：
+
+```nginx
+server {
+    listen 80;
+    server_name admin.example.com;
+    root /var/www/inwardclub-admin-console;
+    index index.html;
+
+    location ^~ /api/v2/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
 
 ### 关于 pnpm 构建脚本审批
 
