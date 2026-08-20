@@ -155,7 +155,7 @@ export const MENU: MenuGroup[] = [
   },
   {
     name: 'reservations',
-    title: '预约与场地',
+    title: '预约与桌位',
     icon: 'reservation',
     items: [
       {
