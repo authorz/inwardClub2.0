@@ -72,7 +72,7 @@ function staffInitial(row: AccountEntity): string {
 }
 
 function staffAvatar(row: AccountEntity) {
-  const props = { size: 36, round: true, objectFit: 'cover' as const }
+  const props = { class: 'staff-user__avatar', size: 36, round: true, objectFit: 'cover' as const }
   return row.avatarUrl
     ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
     : h(NAvatar, props, { default: () => staffInitial(row) })
@@ -81,18 +81,13 @@ function staffAvatar(row: AccountEntity) {
 const baseColumns: TableColumnList<AccountEntity> = isStaff
   ? [
       {
-        title: '用户',
+        title: '员工信息',
         key: 'member',
         width: 200,
         render: (row) =>
           h('div', { class: 'staff-user' }, [
             staffAvatar(row),
-            h('div', { class: 'staff-user__meta' }, [
-              h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
-              row.name && row.name !== staffNickname(row)
-                ? h('span', { class: 'staff-user__name' }, `员工名：${row.name}`)
-                : null,
-            ]),
+            h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
           ]),
       },
       textColumn<AccountEntity>('手机号', 'phone', { width: 150 }),
@@ -548,24 +543,16 @@ const toolbarActions = [
   gap: var(--ic-space-sm);
   min-width: 0;
 }
-.staff-user__meta {
-  display: flex;
-  flex-direction: column;
+.staff-user__nickname {
   min-width: 0;
-}
-.staff-user__nickname,
-.staff-user__name {
   overflow: hidden;
+  font-weight: 600;
+  color: var(--ic-color-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.staff-user__nickname {
-  font-weight: 600;
-  color: var(--ic-color-text);
-}
-.staff-user__name {
-  font-size: var(--ic-font-xs);
-  color: var(--ic-color-text-tertiary);
+.staff-user__avatar {
+  flex: 0 0 auto;
 }
 .form-note {
   margin-top: var(--ic-space-sm);

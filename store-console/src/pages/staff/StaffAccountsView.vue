@@ -70,7 +70,7 @@ function staffInitial(row: StaffAccount) {
 }
 
 function staffAvatar(row: StaffAccount) {
-  const props = { size: 36, round: true, objectFit: 'cover' as const }
+  const props = { class: 'staff-user__avatar', size: 36, round: true, objectFit: 'cover' as const }
   return row.avatarUrl
     ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
     : h(NAvatar, props, { default: () => staffInitial(row) })
@@ -209,18 +209,13 @@ function remove(row: StaffAccount) {
 
 const columns = computed<DataTableColumns<StaffAccount>>(() => [
   {
-    title: '用户',
+    title: '员工信息',
     key: 'member',
     width: 200,
     render: (row: StaffAccount) =>
       h('div', { class: 'staff-user' }, [
         staffAvatar(row),
-        h('div', { class: 'staff-user__meta' }, [
-          h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
-          row.name && row.name !== staffNickname(row)
-            ? h('span', { class: 'staff-user__name' }, `员工名：${row.name}`)
-            : null,
-        ]),
+        h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
       ]),
   },
   textColumn<StaffAccount>('手机号', (r) => r.phone || '—', { width: 150 }),
@@ -421,23 +416,15 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
   gap: var(--ic-space-3);
   min-width: 0;
 }
-.staff-user__meta {
-  display: flex;
-  flex-direction: column;
+.staff-user__nickname {
   min-width: 0;
-}
-.staff-user__nickname,
-.staff-user__name {
   overflow: hidden;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.staff-user__nickname {
-  font-weight: 600;
-}
-.staff-user__name {
-  color: var(--ic-color-text-3, #8c8c93);
-  font-size: var(--ic-font-xs);
+.staff-user__avatar {
+  flex: 0 0 auto;
 }
 .staff-form {
   display: flex;
