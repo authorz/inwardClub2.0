@@ -68,18 +68,13 @@
     </view>
   </view>
 
-  <view class="bf__privileges" aria-label="会员特权">
+  <view class="bf__privileges ic-glass-recessed" aria-label="会员特权">
     <view class="bf__section-head">
       <text class="bf__section-kicker">MEMBER PRIVILEGES</text>
       <text class="bf__section-title">会员特权</text>
     </view>
     <view class="bf__privilege-grid">
-      <view
-        class="bf__privilege {{index % 3 !== 0 ? 'has-left-line' : ''}} {{index >= 3 ? 'has-top-line' : ''}}"
-        wx:for="{{privileges}}"
-        wx:key="name"
-        aria-label="{{item.name}}"
-      >
+      <view class="bf__privilege" wx:for="{{privileges}}" wx:key="name" aria-label="{{item.name}}">
         <image class="bf__privilege-icon" src="{{item.icon}}" mode="aspectFit"></image>
         <text class="bf__privilege-name">{{item.name}}</text>
       </view>
