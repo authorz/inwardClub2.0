@@ -15,6 +15,7 @@
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  NAvatar,
   NButton,
   NForm,
   NFormItem,
@@ -62,9 +63,38 @@ const fields: FilterField[] = [
   { key: 'status', label: '状态', type: 'select', options: RESOURCE_STATUS_OPTIONS },
 ]
 
+function staffNickname(row: AccountEntity): string {
+  return row.nickname?.trim() || row.name?.trim() || '会员'
+}
+
+function staffInitial(row: AccountEntity): string {
+  return staffNickname(row).slice(0, 1)
+}
+
+function staffAvatar(row: AccountEntity) {
+  const props = { size: 36, round: true, objectFit: 'cover' as const }
+  return row.avatarUrl
+    ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
+    : h(NAvatar, props, { default: () => staffInitial(row) })
+}
+
 const baseColumns: TableColumnList<AccountEntity> = isStaff
   ? [
-      textColumn<AccountEntity>('姓名', 'name', { width: 140 }),
+      {
+        title: '用户',
+        key: 'member',
+        width: 200,
+        render: (row) =>
+          h('div', { class: 'staff-user' }, [
+            staffAvatar(row),
+            h('div', { class: 'staff-user__meta' }, [
+              h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
+              row.name && row.name !== staffNickname(row)
+                ? h('span', { class: 'staff-user__name' }, `员工名：${row.name}`)
+                : null,
+            ]),
+          ]),
+      },
       textColumn<AccountEntity>('手机号', 'phone', { width: 150 }),
     ]
   : [
@@ -512,6 +542,31 @@ const toolbarActions = [
 </template>
 
 <style scoped>
+.staff-user {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-sm);
+  min-width: 0;
+}
+.staff-user__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.staff-user__nickname,
+.staff-user__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-user__nickname {
+  font-weight: 600;
+  color: var(--ic-color-text);
+}
+.staff-user__name {
+  font-size: var(--ic-font-xs);
+  color: var(--ic-color-text-tertiary);
+}
 .form-note {
   margin-top: var(--ic-space-sm);
   font-size: var(--ic-font-xs);

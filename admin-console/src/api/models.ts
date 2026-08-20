@@ -59,8 +59,10 @@ export interface AccountEntity extends AuditableEntity {
   role?: string
   /** 系统管理员不可删除或禁用，但可编辑姓名和密码 */
   isSystem?: boolean
-  /** 员工账号：绑定的小程序会员 id 与手机号（打码） */
+  /** 员工账号：绑定的小程序会员资料与完整手机号 */
   memberId?: number
+  avatarUrl?: string
+  nickname?: string
   phone?: string
   /** 绑定门店名称（门店管理员 / 员工列表） */
   storeName?: string | null

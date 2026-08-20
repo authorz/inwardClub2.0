@@ -186,7 +186,10 @@ func (f *fakeRepo) ListStaffAccounts(_ context.Context, flt ListFilter) ([]Staff
 	if f.err != nil {
 		return nil, 0, f.err
 	}
-	return []StaffAccount{{ID: 92, Name: "Waiter Wang", StoreID: 42}}, 1, nil
+	return []StaffAccount{{
+		ID: 92, Name: "Waiter Wang", Nickname: "小王", AvatarURL: "https://example.com/avatar.jpg",
+		Phone: "19123450770", StoreID: 42,
+	}}, 1, nil
 }
 func (f *fakeRepo) ListSuperAdmins(_ context.Context, flt ListFilter) ([]AdminAccount, int64, error) {
 	f.lastFilter = flt
@@ -1107,6 +1110,12 @@ func TestListStaffAccountsMapsAndPassesTotal(t *testing.T) {
 	}
 	if len(views) != 1 || views[0].Name != "Waiter Wang" || views[0].StoreID != 42 {
 		t.Fatalf("unexpected views: %+v", views)
+	}
+	if views[0].Nickname != "小王" || views[0].AvatarURL != "https://example.com/avatar.jpg" {
+		t.Fatalf("expected member profile in staff view, got %+v", views[0])
+	}
+	if views[0].Phone != "19123450770" {
+		t.Fatalf("expected full staff phone, got %q", views[0].Phone)
 	}
 }
 

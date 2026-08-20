@@ -1173,7 +1173,7 @@ func (r *sqlRepository) ListStaffAccounts(ctx context.Context, f ListFilter) ([]
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM staff_accounts sa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+	q := `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.nickname,''), COALESCE(m.avatar_url,''), COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
 		FROM staff_accounts sa
 		LEFT JOIN stores s ON s.id = sa.store_id
 		LEFT JOIN members m ON m.id = sa.member_id
@@ -1187,7 +1187,7 @@ func (r *sqlRepository) ListStaffAccounts(ctx context.Context, f ListFilter) ([]
 	out := make([]StaffAccount, 0)
 	for rows.Next() {
 		var a StaffAccount
-		if err := rows.Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.MemberID, &a.Name, &a.Nickname, &a.AvatarURL, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, a)
@@ -1279,13 +1279,13 @@ func (r *sqlRepository) ResetCashierPassword(ctx context.Context, storeID, id in
 }
 
 func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) (StaffAccount, error) {
-	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.nickname,''), COALESCE(m.avatar_url,''), COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
 		FROM staff_accounts sa
 		LEFT JOIN stores s ON s.id = sa.store_id
 		LEFT JOIN members m ON m.id = sa.member_id
 		WHERE sa.id = ? AND sa.store_id = ?`
 	var a StaffAccount
-	err := r.db.QueryRowContext(ctx, q, id, storeID).Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id, storeID).Scan(&a.ID, &a.MemberID, &a.Name, &a.Nickname, &a.AvatarURL, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return StaffAccount{}, apperr.NotFound("staff account not found")
 	}
@@ -1404,13 +1404,13 @@ func (r *sqlRepository) DisableStaffAccount(ctx context.Context, storeID, id int
 // GetStaffAccountByID looks up a staff account by id alone, for the admin
 // console which is not pinned to a single store.
 func (r *sqlRepository) GetStaffAccountByID(ctx context.Context, id int64) (StaffAccount, error) {
-	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.name, COALESCE(m.nickname,''), COALESCE(m.avatar_url,''), COALESCE(m.phone,''), sa.store_id, COALESCE(s.name,''), sa.status, sa.created_at
 		FROM staff_accounts sa
 		LEFT JOIN stores s ON s.id = sa.store_id
 		LEFT JOIN members m ON m.id = sa.member_id
 		WHERE sa.id = ?`
 	var a StaffAccount
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.MemberID, &a.Name, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.MemberID, &a.Name, &a.Nickname, &a.AvatarURL, &a.Phone, &a.StoreID, &a.StoreName, &a.Status, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return StaffAccount{}, apperr.NotFound("staff account not found")
 	}

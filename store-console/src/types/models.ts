@@ -430,7 +430,9 @@ export interface StaffAccount extends AuditFields {
   /** 绑定的小程序会员 id */
   memberId?: number | string
   name: string
-  /** 会员手机号（打码） */
+  /** 绑定会员的头像、昵称与完整手机号 */
+  avatarUrl?: string
+  nickname?: string
   phone?: string
   storeId?: number | string
   storeName?: string

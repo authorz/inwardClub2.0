@@ -719,7 +719,8 @@ func (s *Service) ListStaffAccounts(ctx context.Context, f ListFilter) ([]StaffA
 
 func staffAccountView(r StaffAccount) StaffAccountView {
 	return StaffAccountView{
-		ID: r.ID, MemberID: r.MemberID, Name: r.Name, Phone: maskPhone(r.Phone),
+		ID: r.ID, MemberID: r.MemberID, Name: r.Name,
+		Nickname: r.Nickname, AvatarURL: r.AvatarURL, Phone: r.Phone,
 		StoreID: r.StoreID, StoreName: r.StoreName,
 		Status: r.Status, CreatedAt: r.CreatedAt,
 	}

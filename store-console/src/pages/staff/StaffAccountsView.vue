@@ -61,6 +61,21 @@ function memberInitial(member: Member) {
   return memberName(member).slice(0, 1)
 }
 
+function staffNickname(row: StaffAccount) {
+  return row.nickname?.trim() || row.name?.trim() || '会员'
+}
+
+function staffInitial(row: StaffAccount) {
+  return staffNickname(row).slice(0, 1)
+}
+
+function staffAvatar(row: StaffAccount) {
+  const props = { size: 36, round: true, objectFit: 'cover' as const }
+  return row.avatarUrl
+    ? h(NAvatar, { ...props, src: row.avatarUrl }, { fallback: () => staffInitial(row) })
+    : h(NAvatar, props, { default: () => staffInitial(row) })
+}
+
 function bindMembers(members: Member[]): Promise<BatchBindResult> {
   return Promise.allSettled(
     members.map((member) =>
@@ -193,7 +208,21 @@ function remove(row: StaffAccount) {
 }
 
 const columns = computed<DataTableColumns<StaffAccount>>(() => [
-  textColumn<StaffAccount>('姓名', (r) => r.name),
+  {
+    title: '用户',
+    key: 'member',
+    width: 200,
+    render: (row: StaffAccount) =>
+      h('div', { class: 'staff-user' }, [
+        staffAvatar(row),
+        h('div', { class: 'staff-user__meta' }, [
+          h('span', { class: 'staff-user__nickname' }, staffNickname(row)),
+          row.name && row.name !== staffNickname(row)
+            ? h('span', { class: 'staff-user__name' }, `员工名：${row.name}`)
+            : null,
+        ]),
+      ]),
+  },
   textColumn<StaffAccount>('手机号', (r) => r.phone || '—', { width: 150 }),
   statusColumn<StaffAccount>('状态', ACTIVE_STATUS, (r) => r.status, { width: 90 }),
   dateColumn<StaffAccount>('创建时间', (r) => r.createdAt, { width: 150 }),
@@ -386,6 +415,30 @@ const columns = computed<DataTableColumns<StaffAccount>>(() => [
 </template>
 
 <style scoped>
+.staff-user {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-3);
+  min-width: 0;
+}
+.staff-user__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.staff-user__nickname,
+.staff-user__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-user__nickname {
+  font-weight: 600;
+}
+.staff-user__name {
+  color: var(--ic-color-text-3, #8c8c93);
+  font-size: var(--ic-font-xs);
+}
 .staff-form {
   display: flex;
   flex-direction: column;

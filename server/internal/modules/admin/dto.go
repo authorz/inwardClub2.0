@@ -282,11 +282,13 @@ type AdminAccountUpdateRequest struct {
 }
 
 // StaffAccountView is the console list representation of a staff_accounts row.
-// MemberID/Phone identify the bound mini-program member.
+// MemberID/Nickname/AvatarURL/Phone identify the bound mini-program member.
 type StaffAccountView struct {
 	ID        int64     `json:"id"`
 	MemberID  int64     `json:"memberId,omitempty"`
 	Name      string    `json:"name"`
+	Nickname  string    `json:"nickname,omitempty"`
+	AvatarURL string    `json:"avatarUrl,omitempty"`
 	Phone     string    `json:"phone,omitempty"`
 	StoreID   int64     `json:"storeId"`
 	StoreName string    `json:"storeName,omitempty"`
