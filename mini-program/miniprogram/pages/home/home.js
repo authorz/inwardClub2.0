@@ -58,6 +58,7 @@ Page({
     showRecharge: false,
     products: [],
     productId: '',
+    rechargeNotice: '',
     customAmount: '', // 自定义充值金额（元，正整数）
     rechargeTotal: '0',
 
@@ -230,6 +231,7 @@ Page({
         this.setData({
           products,
           productId: first ? first.id : '',
+          rechargeNotice: (res.meta && res.meta.rechargeNotice) || '',
           rechargeTotal: first ? first.priceYuan : '0',
         });
       });

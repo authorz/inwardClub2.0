@@ -14,16 +14,19 @@ import (
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	inputvalidation "github.com/inwardclub/server/internal/platform/validation"
 )
 
 const (
 	firstRechargeDoublePointsEnabledKey    = "first_recharge_double_points_enabled"
 	rechargeDoublePointsThresholdAmountKey = "recharge_double_points_threshold_amount"
+	rechargeNoticeKey                      = "recharge_notice"
 	franchiseInquirySourcesKey             = "franchise_inquiry_sources"
 	franchiseHotlineKey                    = "franchise_hotline"
 	phoneChangeIntervalDaysKey             = "phone_change_interval_days"
 	defaultRechargeDoublePointsThreshold   = int64(1000)
 	defaultPhoneChangeIntervalDays         = 30
+	defaultRechargeNotice                  = "新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。"
 )
 
 var defaultFranchiseInquirySources = []string{"美团", "抖音", "小红书", "店员", "微信小程序"}
@@ -32,6 +35,7 @@ var defaultFranchiseInquirySources = []string{"美团", "抖音", "小红书", "
 type GlobalSettings struct {
 	FirstRechargeDoublePointsEnabled    bool       `json:"firstRechargeDoublePointsEnabled"`
 	RechargeDoublePointsThresholdAmount int64      `json:"rechargeDoublePointsThresholdAmount"`
+	RechargeNotice                      string     `json:"rechargeNotice"`
 	FranchiseInquirySources             []string   `json:"franchiseInquirySources"`
 	FranchiseHotline                    string     `json:"franchiseHotline"`
 	PhoneChangeIntervalDays             int        `json:"phoneChangeIntervalDays"`
@@ -42,6 +46,7 @@ type GlobalSettings struct {
 type UpdateGlobalSettingsRequest struct {
 	FirstRechargeDoublePointsEnabled    bool     `json:"firstRechargeDoublePointsEnabled"`
 	RechargeDoublePointsThresholdAmount int64    `json:"rechargeDoublePointsThresholdAmount"`
+	RechargeNotice                      string   `json:"rechargeNotice"`
 	FranchiseInquirySources             []string `json:"franchiseInquirySources"`
 	FranchiseHotline                    string   `json:"franchiseHotline"`
 	PhoneChangeIntervalDays             int      `json:"phoneChangeIntervalDays"`
@@ -61,15 +66,17 @@ func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
 	settings := GlobalSettings{
 		RechargeDoublePointsThresholdAmount: defaultRechargeDoublePointsThreshold,
+		RechargeNotice:                      defaultRechargeNotice,
 		FranchiseInquirySources:             append([]string(nil), defaultFranchiseInquirySources...),
 		PhoneChangeIntervalDays:             defaultPhoneChangeIntervalDays,
 	}
 	const q = `SELECT setting_key, setting_value, updated_at FROM system_settings
-		WHERE setting_key IN (?, ?, ?, ?, ?)`
+		WHERE setting_key IN (?, ?, ?, ?, ?, ?)`
 	rows, err := r.db.QueryContext(
 		ctx, q,
 		firstRechargeDoublePointsEnabledKey,
 		rechargeDoublePointsThresholdAmountKey,
+		rechargeNoticeKey,
 		franchiseInquirySourcesKey,
 		franchiseHotlineKey,
 		phoneChangeIntervalDaysKey,
@@ -91,6 +98,8 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 			if threshold, err := strconv.ParseInt(value, 10, 64); err == nil && threshold > 0 {
 				settings.RechargeDoublePointsThresholdAmount = threshold
 			}
+		case rechargeNoticeKey:
+			settings.RechargeNotice = value
 		case franchiseInquirySourcesKey:
 			var sources []string
 			if err := json.Unmarshal([]byte(value), &sources); err == nil && len(sources) > 0 {
@@ -138,6 +147,7 @@ func (r *sqlRepository) UpdateGlobalSettings(
 		}{
 			{firstRechargeDoublePointsEnabledKey, strconv.FormatBool(settings.FirstRechargeDoublePointsEnabled)},
 			{rechargeDoublePointsThresholdAmountKey, strconv.FormatInt(settings.RechargeDoublePointsThresholdAmount, 10)},
+			{rechargeNoticeKey, settings.RechargeNotice},
 			{franchiseInquirySourcesKey, string(sourcesJSON)},
 			{franchiseHotlineKey, settings.FranchiseHotline},
 			{phoneChangeIntervalDaysKey, strconv.Itoa(settings.PhoneChangeIntervalDays)},
@@ -196,6 +206,15 @@ func (s *Service) PhoneChangeIntervalDays(ctx context.Context) (int, error) {
 	return settings.PhoneChangeIntervalDays, nil
 }
 
+// RechargeNotice provides the configurable copy shown in the mini-program recharge sheet.
+func (s *Service) RechargeNotice(ctx context.Context) (string, error) {
+	settings, err := s.repo.GetGlobalSettings(ctx)
+	if err != nil {
+		return "", err
+	}
+	return settings.RechargeNotice, nil
+}
+
 // Update validates and persists the headquarters settings.
 func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, updatedBy int64) (GlobalSettings, error) {
 	if req.RechargeDoublePointsThresholdAmount <= 0 {
@@ -203,6 +222,12 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 	}
 	if req.PhoneChangeIntervalDays < 1 || req.PhoneChangeIntervalDays > 3650 {
 		return GlobalSettings{}, apperr.Invalid("手机号更换间隔必须在 1 到 3650 天之间")
+	}
+	rechargeNotice, err := inputvalidation.PlainText(req.RechargeNotice, inputvalidation.TextOptions{
+		Label: "充值弹窗提示", MaxRunes: 200, AllowEmpty: true,
+	})
+	if err != nil {
+		return GlobalSettings{}, apperr.Invalid(err.Error())
 	}
 	hotline := strings.TrimSpace(req.FranchiseHotline)
 	if hotline != "" && (len(hotline) < 6 || len(hotline) > 32) {
@@ -228,6 +253,7 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 	return s.repo.UpdateGlobalSettings(ctx, GlobalSettings{
 		FirstRechargeDoublePointsEnabled:    req.FirstRechargeDoublePointsEnabled,
 		RechargeDoublePointsThresholdAmount: req.RechargeDoublePointsThresholdAmount,
+		RechargeNotice:                      rechargeNotice,
 		FranchiseInquirySources:             sources,
 		FranchiseHotline:                    hotline,
 		PhoneChangeIntervalDays:             req.PhoneChangeIntervalDays,

@@ -111,7 +111,12 @@ func (h *Handler) RechargeProducts(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
-	httpx.OK(c, views)
+	notice, err := h.svc.RechargeNotice(c.Request.Context())
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OKWithMeta(c, views, gin.H{"rechargeNotice": notice})
 }
 
 // AdminRechargeProducts handles GET /admin/recharge-products.

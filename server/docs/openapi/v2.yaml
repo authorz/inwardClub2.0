@@ -1433,7 +1433,7 @@ components:
         coinPointsDivisor: { type: integer, format: int64, minimum: 1 }
     GlobalSettings:
       type: object
-      required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, franchiseInquirySources, franchiseHotline]
+      required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, rechargeNotice, franchiseInquirySources, franchiseHotline]
       properties:
         firstRechargeDoublePointsEnabled:
           type: boolean
@@ -1443,6 +1443,10 @@ components:
           format: int64
           minimum: 1
           description: 'Recharge amount in yuan that activates the high-value double-points reward and excludes the first-recharge reward'
+        rechargeNotice:
+          type: string
+          maxLength: 200
+          description: 'Configurable copy rendered in the mini-program recharge sheet; empty hides the notice'
         franchiseInquirySources:
           type: array
           minItems: 1
@@ -1456,7 +1460,7 @@ components:
         updatedAt: { type: string, format: date-time }
     UpdateGlobalSettingsRequest:
       type: object
-      required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, franchiseInquirySources, franchiseHotline]
+      required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, rechargeNotice, franchiseInquirySources, franchiseHotline]
       properties:
         firstRechargeDoublePointsEnabled:
           type: boolean
@@ -1464,6 +1468,7 @@ components:
           type: integer
           format: int64
           minimum: 1
+        rechargeNotice: { type: string, maxLength: 200 }
         franchiseInquirySources:
           type: array
           minItems: 1
@@ -1932,6 +1937,13 @@ paths:
                 type: object
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/RechargeProductView' } }
+                  meta:
+                    type: object
+                    required: [rechargeNotice]
+                    properties:
+                      rechargeNotice:
+                        type: string
+                        description: 'Headquarters-configured copy rendered in the recharge sheet'
   /api/v2/mini/rankings:
     get:
       tags: [mini]

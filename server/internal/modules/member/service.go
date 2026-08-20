@@ -25,25 +25,26 @@ type PhoneResolver interface {
 	ResolvePhone(ctx context.Context, code string) (string, error)
 }
 
-// PhoneChangePolicy supplies the headquarters-configured cooldown.
-type PhoneChangePolicy interface {
+// MemberSettingsPolicy supplies headquarters-configured member-facing settings.
+type MemberSettingsPolicy interface {
 	PhoneChangeIntervalDays(ctx context.Context) (int, error)
+	RechargeNotice(ctx context.Context) (string, error)
 }
 
 // Service provides the member self-service and catalogue read operations.
 type Service struct {
-	repo              Repository
-	assets            AssetResolver
-	phone             PhoneResolver
-	phoneChangePolicy PhoneChangePolicy
+	repo           Repository
+	assets         AssetResolver
+	phone          PhoneResolver
+	settingsPolicy MemberSettingsPolicy
 }
 
 // NewService builds the member service. phone may be nil until the WeChat phone
 // exchange is available.
-func NewService(repo Repository, assets AssetResolver, phone PhoneResolver, policies ...PhoneChangePolicy) *Service {
+func NewService(repo Repository, assets AssetResolver, phone PhoneResolver, policies ...MemberSettingsPolicy) *Service {
 	svc := &Service{repo: repo, assets: assets, phone: phone}
 	if len(policies) > 0 {
-		svc.phoneChangePolicy = policies[0]
+		svc.settingsPolicy = policies[0]
 	}
 	return svc
 }
@@ -113,8 +114,8 @@ func (s *Service) BindPhone(ctx context.Context, memberID int64, req BindPhoneRe
 		return PhoneBindingView{}, apperr.Invalid("微信手机号授权失败，请重新授权").WithCause(err)
 	}
 	intervalDays := defaultPhoneChangeIntervalDays
-	if s.phoneChangePolicy != nil {
-		intervalDays, err = s.phoneChangePolicy.PhoneChangeIntervalDays(ctx)
+	if s.settingsPolicy != nil {
+		intervalDays, err = s.settingsPolicy.PhoneChangeIntervalDays(ctx)
 		if err != nil {
 			return PhoneBindingView{}, err
 		}
@@ -266,6 +267,14 @@ func (s *Service) ListRechargeProducts(ctx context.Context) ([]RechargeProductVi
 		views = append(views, rechargeProductView(p))
 	}
 	return views, nil
+}
+
+// RechargeNotice returns the configured copy shipped alongside the public recharge list.
+func (s *Service) RechargeNotice(ctx context.Context) (string, error) {
+	if s.settingsPolicy == nil {
+		return "", nil
+	}
+	return s.settingsPolicy.RechargeNotice(ctx)
 }
 
 // AdminListRechargeProducts returns every recharge package regardless of status.

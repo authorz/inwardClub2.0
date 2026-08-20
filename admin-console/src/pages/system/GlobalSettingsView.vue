@@ -17,9 +17,11 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 
 const loading = ref(false)
 const saving = ref(false)
+const defaultRechargeNotice = '新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。'
 const form = reactive({
   firstRechargeDoublePointsEnabled: false,
   rechargeDoublePointsThresholdAmount: 1000,
+  rechargeNotice: defaultRechargeNotice,
   franchiseInquirySources: [] as string[],
   franchiseHotline: '',
   phoneChangeIntervalDays: 30,
@@ -36,6 +38,7 @@ async function load(): Promise<void> {
     )
     form.rechargeDoublePointsThresholdAmount =
       settings.rechargeDoublePointsThresholdAmount || 1000
+    form.rechargeNotice = settings.rechargeNotice ?? defaultRechargeNotice
     form.franchiseInquirySources = settings.franchiseInquirySources || []
     form.franchiseHotline = settings.franchiseHotline || ''
     form.phoneChangeIntervalDays = settings.phoneChangeIntervalDays || 30
@@ -62,6 +65,10 @@ async function save(): Promise<void> {
   }
   const sources = form.franchiseInquirySources.map((item) => item.trim()).filter(Boolean)
   if (!sources.length) return toastError('加盟咨询信息渠道至少保留一项')
+  const rechargeNotice = form.rechargeNotice.trim()
+  if (Array.from(rechargeNotice).length > 200) {
+    return toastError('充值弹窗提示不能超过 200 个字')
+  }
   const hotline = form.franchiseHotline.trim()
   if (hotline && (hotline.length < 6 || hotline.length > 32)) {
     return toastError('请输入有效的加盟热线')
@@ -71,6 +78,7 @@ async function save(): Promise<void> {
     const settings = await systemService.updateGlobalSettings({
       firstRechargeDoublePointsEnabled: form.firstRechargeDoublePointsEnabled,
       rechargeDoublePointsThresholdAmount: form.rechargeDoublePointsThresholdAmount,
+      rechargeNotice,
       franchiseInquirySources: sources,
       franchiseHotline: hotline,
       phoneChangeIntervalDays: form.phoneChangeIntervalDays,
@@ -79,6 +87,7 @@ async function save(): Promise<void> {
       settings.firstRechargeDoublePointsEnabled,
     )
     form.rechargeDoublePointsThresholdAmount = settings.rechargeDoublePointsThresholdAmount
+    form.rechargeNotice = settings.rechargeNotice ?? ''
     form.franchiseInquirySources = settings.franchiseInquirySources || []
     form.franchiseHotline = settings.franchiseHotline || ''
     form.phoneChangeIntervalDays = settings.phoneChangeIntervalDays || 30
@@ -135,6 +144,22 @@ async function save(): Promise<void> {
               <NText depth="3">
                 所有单次充值达到此金额时赠送 2 倍积分；若同时属于首次充值，
                 只发放满额奖励，不再叠加首充奖励。
+              </NText>
+            </div>
+          </NFormItem>
+          <NFormItem label="充值弹窗提示">
+            <div class="notice-field">
+              <NInput
+                v-model:value="form.rechargeNotice"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 5 }"
+                maxlength="200"
+                show-count
+                clearable
+                placeholder="留空则不在小程序充值弹窗中显示提示"
+              />
+              <NText depth="3">
+                文案会随快捷充值列表接口返回，并显示在个人中心充值弹窗中；调整奖励门槛后请同步更新。
               </NText>
             </div>
           </NFormItem>
@@ -214,6 +239,13 @@ async function save(): Promise<void> {
 }
 
 .source-field {
+  display: flex;
+  width: min(100%, 560px);
+  flex-direction: column;
+  gap: var(--ic-space-sm);
+}
+
+.notice-field {
   display: flex;
   width: min(100%, 560px);
   flex-direction: column;

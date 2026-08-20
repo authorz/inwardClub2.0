@@ -242,6 +242,7 @@
 .rc__points { margin-top: 8rpx; font-size: 20rpx; line-height: 1.25; color: var(--ic-text-3); white-space: nowrap; }
 .rc__check { position: absolute; top: -2rpx; right: -2rpx; width: 36rpx; height: 36rpx; border-radius: 0 14rpx 0 14rpx; background: #111; display: flex; align-items: center; justify-content: center; }
 .rc__check .ic-ic { color: #fff; }
+.rc__notice { display: block; margin: 8rpx 0 22rpx; color: var(--ic-text-2); font-size: 22rpx; line-height: 1.65; }
 /* 自定义金额行 */
 .rc__custom { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 4rpx 0 8rpx; padding: 22rpx 24rpx; border: 2rpx solid var(--ic-line-strong); border-radius: 18rpx; background: #fff; }
 .rc__custom.is-active { border-color: #111; }

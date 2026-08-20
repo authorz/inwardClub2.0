@@ -263,9 +263,13 @@ type fakePhone struct {
 
 func (f fakePhone) ResolvePhone(_ context.Context, _ string) (string, error) { return f.phone, f.err }
 
-type fakePhonePolicy struct{ days int }
+type fakePhonePolicy struct {
+	days   int
+	notice string
+}
 
 func (p fakePhonePolicy) PhoneChangeIntervalDays(context.Context) (int, error) { return p.days, nil }
+func (p fakePhonePolicy) RechargeNotice(context.Context) (string, error)       { return p.notice, nil }
 
 func codeOf(err error) apperr.Code { return apperr.From(err).Code }
 
@@ -892,6 +896,20 @@ func TestListRechargeProductsMapsView(t *testing.T) {
 	got := views[0]
 	if got.ID != 1 || got.AmountCent != 50000 || got.CoinAmount != 588 || got.PointsAmount != 10000 || got.SortOrder != 1 {
 		t.Fatalf("unexpected recharge product view: %+v", got)
+	}
+}
+
+func TestRechargeNoticeUsesConfiguredCopy(t *testing.T) {
+	svc := NewService(newFakeRepo(), fakeAssets{}, nil, fakePhonePolicy{
+		days: 30, notice: "首充与满额双倍积分不叠加。",
+	})
+
+	notice, err := svc.RechargeNotice(context.Background())
+	if err != nil {
+		t.Fatalf("recharge notice: %v", err)
+	}
+	if notice != "首充与满额双倍积分不叠加。" {
+		t.Fatalf("unexpected recharge notice %q", notice)
 	}
 }
 

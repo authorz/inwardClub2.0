@@ -190,6 +190,7 @@ export const systemService = {
   updateGlobalSettings: (settings: {
     firstRechargeDoublePointsEnabled: boolean
     rechargeDoublePointsThresholdAmount: number
+    rechargeNotice: string
     franchiseInquirySources: string[]
     franchiseHotline: string
     phoneChangeIntervalDays: number

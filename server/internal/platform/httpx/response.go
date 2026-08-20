@@ -36,6 +36,11 @@ func OK(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, Envelope{Data: data})
 }
 
+// OKWithMeta writes a 200 with a data envelope and non-pagination metadata.
+func OKWithMeta(c *gin.Context, data, meta any) {
+	c.JSON(http.StatusOK, Envelope{Data: data, Meta: meta})
+}
+
 // Created writes a 201 with a data envelope.
 func Created(c *gin.Context, data any) {
 	c.JSON(http.StatusCreated, Envelope{Data: data})

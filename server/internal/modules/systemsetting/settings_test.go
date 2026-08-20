@@ -2,6 +2,7 @@ package systemsetting
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,6 +24,7 @@ func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
 		FirstRechargeDoublePointsEnabled:    true,
 		RechargeDoublePointsThresholdAmount: 1200,
+		RechargeNotice:                      "  首充与满额双倍积分不叠加。  ",
 		PhoneChangeIntervalDays:             45,
 	}, 1)
 	if err != nil {
@@ -34,8 +36,22 @@ func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	if got.RechargeDoublePointsThresholdAmount != 1200 {
 		t.Fatalf("unexpected recharge threshold %d", got.RechargeDoublePointsThresholdAmount)
 	}
+	if got.RechargeNotice != "首充与满额双倍积分不叠加。" {
+		t.Fatalf("unexpected recharge notice %q", got.RechargeNotice)
+	}
 	if got.PhoneChangeIntervalDays != 45 {
 		t.Fatalf("unexpected phone change interval %d", got.PhoneChangeIntervalDays)
+	}
+}
+
+func TestUpdateGlobalSettingsRejectsOverlongRechargeNotice(t *testing.T) {
+	svc := NewService(&memoryRepository{})
+	if _, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
+		RechargeDoublePointsThresholdAmount: 1000,
+		RechargeNotice:                      strings.Repeat("字", 201),
+		PhoneChangeIntervalDays:             30,
+	}, 1); err == nil {
+		t.Fatal("expected overlong recharge notice error")
 	}
 }
 

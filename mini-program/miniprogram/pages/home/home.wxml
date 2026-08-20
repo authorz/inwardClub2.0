@@ -122,6 +122,7 @@
       <view wx:if="{{productId === item.id}}" class="rc__check"><view class="ic-ic ic-ic-check ic-ic--sm"></view></view>
     </view>
   </view>
+  <text wx:if="{{rechargeNotice}}" class="rc__notice">{{rechargeNotice}}</text>
   <view class="rc__custom {{productId === 'custom' ? 'is-active' : ''}}" data-id="custom" bindtap="pickProduct">
     <text class="rc__custom-label">自定义金额</text>
     <view class="rc__custom-field">

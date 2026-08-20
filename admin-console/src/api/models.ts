@@ -355,6 +355,7 @@ export interface PointReviewSettings {
 export interface GlobalSettings {
   firstRechargeDoublePointsEnabled: boolean
   rechargeDoublePointsThresholdAmount: number
+  rechargeNotice: string
   franchiseInquirySources: string[]
   franchiseHotline: string
   phoneChangeIntervalDays: number
