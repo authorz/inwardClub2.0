@@ -8,19 +8,12 @@ const http = require('../../utils/request');
 const pay = require('../../utils/pay');
 const storeCtx = require('../../utils/store-context');
 const silentLogin = require('../../utils/silent-login');
-const fmt = require('../../utils/format');
-const { amount } = fmt;
+const { amount } = require('../../utils/format');
 const { mergeCachedProfile } = require('../../utils/member-profile');
 const { POINT_SAVING } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
 const MINE_MENU_ASSET_BASE = 'https://assets.inwardclub.com/public/mine-menu/';
-const STAFF_STATUS_LABEL = { pending: '待审核', approved: '已通过', rejected: '已驳回', completed: '已完成' };
-const STAFF_OPERATION_LABEL = {
-  coin_consumption: '金币消费',
-  point_deposit: '积分存入',
-  point_withdrawal: '积分提取',
-};
 
 // 会员等级短标：优先按 tierCode 映射 VIP1-8，其次从 tierName 取 VIPn，兜底 VIP1
 const TIER_SHORT = { normal: 'VIP1', bronze: 'VIP2', silver: 'VIP3', gold: 'VIP4', platinum: 'VIP5', diamond: 'VIP6', star: 'VIP7', master: 'VIP8' };
@@ -55,28 +48,13 @@ Page({
       { label: '咨询客服', icon: '/assets/mine-menu/customer-service.png', action: 'nav', url: '/pages/customer-service/customer-service' },
       // { label: '加入社群', icon: MINE_MENU_ASSET_BASE + 'community.png', action: 'toast' },
     ],
-    // 工作人员工作台 — 仅员工选中自己的绑定门店时显示
-    staffActionEntries: [
-      { label: '门票核销', note: '扫码或输入核销码', icon: MINE_MENU_ASSET_BASE + 'staff-verify.png', url: '/pages/staff-verify/staff-verify' },
-      { label: '积分核销', note: '审核积分存入申请', icon: MINE_MENU_ASSET_BASE + 'staff-point-review.png', url: '/pages/staff-point-review/staff-point-review' },
+    // 工作人员功能入口 — 仅员工选中自己的绑定门店时显示
+    staffMenuEntries: [
+      { label: '门票核销', icon: MINE_MENU_ASSET_BASE + 'staff-verify.png', url: '/pages/staff-verify/staff-verify' },
+      { label: '积分核销', icon: MINE_MENU_ASSET_BASE + 'staff-point-review.png', url: '/pages/staff-point-review/staff-point-review' },
+      { label: '今日明细', icon: MINE_MENU_ASSET_BASE + 'transactions.png', url: '/pages/staff-today/staff-today' },
+      { label: '核销记录', icon: MINE_MENU_ASSET_BASE + 'staff-records.png', url: '/pages/staff-verifications/staff-verifications' },
     ],
-    staffLoading: false,
-    staffStoreName: '',
-    staffPhone: '',
-    pendingReviewCount: 0,
-    pendingSavings: [],
-    todaySummary: {
-      coinConsumptionAmount: 0,
-      coinConsumptionAmountText: '0',
-      coinConsumptionCount: 0,
-      pointDepositAmount: 0,
-      pointDepositAmountText: '0',
-      pointDepositCount: 0,
-      pointWithdrawalAmount: 0,
-      pointWithdrawalAmountText: '0',
-      pointWithdrawalCount: 0,
-    },
-    todayOperations: [],
 
     // recharge sheet
     showRecharge: false,
@@ -157,30 +135,6 @@ Page({
         genderIcon: this.genderIconOf(me.gender),
         isStaff: !!isStaffAtCurrentStore,
       });
-      if (isStaffAtCurrentStore) {
-        this.loadStaffWorkspace();
-      } else {
-        this.staffLoadSeq = (this.staffLoadSeq || 0) + 1;
-        this.setData({
-          staffLoading: false,
-          staffStoreName: '',
-          staffPhone: '',
-          pendingReviewCount: 0,
-          pendingSavings: [],
-          todaySummary: {
-            coinConsumptionAmount: 0,
-            coinConsumptionAmountText: '0',
-            coinConsumptionCount: 0,
-            pointDepositAmount: 0,
-            pointDepositAmountText: '0',
-            pointDepositCount: 0,
-            pointWithdrawalAmount: 0,
-            pointWithdrawalAmountText: '0',
-            pointWithdrawalCount: 0,
-          },
-          todayOperations: [],
-        });
-      }
     });
   },
 
@@ -266,136 +220,11 @@ Page({
     });
   },
 
-  /* ---------- 工作人员工作台 ---------- */
+  /* ---------- 工作人员功能入口 ---------- */
   goStaffMenu(e) {
     if (!this.data.isStaff) return;
-    const item = this.data.staffActionEntries[e.currentTarget.dataset.index];
+    const item = this.data.staffMenuEntries[e.currentTarget.dataset.index];
     if (item) wx.navigateTo({ url: item.url });
-  },
-
-  loadStaffWorkspace(phone) {
-    if (!this.data.isStaff) return;
-    const seq = (this.staffLoadSeq || 0) + 1;
-    this.staffLoadSeq = seq;
-    const params = { status: 'pending', pageSize: phone ? 20 : 5 };
-    if (phone) params.phone = phone;
-    this.setData({ staffLoading: true });
-    Promise.all([
-      api.staff.home().catch(() => ({ data: {} })),
-      api.staff.getPointSavings(params).catch(() => ({ data: [] })),
-      api.staff.getTodayOperations().catch(() => ({ data: {} })),
-    ]).then(([homeRes, savingsRes, operationsRes]) => {
-      if (seq !== this.staffLoadSeq || !this.data.isStaff) return;
-      const home = homeRes.data || {};
-      const operations = operationsRes.data || {};
-      const summary = operations.summary || {};
-      this.setData({
-        staffLoading: false,
-        staffStoreName: (home.store && home.store.name) || '',
-        pendingReviewCount: home.pendingReview || 0,
-        pendingSavings: (savingsRes.data || []).map((item) => this.mapPendingSaving(item)),
-        todaySummary: Object.assign({}, this.data.todaySummary, summary, {
-          coinConsumptionAmountText: amount(summary.coinConsumptionAmount),
-          pointDepositAmountText: amount(summary.pointDepositAmount),
-          pointWithdrawalAmountText: amount(summary.pointWithdrawalAmount),
-        }),
-        todayOperations: (operations.entries || []).slice(0, 5).map((item) => this.mapStaffOperation(item)),
-      });
-    });
-  },
-
-  mapPendingSaving(item) {
-    return {
-      id: item.id,
-      memberName: item.memberName || '未命名会员',
-      phoneText: fmt.maskPhone(item.phone) || '未绑定手机号',
-      pointsText: amount(item.points),
-      timeText: fmt.dateTime(item.createdAt),
-    };
-  },
-
-  mapStaffOperation(item) {
-    const isCoin = item.type === 'coin_consumption';
-    const isWithdrawal = item.type === 'point_withdrawal';
-    const unit = isCoin ? '金币' : '积分';
-    return {
-      recordKey: item.recordKey,
-      typeLabel: STAFF_OPERATION_LABEL[item.type] || item.type,
-      memberName: item.memberName || '未命名会员',
-      phoneText: fmt.maskPhone(item.phone),
-      amountText: `${isCoin || isWithdrawal ? '-' : '+'}${amount(item.amount)} ${unit}`,
-      statusLabel: STAFF_STATUS_LABEL[item.status] || item.status,
-      timeText: fmt.dateTime(item.createdAt, { timeOnly: true }),
-    };
-  },
-
-  onStaffPhoneInput(e) {
-    const phone = (e.detail.value || '').replace(/\D/g, '').slice(0, 11);
-    this.setData({ staffPhone: phone });
-    if (!phone) this.loadStaffWorkspace();
-  },
-
-  searchStaffPhone() {
-    const phone = this.data.staffPhone;
-    if (phone && phone.length < 3) {
-      ui.toast('请输入至少 3 位手机号');
-      return;
-    }
-    this.loadStaffWorkspace(phone);
-  },
-
-  clearStaffPhone() {
-    this.setData({ staffPhone: '' });
-    this.loadStaffWorkspace();
-  },
-
-  goStaffReviewList() {
-    wx.navigateTo({ url: '/pages/staff-point-review/staff-point-review' });
-  },
-
-  goStaffToday() {
-    wx.navigateTo({ url: '/pages/staff-today/staff-today' });
-  },
-
-  goStaffRecords() {
-    wx.navigateTo({ url: '/pages/staff-verifications/staff-verifications' });
-  },
-
-  goStaffPointDetail(e) {
-    wx.navigateTo({ url: '/pages/staff-point-detail/staff-point-detail?id=' + e.currentTarget.dataset.id });
-  },
-
-  reviewPendingSaving(e) {
-    const { id, decision } = e.currentTarget.dataset;
-    const action = decision === 'reject' ? '驳回' : '通过';
-    wx.showModal({
-      title: `${action}积分存入`,
-      content: `确认${action}这笔积分存入申请吗？`,
-      confirmText: action,
-      confirmColor: '#111111',
-      success: (res) => {
-        if (res.confirm) this.submitPendingSaving(id, decision);
-      },
-    });
-  },
-
-  submitPendingSaving(id, decision) {
-    if (this.data.submitting) return;
-    this.setData({ submitting: true });
-    ui.showLoading('提交中');
-    api.staff
-      .reviewPointSaving(id, { decision }, http.uuid())
-      .then(() => {
-        ui.hideLoading();
-        this.setData({ submitting: false });
-        ui.success(decision === 'reject' ? '已驳回' : '已通过');
-        this.loadStaffWorkspace(this.data.staffPhone);
-      })
-      .catch((err) => {
-        ui.hideLoading();
-        this.setData({ submitting: false });
-        ui.error((err && err.message) || '操作失败');
-      });
   },
 
   /* ---------- coin recharge sheet (wechat only) ---------- */
