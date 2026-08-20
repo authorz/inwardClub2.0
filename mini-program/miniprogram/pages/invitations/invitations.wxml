@@ -8,10 +8,10 @@
       <view class="iv__hero">
         <text class="iv__brand">INWARD CLUB MEMBER INVITE</text>
         <text class="iv__headline">把好友带进 Inward Club</text>
-        <text class="iv__headline iv__headline--muted">奖励持续到账</text>
+        <text class="iv__headline iv__headline--muted">{{info.reward.enabled ? '奖励持续到账' : '一起加入会员'}}</text>
       </view>
 
-      <view class="iv__pass" aria-label="Inward Club 会员邀请凭证">
+      <view wx:if="{{info.reward.enabled}}" class="iv__pass" aria-label="Inward Club 会员邀请奖励">
         <view class="iv__pass-head">
           <view class="iv__pass-brand">
             <text class="iv__pass-logo">inward club</text>
@@ -22,23 +22,23 @@
 
         <view class="iv__reward-head">
           <view>
-            <text class="iv__reward-kicker">首达标奖励</text>
-            <text class="iv__reward-title">首次充值或现金消费</text>
+            <text class="iv__reward-kicker">邀请奖励</text>
+            <text class="iv__reward-title">{{info.reward.cardTitle}}</text>
           </view>
-          <text class="iv__reward-target">68元达标</text>
+          <text class="iv__reward-target">{{info.reward.targetText}}</text>
         </view>
 
-        <view class="iv__reward-grid">
-          <view class="iv__reward-item">
-            <text class="iv__reward-value">1000</text>
-            <text class="iv__reward-label">双方首奖积分</text>
+        <view wx:if="{{info.reward.firstCoins || info.reward.firstPoints}}" class="iv__reward-grid">
+          <view wx:if="{{info.reward.firstCoins}}" class="iv__reward-item">
+            <text class="iv__reward-value">{{info.reward.firstCoins}}</text>
+            <text class="iv__reward-label">首次低消奖励金币</text>
           </view>
-          <view class="iv__reward-item">
-            <text class="iv__reward-value">1:1</text>
-            <text class="iv__reward-label">后续积分奖励</text>
+          <view wx:if="{{info.reward.firstPoints}}" class="iv__reward-item">
+            <text class="iv__reward-value">{{info.reward.firstPoints}}</text>
+            <text class="iv__reward-label">首次低消奖励积分</text>
           </view>
         </view>
-        <text class="iv__reward-note">首奖后，好友后续充值或现金消费继续贡献积分。</text>
+        <text class="iv__reward-note">{{info.reward.note}}</text>
       </view>
 
       <button class="ic-btn ic-btn-block iv__share" open-type="share">
@@ -52,7 +52,7 @@
           <image class="iv__copy-icon" src="/pages/invitations/assets/invite-copy.svg" mode="aspectFit" />
         </view>
       </view>
-      <text class="iv__invite-hint">分享后，邀请奖励会自动累计</text>
+      <text class="iv__invite-hint">{{info.reward.enabled ? '分享后，邀请奖励会自动累计' : '分享给好友并邀请对方完成注册'}}</text>
 
       <view wx:if="{{!info.inviterBound}}" class="iv__bind">
         <view class="iv__section-head">
@@ -79,7 +79,7 @@
         </view>
       </view>
 
-      <view class="iv__section iv__steps">
+      <view wx:if="{{info.reward.enabled}}" class="iv__section iv__steps">
         <view class="iv__section-head">
           <text class="iv__section-title">参与步骤</text>
           <text class="iv__section-desc">分享邀请，好友达标后奖励自动入账</text>
@@ -102,15 +102,15 @@
           <view class="iv__step">
             <text class="iv__step-no">03</text>
             <view class="iv__step-copy">
-              <text class="iv__step-title">首次达标</text>
-              <text class="iv__step-desc">充值或现金消费满68元</text>
+              <text class="iv__step-title">完成首次低消</text>
+              <text class="iv__step-desc">按门店低消规则完成微信支付</text>
             </view>
           </view>
           <view class="iv__step">
             <text class="iv__step-no">04</text>
             <view class="iv__step-copy">
               <text class="iv__step-title">奖励到账</text>
-              <text class="iv__step-desc">双方拿首奖，邀请人后续继续累计</text>
+              <text class="iv__step-desc">{{info.reward.awardStep}}</text>
             </view>
           </view>
         </view>
@@ -147,22 +147,14 @@
         </view>
       </view>
 
-      <view class="iv__section iv__rules">
+      <view wx:if="{{info.reward.enabled && info.reward.rules.length}}" class="iv__section iv__rules">
         <view class="iv__section-head">
           <text class="iv__section-title">邀请规则</text>
         </view>
         <view class="iv__rule-list">
-          <view class="iv__rule">
-            <text class="iv__rule-no">01</text>
-            <text class="iv__rule-copy">新用户可通过邀请链接或邀请码绑定邀请人，已消费过的用户不支持补绑。</text>
-          </view>
-          <view class="iv__rule">
-            <text class="iv__rule-no">02</text>
-            <text class="iv__rule-copy">好友首次充值或现金消费满68元后，双方获得1000积分。</text>
-          </view>
-          <view class="iv__rule">
-            <text class="iv__rule-no">03</text>
-            <text class="iv__rule-copy">邀请人后续可继续获得好友充值或现金消费带来的 1:1 积分奖励。</text>
+          <view class="iv__rule" wx:for="{{info.reward.rules}}" wx:key="no">
+            <text class="iv__rule-no">{{item.no}}</text>
+            <text class="iv__rule-copy">{{item.copy}}</text>
           </view>
         </view>
       </view>

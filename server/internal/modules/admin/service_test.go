@@ -161,6 +161,12 @@ func (f *fakeRepo) ListRuleDefinitions(_ context.Context, flt ListFilter) ([]Rul
 	f.lastFilter = flt
 	return []RuleDefinition{{ID: 70, Key: "sign_in", Enabled: true, Status: "published"}}, 1, nil
 }
+func (f *fakeRepo) GetRuleDefinition(_ context.Context, ruleID int64) (RuleDefinition, error) {
+	if f.err != nil {
+		return RuleDefinition{}, f.err
+	}
+	return RuleDefinition{ID: ruleID, Key: "sign_in", ScopeType: "global", ConfigJSON: json.RawMessage(`{}`)}, nil
+}
 func (f *fakeRepo) ListAdminAccounts(_ context.Context, flt ListFilter) ([]AdminAccount, int64, error) {
 	f.lastFilter = flt
 	if f.err != nil {
@@ -1186,6 +1192,37 @@ func TestCreateRuleDefinitionRejectsBadJSON(t *testing.T) {
 	_, err := svc.CreateRuleDefinition(context.Background(), RuleDefinitionCreate{
 		Key:        "sign_in",
 		ConfigJSON: []byte(`{bad`),
+	})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+	}
+}
+
+func TestCreateInvitationRuleValidatesBusinessConfig(t *testing.T) {
+	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
+	v, err := svc.CreateRuleDefinition(context.Background(), RuleDefinitionCreate{
+		Key:       "invite_reward",
+		ScopeType: "global",
+		ConfigJSON: []byte(`{
+			"firstLowSpendRewardCoins": 50,
+			"firstLowSpendRewardPoints": 2000,
+			"commissionRateBasisPoints": 1000
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("create invitation rule: %v", err)
+	}
+	if v.Key != "invite_reward" {
+		t.Fatalf("unexpected rule: %+v", v)
+	}
+}
+
+func TestCreateInvitationRuleRejectsEmptyRewards(t *testing.T) {
+	svc := NewService(&fakeRepo{}, fakeStores{}, nil)
+	_, err := svc.CreateRuleDefinition(context.Background(), RuleDefinitionCreate{
+		Key:        "invite_reward",
+		ScopeType:  "global",
+		ConfigJSON: []byte(`{"firstLowSpendRewardCoins":0,"firstLowSpendRewardPoints":0,"commissionRateBasisPoints":0}`),
 	})
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)

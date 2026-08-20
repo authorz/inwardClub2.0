@@ -57,12 +57,9 @@ type EvalInput struct {
 	Source          string `json:"source,omitempty"`
 }
 
-// PostProcessService drives the rule:post-process task: it evaluates the
-// post-payment 邀请奖励 (invite_reward) rule for a settled order. The grant
-// idempotency key is rule:{ruleVersion}:{order} (spec §11). The 低消奖励
-// half of the post-payment rewards is handled by the payment package's
-// payment:post-process handler (rule_key=low_spend_reward), so it is not
-// evaluated here and the two can never double-grant the same order.
+// PostProcessService keeps the legacy rule:post-process task parseable. All
+// WeChat invitation rewards now run synchronously in internal/modules/referral,
+// inside payment settlement; no producer enqueues this compatibility task.
 type PostProcessService struct {
 	repo Repository
 	log  *slog.Logger
@@ -74,12 +71,8 @@ func NewPostProcessService(repo Repository, log *slog.Logger) *PostProcessServic
 	return &PostProcessService{repo: repo, log: log, now: time.Now}
 }
 
-// Evaluate resolves the invite-reward rule for the order and returns the number
-// of grants applied. With no enabled rule it grants nothing and returns 0 — the
-// guaranteed outcome until business enables the rule. An enabled rule surfaces a
-// warning (its reward ratio/cap, the invite binding and first-valid-consumption
-// definition are pending business confirmation, spec §13 邀请 row) rather than
-// applying an unconfirmed policy, and still grants nothing.
+// Evaluate resolves the rule for diagnostics but deliberately grants nothing;
+// the authoritative referral path already ran in the payment transaction.
 func (s *PostProcessService) Evaluate(ctx context.Context, in EvalInput) (int64, error) {
 	def, ok, err := s.repo.ActiveRule(ctx, KeyInviteReward, s.now().UTC())
 	if err != nil {
@@ -88,7 +81,7 @@ func (s *PostProcessService) Evaluate(ctx context.Context, in EvalInput) (int64,
 	if !ok {
 		return 0, nil // no enabled rule: invite rewards are not configured
 	}
-	s.log.Warn("rule:post-process invite-reward rule is enabled but grant application is pending business confirmation (spec §13); granting nothing",
+	s.log.Warn("legacy rule:post-process invite-reward task ignored; payment settlement owns invitation rewards",
 		"ruleKey", KeyInviteReward, "ruleVersion", def.Version, "paymentOrderId", in.PaymentOrderID, "memberId", in.MemberID)
 	return 0, nil
 }

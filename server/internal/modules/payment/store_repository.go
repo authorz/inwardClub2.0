@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -490,6 +491,15 @@ func (r *storeSQLRepository) CompleteRefundAdmin(
 			); err != nil {
 				return apperr.Internal(err)
 			}
+		}
+		// The referral ledger is the source of truth for whether the original
+		// payment earned a WeChat commission. Non-WeChat and coin payments have no
+		// matching event and are therefore a no-op here.
+		if err := referral.ReverseWechatRefund(ctx, tx, referral.WeChatRefund{
+			RefundOrderID: refundID, PaymentOrderID: paymentOrderID,
+			AmountCent: amountCent, RefundedAt: now,
+		}); err != nil {
+			return err
 		}
 		out = Refund{
 			ID: refundID, RefundOrderNo: refundNo, PaymentOrderID: paymentOrderID,

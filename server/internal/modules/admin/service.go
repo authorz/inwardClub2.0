@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -375,6 +376,15 @@ func (s *Service) UpdateRuleDefinition(ctx context.Context, ruleID int64, req Ru
 	if len(req.ConfigJSON) > 0 && !json.Valid(req.ConfigJSON) {
 		return RuleDefinitionView{}, apperr.Invalid("admin: configJson is not valid JSON")
 	}
+	if len(req.ConfigJSON) > 0 {
+		current, err := s.repo.GetRuleDefinition(ctx, ruleID)
+		if err != nil {
+			return RuleDefinitionView{}, err
+		}
+		if err := validateRuleConfig(current.Key, current.ScopeType, current.StoreID, req.ConfigJSON); err != nil {
+			return RuleDefinitionView{}, err
+		}
+	}
 	row, err := s.repo.UpdateRuleDefinition(ctx, ruleID, req)
 	if err != nil {
 		return RuleDefinitionView{}, err
@@ -398,6 +408,9 @@ func (s *Service) CreateRuleDefinition(ctx context.Context, req RuleDefinitionCr
 	if req.Version == 0 {
 		req.Version = 1
 	}
+	if err := validateRuleConfig(req.Key, req.ScopeType, req.StoreID, req.ConfigJSON); err != nil {
+		return RuleDefinitionView{}, err
+	}
 	row, err := s.repo.CreateRuleDefinition(ctx, req)
 	if err != nil {
 		return RuleDefinitionView{}, err
@@ -420,6 +433,13 @@ func (s *Service) DisableRuleDefinition(ctx context.Context, ruleID int64) (Rule
 // PublishRuleDefinition moves a rule definition to the 'published' status and
 // sets its enabled flag so the rule engine starts applying it immediately.
 func (s *Service) PublishRuleDefinition(ctx context.Context, ruleID int64) (RuleDefinitionView, error) {
+	current, err := s.repo.GetRuleDefinition(ctx, ruleID)
+	if err != nil {
+		return RuleDefinitionView{}, err
+	}
+	if err := validateRuleConfig(current.Key, current.ScopeType, current.StoreID, current.ConfigJSON); err != nil {
+		return RuleDefinitionView{}, err
+	}
 	enabled := true
 	status := "published"
 	row, err := s.repo.UpdateRuleDefinition(ctx, ruleID, RuleDefinitionUpdate{Enabled: &enabled, Status: &status})
@@ -427,6 +447,19 @@ func (s *Service) PublishRuleDefinition(ctx context.Context, ruleID int64) (Rule
 		return RuleDefinitionView{}, err
 	}
 	return ruleView(row), nil
+}
+
+func validateRuleConfig(key, scopeType string, storeID *int64, raw json.RawMessage) error {
+	if key != referral.RuleKey {
+		return nil
+	}
+	if scopeType != "global" || storeID != nil {
+		return apperr.Invalid("邀请奖励规则只能使用全局范围")
+	}
+	if _, err := referral.ParseConfig(raw); err != nil {
+		return apperr.Invalid(err.Error())
+	}
+	return nil
 }
 
 // ruleView maps a rule read model onto its console representation.

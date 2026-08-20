@@ -89,21 +89,20 @@
 | 金额口径（`amountCent` 是否即计奖基数） | 暂以“结算 `amount_cent`”为基数，属**临时建模选择**，已在代码/本文标注。 |
 | 到店判定 / 20:30 条件 | **未实现**。 |
 | 退款后的权益冲正 | **未实现**：`benefit_grants` 已留 `status`/`source`/idem，冲正任务待 §9.3.6 退款链路补。 |
-| 邀请奖励（`invite_reward`） | 不在本处理器内；由 rule 包的 `rule:post-process` 评估器承接（见 §6）。 |
+| 邀请奖励（`invite_reward`） | 不在本处理器内；微信支付结算在同一事务中由 `internal/modules/referral` 发放并在退款成功时冲正。 |
 
 补齐方式：在 §4 的 config схема 增加资格谓词字段，并在 `computeGrants` 前置一个
 `qualifies(payload, cfg)` 判定；判定确认前，规则保持禁用即可保证零副作用。
 
-## 6. 与 `internal/modules/rule` 包的关系
+## 6. 与邀请奖励的关系
 
-`internal/modules/rule` 另建了规则**解析**层（`ActiveRule`）与两个 config-gated 评估器
-（`benefit:vip-monthly`、`rule:post-process` 的邀请奖励），它们按 §13 **只解析不发放**。
-本处理器与之**互补**：
+邀请奖励已按正式业务口径独立落在 `internal/modules/referral`，与本处理器互补：
 
 - 本处理器负责 `payment:post-process`——结算真正产生的 topic——并**落地发放**（低消奖励）。
-- rule 包负责 `benefit:vip-monthly` 与 `rule:post-process`（其 topic 目前无生产者）。
-- 两者共用同一 `rule_key` 词表（`low_spend_reward` == `rule.KeyLowSpendReward`）；本处理器
-  为保持自足，未 import rule 包，而是复用本地常量。若后续合并两条实现，词表已一致。
+- `referral` 只在微信支付最终成功后执行，餐品、活动、金币充值及绑定会员的门店聚合微信
+  收款均参与；金币支付、支付宝和现金不参与，规则值来自已发布的 `invite_reward`。
+- 邀请返佣与支付结算共享事务和支付单幂等键；成功退款按原支付时的规则比例冲正。
+- `internal/modules/rule` 的 `rule:post-process` 仅保留为无生产者的兼容入口，不再承担邀请发放。
 
 ## 7. 测试
 

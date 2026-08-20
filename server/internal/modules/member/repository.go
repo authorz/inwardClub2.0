@@ -215,9 +215,10 @@ func (r *sqlRepository) ListInvitees(ctx context.Context, inviterID int64, limit
 
 func (r *sqlRepository) BindInviter(ctx context.Context, inviteeID, inviterID int64) error {
 	// Only bind when no inviter is set yet; a member may bind exactly once.
-	const q = `UPDATE members SET invited_by_member_id = ?, updated_at = ?
+	const q = `UPDATE members SET invited_by_member_id = ?, invited_at = ?, updated_at = ?
 		WHERE id = ? AND invited_by_member_id IS NULL`
-	res, err := r.db.ExecContext(ctx, q, inviterID, time.Now().UTC(), inviteeID)
+	now := time.Now().UTC()
+	res, err := r.db.ExecContext(ctx, q, inviterID, now, now, inviteeID)
 	if err != nil {
 		return apperr.Internal(err)
 	}

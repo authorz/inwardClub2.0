@@ -650,6 +650,14 @@ components:
         nickname: { type: string }
         avatarUrl: { type: string }
         joinedAt: { type: string, format: date-time, description: 'When the invited member joined' }
+    InvitationRewardConfigView:
+      type: object
+      description: Effective global invitation rewards displayed by the mini program.
+      properties:
+        enabled: { type: boolean }
+        firstLowSpendRewardCoins: { type: integer, format: int64, description: 'Whole coins granted to the inviter after the invitee first completes the store low-spend rule with WeChat payments' }
+        firstLowSpendRewardPoints: { type: integer, format: int64 }
+        commissionRateBasisPoints: { type: integer, format: int64, description: 'Commission rate for WeChat-paid food, activity, coin recharge and member-bound store collection orders; 1000 = 10%' }
     BindInvitationRequest:
       type: object
       required: [inviteCode]
@@ -2116,6 +2124,25 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+
+  /api/v2/mini/invitation-reward-config:
+    get:
+      tags: [mini]
+      security: [{ bearerAuth: [] }]
+      summary: Get the effective invitation reward configuration
+      description: >
+        Returns only the active published global invite_reward rule. When the
+        rule is disabled, enabled is false and all numeric values are zero.
+      responses:
+        '200':
+          description: effective invitation reward configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/InvitationRewardConfigView' }
+        '401': { $ref: '#/components/responses/Error' }
 
   /api/v2/mini/food-orders:
     get:

@@ -97,14 +97,19 @@ func (r *sqlMemberRepository) FindIDByInviteCode(ctx context.Context, inviteCode
 
 func (r *sqlMemberRepository) Create(ctx context.Context, m Member) (int64, error) {
 	const q = `INSERT INTO members
-		(wechat_openid, nickname, avatar_url, gender, phone, phone_changed_at, invite_code, invited_by_member_id, profile_completed, status, token_version, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+		(wechat_openid, nickname, avatar_url, gender, phone, phone_changed_at, invite_code,
+		 invited_by_member_id, invited_at, profile_completed, status, token_version, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
 	now := time.Now().UTC()
 	var phoneChangedAt any
 	if m.Phone != "" {
 		phoneChangedAt = now
 	}
-	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), phoneChangedAt, nullable(m.InviteCode), m.InvitedByMemberID, m.ProfileCompleted, StatusActive, now, now)
+	var invitedAt any
+	if m.InvitedByMemberID != nil {
+		invitedAt = now
+	}
+	res, err := r.db.ExecContext(ctx, q, m.WeChatOpenID, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender), nullable(m.Phone), phoneChangedAt, nullable(m.InviteCode), m.InvitedByMemberID, invitedAt, m.ProfileCompleted, StatusActive, now, now)
 	if err != nil {
 		return 0, apperr.Internal(err)
 	}
@@ -117,12 +122,16 @@ func (r *sqlMemberRepository) Create(ctx context.Context, m Member) (int64, erro
 
 func (r *sqlMemberRepository) CompleteRegistration(ctx context.Context, id int64, m Member) error {
 	const q = `UPDATE members SET nickname = ?, avatar_url = ?, gender = ?, phone = ?, phone_changed_at = ?,
-		invite_code = ?, invited_by_member_id = ?, profile_completed = 1,
+		invite_code = ?, invited_by_member_id = ?, invited_at = ?, profile_completed = 1,
 		token_version = token_version + 1, updated_at = ?
 		WHERE id = ? AND profile_completed = 0`
 	now := time.Now().UTC()
+	var invitedAt any
+	if m.InvitedByMemberID != nil {
+		invitedAt = now
+	}
 	result, err := r.db.ExecContext(ctx, q, m.Nickname, nullable(m.AvatarURL), nullable(m.Gender),
-		nullable(m.Phone), now, nullable(m.InviteCode), m.InvitedByMemberID, now, id)
+		nullable(m.Phone), now, nullable(m.InviteCode), m.InvitedByMemberID, invitedAt, now, id)
 	if err != nil {
 		return apperr.Internal(err)
 	}

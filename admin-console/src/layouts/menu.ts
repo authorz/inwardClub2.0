@@ -200,6 +200,12 @@ export const MENU: MenuNode[] = [
         permission: PERMISSIONS.RULE_READ,
       },
       {
+        key: 'invitation-reward-rule',
+        label: '邀请奖励',
+        path: '/rules/invitations',
+        permission: PERMISSIONS.RULE_READ,
+      },
+      {
         key: 'store-low-spend-rule',
         label: '预约低消奖励',
         path: '/rules/store-low-spend',

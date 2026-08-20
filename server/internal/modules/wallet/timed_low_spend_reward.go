@@ -136,6 +136,64 @@ func GrantTimedLowSpendReward(
 	return settings.RewardPoints, nil
 }
 
+// InvitationLowSpendQualified reports whether an invited member has completed
+// the store's timed low-spend requirement with WeChat-paid food orders after
+// the invitation was bound. Refunds reduce the qualifying amount, including
+// partial refunds. It does not grant the store's ordinary low-spend points;
+// invitation rewards use this as their independent eligibility predicate.
+func InvitationLowSpendQualified(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, storeID int64,
+	businessDay time.Time,
+) (bool, error) {
+	settings, err := loadTimedLowSpendSettings(ctx, tx, storeID)
+	if err != nil || !settings.Enabled {
+		return false, err
+	}
+	window, err := buildTimedLowSpendWindow(businessDay, settings)
+	if err != nil {
+		return false, err
+	}
+
+	var invitedAt sql.NullTime
+	if err := tx.QueryRowContext(ctx, `SELECT invited_at FROM members
+		WHERE id = ? AND invited_by_member_id IS NOT NULL`, memberID).Scan(&invitedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, apperr.Internal(err)
+	}
+	if !invitedAt.Valid || !invitedAt.Time.Before(window.ConsumptionCutoff) {
+		return false, nil
+	}
+	qualified, err := hasTimelyReservationOrWaitlist(ctx, tx, memberID, storeID, window)
+	if err != nil || !qualified {
+		return false, err
+	}
+
+	start := window.DayStart
+	if boundAt := invitedAt.Time.UTC(); boundAt.After(start) {
+		start = boundAt
+	}
+	const q = `SELECT COALESCE(SUM(GREATEST(po.amount_cent - COALESCE(rr.refunded_cent, 0), 0)), 0)
+		FROM payment_orders po
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		LEFT JOIN (
+			SELECT payment_order_id, SUM(amount_cent) AS refunded_cent
+			FROM refund_orders WHERE status = 'succeeded' GROUP BY payment_order_id
+		) rr ON rr.payment_order_id = po.id
+		WHERE bo.member_id = ? AND bo.store_id = ? AND bo.order_type = 'food'
+		  AND po.pay_method = 'wechat'
+		  AND po.status IN ('paid', 'partially_refunded', 'refunded')
+		  AND po.paid_at >= ? AND po.paid_at < ?`
+	var totalCent int64
+	if err := tx.QueryRowContext(ctx, q, memberID, storeID, start, window.ConsumptionCutoff).Scan(&totalCent); err != nil {
+		return false, apperr.Internal(err)
+	}
+	return totalCent >= settings.MinimumAmountCent, nil
+}
+
 func loadTimedLowSpendSettings(ctx context.Context, tx *sql.Tx, storeID int64) (timedLowSpendSettings, error) {
 	var settings timedLowSpendSettings
 	var raw []byte

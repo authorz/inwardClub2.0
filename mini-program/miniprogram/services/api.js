@@ -45,6 +45,9 @@ const LEDGER_REASON_LABEL = {
   first_recharge_reward: '用户首充获得积分',
   high_value_recharge_reward: '满额充值获得积分',
   low_spend_reward: '预约低消达标奖励',
+  invitation_first_low_spend: '邀请好友首次低消奖励',
+  invitation_commission: '邀请好友微信支付奖励',
+  invitation_refund_clawback: '邀请奖励退款冲正',
   sign_in: '签到奖励',
   admin_adjustment: '系统调整',
 };
@@ -421,6 +424,7 @@ const api = {
     http.get(m('/coupons') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeCoupon), meta: res.meta })),
   getTickets: (params) => http.get(m('/tickets') + qs(params)),
   getInvitations: () => http.get(m('/invitations')),
+  getInvitationRewardConfig: () => http.get(m('/invitation-reward-config')),
   bindInvitation: (data) => {
     const d = data || {};
     return http.post(

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/inwardclub/server/internal/modules/printer"
+	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -74,6 +75,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			businessID       int64
 			amount           int64
 			status           string
+			payMethod        string
 			orderType        string
 			memberID         sql.NullInt64
 			storeID          sql.NullInt64
@@ -81,7 +83,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			collectionStatus string
 			businessType     string
 		)
-		const sel = `SELECT po.id, po.business_order_id, po.amount_cent, po.status,
+		const sel = `SELECT po.id, po.business_order_id, po.amount_cent, po.status, po.pay_method,
 				bo.order_type, bo.member_id, bo.store_id, bo.business_order_no,
 				COALESCE(oco.status, ''), COALESCE(oco.business_type, '')
 			FROM payment_orders po
@@ -89,7 +91,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			LEFT JOIN offline_collection_orders oco ON oco.payment_order_id = po.id
 			WHERE po.payment_order_no = ? FOR UPDATE`
 		err := tx.QueryRowContext(ctx, sel, n.OutTradeNo).Scan(
-			&paymentID, &businessID, &amount, &status, &orderType, &memberID,
+			&paymentID, &businessID, &amount, &status, &payMethod, &orderType, &memberID,
 			&storeID, &businessNo, &collectionStatus, &businessType,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -103,6 +105,9 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		}
 		if status != paymentPending {
 			return apperr.Conflict("payment order is not payable")
+		}
+		if payMethod != wechatProvider {
+			return apperr.Invalid("payment order pay method mismatch")
 		}
 		if orderType == collectionType && collectionStatus != CollectionPending {
 			return apperr.Conflict("collection order is not payable")
@@ -165,6 +170,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				return apperr.Internal(err)
 			}
 		}
+		lowSpendQualified := false
 		if orderType == "food" && memberID.Valid {
 			if _, err := wallet.GrantFoodOrderPoints(
 				ctx, tx, paymentID, businessID, memberID.Int64, now,
@@ -177,6 +183,25 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				); err != nil {
 					return err
 				}
+				lowSpendQualified, err = wallet.InvitationLowSpendQualified(
+					ctx, tx, memberID.Int64, storeID.Int64, now,
+				)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if memberID.Valid {
+			var rewardStoreID int64
+			if storeID.Valid {
+				rewardStoreID = storeID.Int64
+			}
+			if err := referral.GrantWechatPayment(ctx, tx, referral.WeChatPayment{
+				PaymentOrderID: paymentID, MemberID: memberID.Int64,
+				StoreID: rewardStoreID, OrderType: orderType,
+				AmountCent: amount, PaidAt: now, LowSpendQualified: lowSpendQualified,
+			}); err != nil {
+				return err
 			}
 		}
 		// Every successful member-bound WeChat payment earns growth at ¥1 = 1.
@@ -711,6 +736,18 @@ func (r *settlementSQLRepository) SettleOffline(ctx context.Context, n OfflineNo
 				BusinessType:    businessType,
 			}); err != nil {
 				return err
+			}
+			if n.Channel == wechatProvider {
+				if err := referral.GrantWechatPayment(ctx, tx, referral.WeChatPayment{
+					PaymentOrderID: paymentID,
+					MemberID:       memberID.Int64,
+					StoreID:        collectionStore,
+					OrderType:      orderType,
+					AmountCent:     amount,
+					PaidAt:         now,
+				}); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

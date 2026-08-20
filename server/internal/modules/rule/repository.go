@@ -1,8 +1,7 @@
 // Package rule holds the worker-side evaluation of the configurable rule engine
 // (rule_definitions / benefit_grants, migration 00011). It is the read side of
-// the rule model the admin console already manages: the daily VIP monthly-benefit
-// driver (benefit:vip-monthly) and the post-payment invite-reward evaluator
-// (rule:post-process, 邀请奖励) both resolve their rule here.
+// the rule model the admin console already manages. The daily VIP monthly-benefit
+// driver resolves its rule here; rule:post-process remains a legacy no-op reader.
 //
 // Scope note: the 低消奖励 half of the post-payment rewards is owned by the
 // payment package's payment:post-process handler (rule_key=low_spend_reward),
@@ -10,13 +9,9 @@
 // deliberately does not touch low_spend_reward so the two evaluators can never
 // double-grant the same order.
 //
-// Per spec §13 these business rules (VIP 日/月福利, 邀请奖励) may not be
-// self-enabled by developers: the row stays disabled until business confirms its
-// benefit values, eligibility and补发/过期 semantics. So on any deployment today
-// ActiveRule finds no enabled rule and every evaluation resolves to a safe no-op
-// — the harness is wired and idempotent, but grants nothing until business turns
-// a rule on. The grant-application into benefit_grants is intentionally not built
-// yet (see the services), because doing so would bake in unconfirmed policy.
+// Invitation rewards no longer grant from this package: the confirmed policy is
+// implemented by internal/modules/referral in the WeChat settlement transaction.
+// VIP monthly benefits remain disabled until that separate policy is confirmed.
 package rule
 
 import (

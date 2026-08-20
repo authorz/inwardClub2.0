@@ -150,12 +150,9 @@ func run() error {
 	// the upload window (Qiniu spec §8). Pure-DB and idempotent like the sweeps.
 	assetCleanup := asset.NewCleanupService(asset.NewRepository(database))
 
-	// Config-gated rule evaluators. Both read enabled rule_definitions and, per
-	// spec §13 (VIP 日/月福利, 邀请奖励), grant nothing until business enables their
-	// rule — so today they are safe no-ops. benefit:vip-monthly runs daily;
-	// rule:post-process evaluates the invite reward for a settled order (its
-	// producer is still pending — nothing enqueues that topic yet — so it is
-	// test-exercised).
+	// benefit:vip-monthly remains config-gated. rule:post-process is retained as
+	// a no-producer compatibility handler; WeChat invitation rewards are
+	// applied synchronously by internal/modules/referral during settlement.
 	ruleRepo := rule.NewRepository(database)
 	vipMonthly := rule.NewMonthlyBenefitService(ruleRepo, log)
 	invitePostProcess := rule.NewPostProcessService(ruleRepo, log)
@@ -295,8 +292,8 @@ func vipMonthlyHandler(log *slog.Logger, svc *rule.MonthlyBenefitService) func(c
 	}
 }
 
-// rulePostProcessHandler evaluates the invite reward for a settled order. The
-// payload is a rule.EvalInput (the settled-order facts). Malformed JSON is
+// rulePostProcessHandler keeps legacy invite-reward tasks parseable. The payload
+// is a rule.EvalInput (the settled-order facts). Malformed JSON is
 // dropped without retry (asynq.SkipRetry) since a retry cannot fix it; an empty
 // payload decodes to a zero input and evaluates to a no-op. Nothing enqueues
 // rule:post-process yet, so today this path is exercised by tests.

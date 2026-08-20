@@ -6,6 +6,49 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const validation = require('../../utils/validation');
 
+function formatRate(basisPoints) {
+  const percent = basisPoints / 100;
+  const text = Number.isInteger(percent) ? String(percent) : percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return `${text}%`;
+}
+
+function rewardView(config) {
+  const enabled = !!(config && config.enabled);
+  const firstCoins = Number((config && config.firstLowSpendRewardCoins) || 0);
+  const firstPoints = Number((config && config.firstLowSpendRewardPoints) || 0);
+  const rateBasisPoints = Number((config && config.commissionRateBasisPoints) || 0);
+  const firstParts = [];
+  if (firstCoins > 0) firstParts.push(`${firstCoins} 金币`);
+  if (firstPoints > 0) firstParts.push(`${firstPoints} 积分`);
+  const firstSummary = firstParts.join(' + ');
+  const rateText = formatRate(rateBasisPoints);
+  const rules = [];
+  if (firstSummary) {
+    rules.push(`好友绑定邀请码并首次完成门店低消后，邀请人获得 ${firstSummary}。`);
+  }
+  if (rateBasisPoints > 0) {
+    rules.push(`好友绑定后每笔微信支付（含金币充值及绑定会员的门店微信收款），邀请人获得 ${rateText} 的金币奖励；金币支付、支付宝和现金不计入。`);
+  }
+  const hasFirstReward = !!firstSummary;
+  const hasCommission = rateBasisPoints > 0;
+  return {
+    enabled,
+    firstCoins,
+    firstPoints,
+    firstSummary,
+    rateText,
+    cardTitle: hasFirstReward && hasCommission ? '首次低消 + 持续返佣' : hasFirstReward ? '首次低消奖励' : '持续微信支付返佣',
+    targetText: hasCommission ? `${rateText} 返金币` : '低消达标',
+    note: hasCommission
+      ? `好友绑定后，每笔微信支付（含金币充值及绑定会员的门店微信收款）都会按 ${rateText} 为邀请人累计金币；金币支付、支付宝和现金不计入。`
+      : `好友绑定并首次完成门店低消后，邀请人可获得 ${firstSummary}。`,
+    awardStep: hasCommission
+      ? `邀请人首奖 ${firstSummary || '按配置发放'}，后续继续累计金币`
+      : `邀请人获得 ${firstSummary}`,
+    rules: rules.map((copy, index) => ({ no: index < 9 ? `0${index + 1}` : String(index + 1), copy })),
+  };
+}
+
 Page({
   data: {
     loading: true,
@@ -30,8 +73,9 @@ Page({
     Promise.all([
       api.getInvitations().catch(() => ({ data: [] })),
       api.getMe().catch(() => ({ data: {} })),
+      api.getInvitationRewardConfig().catch(() => ({ data: { enabled: false } })),
     ])
-      .then(([invRes, meRes]) => {
+      .then(([invRes, meRes, rewardRes]) => {
         const rows = Array.isArray(invRes.data) ? invRes.data : [];
         const me = meRes.data || {};
         const total = invRes.meta && invRes.meta.total;
@@ -52,7 +96,7 @@ Page({
             inviteCode: me.inviteCode || '',
             invited: total != null ? total : records.length,
             inviterBound: !!me.inviterBound,
-            rules: [],
+            reward: rewardView(rewardRes.data || {}),
             records,
           },
         });

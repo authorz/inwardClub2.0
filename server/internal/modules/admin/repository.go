@@ -77,6 +77,7 @@ type Repository interface {
 	ListRefunds(ctx context.Context, f ListFilter) ([]Refund, int64, error)
 	ListAuditLogs(ctx context.Context, f ListFilter) ([]AuditLog, int64, error)
 	ListRuleDefinitions(ctx context.Context, f ListFilter) ([]RuleDefinition, int64, error)
+	GetRuleDefinition(ctx context.Context, ruleID int64) (RuleDefinition, error)
 	CreateRuleDefinition(ctx context.Context, req RuleDefinitionCreate) (RuleDefinition, error)
 	UpdateRuleDefinition(ctx context.Context, ruleID int64, u RuleDefinitionUpdate) (RuleDefinition, error)
 	ListAdminAccounts(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error)
@@ -815,6 +816,12 @@ func (r *sqlRepository) ListRuleDefinitions(ctx context.Context, f ListFilter) (
 		out = append(out, rd)
 	}
 	return out, total, rows.Err()
+}
+
+func (r *sqlRepository) GetRuleDefinition(ctx context.Context, ruleID int64) (RuleDefinition, error) {
+	return scanRule(r.db.QueryRowContext(ctx, `SELECT id, rule_key, scope_type, store_id,
+		version, config_json, enabled, status, updated_at
+		FROM rule_definitions WHERE id = ?`, ruleID))
 }
 
 // CreateRuleDefinition inserts a new rule_definitions row. New rows always

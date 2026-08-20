@@ -20,6 +20,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/order"
 	"github.com/inwardclub/server/internal/modules/payment"
 	"github.com/inwardclub/server/internal/modules/printer"
+	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/modules/reporting"
 	"github.com/inwardclub/server/internal/modules/reservation"
 	"github.com/inwardclub/server/internal/modules/store"
@@ -63,6 +64,7 @@ type App struct {
 	globalSettingsHandler      *systemsetting.Handler
 	storeLowSpendRuleHandler   *systemsetting.StoreLowSpendRuleHandler
 	franchiseHandler           *franchise.Handler
+	referralHandler            *referral.Handler
 
 	memberHandler      *member.Handler
 	reservationHandler *reservation.Handler
@@ -145,6 +147,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		systemsetting.NewStoreLowSpendRuleRepository(database),
 	)
 	franchiseSvc := franchise.NewService(franchise.NewRepository(database), globalSettingsSvc)
+	referralSvc := referral.NewService(referral.NewRepository(database))
 
 	// Member/order/reservation/coupon/console modules. Phone binding exchanges a
 	// WeChat phone code via the WeChat client (fake offline, real once wired).
@@ -227,6 +230,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		globalSettingsHandler:      systemsetting.NewHandler(globalSettingsSvc),
 		storeLowSpendRuleHandler:   systemsetting.NewStoreLowSpendRuleHandler(storeLowSpendRuleSvc),
 		franchiseHandler:           franchise.NewHandler(franchiseSvc),
+		referralHandler:            referral.NewHandler(referralSvc),
 
 		memberHandler:      member.NewHandler(memberSvc),
 		reservationHandler: reservation.NewHandler(reservationSvc),

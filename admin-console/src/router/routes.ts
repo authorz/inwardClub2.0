@@ -65,6 +65,10 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
     component: () => import('@/pages/rules/SignInRuleView.vue'),
   },
   {
+    path: '/rules/invitations',
+    component: () => import('@/pages/rules/InvitationRewardRuleView.vue'),
+  },
+  {
     path: '/rules/store-low-spend',
     component: () => import('@/pages/rules/StoreLowSpendRuleListView.vue'),
   },
