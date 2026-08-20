@@ -235,7 +235,16 @@ func TestListPointSavingsFiltersPendingByPhone(t *testing.T) {
 	if total != 2 || len(views) != 2 || views[0].Status != PointSavingPending {
 		t.Fatalf("expected two pending phone matches, got %+v (total %d)", views, total)
 	}
-	for _, phone := range []string{"123", "12A4", "123456789012"} {
+	views, total, err = svc.ListPointSavings(
+		context.Background(), 7, httpx.Page{Page: 1, PageSize: 20}, PointSavingPending, "8",
+	)
+	if err != nil {
+		t.Fatalf("single-digit phone filter: %v", err)
+	}
+	if total != 1 || len(views) != 1 || views[0].ID != 1 {
+		t.Fatalf("expected one single-digit phone match, got %+v (total %d)", views, total)
+	}
+	for _, phone := range []string{"12A4", "123456789012"} {
 		if _, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{}, PointSavingPending, phone); apperr.From(err).Code != apperr.CodeInvalidArgument {
 			t.Fatalf("expected invalid phone filter %q, got %v", phone, err)
 		}

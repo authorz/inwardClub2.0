@@ -10,7 +10,7 @@ Page({
   data: { loading: true, list: [], keyword: '' },
 
   onShow() {
-    this.load(this.data.keyword.length >= 4 ? this.data.keyword : '');
+    this.load(this.data.keyword);
   },
 
   load(phone) {
@@ -50,10 +50,6 @@ Page({
 
   search() {
     const phone = this.data.keyword;
-    if (!/^\d{4,11}$/.test(phone)) {
-      ui.toast('请输入手机号后四位或完整手机号');
-      return;
-    }
     this.load(phone);
   },
 

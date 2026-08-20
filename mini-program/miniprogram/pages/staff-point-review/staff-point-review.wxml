@@ -3,7 +3,7 @@
 <scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
 <view class="spr">
   <view class="spr__search">
-    <input class="spr__search-input" type="number" maxlength="11" value="{{keyword}}" placeholder="输入手机号后四位或完整手机号" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
+    <input class="spr__search-input" type="number" maxlength="11" value="{{keyword}}" placeholder="输入手机号任意数字，常用后四位" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
     <text wx:if="{{keyword}}" class="spr__search-clear" bindtap="clearSearch">清除</text>
     <text class="spr__search-button" bindtap="search">搜索</text>
   </view>
