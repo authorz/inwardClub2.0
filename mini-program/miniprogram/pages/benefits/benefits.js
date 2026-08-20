@@ -1,6 +1,15 @@
 // 会员权益 — 可滑动灰阶 VIP 身份 / 等级预览 / 成长值
 const api = require('../../services/api');
 
+const MEMBER_PRIVILEGES = [
+  { name: '签到积分', icon: '/pages/benefits/assets/sign-in-points.svg' },
+  { name: '月度小吃券', icon: '/pages/benefits/assets/monthly-snack-coupon.svg' },
+  { name: '专属酒杯', icon: '/pages/benefits/assets/exclusive-wine-glass.svg' },
+  { name: 'AI 挑战', icon: '/pages/benefits/assets/ai-challenge.svg' },
+  { name: '3000 积分', icon: '/pages/benefits/assets/points-3000.svg' },
+  { name: '更多奖励', icon: '/pages/benefits/assets/more-rewards.svg' },
+];
+
 // 客户指定的黑白灰等级色阶：VIP1 从浅灰开始，等级越高越接近纯黑。
 const VIP_TONES = ['#DDDDDD', '#BBBBBB', '#999999', '#7F7F7F', '#666666', '#4D4D4D', '#333333', '#000000'];
 
@@ -64,7 +73,13 @@ function tierView(tiers, selectedIndex, currentIndex, growthValue) {
 }
 
 Page({
-  data: { loading: true, tiers: [], activeTierIndex: 0, tier: null },
+  data: {
+    loading: true,
+    tiers: [],
+    activeTierIndex: 0,
+    tier: null,
+    privileges: MEMBER_PRIVILEGES,
+  },
 
   onLoad() {
     api
