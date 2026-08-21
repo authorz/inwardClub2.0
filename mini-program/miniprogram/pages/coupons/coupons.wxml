@@ -28,7 +28,7 @@
             wx:if="{{item.status === 'unused' && item.countdownText}}"
             class="cp__countdown {{item.expiringSoon ? 'is-urgent' : ''}}"
           >
-            <text class="cp__countdown-label">剩余</text>
+            <text class="cp__countdown-label">{{item.expiringSoon ? '即将到期' : '剩余'}}</text>
             <text class="cp__countdown-time">{{item.countdownText}}</text>
           </view>
           <view
