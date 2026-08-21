@@ -51,13 +51,9 @@ type ApplicableScope struct {
 
 // TemplateInput is the create/update body for a coupon template.
 type TemplateInput struct {
-	Name         string `json:"name" binding:"required"`
-	Description  string `json:"description"`
-	CouponType   string `json:"couponType" binding:"required"`
-	ValueCent    int64  `json:"valueCent"`
-	PointsPrice  int64  `json:"pointsPrice"`
-	StockQty     int64  `json:"stockQuantity"`
-	PerMemberLim int64  `json:"perMemberLimit"`
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+	CouponType  string `json:"couponType" binding:"required"`
 }
 
 // GrantRequest grants an entitlement to a member from a template.
@@ -82,20 +78,15 @@ type VerifyRequest struct {
 
 // ConsoleTemplateView is the console representation of a coupon template.
 type ConsoleTemplateView struct {
-	ID           int64     `json:"id"`
-	ScopeType    string    `json:"scopeType"`
-	StoreID      *int64    `json:"storeId,omitempty"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description,omitempty"`
-	CouponType   string    `json:"couponType"`
-	ValueCent    int64     `json:"valueCent"`
-	PointsPrice  int64     `json:"pointsPrice"`
-	StockQty     int64     `json:"stockQuantity"`
-	IssuedQty    int64     `json:"issuedQuantity"`
-	PerMemberLim int64     `json:"perMemberLimit"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID          int64     `json:"id"`
+	ScopeType   string    `json:"scopeType"`
+	StoreID     *int64    `json:"storeId,omitempty"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	CouponType  string    `json:"couponType"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // ApplicableItemsView is the console representation of a template's
@@ -214,7 +205,12 @@ func (r *sqlConsoleRepository) GetApplicableScope(ctx context.Context, scope Con
 }
 
 func validCouponType(t string) bool {
-	return t == TypeExchange || t == TypeDiscount || t == TypeCash
+	switch t {
+	case TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeMeal:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope ConsoleScope, in TemplateInput) (Template, error) {
@@ -223,9 +219,6 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 	}
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
-	}
-	if in.ValueCent < 0 || in.PointsPrice < 0 || in.StockQty < 0 || in.PerMemberLim < 0 {
-		return Template{}, apperr.Invalid("优惠券金额、积分、库存和限领数量不能小于 0")
 	}
 	now := time.Now().UTC()
 	// A store console pins scope_type='store' + its own store id; the admin
@@ -236,15 +229,14 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 		scopeType = "store"
 		storeID = *scope.StoreID
 	}
-	// validity_rule / applicable_scope are NOT NULL JSON columns; seed them with
-	// empty objects until richer rule editing lands.
+	// All issued coupons have a fixed 30-day validity period.
 	const q = `INSERT INTO coupon_templates
 		(scope_type, store_id, name, description, coupon_type, value_cent, points_price,
 		 stock_quantity, issued_quantity, validity_rule, applicable_scope, per_member_limit,
 		 status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '{}', '{}', ?, 'draft', ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, JSON_OBJECT('days', 30), '{}', ?, 'draft', ?, ?)`
 	res, err := r.db.ExecContext(ctx, q, scopeType, storeID, in.Name, in.Description, in.CouponType,
-		in.ValueCent, in.PointsPrice, in.StockQty, in.PerMemberLim, now, now)
+		0, 0, 0, 0, now, now)
 	if err != nil {
 		return Template{}, apperr.Internal(err)
 	}
@@ -262,21 +254,13 @@ func (r *sqlConsoleRepository) UpdateTemplate(ctx context.Context, scope Console
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
 	}
-	if in.ValueCent < 0 || in.PointsPrice < 0 || in.StockQty < 0 || in.PerMemberLim < 0 {
-		return Template{}, apperr.Invalid("优惠券金额、积分、库存和限领数量不能小于 0")
-	}
-	current, err := r.GetTemplate(ctx, scope, id)
-	if err != nil {
+	if _, err := r.GetTemplate(ctx, scope, id); err != nil {
 		return Template{}, err
 	}
-	if in.StockQty > 0 && in.StockQty < current.IssuedQty {
-		return Template{}, apperr.Invalid("库存不能小于已发放数量")
-	}
 	now := time.Now().UTC()
-	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, value_cent=?,
-		points_price=?, stock_quantity=?, per_member_limit=?, updated_at=? WHERE id=?`
-	args := []any{in.Name, in.Description, in.CouponType, in.ValueCent, in.PointsPrice,
-		in.StockQty, in.PerMemberLim, now, id}
+	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, value_cent=0,
+		points_price=0, stock_quantity=0, per_member_limit=0, updated_at=? WHERE id=?`
+	args := []any{in.Name, in.Description, in.CouponType, now, id}
 	if scope.StoreID != nil {
 		q += ` AND scope_type='store' AND store_id=?`
 		args = append(args, *scope.StoreID)
@@ -368,6 +352,7 @@ func (r *sqlConsoleRepository) Grant(ctx context.Context, scope ConsoleScope, re
 		return EntitlementView{}, err
 	}
 	now := time.Now().UTC()
+	expiresAt := now.AddDate(0, 0, 30)
 	entNo := fmt.Sprintf("E%d-%d", req.TemplateID, now.UnixNano())
 	grantedBy := "admin"
 	if scope.StoreID != nil {
@@ -398,10 +383,10 @@ func (r *sqlConsoleRepository) Grant(ctx context.Context, scope ConsoleScope, re
 		}
 		const ins = `INSERT INTO coupon_entitlements
 			(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
-			 granted_by_type, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?)`
+			 granted_by_type, expires_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
 		res, err := tx.ExecContext(ctx, ins, entNo, req.TemplateID, req.MemberID, tmpl.StoreID,
-			req.Reason, grantedBy, now, now)
+			req.Reason, grantedBy, expiresAt, now, now)
 		if err != nil {
 			return apperr.Internal(err)
 		}
@@ -513,7 +498,7 @@ func (r *sqlConsoleRepository) Verify(ctx context.Context, scope ConsoleScope, r
 		if status != StatusActive {
 			return apperr.Conflict("coupon entitlement is not redeemable")
 		}
-		if expiresAt.Valid && expiresAt.Time.Before(now) {
+		if expiresAt.Valid && !expiresAt.Time.After(now) {
 			return apperr.Conflict("coupon entitlement has expired")
 		}
 		redNo := fmt.Sprintf("R%d-%d", id, now.UnixNano())
@@ -648,20 +633,9 @@ func (s *ConsoleService) Verify(ctx context.Context, scope ConsoleScope, req Ver
 
 func templateView(t Template) ConsoleTemplateView {
 	return ConsoleTemplateView{
-		ID:           t.ID,
-		ScopeType:    t.ScopeType,
-		StoreID:      t.StoreID,
-		Name:         t.Name,
-		Description:  t.Description,
-		CouponType:   t.CouponType,
-		ValueCent:    t.ValueCent,
-		PointsPrice:  t.PointsPrice,
-		StockQty:     t.StockQty,
-		IssuedQty:    t.IssuedQty,
-		PerMemberLim: t.PerMemberLim,
-		Status:       t.Status,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID: t.ID, ScopeType: t.ScopeType, StoreID: t.StoreID,
+		Name: t.Name, Description: t.Description, CouponType: t.CouponType,
+		Status: t.Status, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
 
@@ -717,11 +691,6 @@ func (h *ConsoleHandler) Delete(c *gin.Context) {
 // ApplicableItems handles GET /admin/coupon-templates/:id/applicable-items.
 func (h *ConsoleHandler) ApplicableItems(c *gin.Context) {
 	h.applicableItems(c, ConsoleScope{})
-}
-
-// Grant handles POST /admin/coupon-grants.
-func (h *ConsoleHandler) Grant(c *gin.Context) {
-	h.grant(c, ConsoleScope{})
 }
 
 // Void handles POST /admin/coupon-voids.
@@ -804,15 +773,6 @@ func (h *ConsoleHandler) StoreApplicableItems(c *gin.Context) {
 		return
 	}
 	h.applicableItems(c, ConsoleScope{StoreID: &storeID})
-}
-
-// StoreGrant handles POST /store/coupon-grants.
-func (h *ConsoleHandler) StoreGrant(c *gin.Context) {
-	storeID, ok := storescope.MustFromContext(c)
-	if !ok {
-		return
-	}
-	h.grant(c, ConsoleScope{StoreID: &storeID})
 }
 
 // StoreVoid handles POST /store/coupon-voids.
@@ -936,20 +896,6 @@ func (h *ConsoleHandler) applicableItems(c *gin.Context, scope ConsoleScope) {
 		return
 	}
 	httpx.OK(c, view)
-}
-
-func (h *ConsoleHandler) grant(c *gin.Context, scope ConsoleScope) {
-	var req GrantRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.Fail(c, apperr.Invalid(err.Error()))
-		return
-	}
-	view, err := h.svc.Grant(c.Request.Context(), scope, req)
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	httpx.Created(c, view)
 }
 
 func (h *ConsoleHandler) void(c *gin.Context, scope ConsoleScope) {

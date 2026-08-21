@@ -81,8 +81,8 @@ func codeOf(t *testing.T, err error) apperr.Code {
 func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
 		10: {
-			{EntitlementID: 1, TemplateID: 100, Name: "Free Latte", CouponType: TypeExchange, Status: StatusActive},
-			{EntitlementID: 2, TemplateID: 101, Name: "Old", CouponType: TypeCash, Status: StatusExpired},
+			{EntitlementID: 1, TemplateID: 100, Name: "Free Latte", CouponType: TypeBeverage, Status: StatusActive},
+			{EntitlementID: 2, TemplateID: 101, Name: "Old", CouponType: TypeSnack, Status: StatusExpired},
 		},
 	}}
 	svc := NewService(repo)
@@ -105,7 +105,7 @@ func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 
 func TestRedeemActiveMarksUsed(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
-		10: {{EntitlementID: 1, CouponType: TypeExchange, ValueCent: 10000, Status: StatusActive}},
+		10: {{EntitlementID: 1, CouponType: TypeBeverage, Status: StatusActive}},
 	}}
 	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
 		{ID: 8, Name: "Latte", PriceCent: 5000, StockQuantity: 0},
@@ -125,8 +125,8 @@ func TestRedeemActiveMarksUsed(t *testing.T) {
 	if err := json.Unmarshal(repo.lastRedeem.MatchedRuleJSON, &rule); err != nil {
 		t.Fatalf("decode rule snapshot: %v", err)
 	}
-	if rule.RedeemedAmountCent != 5000 || rule.UnusedAmountCent != 5000 {
-		t.Fatalf("unexpected underuse snapshot: %+v", rule)
+	if rule.RedeemedAmountCent != 5000 {
+		t.Fatalf("unexpected redemption snapshot: %+v", rule)
 	}
 }
 
@@ -185,9 +185,9 @@ func TestRedeemRejectsNonActiveAndForeign(t *testing.T) {
 	}
 }
 
-func TestRedeemRejectsAmountAboveCouponValue(t *testing.T) {
+func TestRedeemRejectsMultipleItemsPerCoupon(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
-		10: {{EntitlementID: 1, CouponType: TypeCash, ValueCent: 10000, Status: StatusActive}},
+		10: {{EntitlementID: 1, CouponType: TypeBeverage, Status: StatusActive}},
 	}}
 	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
 		{ID: 8, Name: "Latte", PriceCent: 6000},
@@ -197,13 +197,13 @@ func TestRedeemRejectsAmountAboveCouponValue(t *testing.T) {
 		Items: []RedeemItemRequest{{ItemID: 8, Quantity: 2}},
 	})
 	if codeOf(t, err) != apperr.CodeInvalidArgument {
-		t.Fatalf("expected amount rejection, got %v", err)
+		t.Fatalf("expected quantity rejection, got %v", err)
 	}
 }
 
-func TestListEligibleItemsUsesCouponTemplateAndFaceValue(t *testing.T) {
+func TestListEligibleItemsUsesCouponTemplate(t *testing.T) {
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
-		10: {{EntitlementID: 1, Name: "100元兑换券", CouponType: TypeExchange, ValueCent: 10000, Status: StatusActive}},
+		10: {{EntitlementID: 1, Name: "饮料券", CouponType: TypeBeverage, Status: StatusActive}},
 	}}
 	svc := NewService(repo, fakeRedeemableCatalog{items: []catalog.ItemView{
 		{ID: 8, Name: "Latte", PriceCent: 5000},
@@ -212,7 +212,7 @@ func TestListEligibleItemsUsesCouponTemplateAndFaceValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list eligible items: %v", err)
 	}
-	if view.Coupon.ValueCent != 10000 || len(view.Items) != 1 || view.Items[0].ItemID != 8 {
+	if view.Coupon.CouponType != TypeBeverage || len(view.Items) != 1 || view.Items[0].ItemID != 8 {
 		t.Fatalf("unexpected eligible items: %+v", view)
 	}
 }

@@ -107,10 +107,8 @@ func (s *Service) ListCouponTemplates(ctx context.Context, f ListFilter) ([]Coup
 	for _, r := range rows {
 		out = append(out, CouponTemplateView{
 			ID: r.ID, ScopeType: r.ScopeType, StoreID: r.StoreID, Name: r.Name,
-			Description: r.Description, CouponType: r.CouponType, ValueCent: r.ValueCent,
-			PointsPrice: r.PointsPrice, TotalStock: r.TotalStock, StockQuantity: r.TotalStock,
-			IssuedCount: r.IssuedCount, IssuedQuantity: r.IssuedCount,
-			PerMemberLimit: r.PerMemberLimit, Status: r.Status,
+			Description: r.Description, CouponType: r.CouponType,
+			IssuedCount: r.IssuedCount, IssuedQuantity: r.IssuedCount, Status: r.Status,
 			CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		})
 	}

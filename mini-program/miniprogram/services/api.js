@@ -94,9 +94,7 @@ function normalizeItem(it) {
 }
 
 // GET /mini/coupons returns MemberCouponView {entitlementId,description,
-// couponType,valueCent,expiresAt,status} with status active|used|void|expired
-// (coupon/dto.go, coupon/model.go), but pages read id/desc/type/amountCent/
-// validUntil and filter status unused. Map the fields and the status vocabulary.
+// couponType,expiresAt,status}. Coupons do not have a face value.
 const COUPON_STATUS_MAP = { active: 'unused', used: 'used', expired: 'expired', void: 'expired' };
 function normalizeCoupon(c) {
   if (!c) return c;
@@ -104,7 +102,6 @@ function normalizeCoupon(c) {
     id: c.id != null ? c.id : c.entitlementId,
     desc: c.desc != null ? c.desc : c.description,
     type: c.type != null ? c.type : c.couponType,
-    amountCent: c.amountCent != null ? c.amountCent : c.valueCent,
     validUntil: c.validUntil != null ? c.validUntil : c.expiresAt,
     status: COUPON_STATUS_MAP[c.status] || c.status,
   });
@@ -164,12 +161,9 @@ function normalizeActivityOrder(o) {
 
 // GET /mini/me returns MemberProfile {id,nickname,phone,inviteCode,status,
 // vipTier?} (server/internal/modules/auth/dto.go). vipTier is the member's
-// current VIP level: it exposes the SHORT user-facing label (label: "VIP1"..),
-// level/threshold and the resolved icon/banner URLs (server-joined from
-// QINIU_PUBLIC_DOMAIN, never a raw stored URL); it is omitted when the member is
-// unranked. The home / profile cards render the member's VIP level, so this
-// single seam maps vipTier's short label + banner onto the flat tier shape the
-// pages read (tierShort/tierName/tierBannerUrl). It still falls back to the
+// current VIP level and exposes its short label, level, threshold and icon.
+// This seam maps the short label onto the flat tier shape the pages read.
+// It still falls back to the
 // legacy flat tierCode/tierName or nested tier{code,name}, then VIP1
 // when tier-less. Member copy shows only the short label, so tierName is set to
 // the short label too (never the full admin name like "VIP1 普通会员"). The raw
@@ -192,10 +186,7 @@ function normalizeMe(me) {
   const tierShort = (vip && vip.label) || tierShortOf(tierCode, me.tierName || t.name) || DEFAULT_TIER_NAME;
   // Member copy shows only the short label, never the full admin tier name.
   const tierName = tierShort;
-  // Current-tier VIP banner (server-resolved QINIU_PUBLIC_DOMAIN + path); the
-  // home page renders it after login when present.
-  const tierBannerUrl = (vip && vip.bannerUrl) || '';
-  return Object.assign({}, me, { tierCode, tierName, tierShort, tierBannerUrl });
+  return Object.assign({}, me, { tierCode, tierName, tierShort });
 }
 
 // GET /mini/recharge-orders/:id returns RechargeOrderView {businessOrderNo,
@@ -343,13 +334,47 @@ const LEVEL_CODE = ['normal', 'bronze', 'silver', 'gold', 'platinum', 'diamond',
 function levelToCode(level) {
   return LEVEL_CODE[Math.max(0, Math.min(LEVEL_CODE.length - 1, (level || 1) - 1))];
 }
-const BENEFIT_ICONS = ['calendar', 'coupon', 'gift'];
-function benefitItems(benefitsStr) {
-  return String(benefitsStr || '')
-    .split(/[\n;；/、,，]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((title, i) => ({ icon: BENEFIT_ICONS[i % BENEFIT_ICONS.length], title, desc: '' }));
+const BENEFIT_TYPE_LABEL = {
+  event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
+  beverage: '饮料券', meal: '餐食券',
+};
+const BENEFIT_TYPE_ICON = {
+  event_ticket: '/assets/icons/ticket-qr.svg',
+  snack: '/pages/benefits/assets/monthly-snack-coupon.svg',
+  alcohol: '/pages/benefits/assets/exclusive-wine-glass.svg',
+  beverage: '/pages/benefits/assets/exclusive-wine-glass.svg',
+  meal: '/pages/benefits/assets/monthly-snack-coupon.svg',
+};
+const BENEFIT_PERIOD_LABEL = { once: '达级', daily: '每日', weekly: '每周', monthly: '每月' };
+const BENEFIT_TRIGGER_LABEL = {
+  tier_achieved: '达到等级', low_spend: '低消达标', first_order: '首次下单', visit: '到店',
+  weekday_event: '工作日赛事', weekly_event: '周赛', monthly_event: '月赛',
+};
+function benefitRuleText(item, suffix) {
+  const period = BENEFIT_PERIOD_LABEL[item.period] || '';
+  const trigger = BENEFIT_TRIGGER_LABEL[item.trigger] || '';
+  return period + trigger + suffix;
+}
+function benefitItems(tier) {
+  const config = tier && tier.benefitConfig;
+  if (!config) {
+    return String((tier && tier.benefits) || '').split(/[\n;；]+/).map((title) => title.trim()).filter(Boolean)
+      .map((title) => ({ icon: '/pages/benefits/assets/more-rewards.svg', title, desc: '' }));
+  }
+  const points = (config.points || []).map((item) => ({
+    icon: '/pages/benefits/assets/points-3000.svg',
+    title: Number(item.amount || 0) + ' 积分',
+    desc: benefitRuleText(item, '赠送'),
+  }));
+  const coupons = (config.coupons || []).map((item) => ({
+    icon: BENEFIT_TYPE_ICON[item.couponType] || '/pages/benefits/assets/more-rewards.svg',
+    title: (BENEFIT_TYPE_LABEL[item.couponType] || '福利券') + ' × ' + Number(item.quantity || 0),
+    desc: benefitRuleText(item, '发放') + ' · 30天有效',
+  }));
+  const descriptions = (config.descriptions || []).map((title) => ({
+    icon: '/pages/benefits/assets/more-rewards.svg', title, desc: '专属权益',
+  }));
+  return points.concat(coupons, descriptions);
 }
 
 const api = {
@@ -391,13 +416,15 @@ const api = {
             currentLevel: curLevel,
             growthValue: wallet.growthValue || 0,
             growthMax: (next && next.threshold) || curTier.threshold || 1000,
-            benefits: benefitItems(curTier.benefits),
+            benefits: benefitItems(curTier),
             levels: tiers.map((t) => ({
               code: levelToCode(t.level),
               level: t.level,
               name: t.name,
               threshold: t.threshold || 0,
               desc: t.benefits || '',
+              benefitConfig: t.benefitConfig || null,
+              privileges: benefitItems(t),
             })),
           },
         };

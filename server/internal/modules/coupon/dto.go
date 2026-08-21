@@ -56,7 +56,6 @@ type MemberCouponView struct {
 	Name          string     `json:"name"`
 	Description   string     `json:"description,omitempty"`
 	CouponType    string     `json:"couponType"`
-	ValueCent     int64      `json:"valueCent"`
 	StoreID       *int64     `json:"storeId,omitempty"`
 	Status        string     `json:"status"`
 	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`

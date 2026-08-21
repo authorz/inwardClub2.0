@@ -127,8 +127,8 @@ func (r *sqlRepository) UpdateStore(ctx context.Context, id int64, input StoreIn
 	return r.GetStore(ctx, id)
 }
 
-// DeleteStore soft-deletes a store while preserving historical business data.
-// Store-scoped back-office and staff sessions are invalidated atomically.
+// DeleteStore permanently removes the store row. Historical orders keep their
+// immutable store snapshots/ids, while live store-scoped sessions are revoked.
 func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry audit.Entry) error {
 	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
 		const selectStore = `SELECT ` + storeColumns + ` FROM stores WHERE id = ? AND status <> ? FOR UPDATE`
@@ -137,11 +137,6 @@ func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry au
 			return apperr.NotFound("store not found")
 		}
 		if err != nil {
-			return apperr.Internal(err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE stores SET status = ?, updated_at = NOW() WHERE id = ?`, StatusDeleted, id,
-		); err != nil {
 			return apperr.Internal(err)
 		}
 		if _, err := tx.ExecContext(ctx,
@@ -162,8 +157,21 @@ func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry au
 
 		auditEntry.StoreID = id
 		auditEntry.Before = map[string]any{"id": before.ID, "name": before.Name, "status": before.Status}
-		auditEntry.After = map[string]any{"id": before.ID, "name": before.Name, "status": StatusDeleted}
-		return audit.RecordTx(ctx, tx, auditEntry)
+		auditEntry.After = map[string]any{"id": before.ID, "name": before.Name, "deleted": true}
+		if err := audit.RecordTx(ctx, tx, auditEntry); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM store_settings WHERE store_id = ?`, id); err != nil {
+			return apperr.Internal(err)
+		}
+		res, err := tx.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, id)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if affected, _ := res.RowsAffected(); affected != 1 {
+			return apperr.NotFound("store not found")
+		}
+		return nil
 	})
 }
 

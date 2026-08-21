@@ -63,15 +63,16 @@ type RechargeOrderCreate struct {
 // ActivityOrderCreate is the input for a ticket purchase. The unit price and the
 // owning activity are resolved from the ticket type inside the transaction.
 type ActivityOrderCreate struct {
-	ActivityID      int64
-	TicketTypeID    int64
-	Quantity        int
-	MemberID        int64
-	PayMethod       string
-	BusinessOrderNo string
-	PaymentOrderNo  string
-	IdemKey         string
-	Now             time.Time
+	ActivityID          int64
+	TicketTypeID        int64
+	Quantity            int
+	MemberID            int64
+	PayMethod           string
+	CouponEntitlementID *int64
+	BusinessOrderNo     string
+	PaymentOrderNo      string
+	IdemKey             string
+	Now                 time.Time
 }
 
 // CoinPayment settles a pending coin payment order from the member's wallet.
@@ -280,14 +281,52 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		if storeID.Valid {
 			storePtr = &storeID.Int64
 		}
-		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeActivity, storePtr, in.MemberID, total, in.Now)
+		chargedTotal := total
+		if in.PayMethod == PayMethodCoupon {
+			chargedTotal = 0
+			if in.CouponEntitlementID == nil {
+				return apperr.Invalid("请选择赛事门票券")
+			}
+			var (
+				couponStatus string
+				couponMember int64
+				couponStore  sql.NullInt64
+				couponExpiry sql.NullTime
+				couponType   string
+			)
+			const selectCoupon = `SELECT e.status, e.member_id, e.store_id, e.expires_at, ct.coupon_type
+				FROM coupon_entitlements e JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+				WHERE e.id = ? FOR UPDATE`
+			err := tx.QueryRowContext(ctx, selectCoupon, *in.CouponEntitlementID).Scan(
+				&couponStatus, &couponMember, &couponStore, &couponExpiry, &couponType,
+			)
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.NotFound("赛事门票券不存在")
+			}
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			if couponMember != in.MemberID {
+				return apperr.NotFound("赛事门票券不存在")
+			}
+			if couponStatus != "active" || couponType != "event_ticket" ||
+				(couponExpiry.Valid && !couponExpiry.Time.After(in.Now)) {
+				return apperr.Conflict("赛事门票券不可用或已过期")
+			}
+			if couponStore.Valid && (!storeID.Valid || couponStore.Int64 != storeID.Int64) {
+				return apperr.Invalid("赛事门票券不适用于当前门店")
+			}
+		}
+		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeActivity, storePtr, in.MemberID, chargedTotal, in.Now)
 		if err != nil {
 			return err
 		}
 		const insAO = `INSERT INTO activity_orders
-			(business_order_id, activity_id, store_id, member_id, ticket_count, total_amount_cent, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, 'created', ?, ?)`
-		res, err = tx.ExecContext(ctx, insAO, businessID, in.ActivityID, storePtr, in.MemberID, in.Quantity, total, in.Now, in.Now)
+			(business_order_id, activity_id, store_id, member_id, coupon_entitlement_id,
+			 ticket_count, total_amount_cent, status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, ?)`
+		res, err = tx.ExecContext(ctx, insAO, businessID, in.ActivityID, storePtr, in.MemberID,
+			in.CouponEntitlementID, in.Quantity, chargedTotal, in.Now, in.Now)
 		if err != nil {
 			return mapWriteErr(err)
 		}
@@ -327,9 +366,43 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			tickets = append(tickets, Ticket{ID: id, TicketNo: ticketNo, ActivityID: in.ActivityID,
 				TicketTypeID: in.TicketTypeID, SessionID: sessPtr, PriceCent: price, Status: "pending"})
 		}
-		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, storePtr, in.MemberID, total, in.PayMethod, in.Now)
+		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, storePtr, in.MemberID, chargedTotal, in.PayMethod, in.Now)
 		if err != nil {
 			return err
+		}
+		paymentStatus := PaymentStatusPending
+		orderStatus := "created"
+		if in.PayMethod == PayMethodCoupon {
+			const consumeCoupon = `UPDATE coupon_entitlements SET status = 'used', updated_at = ?
+				WHERE id = ? AND member_id = ? AND status = 'active'`
+			res, err := tx.ExecContext(ctx, consumeCoupon, in.Now, *in.CouponEntitlementID, in.MemberID)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			if affected, _ := res.RowsAffected(); affected != 1 {
+				return apperr.Conflict("赛事门票券已被使用")
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE payment_orders
+				SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?`, in.Now, in.Now, paymentID); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE business_orders
+				SET payment_status = 'paid', order_status = 'paid', updated_at = ? WHERE id = ?`, in.Now, businessID); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE activity_orders
+				SET status = 'paid', updated_at = ? WHERE id = ?`, in.Now, activityOrderID); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE tickets
+				SET status = 'active', updated_at = ? WHERE activity_order_id = ?`, in.Now, activityOrderID); err != nil {
+				return apperr.Internal(err)
+			}
+			for i := range tickets {
+				tickets[i].Status = TicketStatusActive
+			}
+			paymentStatus = PaymentStatusPaid
+			orderStatus = "paid"
 		}
 		ao = ActivityOrder{
 			ID:              activityOrderID,
@@ -338,12 +411,12 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			StoreID:         storePtr,
 			MemberID:        in.MemberID,
 			TicketCount:     in.Quantity,
-			TotalAmountCent: total,
-			Status:          "created",
+			TotalAmountCent: chargedTotal,
+			Status:          orderStatus,
 			CreatedAt:       in.Now,
 		}
 		po = PaymentOrder{ID: paymentID, PaymentOrderNo: in.PaymentOrderNo, BusinessOrderID: businessID,
-			MemberID: &in.MemberID, AmountCent: total, PayMethod: in.PayMethod, Status: PaymentStatusPending, CreatedAt: in.Now}
+			MemberID: &in.MemberID, AmountCent: chargedTotal, PayMethod: in.PayMethod, Status: paymentStatus, CreatedAt: in.Now}
 		return nil
 	})
 	if err != nil {

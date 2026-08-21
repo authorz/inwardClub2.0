@@ -12,6 +12,7 @@ import "time"
 const (
 	PayMethodWeChat = "wechat"
 	PayMethodCoin   = "coin"
+	PayMethodCoupon = "coupon"
 )
 
 // Business order types (mirrors business_orders.order_type).

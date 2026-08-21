@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref } from 'vue'
-import { NButton, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
+import { NButton, NForm, NFormItemGi, NGrid, NInput, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
 import { couponService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { confirm } from '@/composables/useConfirm'
@@ -8,13 +8,15 @@ import { feedback } from '@/utils/feedback'
 import { PERM } from '@/constants/permissions'
 import type { EnumOption } from '@/constants/enums'
 import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
-import { dateColumn, moneyColumn, statusColumn, textColumn } from '@/utils/columns'
+import { dateColumn, statusColumn, textColumn } from '@/utils/columns'
 import type { CouponTemplate } from '@/types/models'
 
 const types: EnumOption[] = [
-  { label: '兑换券', value: 'exchange' },
-  { label: '折扣券', value: 'discount' },
-  { label: '代金券', value: 'cash' },
+  { label: '赛事门票券', value: 'event_ticket' },
+  { label: '小吃券', value: 'snack' },
+  { label: '酒水券', value: 'alcohol' },
+  { label: '饮料券', value: 'beverage' },
+  { label: '餐食券', value: 'meal' },
 ]
 const typeSelectOptions = types.map(({ label, value }) => ({ label, value }))
 const typeMap = Object.fromEntries(types.map((item) => [item.value, item]))
@@ -29,8 +31,7 @@ const keyword = ref('')
 const show = ref(false)
 const saving = ref(false)
 const form = reactive({
-  id: null as string | number | null, name: '', description: '', couponType: 'cash',
-  valueYuan: 0, pointsPrice: 0, stockQuantity: 0, perMemberLimit: 1,
+  id: null as string | number | null, name: '', description: '', couponType: 'alcohol',
 })
 
 async function open(row?: CouponTemplate): Promise<void> {
@@ -41,10 +42,8 @@ async function open(row?: CouponTemplate): Promise<void> {
   }
   Object.assign(form, target ? {
     id: target.id, name: target.name, description: target.description ?? '',
-    couponType: target.couponType, valueYuan: target.valueCent / 100,
-    pointsPrice: target.pointsPrice, stockQuantity: target.stockQuantity,
-    perMemberLimit: target.perMemberLimit,
-  } : { id: null, name: '', description: '', couponType: 'cash', valueYuan: 0, pointsPrice: 0, stockQuantity: 0, perMemberLimit: 1 })
+    couponType: target.couponType,
+  } : { id: null, name: '', description: '', couponType: 'alcohol' })
   show.value = true
 }
 
@@ -54,8 +53,6 @@ async function save(): Promise<void> {
   try {
     const body = {
       name: form.name.trim(), description: form.description.trim(), couponType: form.couponType,
-      valueCent: Math.round(form.valueYuan * 100), pointsPrice: form.pointsPrice,
-      stockQuantity: form.stockQuantity, perMemberLimit: form.perMemberLimit,
     }
     if (form.id == null) await couponService.create(body)
     else await couponService.update(form.id, body)
@@ -94,20 +91,9 @@ function resetFilters(): void {
   list.reset()
 }
 
-function stockOf(row: CouponTemplate): number {
-  return row.stockQuantity ?? row.totalStock ?? 0
-}
-
-function issuedOf(row: CouponTemplate): number {
-  return row.issuedQuantity ?? row.issuedCount ?? 0
-}
-
 const columns = computed<DataTableColumns<CouponTemplate>>(() => [
   textColumn<CouponTemplate>('券名称', (row) => row.name),
   statusColumn<CouponTemplate>('券类型', typeMap, (row) => row.couponType, { width: 100 }),
-  moneyColumn<CouponTemplate>('面额', (row) => row.valueCent, { width: 100 }),
-  textColumn<CouponTemplate>('积分价格', (row) => row.pointsPrice, { width: 100 }),
-  textColumn<CouponTemplate>('库存 / 已发', (row) => `${stockOf(row)} / ${issuedOf(row)}`, { width: 120 }),
   statusColumn<CouponTemplate>('状态', statusMap, (row) => row.status, { width: 100 }),
   dateColumn<CouponTemplate>('更新时间', (row) => row.updatedAt, { width: 150 }),
   { title: '操作', key: 'actions', width: 220, render: (row) => h(NSpace, { size: 4, wrap: false }, () => [
@@ -124,7 +110,7 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
   <div>
     <PageHeader
       title="本店优惠券"
-      description="创建和维护仅属于当前门店的优惠券模板"
+      description="维护本店券类型；一张券只能兑换一种商品或一张活动门票"
     />
     <StatusFilterBar
       v-model:status="status"
@@ -180,35 +166,6 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
             <NSelect
               v-model:value="form.couponType"
               :options="typeSelectOptions"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="面额（元）">
-            <NInputNumber
-              v-model:value="form.valueYuan"
-              :min="0"
-              :precision="2"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="兑换积分">
-            <NInputNumber
-              v-model:value="form.pointsPrice"
-              :min="0"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="库存（0 表示不限量）">
-            <NInputNumber
-              v-model:value="form.stockQuantity"
-              :min="0"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="每人限领（0 表示不限量）">
-            <NInputNumber
-              v-model:value="form.perMemberLimit"
-              :min="0"
-              style="width: 100%"
             />
           </NFormItemGi>
           <NFormItemGi

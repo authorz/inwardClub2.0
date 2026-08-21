@@ -129,13 +129,6 @@ export interface CouponTemplate extends AuditableEntity {
   name: string
   description?: string
   couponType: string
-  valueCent: number
-  pointsPrice?: number
-  stockQuantity?: number
-  issuedQuantity?: number
-  perMemberLimit?: number
-  totalStock?: number
-  issuedCount?: number
   scopeType?: string
   storeId?: string | number | null
 }
@@ -158,10 +151,26 @@ export interface MembershipTier extends AuditableEntity {
   /** 达到该等级所需门槛（积分 / 成长值） */
   threshold?: number
   benefits?: string
-  /** VIP 海报（横幅）对象路径 objectKey：写入用，对齐后端 bannerPath */
-  bannerPath?: string | null
-  /** VIP 海报（横幅）展示地址：读取用，服务端由 bannerPath 解析（对齐后端 bannerUrl） */
-  bannerUrl?: string
+  benefitConfig: TierBenefitConfig
+}
+
+export interface TierPointBenefit {
+  amount: number
+  period: string
+  trigger: string
+}
+
+export interface TierCouponBenefit {
+  couponType: string
+  quantity: number
+  period: string
+  trigger: string
+}
+
+export interface TierBenefitConfig {
+  points: TierPointBenefit[]
+  coupons: TierCouponBenefit[]
+  descriptions: string[]
 }
 
 export interface RuleDefinition extends AuditableEntity {

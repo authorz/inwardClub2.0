@@ -39,7 +39,7 @@ function resolvePublicUrl(objectKey: string): string {
 export const assetService = {
   /**
    * 图片直传：申请凭证 → multipart 直传七牛。
-   * 返回 objectKey（写入 bannerPath 等业务字段）与解析后的预览地址。
+   * 返回 objectKey 与解析后的预览地址。
    * 直传请求走原生 fetch，绕开总后台 axios（不注入 Authorization / baseURL，目标是七牛域名）。
    */
   async uploadImage(purpose: string, file: File): Promise<UploadedAsset> {

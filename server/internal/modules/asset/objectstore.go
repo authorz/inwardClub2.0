@@ -21,7 +21,6 @@ const (
 	UploadPurposeActivity       UploadPurpose = "activity"
 	UploadPurposeSeatLayout     UploadPurpose = "seat_layout"
 	UploadPurposeVipIcon        UploadPurpose = "vip_icon"
-	UploadPurposeVipBanner      UploadPurpose = "vip_banner"
 	UploadPurposeRichContent    UploadPurpose = "rich_content"
 )
 

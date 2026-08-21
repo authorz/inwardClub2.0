@@ -48,8 +48,7 @@ type LoginResponse struct {
 }
 
 // MemberProfile is the mini-program "me" payload. VipTier carries the member's
-// current VIP level (and its banner URL) so the home page can render the tier
-// banner after login; it is nil when the member is not yet ranked.
+// current VIP level; it is nil when the member is not yet ranked.
 type MemberProfile struct {
 	ID           int64          `json:"id"`
 	Nickname     string         `json:"nickname"`
@@ -76,7 +75,6 @@ type MemberVIPTier struct {
 	Level     int    `json:"level"`
 	Threshold int64  `json:"threshold"`
 	IconURL   string `json:"iconUrl,omitempty"`
-	BannerURL string `json:"bannerUrl,omitempty"`
 }
 
 // AccountProfile is the back-office "me" payload.

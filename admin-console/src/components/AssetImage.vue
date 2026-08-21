@@ -10,7 +10,7 @@ import { NImage } from 'naive-ui'
 const props = withDefaults(
   defineProps<{
     assetId?: string | null
-    /** 已解析的图片地址；提供时优先于 assetId（用于服务端直接返回 URL 的场景，如 VIP 海报 bannerUrl） */
+    /** 已解析的图片地址；提供时优先于 assetId。 */
     src?: string | null
     width?: number
     height?: number

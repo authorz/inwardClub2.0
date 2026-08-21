@@ -169,12 +169,6 @@ export const MENU: MenuNode[] = [
         permission: PERMISSIONS.MEMBER_READ,
       },
       {
-        key: 'membership-tiers',
-        label: 'VIP 等级',
-        path: '/rules/membership-tiers',
-        permission: PERMISSIONS.RULE_READ,
-      },
-      {
         key: 'recharge-products',
         label: '快捷充值',
         path: '/recharge-products',
@@ -187,6 +181,12 @@ export const MENU: MenuNode[] = [
     label: '权益规则',
     icon: Crown,
     children: [
+      {
+        key: 'membership-tiers',
+        label: 'VIP 等级',
+        path: '/rules/membership-tiers',
+        permission: PERMISSIONS.RULE_READ,
+      },
       {
         key: 'coupons',
         label: '券管理',

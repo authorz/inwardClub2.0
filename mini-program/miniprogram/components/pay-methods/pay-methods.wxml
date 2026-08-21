@@ -9,6 +9,7 @@
     <view class="pm__icon pm__icon--{{item.code}}">
       <image wx:if="{{item.code === 'wechat'}}" class="pm__img" src="/assets/payment/wechat-pay.png" mode="aspectFit" />
       <image wx:elif="{{item.code === 'coin'}}" class="pm__img" src="/assets/payment/coin.png" mode="aspectFit" />
+      <image wx:elif="{{item.code === 'coupon'}}" class="pm__img" src="/assets/icons/ticket-qr.svg" mode="aspectFit" />
     </view>
     <text class="pm__label">{{item.label}}</text>
     <view class="pm__radio">

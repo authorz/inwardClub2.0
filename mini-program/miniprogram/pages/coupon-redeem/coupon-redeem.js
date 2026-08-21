@@ -6,9 +6,7 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 
 const COUPON_TYPE_LABEL = {
-  exchange: '兑换券',
-  discount: '折扣券',
-  cash: '代金券',
+  snack: '小吃券', alcohol: '酒水券', beverage: '饮料券', meal: '餐食券',
 };
 
 function formatMenuPrice(cent) {
@@ -29,26 +27,21 @@ Page({
     couponType: '',
     couponTypeLabel: '优惠券',
     couponName: '',
-    couponAmountCent: 0,
-    couponAmountText: '0.00',
     validUntil: '',
     items: [],
     selectedItems: [],
     selectedCount: 0,
     totalCent: 0,
     totalText: '0.00',
-    remainText: '0.00',
     canConfirm: false,
     showStoreSheet: false,
     showSelectionSheet: false,
-    showUnderuseConfirm: false,
   },
 
   onLoad(query) {
     this._requestId = 0;
     const entitlementId = query.entitlementId || query.id || '';
     const couponType = query.couponType || query.type || '';
-    const amountCent = Number(query.valueCent || query.amount || 0);
     this.setData({
       entitlementId,
       templateId: query.templateId || '',
@@ -56,9 +49,6 @@ Page({
       couponType,
       couponTypeLabel: COUPON_TYPE_LABEL[couponType] || '优惠券',
       couponName: decodeURIComponent(query.name || ''),
-      couponAmountCent: amountCent,
-      couponAmountText: fmt.centToYuan(amountCent),
-      remainText: fmt.centToYuan(amountCent),
       validUntil: decodeURIComponent(query.validUntil || ''),
     });
     if (!entitlementId) {
@@ -113,18 +103,14 @@ Page({
         if (requestId !== this._requestId) return;
         const data = res.data || {};
         const coupon = data.coupon || {};
-        const amountCent = Number(coupon.valueCent || this.data.couponAmountCent || 0);
         const couponType = coupon.couponType || this.data.couponType;
-        const items = (data.items || []).map((item) => this.decorateItem(item, amountCent));
+        const items = (data.items || []).map((item) => this.decorateItem(item));
         this.setData({
           loading: false,
           items,
           couponType,
           couponTypeLabel: COUPON_TYPE_LABEL[couponType] || '优惠券',
           couponName: coupon.name || this.data.couponName,
-          couponAmountCent: amountCent,
-          couponAmountText: fmt.centToYuan(amountCent),
-          remainText: fmt.centToYuan(amountCent),
           validUntil: coupon.expiresAt || this.data.validUntil,
         });
       })
@@ -135,12 +121,10 @@ Page({
       });
   },
 
-  decorateItem(item, amountCent) {
+  decorateItem(item) {
     const priceCent = Number(item.unitPriceCent || 0);
     const stock = Number(item.stockQuantity || 0);
-    const amountMax = priceCent > 0 ? Math.floor(amountCent / priceCent) : 0;
-    // stockQuantity=0 表示不限量；步进器单次最多选择 99 件。
-    const maxQty = stock > 0 ? Math.min(stock, amountMax) : Math.min(99, amountMax);
+    const maxQty = 1;
     return {
       id: item.itemId,
       name: item.name,
@@ -162,13 +146,8 @@ Page({
     const quantity = Number(e.detail.value || 0);
     const current = this.data.items.find((item) => String(item.id) === String(id));
     if (!current) return;
-    const nextTotal = this.data.totalCent - current.qty * current.priceCent + quantity * current.priceCent;
-    if (nextTotal > this.data.couponAmountCent) {
-      ui.toast('所选商品金额不能超过券面额');
-      return;
-    }
     const items = this.data.items.map((item) =>
-      String(item.id) === String(id) ? Object.assign({}, item, { qty: quantity }) : item
+      Object.assign({}, item, { qty: String(item.id) === String(id) ? Math.min(quantity, 1) : 0 })
     );
     this.recalculate(items);
   },
@@ -187,15 +166,13 @@ Page({
         })
       );
     });
-    const remainCent = Math.max(this.data.couponAmountCent - totalCent, 0);
     this.setData({
       items,
       selectedItems,
       selectedCount,
       totalCent,
       totalText: fmt.centToYuan(totalCent),
-      remainText: fmt.centToYuan(remainCent),
-      canConfirm: totalCent > 0 && totalCent <= this.data.couponAmountCent,
+      canConfirm: selectedCount === 1,
     });
     if (!selectedCount && this.data.showSelectionSheet) {
       this.setData({ showSelectionSheet: false });
@@ -210,10 +187,8 @@ Page({
       selectedCount: 0,
       totalCent: 0,
       totalText: '0.00',
-      remainText: this.data.couponAmountText,
       canConfirm: false,
       showSelectionSheet: false,
-      showUnderuseConfirm: false,
     });
   },
 
@@ -261,19 +236,6 @@ Page({
       return;
     }
     if (this.data.showSelectionSheet) this.setData({ showSelectionSheet: false });
-    if (this.data.totalCent < this.data.couponAmountCent) {
-      this.setData({ showUnderuseConfirm: true });
-      return;
-    }
-    this.submitRedeem();
-  },
-
-  cancelUnderuseConfirm() {
-    this.setData({ showUnderuseConfirm: false });
-  },
-
-  confirmUnderuseRedeem() {
-    this.setData({ showUnderuseConfirm: false });
     this.submitRedeem();
   },
 

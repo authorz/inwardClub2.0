@@ -13,10 +13,11 @@ import (
 // memRepo is an in-memory order repository for tests. Only the fields the tests
 // exercise are populated.
 type memRepo struct {
-	food      map[int64]FoodOrder
-	foodItems map[int64][]FoodOrderItem
-	payments  map[int64]PaymentOrder
-	tickets   map[int64][]MemberTicket
+	food         map[int64]FoodOrder
+	foodItems    map[int64][]FoodOrderItem
+	payments     map[int64]PaymentOrder
+	tickets      map[int64][]MemberTicket
+	lastActivity *ActivityOrderCreate
 
 	// Expiry-sweep fixtures, exercised by expiry_test.go; unused by the other
 	// tests. activityOrders/sold back ExpireActivityOrders; sweepTickets backs
@@ -110,6 +111,7 @@ func (r *memRepo) CreateRechargeOrder(_ context.Context, in RechargeOrderCreate)
 }
 
 func (r *memRepo) CreateActivityOrder(_ context.Context, in ActivityOrderCreate) (ActivityOrder, []Ticket, PaymentOrder, error) {
+	r.lastActivity = &in
 	total := int64(in.Quantity) * 2000
 	tickets := make([]Ticket, 0, in.Quantity)
 	for i := 0; i < in.Quantity; i++ {
@@ -118,6 +120,31 @@ func (r *memRepo) CreateActivityOrder(_ context.Context, in ActivityOrderCreate)
 	ao := ActivityOrder{ID: 1, BusinessOrderID: 1, ActivityID: in.ActivityID, MemberID: in.MemberID, TicketCount: in.Quantity, TotalAmountCent: total, Status: "created"}
 	po := PaymentOrder{ID: 1, PaymentOrderNo: in.PaymentOrderNo, AmountCent: total, PayMethod: in.PayMethod, Status: PaymentStatusPending}
 	return ao, tickets, po, nil
+}
+
+func TestCreateActivityOrderWithCouponRequiresOneTicketAndForwardsEntitlement(t *testing.T) {
+	repo := newMemRepo()
+	svc := newService(repo)
+	entitlementID := int64(88)
+
+	if _, err := svc.CreateActivityOrder(context.Background(), 10, "idem-invalid", CreateActivityOrderRequest{
+		ActivityID: 3, TicketTypeID: 4, Quantity: 2, PayMethod: PayMethodCoupon,
+		CouponEntitlementID: &entitlementID,
+	}); codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected coupon quantity validation error, got %v", err)
+	}
+
+	view, err := svc.CreateActivityOrder(context.Background(), 10, "idem-coupon", CreateActivityOrderRequest{
+		ActivityID: 3, TicketTypeID: 4, Quantity: 1, PayMethod: PayMethodCoupon,
+		CouponEntitlementID: &entitlementID,
+	})
+	if err != nil {
+		t.Fatalf("create coupon activity order: %v", err)
+	}
+	if repo.lastActivity == nil || repo.lastActivity.CouponEntitlementID == nil ||
+		*repo.lastActivity.CouponEntitlementID != entitlementID || view.PayMethod != PayMethodCoupon {
+		t.Fatalf("coupon entitlement was not forwarded: input=%+v view=%+v", repo.lastActivity, view)
+	}
 }
 
 func (r *memRepo) SettleByCoin(_ context.Context, _ CoinPayment) error { return nil }

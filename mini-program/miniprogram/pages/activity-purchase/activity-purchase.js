@@ -19,6 +19,8 @@ Page({
     qty: 1,
     payMethod: PAY_METHOD.WECHAT,
     payMethods: [],
+    ticketCoupons: [],
+    couponEntitlementId: '',
     totalText: '0.00',
     submitting: false,
   },
@@ -29,12 +31,31 @@ Page({
       this.setData({ loading: false, loadError: '缺少活动信息，请返回后重试' });
       return;
     }
-    Promise.all([api.getActivity(id), silentLogin.ensure().catch(() => null)])
-      .then(([res]) => {
+    const couponsPromise = silentLogin.ensure().catch(() => null).then(() =>
+      auth.isLoggedIn() ? api.getCoupons().catch(() => ({ data: [] })) : { data: [] }
+    );
+    Promise.all([api.getActivity(id), couponsPromise])
+      .then(([res, couponRes]) => {
         const a = res.data || {};
+        const now = Date.now();
+        const ticketCoupons = (couponRes.data || [])
+          .filter((coupon) => coupon.type === 'event_ticket' && coupon.status === 'unused')
+          .filter((coupon) => coupon.storeId == null
+            || (a.storeId != null && String(coupon.storeId) === String(a.storeId)))
+          .filter((coupon) => !coupon.validUntil || new Date(coupon.validUntil).getTime() > now)
+          .sort((left, right) => {
+            const leftTime = left.validUntil ? new Date(left.validUntil).getTime() : Number.MAX_SAFE_INTEGER;
+            const rightTime = right.validUntil ? new Date(right.validUntil).getTime() : Number.MAX_SAFE_INTEGER;
+            return leftTime - rightTime;
+          })
+          .map((coupon) => ({
+            id: coupon.id,
+            name: coupon.name || '赛事门票券',
+            expiresAt: coupon.validUntil || '',
+            expiryText: coupon.validUntil ? fmt.dateTime(coupon.validUntil, { relative: false }) : '长期有效',
+          }));
         const activityPayChannels = a.payChannels && a.payChannels.length ? a.payChannels : [];
         const purchaseLimit = Math.max(0, Number(a.purchaseLimit) || 0);
-        const now = Date.now();
         const tickets = (a.ticketTypes || []).map((t) => {
           const maxTicketsPerOrder = Math.max(0, Number(t.maxTicketsPerOrder) || 0);
           const unlimitedStock = Boolean(t.unlimitedStock);
@@ -60,7 +81,8 @@ Page({
             priceText: fmt.centToYuan(t.priceCent),
             stockText,
             payChannels: this.availablePayMethods(
-              t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels
+              t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels,
+              ticketCoupons
             ),
             maxQuantity: limits.length ? Math.min.apply(null, limits) : 99,
             limitText,
@@ -86,15 +108,18 @@ Page({
           ticket,
           payMethods,
           payMethod,
+          ticketCoupons,
+          couponEntitlementId: ticketCoupons.length ? ticketCoupons[0].id : '',
           totalText: ticket ? ticket.priceText : '0.00',
         });
       })
       .catch(() => this.setData({ loading: false, loadError: '活动加载失败，请返回后重试' }));
   },
 
-  availablePayMethods(methods) {
+  availablePayMethods(methods, ticketCoupons) {
     const list = methods || [];
-    return auth.isLoggedIn() ? list : list.filter((method) => method === PAY_METHOD.WECHAT);
+    if (!auth.isLoggedIn()) return list.filter((method) => method === PAY_METHOD.WECHAT);
+    return ticketCoupons && ticketCoupons.length ? Array.from(new Set(list.concat(PAY_METHOD.COUPON))) : list;
   },
 
   onPickTicket(e) {
@@ -116,7 +141,7 @@ Page({
       qty: 1,
       payMethods,
       payMethod,
-      totalText: ticket.priceText,
+      totalText: payMethod === PAY_METHOD.COUPON ? '0.00' : ticket.priceText,
     });
   },
 
@@ -130,7 +155,16 @@ Page({
   },
 
   onPay(e) {
-    this.setData({ payMethod: e.detail.value });
+    const payMethod = e.detail.value;
+    this.setData({
+      payMethod,
+      qty: payMethod === PAY_METHOD.COUPON ? 1 : this.data.qty,
+      totalText: payMethod === PAY_METHOD.COUPON ? '0.00' : fmt.centToYuan(this.data.ticket.priceCent * this.data.qty),
+    });
+  },
+
+  onPickCoupon(e) {
+    this.setData({ couponEntitlementId: Number(e.currentTarget.dataset.id) });
   },
 
   noop() {},
@@ -142,6 +176,10 @@ Page({
     if (!ticket || !activity || this.data.submitting) return;
     if (this.data.payMethods.indexOf(payMethod) < 0) {
       ui.toast('请选择支付方式');
+      return;
+    }
+    if (payMethod === PAY_METHOD.COUPON && !this.data.couponEntitlementId) {
+      ui.toast('请选择赛事门票券');
       return;
     }
     let quantity;
@@ -158,14 +196,19 @@ Page({
       .ensure()
       .then(() => {
         if (auth.isPreRegistered() && payMethod !== PAY_METHOD.WECHAT) {
-          throw new Error('完善会员资料后才可使用金币支付');
+          throw new Error('完善会员资料后才可使用金币或券支付');
         }
         return api.createActivityOrder(
-          { activityId: activity.id, ticketTypeId: ticket.id, qty: quantity, amountCent, payChannel: payMethod },
+          {
+            activityId: activity.id, ticketTypeId: ticket.id, qty: quantity,
+            amountCent, payChannel: payMethod,
+            couponEntitlementId: payMethod === PAY_METHOD.COUPON ? this.data.couponEntitlementId : undefined,
+          },
           http.uuid()
         );
       })
       .then((res) => {
+        if (payMethod === PAY_METHOD.COUPON) return null;
         const paymentOrderId = (res.data && res.data.paymentOrderId) || 'po_activity';
         return payMethod === PAY_METHOD.COIN
           ? api.payByCoin(paymentOrderId, http.uuid())

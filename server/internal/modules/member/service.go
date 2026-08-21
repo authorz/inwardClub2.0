@@ -2,6 +2,7 @@ package member
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -11,11 +12,8 @@ import (
 )
 
 // AssetResolver resolves assets to public URLs. Implemented by asset.Service.
-// PublicURLByID resolves a stored asset id; PublicURL resolves a raw object
-// key/path (QINIU_PUBLIC_DOMAIN + path).
 type AssetResolver interface {
 	PublicURLByID(ctx context.Context, id int64) (string, error)
-	PublicURL(objectKey string) string
 }
 
 // PhoneResolver exchanges a WeChat phone authorisation code for the raw phone
@@ -210,14 +208,14 @@ func (s *Service) CreateMembershipTier(ctx context.Context, req MembershipTierCr
 	if req.Name == "" {
 		return MembershipTierView{}, apperr.Invalid("member: name is required")
 	}
+	benefitConfig, err := normalizeBenefitConfig(req.BenefitConfig)
+	if err != nil {
+		return MembershipTierView{}, err
+	}
 	t, err := s.repo.CreateMembershipTier(ctx, MembershipTierCreate{
-		Name:        req.Name,
-		Level:       req.Level,
-		Threshold:   req.Threshold,
-		Benefits:    req.Benefits,
-		IconAssetID: req.IconAssetID,
-		BannerPath:  req.BannerPath,
-		Status:      req.Status,
+		Name: req.Name, Level: req.Level, Threshold: req.Threshold,
+		Benefits: req.Benefits, BenefitConfig: benefitConfig,
+		IconAssetID: req.IconAssetID, Status: req.Status,
 	})
 	if err != nil {
 		return MembershipTierView{}, err
@@ -233,10 +231,16 @@ func (s *Service) UpdateMembershipTier(ctx context.Context, tierID int64, req Me
 		Threshold:   req.Threshold,
 		Benefits:    req.Benefits,
 		IconAssetID: req.IconAssetID,
-		BannerPath:  req.BannerPath,
 		Status:      req.Status,
 	}
-	if u.Name == nil && u.Level == nil && u.Threshold == nil && u.Benefits == nil && u.IconAssetID == nil && u.BannerPath == nil && u.Status == nil {
+	if req.BenefitConfig != nil {
+		benefitConfig, err := normalizeBenefitConfig(*req.BenefitConfig)
+		if err != nil {
+			return MembershipTierView{}, err
+		}
+		u.BenefitConfig = &benefitConfig
+	}
+	if u.Name == nil && u.Level == nil && u.Threshold == nil && u.Benefits == nil && u.BenefitConfig == nil && u.IconAssetID == nil && u.Status == nil {
 		return MembershipTierView{}, apperr.Invalid("member: no tier fields to update")
 	}
 	t, err := s.repo.UpdateMembershipTier(ctx, tierID, u)
@@ -431,31 +435,72 @@ func VIPShortLabel(level int) string {
 }
 
 func (s *Service) membershipTierView(ctx context.Context, t MembershipTier) MembershipTierView {
+	var config TierBenefitConfig
+	_ = json.Unmarshal(t.BenefitConfig, &config)
+	if config.Points == nil {
+		config.Points = []TierPointBenefit{}
+	}
+	if config.Coupons == nil {
+		config.Coupons = []TierCouponBenefit{}
+	}
+	if config.Descriptions == nil {
+		config.Descriptions = []string{}
+	}
 	return MembershipTierView{
-		ID:         t.ID,
-		Name:       t.Name,
-		Level:      t.Level,
-		Threshold:  t.Threshold,
-		Benefits:   t.Benefits,
-		IconURL:    s.assetURL(ctx, t.IconAssetID),
-		BannerPath: t.BannerPath,
-		BannerURL:  s.bannerURL(ctx, t),
-		Status:     t.Status,
+		ID: t.ID, Name: t.Name, Level: t.Level, Threshold: t.Threshold,
+		Benefits: t.Benefits, BenefitConfig: config,
+		IconURL: s.assetURL(ctx, t.IconAssetID), Status: t.Status,
 	}
 }
 
-// bannerURL resolves a tier's VIP banner to a public URL. New tiers store the
-// object key/path in banner_path (resolved as QINIU_PUBLIC_DOMAIN + path);
-// tiers configured before the migration fall back to the legacy asset id.
-func (s *Service) bannerURL(ctx context.Context, t MembershipTier) string {
-	if t.BannerPath != "" {
-		return s.assets.PublicURL(t.BannerPath)
+func normalizeBenefitConfig(config TierBenefitConfig) (json.RawMessage, error) {
+	for _, benefit := range config.Points {
+		if benefit.Amount <= 0 || !validBenefitPeriod(benefit.Period) || !validBenefitTrigger(benefit.Trigger) {
+			return nil, apperr.Invalid("积分福利配置不正确")
+		}
 	}
-	return s.assetURL(ctx, t.BannerAssetID)
+	for _, benefit := range config.Coupons {
+		if benefit.Quantity <= 0 || benefit.Quantity > 99 || !validTierCouponType(benefit.CouponType) ||
+			!validBenefitPeriod(benefit.Period) || !validBenefitTrigger(benefit.Trigger) {
+			return nil, apperr.Invalid("券福利类型或数量不正确")
+		}
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return nil, apperr.Invalid("VIP权益配置不正确")
+	}
+	return raw, nil
+}
+
+func validBenefitPeriod(value string) bool {
+	switch value {
+	case "once", "daily", "weekly", "monthly":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBenefitTrigger(value string) bool {
+	switch value {
+	case "tier_achieved", "low_spend", "first_order", "visit", "weekday_event", "weekly_event", "monthly_event":
+		return true
+	default:
+		return false
+	}
+}
+
+func validTierCouponType(value string) bool {
+	switch value {
+	case "event_ticket", "snack", "alcohol", "beverage", "meal":
+		return true
+	default:
+		return false
+	}
 }
 
 // CurrentTierView returns the VIP tier the member currently holds
-// (members.current_tier_id), resolved to a view with its icon/banner URLs. It
+// (members.current_tier_id), resolved to a view with its icon URL. It
 // returns a nil pointer when the member is unranked or the held tier reference
 // is dangling, so the "me" surface degrades to "no tier" rather than failing.
 func (s *Service) CurrentTierView(ctx context.Context, memberID int64) (*MembershipTierView, error) {
@@ -466,7 +511,7 @@ func (s *Service) CurrentTierView(ctx context.Context, memberID int64) (*Members
 	if m.CurrentTierID == nil {
 		// Unranked: current_tier_id is only written once a member crosses a paid
 		// growth threshold. Every member is at least the base tier (lowest active
-		// level, threshold 0), so "me" still surfaces a VIP level and its banner.
+		// level, threshold 0), so "me" still surfaces a VIP level.
 		return s.baseTierView(ctx)
 	}
 	t, err := s.repo.GetMembershipTier(ctx, *m.CurrentTierID)

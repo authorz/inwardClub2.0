@@ -352,11 +352,12 @@ func grantRechargeCoupon(ctx context.Context, tx *sql.Tx, paymentID, memberID, t
 	}
 
 	entitlementNo := fmt.Sprintf("RC%d-%d", paymentID, templateID)
+	expiresAt := now.AddDate(0, 0, 30)
 	const insertEntitlement = `INSERT INTO coupon_entitlements
 		(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
-		 granted_by_type, idem_key, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'active', '充值赠券', 'recharge', ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, templateID, memberID, storeID, idemKey, now, now); err != nil {
+		 granted_by_type, expires_at, idem_key, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'active', '充值赠券', 'recharge', ?, ?, ?, ?)`
+	if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, templateID, memberID, storeID, expiresAt, idemKey, now, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			return nil
 		}
@@ -647,7 +648,7 @@ func applyTierUpgrade(ctx context.Context, tx *sql.Tx, memberID, growthBalance i
 	if _, err := tx.ExecContext(ctx, upd, target.id, now, memberID); err != nil {
 		return apperr.Internal(err)
 	}
-	return nil
+	return grantVIPTierBenefits(ctx, tx, memberID, target.id, now)
 }
 
 // SettleOffline locks the payment order joined to its offline collection order,

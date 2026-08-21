@@ -138,7 +138,7 @@ func (s *ConsoleService) UpdateStore(ctx context.Context, id int64, input StoreI
 }
 
 // DeleteStore verifies the acting headquarters administrator and then
-// soft-deletes the target store, preserving its historical business records.
+// permanently removes the target store row.
 func (s *ConsoleService) DeleteStore(ctx context.Context, id, accountID int64, password string, auditEntry audit.Entry) error {
 	if id <= 0 {
 		return apperr.Invalid("invalid storeID")

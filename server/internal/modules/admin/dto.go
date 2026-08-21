@@ -41,13 +41,8 @@ type CouponTemplateView struct {
 	Name           string    `json:"name"`
 	Description    string    `json:"description,omitempty"`
 	CouponType     string    `json:"couponType"`
-	ValueCent      int64     `json:"valueCent"`
-	PointsPrice    int64     `json:"pointsPrice"`
-	TotalStock     int64     `json:"totalStock"`
-	StockQuantity  int64     `json:"stockQuantity"`
 	IssuedCount    int64     `json:"issuedCount"`
 	IssuedQuantity int64     `json:"issuedQuantity"`
-	PerMemberLimit int64     `json:"perMemberLimit"`
 	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`

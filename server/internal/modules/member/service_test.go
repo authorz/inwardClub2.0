@@ -133,14 +133,9 @@ func (r *fakeRepo) CreateMembershipTier(_ context.Context, t MembershipTierCreat
 		status = StatusActive
 	}
 	tier := MembershipTier{
-		ID:          int64(len(r.tiers) + 1),
-		Name:        t.Name,
-		Level:       t.Level,
-		Threshold:   t.Threshold,
-		Benefits:    t.Benefits,
-		IconAssetID: t.IconAssetID,
-		BannerPath:  t.BannerPath,
-		Status:      status,
+		ID: int64(len(r.tiers) + 1), Name: t.Name, Level: t.Level,
+		Threshold: t.Threshold, Benefits: t.Benefits, BenefitConfig: t.BenefitConfig,
+		IconAssetID: t.IconAssetID, Status: status,
 	}
 	r.tiers = append(r.tiers, tier)
 	return tier, nil
@@ -163,11 +158,11 @@ func (r *fakeRepo) UpdateMembershipTier(_ context.Context, id int64, u Membershi
 		if u.Benefits != nil {
 			r.tiers[i].Benefits = *u.Benefits
 		}
+		if u.BenefitConfig != nil {
+			r.tiers[i].BenefitConfig = *u.BenefitConfig
+		}
 		if u.IconAssetID != nil {
 			r.tiers[i].IconAssetID = u.IconAssetID
-		}
-		if u.BannerPath != nil {
-			r.tiers[i].BannerPath = *u.BannerPath
 		}
 		if u.Status != nil {
 			r.tiers[i].Status = *u.Status
@@ -490,8 +485,7 @@ func TestCatalogueNotImplementedWhenTablesMissing(t *testing.T) {
 func TestMembershipTierMapping(t *testing.T) {
 	repo := newFakeRepo()
 	icon := int64(3)
-	banner := int64(8)
-	repo.tiers = []MembershipTier{{ID: 1, Name: "Gold", Level: 2, Threshold: 1000, IconAssetID: &icon, BannerAssetID: &banner, Status: StatusActive}}
+	repo.tiers = []MembershipTier{{ID: 1, Name: "Gold", Level: 2, Threshold: 1000, IconAssetID: &icon, Status: StatusActive}}
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	views, err := svc.ListMembershipTiers(context.Background())
@@ -504,27 +498,24 @@ func TestMembershipTierMapping(t *testing.T) {
 	if views[0].IconURL != "https://cdn.test/asset/3" {
 		t.Fatalf("expected icon resolved from asset 3, got %q", views[0].IconURL)
 	}
-	if views[0].BannerURL != "https://cdn.test/asset/8" {
-		t.Fatalf("expected banner resolved from asset 8, got %q", views[0].BannerURL)
-	}
 }
 
-func TestCreateMembershipTierPersistsBanner(t *testing.T) {
+func TestCreateMembershipTierPersistsBenefits(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	view, err := svc.CreateMembershipTier(context.Background(), MembershipTierCreateRequest{Name: "Platinum", BannerPath: "vip/banner-42.png"})
+	view, err := svc.CreateMembershipTier(context.Background(), MembershipTierCreateRequest{
+		Name: "Platinum",
+		BenefitConfig: TierBenefitConfig{
+			Points:  []TierPointBenefit{{Amount: 1000, Period: "daily", Trigger: "low_spend"}},
+			Coupons: []TierCouponBenefit{{CouponType: "alcohol", Quantity: 1, Period: "daily", Trigger: "visit"}},
+		},
+	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if view.BannerURL != "https://cdn.test/vip/banner-42.png" {
-		t.Fatalf("expected banner resolved from path, got %q", view.BannerURL)
-	}
-	if view.BannerPath != "vip/banner-42.png" {
-		t.Fatalf("expected BannerPath echoed in view, got %q", view.BannerPath)
-	}
-	if repo.tiers[0].BannerPath != "vip/banner-42.png" {
-		t.Fatalf("expected banner path persisted, got %q", repo.tiers[0].BannerPath)
+	if len(view.BenefitConfig.Points) != 1 || len(view.BenefitConfig.Coupons) != 1 {
+		t.Fatalf("expected structured benefits, got %+v", view.BenefitConfig)
 	}
 }
 
@@ -539,9 +530,8 @@ func TestVIPShortLabel(t *testing.T) {
 
 func TestCurrentTierView(t *testing.T) {
 	repo := newFakeRepo()
-	banner := int64(8)
 	tierID := int64(1)
-	repo.tiers = []MembershipTier{{ID: 1, Name: "Gold", Level: 2, Threshold: 1000, BannerAssetID: &banner, Status: StatusActive}}
+	repo.tiers = []MembershipTier{{ID: 1, Name: "Gold", Level: 2, Threshold: 1000, Status: StatusActive}}
 	repo.members[5] = &Member{ID: 5, CurrentTierID: &tierID, Status: StatusActive}
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -549,18 +539,17 @@ func TestCurrentTierView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current tier: %v", err)
 	}
-	if view == nil || view.Name != "Gold" || view.BannerURL != "https://cdn.test/asset/8" {
+	if view == nil || view.Name != "Gold" {
 		t.Fatalf("unexpected current tier view: %+v", view)
 	}
 }
 
 func TestCurrentTierViewUnrankedFallsBackToBaseTier(t *testing.T) {
 	repo := newFakeRepo()
-	banner := int64(8)
 	// Active tiers ordered by level ASC (as the real query returns them); the
 	// first is the base tier (VIP1, threshold 0).
 	repo.tiers = []MembershipTier{
-		{ID: 1, Name: "VIP1", Level: 1, Threshold: 0, BannerAssetID: &banner, Status: StatusActive},
+		{ID: 1, Name: "VIP1", Level: 1, Threshold: 0, Status: StatusActive},
 		{ID: 2, Name: "VIP2", Level: 2, Threshold: 1000, Status: StatusActive},
 	}
 	repo.members[5] = &Member{ID: 5, Status: StatusActive} // no CurrentTierID
@@ -570,8 +559,8 @@ func TestCurrentTierViewUnrankedFallsBackToBaseTier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current tier: %v", err)
 	}
-	if view == nil || view.Name != "VIP1" || view.BannerURL != "https://cdn.test/asset/8" {
-		t.Fatalf("expected base tier VIP1 with banner for unranked member, got %+v", view)
+	if view == nil || view.Name != "VIP1" {
+		t.Fatalf("expected base tier VIP1 for unranked member, got %+v", view)
 	}
 }
 

@@ -49,6 +49,15 @@
   font-weight: 700;
   color: #fff;
 }
+.ap__coupon-head { display: flex; align-items: baseline; justify-content: space-between; gap: 20rpx; }
+.ap__coupon-head .ap__section-title { margin-bottom: 16rpx; }
+.ap__coupon-order { font-size: 19rpx; color: rgba(255, 255, 255, 0.56); }
+.ap__coupon { display: flex; align-items: center; min-height: 102rpx; border-top: 1rpx solid rgba(255, 255, 255, 0.16); }
+.ap__coupon:first-child { border-top: none; }
+.ap__coupon-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 7rpx; }
+.ap__coupon-name { font-size: 25rpx; font-weight: 650; color: rgba(255, 255, 255, 0.94); }
+.ap__coupon-expiry { font-size: 20rpx; color: rgba(255, 255, 255, 0.58); }
+.ap__coupon-first { flex: none; font-size: 18rpx; color: rgba(255, 255, 255, 0.72); }
 .ap__ticket {
   display: flex;
   flex-wrap: wrap;

@@ -19,8 +19,9 @@
         </view>
         <view class="cp__mid">
           <text class="cp__name">{{item.name}}</text>
-          <text class="cp__amount">面额 {{item.amountText}}</text>
+          <text class="cp__type">{{item.typeLabel}} · 一券兑一份</text>
           <text class="cp__desc">{{item.desc}}</text>
+          <text wx:if="{{item.status === 'unused' && item.countdownText}}" class="cp__countdown {{item.expiringSoon ? 'is-urgent' : ''}}">剩余 {{item.countdownText}}</text>
           <text class="cp__valid">{{item.dateLabel}} {{item.dateText}}</text>
         </view>
         <view class="cp__right">

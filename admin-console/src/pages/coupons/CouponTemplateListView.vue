@@ -5,7 +5,6 @@ import {
   NFormItemGi,
   NGrid,
   NInput,
-  NInputNumber,
   NSelect,
   NSpace,
 } from 'naive-ui'
@@ -13,7 +12,7 @@ import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
-import { actionsColumn, dateTimeColumn, moneyColumn, renderColumn, statusColumn, textColumn } from '@/utils/columns'
+import { actionsColumn, dateTimeColumn, statusColumn, textColumn } from '@/utils/columns'
 import { SCOPE_TYPE_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
@@ -25,9 +24,11 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
 const couponTypes = [
-  { label: '兑换券', value: 'exchange' },
-  { label: '折扣券', value: 'discount' },
-  { label: '代金券', value: 'cash' },
+  { label: '赛事门票券', value: 'event_ticket' },
+  { label: '小吃券', value: 'snack' },
+  { label: '酒水券', value: 'alcohol' },
+  { label: '饮料券', value: 'beverage' },
+  { label: '餐食券', value: 'meal' },
 ]
 const couponStatuses = [
   { label: '草稿', value: 'draft', tone: 'default' as const },
@@ -39,20 +40,11 @@ const fields: FilterField[] = [
   { key: 'status', label: '状态', type: 'select', options: couponStatuses },
 ]
 
-function stockOf(row: CouponTemplate): number {
-  return row.stockQuantity ?? row.totalStock ?? 0
-}
-function issuedOf(row: CouponTemplate): number {
-  return row.issuedQuantity ?? row.issuedCount ?? 0
-}
-
 const columns = [
   textColumn<CouponTemplate>('ID', 'id', { width: 72 }),
   textColumn<CouponTemplate>('券名称', 'name', { minWidth: 160 }),
   statusColumn<CouponTemplate>('类型', 'couponType', couponTypes, 100),
-  moneyColumn<CouponTemplate>('面额', 'valueCent', 100),
   statusColumn<CouponTemplate>('范围', 'scopeType', SCOPE_TYPE_OPTIONS, 90),
-  renderColumn<CouponTemplate>('库存 / 已发', 'stock', (row) => `${stockOf(row)} / ${issuedOf(row)}`, 120),
   statusColumn<CouponTemplate>('状态', 'status', couponStatuses, 100),
   dateTimeColumn<CouponTemplate>('更新时间', 'updatedAt', 170),
   actionsColumn<CouponTemplate>((row) => h(NSpace, { size: 6, wrap: false }, () => [
@@ -70,17 +62,12 @@ const editingId = ref<string | null>(null)
 const form = reactive({
   name: '',
   description: '',
-  couponType: 'cash',
-  valueYuan: 0,
-  pointsPrice: 0,
-  stockQuantity: 0,
-  perMemberLimit: 1,
+  couponType: 'alcohol',
 })
 
 function resetForm(): void {
   Object.assign(form, {
-    name: '', description: '', couponType: 'cash', valueYuan: 0,
-    pointsPrice: 0, stockQuantity: 0, perMemberLimit: 1,
+    name: '', description: '', couponType: 'alcohol',
   })
 }
 function openCreate(): void {
@@ -96,10 +83,6 @@ async function openEdit(row: CouponTemplate): Promise<void> {
       name: detail.name,
       description: detail.description ?? '',
       couponType: detail.couponType,
-      valueYuan: detail.valueCent / 100,
-      pointsPrice: detail.pointsPrice ?? 0,
-      stockQuantity: stockOf(detail),
-      perMemberLimit: detail.perMemberLimit ?? 1,
     })
     show.value = true
   } catch (error) {
@@ -108,13 +91,10 @@ async function openEdit(row: CouponTemplate): Promise<void> {
 }
 async function save(): Promise<void> {
   if (!form.name.trim()) return toastError('请填写券名称')
-  if (form.valueYuan < 0) return toastError('券面额不能小于 0')
   saving.value = true
   try {
     const payload = {
       name: form.name.trim(), description: form.description.trim(), couponType: form.couponType,
-      valueCent: Math.round(form.valueYuan * 100), pointsPrice: form.pointsPrice,
-      stockQuantity: form.stockQuantity, perMemberLimit: form.perMemberLimit,
     }
     if (editingId.value) await couponTemplateService.update(editingId.value, payload)
     else await couponTemplateService.create(payload)
@@ -129,7 +109,7 @@ async function save(): Promise<void> {
 }
 async function publish(row: CouponTemplate): Promise<void> {
   const ok = await runAudited({
-    title: '发布优惠券', content: `发布“${row.name}”后可用于会员领取和充值赠送。`,
+    title: '启用券类型', content: `启用“${row.name}”后可用于 VIP 福利和商品关联。`,
     highRisk: true,
     execute: () => couponTemplateService.action(API_PATHS.coupons.publishTemplate(String(row.id))),
     successText: '优惠券已发布',
@@ -164,13 +144,13 @@ const toolbarActions = [{
     <ResourceListView
       ref="listRef"
       title="券管理"
-      description="创建、发布和维护平台及门店优惠券；已发布券可绑定到充值奖励"
+      description="维护平台券类型；一张券只能兑换一种商品或一张活动门票"
       :breadcrumb="['权益规则', '券管理']"
       :fields="fields"
       :columns="columns"
       :fetcher="couponTemplateService.list"
       :toolbar-actions="toolbarActions"
-      empty-text="暂无优惠券，点击右上角新增"
+      empty-text="暂无券类型，点击右上角新增"
     />
     <FormDrawer
       v-model:show="show"
@@ -200,38 +180,6 @@ const toolbarActions = [{
             <NSelect
               v-model:value="form.couponType"
               :options="couponTypes"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="面额（元）">
-            <NInputNumber
-              v-model:value="form.valueYuan"
-              :min="0"
-              :precision="2"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="兑换积分">
-            <NInputNumber
-              v-model:value="form.pointsPrice"
-              :min="0"
-              :precision="0"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="库存（0 表示不限量）">
-            <NInputNumber
-              v-model:value="form.stockQuantity"
-              :min="0"
-              :precision="0"
-              style="width: 100%"
-            />
-          </NFormItemGi>
-          <NFormItemGi label="每人限领（0 表示不限量）">
-            <NInputNumber
-              v-model:value="form.perMemberLimit"
-              :min="0"
-              :precision="0"
-              style="width: 100%"
             />
           </NFormItemGi>
           <NFormItemGi

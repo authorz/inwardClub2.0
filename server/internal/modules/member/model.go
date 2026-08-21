@@ -4,7 +4,10 @@
 // orders across all stores.
 package member
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Member is the member record backing the mini-program "me" surface.
 type Member struct {
@@ -46,43 +49,58 @@ type Invitee struct {
 	JoinedAt      time.Time
 }
 
-// MembershipTier is a configurable VIP level. BannerPath is the uploaded VIP
-// banner's object key/path (resolved to QINIU_PUBLIC_DOMAIN + path on read);
-// BannerAssetID is the legacy asset reference, retained only for reading tiers
-// configured before the banner_path migration.
+// MembershipTier is a configurable VIP level with structured benefits.
 type MembershipTier struct {
 	ID            int64
 	Name          string
 	Level         int
 	Threshold     int64
 	Benefits      string
+	BenefitConfig json.RawMessage
 	IconAssetID   *int64
-	BannerAssetID *int64
-	BannerPath    string
 	Status        string
+}
+
+type TierPointBenefit struct {
+	Amount  int64  `json:"amount"`
+	Period  string `json:"period"`
+	Trigger string `json:"trigger"`
+}
+
+type TierCouponBenefit struct {
+	CouponType string `json:"couponType"`
+	Quantity   int    `json:"quantity"`
+	Period     string `json:"period"`
+	Trigger    string `json:"trigger"`
+}
+
+type TierBenefitConfig struct {
+	Points       []TierPointBenefit  `json:"points"`
+	Coupons      []TierCouponBenefit `json:"coupons"`
+	Descriptions []string            `json:"descriptions"`
 }
 
 // MembershipTierCreate is the input to creating a new membership tier.
 type MembershipTierCreate struct {
-	Name        string
-	Level       int
-	Threshold   int64
-	Benefits    string
-	IconAssetID *int64
-	BannerPath  string
-	Status      string
+	Name          string
+	Level         int
+	Threshold     int64
+	Benefits      string
+	BenefitConfig json.RawMessage
+	IconAssetID   *int64
+	Status        string
 }
 
 // MembershipTierUpdate is a partial update to a membership tier; a nil field
 // is left unchanged.
 type MembershipTierUpdate struct {
-	Name        *string
-	Level       *int
-	Threshold   *int64
-	Benefits    *string
-	IconAssetID *int64
-	BannerPath  *string
-	Status      *string
+	Name          *string
+	Level         *int
+	Threshold     *int64
+	Benefits      *string
+	BenefitConfig *json.RawMessage
+	IconAssetID   *int64
+	Status        *string
 }
 
 // RechargeProduct is a quick-recharge tier. Payment amount is stored in cents;

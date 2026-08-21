@@ -77,7 +77,7 @@ type StoreInput struct {
 }
 
 // DeleteStoreRequest re-authenticates the current headquarters administrator
-// before a store is soft-deleted.
+// before a store is permanently deleted.
 type DeleteStoreRequest struct {
 	PasswordKeyID      string `json:"passwordKeyId"`
 	PasswordCiphertext string `json:"passwordCiphertext"`

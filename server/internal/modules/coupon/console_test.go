@@ -90,16 +90,8 @@ func (r *fakeConsoleRepo) CreateTemplate(_ context.Context, scope ConsoleScope, 
 		return Template{}, apperr.Invalid("invalid couponType")
 	}
 	t := Template{
-		ID:           r.allocTmplID(),
-		ScopeType:    "global",
-		Name:         in.Name,
-		Description:  in.Description,
-		CouponType:   in.CouponType,
-		ValueCent:    in.ValueCent,
-		PointsPrice:  in.PointsPrice,
-		StockQty:     in.StockQty,
-		PerMemberLim: in.PerMemberLim,
-		Status:       "draft",
+		ID: r.allocTmplID(), ScopeType: "global", Name: in.Name,
+		Description: in.Description, CouponType: in.CouponType, Status: "draft",
 	}
 	if scope.StoreID != nil {
 		t.ScopeType = "store"
@@ -122,10 +114,6 @@ func (r *fakeConsoleRepo) UpdateTemplate(_ context.Context, scope ConsoleScope, 
 	t.Name = in.Name
 	t.Description = in.Description
 	t.CouponType = in.CouponType
-	t.ValueCent = in.ValueCent
-	t.PointsPrice = in.PointsPrice
-	t.StockQty = in.StockQty
-	t.PerMemberLim = in.PerMemberLim
 	return *t, nil
 }
 
@@ -293,7 +281,7 @@ func TestConsoleListTemplatesScoping(t *testing.T) {
 
 func TestConsoleGetTemplateMapping(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "global", Name: "Global Coupon", CouponType: TypeExchange, ValueCent: 500, StockQty: 10, IssuedQty: 2, Status: "draft"},
+		{ID: 1, ScopeType: "global", Name: "Global Coupon", CouponType: TypeSnack, Status: "draft"},
 	}}
 	svc := NewConsoleService(repo)
 
@@ -301,7 +289,7 @@ func TestConsoleGetTemplateMapping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if view.Name != "Global Coupon" || view.CouponType != TypeExchange || view.ValueCent != 500 || view.StockQty != 10 || view.IssuedQty != 2 || view.Status != "draft" {
+	if view.Name != "Global Coupon" || view.CouponType != TypeSnack || view.Status != "draft" {
 		t.Fatalf("unexpected view mapping: %+v", view)
 	}
 }
@@ -341,7 +329,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	// Admin creates a global template.
-	created, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "G", CouponType: TypeCash, ValueCent: 100})
+	created, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "G", CouponType: TypeAlcohol})
 	if err != nil {
 		t.Fatalf("admin create: %v", err)
 	}
@@ -351,7 +339,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 
 	// Store creates a store-scoped template.
 	store5 := ConsoleScope{StoreID: storeIDPtr(5)}
-	sc, err := svc.CreateTemplate(ctx, store5, TemplateInput{Name: "S", CouponType: TypeDiscount})
+	sc, err := svc.CreateTemplate(ctx, store5, TemplateInput{Name: "S", CouponType: TypeBeverage})
 	if err != nil {
 		t.Fatalf("store create: %v", err)
 	}
@@ -360,16 +348,16 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 	}
 
 	// Update within scope.
-	up, err := svc.UpdateTemplate(ctx, store5, sc.ID, TemplateInput{Name: "S2", CouponType: TypeCash, ValueCent: 42})
+	up, err := svc.UpdateTemplate(ctx, store5, sc.ID, TemplateInput{Name: "S2", CouponType: TypeAlcohol})
 	if err != nil {
 		t.Fatalf("store update: %v", err)
 	}
-	if up.Name != "S2" || up.ValueCent != 42 {
+	if up.Name != "S2" || up.CouponType != TypeAlcohol {
 		t.Fatalf("update not applied: %+v", up)
 	}
 
 	// A foreign store cannot update or delete the store template.
-	if _, err := svc.UpdateTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID, TemplateInput{Name: "x", CouponType: TypeCash}); apperr.From(err).Code != apperr.CodeNotFound {
+	if _, err := svc.UpdateTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID, TemplateInput{Name: "x", CouponType: TypeAlcohol}); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected foreign update NOT_FOUND, got %v", err)
 	}
 	if err := svc.DeleteTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID); apperr.From(err).Code != apperr.CodeNotFound {
@@ -393,7 +381,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 // Grant enforces stock and per-member limit, and bumps issued_quantity.
 func TestConsoleGrantStockAndLimit(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "global", CouponType: TypeCash, StockQty: 2, PerMemberLim: 1},
+		{ID: 1, ScopeType: "global", CouponType: TypeAlcohol, StockQty: 2, PerMemberLim: 1},
 	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
@@ -427,7 +415,7 @@ func TestConsoleGrantStockAndLimit(t *testing.T) {
 // A store may only grant from a template it can see.
 func TestConsoleGrantScopeBoundary(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeCash},
+		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeAlcohol},
 	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
@@ -444,7 +432,7 @@ func TestConsoleGrantScopeBoundary(t *testing.T) {
 // entitlements from a store console.
 func TestConsoleVoid(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeCash},
+		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeAlcohol},
 	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
@@ -477,7 +465,7 @@ func TestConsoleVoid(t *testing.T) {
 // Verify redeems once and refuses a second redemption of the same entitlement.
 func TestConsoleVerifyNoDoubleRedeem(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "global", CouponType: TypeCash},
+		{ID: 1, ScopeType: "global", CouponType: TypeAlcohol},
 	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
@@ -505,7 +493,7 @@ func TestConsoleVerifyNoDoubleRedeem(t *testing.T) {
 // request that names no entitlement is rejected.
 func TestConsoleVerifyScopeAndIdentifier(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeCash},
+		{ID: 1, ScopeType: "store", StoreID: storeIDPtr(5), CouponType: TypeAlcohol},
 	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
@@ -525,7 +513,7 @@ func TestConsoleVerifyScopeAndIdentifier(t *testing.T) {
 
 // validCouponType guards the template writes against unknown coupon types.
 func TestValidCouponType(t *testing.T) {
-	for _, ok := range []string{TypeExchange, TypeDiscount, TypeCash} {
+	for _, ok := range []string{TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeMeal} {
 		if !validCouponType(ok) {
 			t.Fatalf("expected %q to be valid", ok)
 		}

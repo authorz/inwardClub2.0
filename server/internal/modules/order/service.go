@@ -269,17 +269,25 @@ func (s *Service) CreateActivityOrder(ctx context.Context, memberID int64, idemK
 	if req.Quantity > 99 {
 		return ActivityOrderView{}, apperr.Invalid("单次购票数量不能超过99张")
 	}
+	if req.PayMethod == PayMethodCoupon {
+		if req.Quantity != 1 || req.CouponEntitlementID == nil || *req.CouponEntitlementID <= 0 {
+			return ActivityOrderView{}, apperr.Invalid("一张赛事门票券只能兑换一张门票")
+		}
+	} else if req.CouponEntitlementID != nil {
+		return ActivityOrderView{}, apperr.Invalid("当前支付方式不能使用门票券")
+	}
 	now := time.Now().UTC()
 	o, tickets, po, err := s.repo.CreateActivityOrder(ctx, ActivityOrderCreate{
-		ActivityID:      req.ActivityID,
-		TicketTypeID:    req.TicketTypeID,
-		Quantity:        req.Quantity,
-		MemberID:        memberID,
-		PayMethod:       req.PayMethod,
-		BusinessOrderNo: newNo("BO", now),
-		PaymentOrderNo:  newNo("PO", now),
-		IdemKey:         idemKey,
-		Now:             now,
+		ActivityID:          req.ActivityID,
+		TicketTypeID:        req.TicketTypeID,
+		Quantity:            req.Quantity,
+		MemberID:            memberID,
+		PayMethod:           req.PayMethod,
+		CouponEntitlementID: req.CouponEntitlementID,
+		BusinessOrderNo:     newNo("BO", now),
+		PaymentOrderNo:      newNo("PO", now),
+		IdemKey:             idemKey,
+		Now:                 now,
 	})
 	if err != nil {
 		return ActivityOrderView{}, err
@@ -356,7 +364,7 @@ func (s *Service) loadPayablePaymentOrder(ctx context.Context, memberID, id int6
 
 func validatePayMethod(m string) error {
 	switch m {
-	case PayMethodWeChat, PayMethodCoin:
+	case PayMethodWeChat, PayMethodCoin, PayMethodCoupon:
 		return nil
 	default:
 		return apperr.Invalid("unsupported pay method")

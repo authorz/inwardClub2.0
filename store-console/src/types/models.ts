@@ -285,13 +285,6 @@ export interface CouponTemplate extends AuditFields {
   name: string
   description?: string
   couponType: string
-  valueCent: number
-  pointsPrice: number
-  stockQuantity: number
-  issuedQuantity: number
-  totalStock?: number
-  issuedCount?: number
-  perMemberLimit: number
   status: string
 }
 

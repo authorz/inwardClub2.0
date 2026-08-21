@@ -285,7 +285,6 @@ func (a memberTierAdapter) CurrentTier(ctx context.Context, memberID int64) (*au
 		Level:     v.Level,
 		Threshold: v.Threshold,
 		IconURL:   v.IconURL,
-		BannerURL: v.BannerURL,
 	}, nil
 }
 

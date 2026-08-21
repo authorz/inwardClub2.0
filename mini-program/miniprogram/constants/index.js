@@ -5,15 +5,17 @@
  * scattered across pages.
  */
 
-/* ---- payment methods (mini program: ONLY wechat + coin — no alipay) ---- */
+/* ---- payment methods (no Alipay) ---- */
 const PAY_METHOD = {
   WECHAT: 'wechat',
   COIN: 'coin',
+  COUPON: 'coupon',
 };
 
 const PAY_METHOD_LABEL = {
   [PAY_METHOD.WECHAT]: '微信支付',
   [PAY_METHOD.COIN]: '金币支付',
+  [PAY_METHOD.COUPON]: '券兑换',
 };
 
 /* ---- asset (wallet account) types ---- */

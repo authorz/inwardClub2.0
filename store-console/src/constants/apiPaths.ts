@@ -94,7 +94,6 @@ export const API_PATHS = {
     publishTemplate: (id: string | number) => `/store/coupon-templates/${id}/publish`,
     disableTemplate: (id: string | number) => `/store/coupon-templates/${id}/disable`,
     applicableItems: (id: string | number) => `/store/coupon-templates/${id}/applicable-items`,
-    grant: '/store/coupon-grants',
     entitlements: '/store/coupon-entitlements',
     redemptions: '/store/coupon-redemptions',
     // 券核销/作废为独立扁平写端点（idempotent），非 /coupon-entitlements/:id/... 子路由。

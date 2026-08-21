@@ -48,45 +48,39 @@ type InvitationView struct {
 	JoinedAt  string `json:"joinedAt"`
 }
 
-// MembershipTierView is the VIP tier representation returned by both the admin
-// and mini read endpoints. BannerPath is the raw Qiniu object key/path stored in
-// the DB; BannerURL is the fully-resolved public URL (QINIU_PUBLIC_DOMAIN + path).
+// MembershipTierView is the VIP tier representation returned by both consoles
+// and the mini program.
 type MembershipTierView struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Level      int    `json:"level"`
-	Threshold  int64  `json:"threshold"`
-	Benefits   string `json:"benefits,omitempty"`
-	IconURL    string `json:"iconUrl,omitempty"`
-	BannerPath string `json:"bannerPath,omitempty"`
-	BannerURL  string `json:"bannerUrl,omitempty"`
-	Status     string `json:"status"`
+	ID            int64             `json:"id"`
+	Name          string            `json:"name"`
+	Level         int               `json:"level"`
+	Threshold     int64             `json:"threshold"`
+	Benefits      string            `json:"benefits,omitempty"`
+	BenefitConfig TierBenefitConfig `json:"benefitConfig"`
+	IconURL       string            `json:"iconUrl,omitempty"`
+	Status        string            `json:"status"`
 }
 
-// MembershipTierCreateRequest is the POST /admin/membership-tiers body. Status
-// defaults to "active" when omitted. BannerPath is the uploaded VIP banner's
-// object key/path (not a URL, not an asset id).
+// MembershipTierCreateRequest is the POST /admin/membership-tiers body.
 type MembershipTierCreateRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Level       int    `json:"level"`
-	Threshold   int64  `json:"threshold"`
-	Benefits    string `json:"benefits,omitempty"`
-	IconAssetID *int64 `json:"iconAssetId,omitempty"`
-	BannerPath  string `json:"bannerPath,omitempty"`
-	Status      string `json:"status,omitempty"`
+	Name          string            `json:"name" binding:"required"`
+	Level         int               `json:"level"`
+	Threshold     int64             `json:"threshold"`
+	Benefits      string            `json:"benefits,omitempty"`
+	BenefitConfig TierBenefitConfig `json:"benefitConfig"`
+	IconAssetID   *int64            `json:"iconAssetId,omitempty"`
+	Status        string            `json:"status,omitempty"`
 }
 
-// MembershipTierUpdateRequest is the PATCH /admin/membership-tiers/:tierID
-// body. Omitted fields are left unchanged. BannerPath is the uploaded VIP
-// banner's object key/path (not a URL, not an asset id).
+// MembershipTierUpdateRequest is the PATCH /admin/membership-tiers/:tierID body.
 type MembershipTierUpdateRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Level       *int    `json:"level,omitempty"`
-	Threshold   *int64  `json:"threshold,omitempty"`
-	Benefits    *string `json:"benefits,omitempty"`
-	IconAssetID *int64  `json:"iconAssetId,omitempty"`
-	BannerPath  *string `json:"bannerPath,omitempty"`
-	Status      *string `json:"status,omitempty"`
+	Name          *string            `json:"name,omitempty"`
+	Level         *int               `json:"level,omitempty"`
+	Threshold     *int64             `json:"threshold,omitempty"`
+	Benefits      *string            `json:"benefits,omitempty"`
+	BenefitConfig *TierBenefitConfig `json:"benefitConfig,omitempty"`
+	IconAssetID   *int64             `json:"iconAssetId,omitempty"`
+	Status        *string            `json:"status,omitempty"`
 }
 
 // RechargeProductView is the public recharge package representation.

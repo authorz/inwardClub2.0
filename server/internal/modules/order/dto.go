@@ -30,10 +30,11 @@ type CreateRechargeOrderRequest struct {
 
 // CreateActivityOrderRequest is the body for POST /mini/activity-orders.
 type CreateActivityOrderRequest struct {
-	ActivityID   int64  `json:"activityId" binding:"required"`
-	TicketTypeID int64  `json:"ticketTypeId" binding:"required"`
-	Quantity     int    `json:"quantity" binding:"required,min=1"`
-	PayMethod    string `json:"payMethod" binding:"required,oneof=wechat coin"`
+	ActivityID          int64  `json:"activityId" binding:"required"`
+	TicketTypeID        int64  `json:"ticketTypeId" binding:"required"`
+	Quantity            int    `json:"quantity" binding:"required,min=1"`
+	PayMethod           string `json:"payMethod" binding:"required,oneof=wechat coin coupon"`
+	CouponEntitlementID *int64 `json:"couponEntitlementId,omitempty"`
 }
 
 // FoodOrderView is the mini-program food order representation.

@@ -132,7 +132,7 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 		if status != StatusActive {
 			return apperr.Conflict("coupon is not redeemable")
 		}
-		if expiresAt.Valid && expiresAt.Time.Before(in.Now) {
+		if expiresAt.Valid && !expiresAt.Time.After(in.Now) {
 			return apperr.Conflict("coupon has expired")
 		}
 		for _, item := range in.Items {

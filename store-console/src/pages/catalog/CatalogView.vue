@@ -54,7 +54,7 @@ const itemTypeOptions = [
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
 const couponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => template.couponType === 'exchange')
+  .filter((template) => ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType))
   .map((template) => ({
     label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
     value: String(template.id),

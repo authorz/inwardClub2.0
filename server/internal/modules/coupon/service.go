@@ -3,6 +3,7 @@ package coupon
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
@@ -78,13 +79,10 @@ func (s *Service) eligibleCouponAndItems(ctx context.Context, memberID, entitlem
 	if c.StoreID != nil && *c.StoreID != storeID {
 		return MemberCoupon{}, nil, apperr.Invalid("优惠券不适用于当前门店")
 	}
-	if c.ValueCent <= 0 {
-		return MemberCoupon{}, nil, apperr.Invalid("优惠券面额不正确")
-	}
 	if s.catalog == nil {
 		return MemberCoupon{}, nil, apperr.Internal(fmt.Errorf("coupon: catalog service is not configured"))
 	}
-	items, err := s.catalog.ListCouponRedeemableItems(ctx, storeID, c.TemplateID, c.ValueCent)
+	items, err := s.catalog.ListCouponRedeemableItems(ctx, storeID, c.TemplateID, math.MaxInt64)
 	if err != nil {
 		return MemberCoupon{}, nil, err
 	}
@@ -98,8 +96,8 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 	if err != nil {
 		return MemberCouponView{}, err
 	}
-	if len(req.Items) == 0 {
-		return MemberCouponView{}, apperr.Invalid("请至少选择一件商品")
+	if len(req.Items) != 1 || req.Items[0].Quantity != 1 {
+		return MemberCouponView{}, apperr.Invalid("一张券只能兑换一件商品")
 	}
 	eligible := make(map[int64]catalog.ItemView, len(eligibleItems))
 	for _, item := range eligibleItems {
@@ -117,20 +115,14 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 			return MemberCouponView{}, apperr.Invalid("兑换商品不能重复提交")
 		}
 		seen[selected.ItemID] = struct{}{}
-		if selected.Quantity <= 0 {
-			return MemberCouponView{}, apperr.Invalid("兑换数量必须大于 0")
+		if selected.Quantity != 1 {
+			return MemberCouponView{}, apperr.Invalid("一张券只能兑换一件商品")
 		}
 		// stock_quantity=0 means unlimited; positive values are finite stock.
 		if item.StockQuantity > 0 && int64(selected.Quantity) > item.StockQuantity {
 			return MemberCouponView{}, apperr.Conflict("所选商品库存不足")
 		}
-		if item.PriceCent <= 0 || int64(selected.Quantity) > c.ValueCent/item.PriceCent {
-			return MemberCouponView{}, apperr.Invalid("所选商品金额不能超过券面额")
-		}
 		subtotalCent := item.PriceCent * int64(selected.Quantity)
-		if totalCent > c.ValueCent-subtotalCent {
-			return MemberCouponView{}, apperr.Invalid("所选商品金额不能超过券面额")
-		}
 		totalCent += subtotalCent
 		snapshot = append(snapshot, RedemptionItemSnapshot{
 			ItemID: item.ID, Name: item.Name, ImageURL: item.ImageURL,
@@ -142,8 +134,8 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 		return MemberCouponView{}, apperr.Internal(err)
 	}
 	ruleSnapshotJSON, err := marshalSnapshot(RedemptionRuleSnapshot{
-		CouponTemplateID: c.TemplateID, CouponType: c.CouponType, CouponValueCent: c.ValueCent,
-		RedeemedAmountCent: totalCent, UnusedAmountCent: c.ValueCent - totalCent,
+		CouponTemplateID: c.TemplateID, CouponType: c.CouponType,
+		RedeemedAmountCent: totalCent,
 	})
 	if err != nil {
 		return MemberCouponView{}, apperr.Internal(err)
@@ -212,7 +204,6 @@ func couponView(c MemberCoupon) MemberCouponView {
 		Name:          c.Name,
 		Description:   c.Description,
 		CouponType:    c.CouponType,
-		ValueCent:     c.ValueCent,
 		StoreID:       c.StoreID,
 		Status:        c.Status,
 		ExpiresAt:     c.ExpiresAt,

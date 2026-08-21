@@ -241,7 +241,7 @@ func TestMemberProfileIncludesVipTier(t *testing.T) {
 
 	// The member-facing tier exposes only the short VIP label, never the full
 	// admin tier name (e.g. "VIP3 黄金会员").
-	tier := &MemberVIPTier{ID: 3, Label: "VIP3", Level: 3, Threshold: 5000, BannerURL: "https://cdn.test/banner"}
+	tier := &MemberVIPTier{ID: 3, Label: "VIP3", Level: 3, Threshold: 5000}
 	svc := NewService(mgr, NewFakeWeChatClient(""), members, &memAccountRepo{}, stubTierResolver{tier: tier}, nil)
 
 	profile, err := svc.MemberProfile(context.Background(), id)
@@ -251,7 +251,7 @@ func TestMemberProfileIncludesVipTier(t *testing.T) {
 	if profile.VipTier == nil {
 		t.Fatal("expected vipTier populated")
 	}
-	if profile.VipTier.Label != "VIP3" || profile.VipTier.BannerURL != "https://cdn.test/banner" {
+	if profile.VipTier.Label != "VIP3" || profile.VipTier.Level != 3 {
 		t.Fatalf("unexpected vipTier: %+v", profile.VipTier)
 	}
 }

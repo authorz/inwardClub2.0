@@ -17,11 +17,13 @@ const (
 	StatusExpired = "expired"
 )
 
-// Coupon types (mirrors coupon_templates.coupon_type).
+// Coupon types. One entitlement always exchanges one product or one ticket.
 const (
-	TypeExchange = "exchange"
-	TypeDiscount = "discount"
-	TypeCash     = "cash"
+	TypeEventTicket = "event_ticket"
+	TypeSnack       = "snack"
+	TypeAlcohol     = "alcohol"
+	TypeBeverage    = "beverage"
+	TypeMeal        = "meal"
 )
 
 // RedemptionOrder is one coupon_redemptions row joined with its entitlement,
@@ -69,9 +71,7 @@ type RedemptionItemSnapshot struct {
 type RedemptionRuleSnapshot struct {
 	CouponTemplateID   int64  `json:"couponTemplateId"`
 	CouponType         string `json:"couponType"`
-	CouponValueCent    int64  `json:"couponValueCent"`
 	RedeemedAmountCent int64  `json:"redeemedAmountCent"`
-	UnusedAmountCent   int64  `json:"unusedAmountCent"`
 }
 
 func marshalSnapshot(value any) ([]byte, error) { return json.Marshal(value) }

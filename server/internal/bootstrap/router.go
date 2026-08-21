@@ -313,7 +313,7 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	// High-risk coupon entitlement actions require an Idempotency-Key.
 	idem := p.Group("", idempotency.Require())
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.CreateWalletAdjustment)
-	idem.POST("/coupon-grants", a.couponConsoleHandler.Grant)
+	// Manual coupon issuing is disabled: console coupon management defines types only.
 	idem.POST("/coupon-voids", a.couponConsoleHandler.Void)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.Verify)
 
@@ -480,8 +480,7 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/coupon-templates/:id/publish", a.couponConsoleHandler.StorePublish)
 	idem.POST("/coupon-templates/:id/disable", a.couponConsoleHandler.StoreDisable)
 
-	// High-risk coupon entitlement actions.
-	idem.POST("/coupon-grants", a.couponConsoleHandler.StoreGrant)
+	// Manual coupon issuing is disabled: console coupon management defines types only.
 	idem.POST("/coupon-voids", a.couponConsoleHandler.StoreVoid)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.StoreVerify)
 

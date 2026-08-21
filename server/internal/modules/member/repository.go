@@ -293,11 +293,11 @@ func (r *sqlRepository) GetMembershipTier(ctx context.Context, id int64) (Member
 	return t, nil
 }
 
-const membershipTierColumns = `id, name, level, threshold, COALESCE(benefits, ''), icon_asset_id, banner_asset_id, COALESCE(banner_path, ''), status`
+const membershipTierColumns = `id, name, level, threshold, COALESCE(benefits, ''), COALESCE(benefit_config, JSON_OBJECT()), icon_asset_id, status`
 
 func scanMembershipTier(row interface{ Scan(...any) error }) (MembershipTier, error) {
 	var t MembershipTier
-	err := row.Scan(&t.ID, &t.Name, &t.Level, &t.Threshold, &t.Benefits, &t.IconAssetID, &t.BannerAssetID, &t.BannerPath, &t.Status)
+	err := row.Scan(&t.ID, &t.Name, &t.Level, &t.Threshold, &t.Benefits, &t.BenefitConfig, &t.IconAssetID, &t.Status)
 	return t, err
 }
 
@@ -307,9 +307,9 @@ func (r *sqlRepository) CreateMembershipTier(ctx context.Context, t MembershipTi
 		status = StatusActive
 	}
 	const q = `INSERT INTO membership_tiers
-		(name, level, threshold, benefits, icon_asset_id, banner_path, status, created_at, updated_at)
+		(name, level, threshold, benefits, benefit_config, icon_asset_id, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, t.Name, t.Level, t.Threshold, t.Benefits, t.IconAssetID, t.BannerPath, status)
+	res, err := r.db.ExecContext(ctx, q, t.Name, t.Level, t.Threshold, t.Benefits, t.BenefitConfig, t.IconAssetID, status)
 	if err != nil {
 		return MembershipTier{}, apperr.Internal(err)
 	}
@@ -340,13 +340,13 @@ func (r *sqlRepository) UpdateMembershipTier(ctx context.Context, id int64, u Me
 		set = append(set, "benefits = ?")
 		args = append(args, *u.Benefits)
 	}
+	if u.BenefitConfig != nil {
+		set = append(set, "benefit_config = ?")
+		args = append(args, *u.BenefitConfig)
+	}
 	if u.IconAssetID != nil {
 		set = append(set, "icon_asset_id = ?")
 		args = append(args, *u.IconAssetID)
-	}
-	if u.BannerPath != nil {
-		set = append(set, "banner_path = ?")
-		args = append(args, *u.BannerPath)
 	}
 	if u.Status != nil {
 		set = append(set, "status = ?")

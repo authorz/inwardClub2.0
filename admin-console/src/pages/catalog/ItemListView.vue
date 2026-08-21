@@ -205,7 +205,7 @@ const formCategoryOptions = computed<OptionItem[]>(() =>
 const formCouponTemplateOptions = computed(() =>
   couponTemplates.value
     .filter((template) =>
-      template.couponType === 'exchange'
+      ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType)
       && (template.scopeType === 'global'
         || String(template.storeId ?? '') === String(form.storeId ?? '')),
     )

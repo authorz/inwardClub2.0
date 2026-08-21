@@ -76,9 +76,8 @@ func newService() (*Service, *memRepo, *FakeObjectStore) {
 
 func TestPublicURLByIDComposesDomainAndKey(t *testing.T) {
 	svc, repo, _ := newService()
-	// An asset persists only its object key (the stored reference), never a full
-	// URL. Callers such as the VIP banner store just an asset id.
-	id, err := repo.CreatePending(context.Background(), Asset{ObjectKey: "inwardclub/test/vip_banner/42.png"})
+	// An asset persists only its object key (the stored reference), never a full URL.
+	id, err := repo.CreatePending(context.Background(), Asset{ObjectKey: "inwardclub/test/product/42.png"})
 	if err != nil {
 		t.Fatalf("seed asset: %v", err)
 	}
@@ -88,10 +87,10 @@ func TestPublicURLByIDComposesDomainAndKey(t *testing.T) {
 	}
 	// The public URL is derived from the configured public domain
 	// (QINIU_PUBLIC_DOMAIN) joined with the stored object key.
-	if want := "https://cdn.test/inwardclub/test/vip_banner/42.png"; url != want {
+	if want := "https://cdn.test/inwardclub/test/product/42.png"; url != want {
 		t.Fatalf("PublicURLByID = %q, want %q", url, want)
 	}
-	// A zero id resolves to an empty string (e.g. no banner asset set).
+	// A zero id resolves to an empty string.
 	if got, _ := svc.PublicURLByID(context.Background(), 0); got != "" {
 		t.Fatalf("PublicURLByID(0) = %q, want empty", got)
 	}

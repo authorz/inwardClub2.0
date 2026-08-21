@@ -14,13 +14,13 @@ import { toastError } from '@/utils/feedback'
 
 const props = withDefaults(
   defineProps<{
-    /** 上传用途（对齐服务端 asset purpose，如 vip_banner） */
+    /** 上传用途（对齐服务端 asset purpose） */
     purpose: string
     /** 已绑定的对象路径 objectKey（v-model:path） */
     path?: string | null
     /** 使用 assets 外键的业务表通过 v-model:asset-id 接收上传后的资产 ID。 */
     assetId?: string | number | null
-    /** 编辑态已有图片的展示地址（服务端返回 bannerUrl，仅预览） */
+    /** 编辑态已有图片的展示地址，仅用于预览。 */
     previewUrl?: string | null
     /** 上传成功后自动回填的公开访问地址。 */
     publicUrl?: string | null

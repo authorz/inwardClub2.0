@@ -494,7 +494,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, audience aut
 }
 
 // MemberProfile returns the member profile payload, including the member's
-// current VIP tier (and its banner URL) when a tier resolver is wired.
+// current VIP tier when a tier resolver is wired.
 func (s *Service) MemberProfile(ctx context.Context, id int64) (MemberProfile, error) {
 	member, err := s.members.GetByID(ctx, id)
 	if err != nil {

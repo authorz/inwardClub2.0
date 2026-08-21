@@ -16,10 +16,7 @@
       </view>
       <text wx:if="{{validUntil}}" class="cr__coupon-valid">有效期至 {{validUntil}}</text>
     </view>
-    <view class="cr__coupon-value">
-      <text class="cr__coupon-symbol">¥</text>
-      <text class="cr__coupon-amount">{{couponAmountText}}</text>
-    </view>
+    <text class="cr__coupon-rule">一券兑一份</text>
   </view>
 
   <ic-loading wx:if="{{loading}}" />
@@ -66,12 +63,8 @@
       </view>
       <view class="cr__meta">
         <text class="cr__count">已选 {{selectedCount}} 件</text>
-        <text class="cr__remain">剩余 ¥{{remainText}}</text>
+        <text class="cr__remain">每张券限兑一件</text>
       </view>
-    </view>
-    <view class="cr__total">
-      <text class="cr__total-label">合计</text>
-      <text class="cr__total-value">¥{{totalText}}</text>
     </view>
     <button
       class="ic-btn ic-btn-primary cr__bar-btn {{canConfirm ? '' : 'ic-disabled'}}"
@@ -126,17 +119,5 @@
       </view>
     </view>
   </view>
-  <button slot="footer" class="ic-btn ic-btn-primary cr-sheet__confirm" bindtap="confirmRedeem">确认兑换 · ¥{{totalText}}</button>
+  <button slot="footer" class="ic-btn ic-btn-primary cr-sheet__confirm" bindtap="confirmRedeem">确认兑换</button>
 </ic-bottom-sheet>
-
-<view wx:if="{{showUnderuseConfirm}}" class="cr-modal" catchtap="noop">
-  <view class="cr-modal__panel ic-glass-recessed" catchtap="noop">
-    <text class="cr-modal__title">确认兑换</text>
-    <text class="cr-modal__warning">券只能兑换一次，不找零不拆分兑换</text>
-    <text class="cr-modal__message">你当前选择的商品金额 ¥{{totalText}} 小于券面金额 ¥{{couponAmountText}}，确认是否兑换？</text>
-    <view class="cr-modal__actions">
-      <button class="cr-modal__button cr-modal__button--secondary" bindtap="cancelUnderuseConfirm">再选选</button>
-      <button class="cr-modal__button cr-modal__button--primary" bindtap="confirmUnderuseRedeem">确认兑换</button>
-    </view>
-  </view>
-</view>
