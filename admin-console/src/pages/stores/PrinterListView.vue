@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui'
+import { NButton, NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
@@ -31,6 +31,8 @@ const deleteShow = ref(false)
 const deleteSubmitting = ref(false)
 const deleteTarget = ref<PrinterDevice | null>(null)
 const deleteReason = ref('')
+const editDeviceSn = ref(false)
+const editDeviceKey = ref(false)
 const form = reactive<PrinterForm>({
   storeId: null,
   name: '',
@@ -119,6 +121,8 @@ function resetForm(): void {
 function openCreate(): void {
   editingId.value = null
   resetForm()
+  editDeviceSn.value = true
+  editDeviceKey.value = true
   formShow.value = true
 }
 
@@ -130,6 +134,8 @@ function openEdit(row: PrinterDevice): void {
   form.deviceKey = ''
   form.status = row.status
   form.reason = ''
+  editDeviceSn.value = false
+  editDeviceKey.value = false
   formShow.value = true
 }
 
@@ -144,8 +150,8 @@ async function submitForm(): Promise<void> {
     if (editingId.value) {
       await printerService.update(editingId.value, {
         name: form.name.trim(),
-        deviceSn: form.deviceSn.trim(),
-        ...(form.deviceKey ? { deviceKey: form.deviceKey } : {}),
+        ...(editDeviceSn.value ? { deviceSn: form.deviceSn.trim() } : {}),
+        ...(editDeviceKey.value && form.deviceKey ? { deviceKey: form.deviceKey } : {}),
         status: form.status,
         reason: form.reason.trim(),
       })
@@ -270,12 +276,28 @@ onMounted(loadStores)
           <NInput
             v-model:value="form.deviceSn"
             :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
+            :readonly="Boolean(editingId) && !editDeviceSn"
             placeholder="请输入设备序列号"
             maxlength="64"
-          />
+          >
+            <template
+              v-if="editingId && !editDeviceSn"
+              #suffix
+            >
+              <NButton
+                text
+                type="primary"
+                attr-type="button"
+                @click="editDeviceSn = true"
+              >
+                修改 SN
+              </NButton>
+            </template>
+          </NInput>
         </NFormItem>
         <NFormItem label="设备密钥">
           <NInput
+            v-if="!editingId || editDeviceKey"
             v-model:value="form.deviceKey"
             type="password"
             :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
@@ -283,6 +305,13 @@ onMounted(loadStores)
             :placeholder="editingId ? '留空则不修改' : '请输入设备密钥（可选）'"
             maxlength="64"
           />
+          <NButton
+            v-else
+            attr-type="button"
+            @click="editDeviceKey = true"
+          >
+            修改设备密钥
+          </NButton>
         </NFormItem>
         <NFormItem
           label="设备状态"

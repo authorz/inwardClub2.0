@@ -19,6 +19,8 @@ const list = useAsyncList<PrinterDevice>((params) => printerService.list(params)
 const action = useAsyncAction()
 
 const editShow = ref(false)
+const editDeviceSn = ref(false)
+const editDeviceKey = ref(false)
 const form = reactive<{
   id: string | number | null
   name: string
@@ -33,6 +35,8 @@ function openCreate() {
   form.deviceSn = ''
   form.provider = ''
   form.deviceKey = ''
+  editDeviceSn.value = true
+  editDeviceKey.value = true
   editShow.value = true
 }
 
@@ -42,6 +46,8 @@ function openEdit(row: PrinterDevice) {
   form.deviceSn = row.deviceSn ?? ''
   form.provider = row.provider ?? ''
   form.deviceKey = ''
+  editDeviceSn.value = false
+  editDeviceKey.value = false
   editShow.value = true
 }
 
@@ -58,8 +64,8 @@ function save() {
         : // DevicePatch 不含 provider；provider 仅创建时设置。
           printerService.update(form.id, {
             name: form.name,
-            deviceSn: form.deviceSn,
-            deviceKey: form.deviceKey || undefined,
+            ...(editDeviceSn.value ? { deviceSn: form.deviceSn } : {}),
+            ...(editDeviceKey.value && form.deviceKey ? { deviceKey: form.deviceKey } : {}),
           }),
     {
       successMessage: '已保存',
@@ -177,8 +183,23 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
           <NInput
             v-model:value="form.deviceSn"
             :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
+            :readonly="form.id != null && !editDeviceSn"
             placeholder="设备序列号"
-          />
+          >
+            <template
+              v-if="form.id != null && !editDeviceSn"
+              #suffix
+            >
+              <NButton
+                text
+                type="primary"
+                attr-type="button"
+                @click="editDeviceSn = true"
+              >
+                修改 SN
+              </NButton>
+            </template>
+          </NInput>
         </label>
         <label v-if="form.id == null">
           <span class="ic-muted">提供商</span>
@@ -190,12 +211,20 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
         <label>
           <span class="ic-muted">设备密钥</span>
           <NInput
+            v-if="form.id == null || editDeviceKey"
             v-model:value="form.deviceKey"
             type="password"
             :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
             show-password-on="click"
             :placeholder="form.id == null ? '设备密钥（可选）' : '留空则不修改'"
           />
+          <NButton
+            v-else
+            attr-type="button"
+            @click="editDeviceKey = true"
+          >
+            修改设备密钥
+          </NButton>
         </label>
       </form>
       <template #footer>

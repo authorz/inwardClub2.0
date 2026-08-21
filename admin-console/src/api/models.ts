@@ -52,7 +52,13 @@ export interface PrinterDeviceInput {
   reason: string
 }
 
-export type PrinterDevicePatch = Omit<PrinterDeviceInput, 'storeId' | 'provider'>
+export interface PrinterDevicePatch {
+  name?: string
+  deviceSn?: string
+  deviceKey?: string
+  status?: 'active' | 'disabled'
+  reason: string
+}
 
 export interface VenueTable extends AuditableEntity {
   storeName: string
