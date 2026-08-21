@@ -356,6 +356,16 @@ func printHandler(log *slog.Logger, p printer.Printer, recorders ...printer.JobR
 			log.Error("print task: undecodable payload dropped", "error", err, "payload", string(t.Payload()))
 			return nil
 		}
+		if recorder != nil && job.ID <= 0 {
+			if taskID, ok := asynq.GetTaskID(ctx); ok {
+				jobID, err := recorder.Ensure(ctx, taskID, job)
+				if err != nil {
+					log.Error("print task: could not create legacy log", "error", err, "task_id", taskID)
+					return err
+				}
+				job.ID = jobID
+			}
+		}
 		if recorder != nil && job.ID > 0 {
 			if err := recorder.StartAttempt(ctx, job.ID); err != nil {
 				log.Error("print task: could not record attempt", "error", err, "job_id", job.ID)

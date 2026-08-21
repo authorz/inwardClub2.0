@@ -57,6 +57,10 @@ type printRecorderStub struct {
 	failed  []int64
 }
 
+func (r *printRecorderStub) Ensure(_ context.Context, _ string, job printer.Job) (int64, error) {
+	return job.ID, nil
+}
+
 func (r *printRecorderStub) StartAttempt(_ context.Context, id int64) error {
 	r.started = append(r.started, id)
 	return nil

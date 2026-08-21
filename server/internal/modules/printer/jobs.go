@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +46,7 @@ type PrintJobFilter struct {
 
 // JobRecorder updates the durable print job around each worker attempt.
 type JobRecorder interface {
+	Ensure(ctx context.Context, taskID string, job Job) (int64, error)
 	StartAttempt(ctx context.Context, id int64) error
 	MarkPrinted(ctx context.Context, id int64) error
 	MarkFailed(ctx context.Context, id int64, cause error) error
@@ -53,6 +56,44 @@ type JobRecorder interface {
 type JobRepository struct{ db *platdb.DB }
 
 func NewJobRepository(db *platdb.DB) *JobRepository { return &JobRepository{db: db} }
+
+// Ensure returns the durable log id for a queued job. Current producers carry
+// Job.ID in the payload; this compatibility path backfills jobs queued by an
+// older API process using the outbox/asynq task id.
+func (r *JobRepository) Ensure(ctx context.Context, taskID string, job Job) (int64, error) {
+	if job.ID > 0 {
+		return job.ID, nil
+	}
+	paymentOrderID, deviceID, ok := parseLegacyReceiptTaskID(taskID)
+	if !ok {
+		return 0, nil
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		return 0, apperr.Internal(err)
+	}
+	res, err := r.db.ExecContext(ctx, `INSERT INTO print_jobs
+		(store_id, device_id, template, business_order_no, payload, status, idem_key,
+		 attempts, last_error, created_at, updated_at)
+		SELECT bo.store_id, pd.id, ?, bo.business_order_no, ?, 'pending', ?, 0, '', NOW(), NOW()
+		FROM payment_orders po
+		JOIN business_orders bo ON bo.id = po.business_order_id
+		JOIN printer_devices pd ON pd.id = ? AND pd.store_id = bo.store_id
+		WHERE po.id = ?
+		ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(print_jobs.id)`,
+		job.Template, payload, taskID, deviceID, paymentOrderID)
+	if err != nil {
+		return 0, apperr.Internal(err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, apperr.Internal(err)
+	}
+	if id <= 0 {
+		return 0, apperr.Internal(fmt.Errorf("printer: queued job references missing payment or device"))
+	}
+	return id, nil
+}
 
 func (r *JobRepository) StartAttempt(ctx context.Context, id int64) error {
 	if id <= 0 {
@@ -185,4 +226,20 @@ func truncatePrintJobError(message string) string {
 		return string(runes[:maxPrintJobErrorLength])
 	}
 	return message
+}
+
+func parseLegacyReceiptTaskID(taskID string) (paymentOrderID, deviceID int64, ok bool) {
+	parts := strings.Split(taskID, ":")
+	if len(parts) != 5 || parts[0] != "payment" || parts[2] != "printer" || parts[4] != "print-receipt" {
+		return 0, 0, false
+	}
+	paymentOrderID, paymentErr := strconv.ParseInt(parts[1], 10, 64)
+	deviceID, deviceErr := strconv.ParseInt(parts[3], 10, 64)
+	if paymentErr != nil || deviceErr != nil {
+		return 0, 0, false
+	}
+	if paymentOrderID <= 0 || deviceID <= 0 {
+		return 0, 0, false
+	}
+	return paymentOrderID, deviceID, true
 }
