@@ -24,34 +24,24 @@ type Device struct {
 	UpdatedAt time.Time
 }
 
-// DeviceInput is the create payload for a printer device.
+// DeviceInput is the store-console create payload. All Xpyun account details
+// are headquarters-global; a store only supplies the physical device SN.
 type DeviceInput struct {
-	Name      string `json:"name"`
-	Provider  string `json:"provider"`
-	DeviceSN  string `json:"deviceSn"`
-	DeviceKey string `json:"deviceKey"`
-	Status    string `json:"status"`
+	DeviceSN string `json:"deviceSn"`
 }
 
 // AdminDeviceInput is the headquarters create payload. Unlike store-console
 // creation, the headquarters operator must explicitly select the owning store
 // and provide an audit reason for the cross-store write.
 type AdminDeviceInput struct {
-	StoreID   int64  `json:"storeId"`
-	Name      string `json:"name"`
-	Provider  string `json:"provider"`
-	DeviceSN  string `json:"deviceSn"`
-	DeviceKey string `json:"deviceKey"`
-	Status    string `json:"status"`
-	Reason    string `json:"reason"`
+	StoreID  int64  `json:"storeId"`
+	DeviceSN string `json:"deviceSn"`
+	Reason   string `json:"reason"`
 }
 
 // DevicePatch is the partial-update payload; nil fields are left unchanged.
 type DevicePatch struct {
-	Name      *string `json:"name"`
-	DeviceSN  *string `json:"deviceSn"`
-	DeviceKey *string `json:"deviceKey"`
-	Status    *string `json:"status"`
+	Status *string `json:"status"`
 }
 
 // AdminDevicePatch is the headquarters update payload. Store ownership is
@@ -71,25 +61,28 @@ type AdminDeleteInput struct {
 // DeviceView is the JSON shape returned by the console endpoints. The device
 // key is intentionally omitted from reads.
 type DeviceView struct {
-	ID        int64     `json:"id"`
-	StoreID   int64     `json:"storeId"`
-	Name      string    `json:"name"`
-	Provider  string    `json:"provider"`
-	DeviceSN  string    `json:"deviceSn"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID                    int64          `json:"id"`
+	StoreID               int64          `json:"storeId"`
+	Name                  string         `json:"name"`
+	Provider              string         `json:"provider"`
+	DeviceSN              string         `json:"deviceSn"`
+	Status                string         `json:"status"`
+	ProviderStatus        ProviderStatus `json:"providerStatus"`
+	ProviderStatusMessage string         `json:"providerStatusMessage,omitempty"`
+	CreatedAt             time.Time      `json:"createdAt"`
+	UpdatedAt             time.Time      `json:"updatedAt"`
 }
 
 func (d Device) view() DeviceView {
 	return DeviceView{
-		ID:        d.ID,
-		StoreID:   d.StoreID,
-		Name:      d.Name,
-		Provider:  d.Provider,
-		DeviceSN:  d.DeviceSN,
-		Status:    d.Status,
-		CreatedAt: d.CreatedAt,
-		UpdatedAt: d.UpdatedAt,
+		ID:             d.ID,
+		StoreID:        d.StoreID,
+		Name:           d.Name,
+		Provider:       d.Provider,
+		DeviceSN:       d.DeviceSN,
+		Status:         d.Status,
+		ProviderStatus: ProviderStatusUnknown,
+		CreatedAt:      d.CreatedAt,
+		UpdatedAt:      d.UpdatedAt,
 	}
 }

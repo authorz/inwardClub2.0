@@ -44,6 +44,9 @@ func TestOfflineConfigValidate(t *testing.T) {
 
 // TestXpyunConfigValidate covers the Xpyun printer credential contract.
 func TestXpyunConfigValidate(t *testing.T) {
+	if err := (XpyunConfig{}).validate(); err != nil {
+		t.Fatalf("empty legacy config should defer to global settings, got %v", err)
+	}
 	if err := (XpyunConfig{User: "u", UKey: "k"}).validate(); err != nil {
 		t.Fatalf("full config should validate, got %v", err)
 	}

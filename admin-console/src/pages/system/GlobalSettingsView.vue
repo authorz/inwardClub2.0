@@ -25,6 +25,10 @@ const form = reactive({
   franchiseInquirySources: [] as string[],
   franchiseHotline: '',
   phoneChangeIntervalDays: 30,
+  printerDeveloperAccount: '',
+  printerDeveloperKey: '',
+  printerDeveloperKeyConfigured: false,
+  printerApiUrl: 'https://open.xpyun.net/api/openapi/xprinter',
 })
 
 onMounted(load)
@@ -42,6 +46,10 @@ async function load(): Promise<void> {
     form.franchiseInquirySources = settings.franchiseInquirySources || []
     form.franchiseHotline = settings.franchiseHotline || ''
     form.phoneChangeIntervalDays = settings.phoneChangeIntervalDays || 30
+    form.printerDeveloperAccount = settings.printerDeveloperAccount || ''
+    form.printerDeveloperKey = ''
+    form.printerDeveloperKeyConfigured = Boolean(settings.printerDeveloperKeyConfigured)
+    form.printerApiUrl = settings.printerApiUrl || 'https://open.xpyun.net/api/openapi/xprinter'
   } catch (e) {
     toastError((e as { message?: string }).message ?? '读取全局设置失败')
   } finally {
@@ -73,6 +81,19 @@ async function save(): Promise<void> {
   if (hotline && (hotline.length < 6 || hotline.length > 32)) {
     return toastError('请输入有效的加盟热线')
   }
+  const printerDeveloperAccount = form.printerDeveloperAccount.trim()
+  const printerDeveloperKey = form.printerDeveloperKey.trim()
+  const printerApiUrl = form.printerApiUrl.trim()
+  if ((printerDeveloperAccount && !form.printerDeveloperKeyConfigured && !printerDeveloperKey)
+    || (!printerDeveloperAccount && (form.printerDeveloperKeyConfigured || printerDeveloperKey))) {
+    return toastError('打印机开发者账号和开发者密钥必须同时配置')
+  }
+  try {
+    const parsed = new URL(printerApiUrl)
+    if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('invalid protocol')
+  } catch {
+    return toastError('请输入有效的打印机接口 URL')
+  }
   saving.value = true
   try {
     const settings = await systemService.updateGlobalSettings({
@@ -82,6 +103,9 @@ async function save(): Promise<void> {
       franchiseInquirySources: sources,
       franchiseHotline: hotline,
       phoneChangeIntervalDays: form.phoneChangeIntervalDays,
+      printerDeveloperAccount,
+      ...(printerDeveloperKey ? { printerDeveloperKey } : {}),
+      printerApiUrl,
     })
     form.firstRechargeDoublePointsEnabled = Boolean(
       settings.firstRechargeDoublePointsEnabled,
@@ -91,6 +115,10 @@ async function save(): Promise<void> {
     form.franchiseInquirySources = settings.franchiseInquirySources || []
     form.franchiseHotline = settings.franchiseHotline || ''
     form.phoneChangeIntervalDays = settings.phoneChangeIntervalDays || 30
+    form.printerDeveloperAccount = settings.printerDeveloperAccount || ''
+    form.printerDeveloperKey = ''
+    form.printerDeveloperKeyConfigured = Boolean(settings.printerDeveloperKeyConfigured)
+    form.printerApiUrl = settings.printerApiUrl || 'https://open.xpyun.net/api/openapi/xprinter'
     toastSuccess('全局设置已保存')
   } catch (e) {
     toastError((e as { message?: string }).message ?? '保存全局设置失败')
@@ -104,7 +132,7 @@ async function save(): Promise<void> {
   <section>
     <PageHeader
       title="全局设置"
-      description="配置全局展示、充值奖励与加盟咨询信息"
+      description="配置全局展示、充值奖励、加盟咨询与打印机开放平台账号"
       :breadcrumb="['系统设置', '全局设置']"
     />
 
@@ -201,6 +229,48 @@ async function save(): Promise<void> {
               </NText>
             </div>
           </NFormItem>
+          <div class="settings-section-title">
+            芯烨云打印机开放平台
+          </div>
+          <NFormItem label="开发者账号">
+            <div class="printer-field">
+              <NInput
+                v-model:value="form.printerDeveloperAccount"
+                clearable
+                maxlength="128"
+                placeholder="请输入芯烨云开发者 ID"
+              />
+              <NText depth="3">
+                所有门店共用此开发者账号；门店添加打印机时只需填写设备 SN。
+              </NText>
+            </div>
+          </NFormItem>
+          <NFormItem label="开发者密钥">
+            <div class="printer-field">
+              <NInput
+                v-model:value="form.printerDeveloperKey"
+                type="password"
+                show-password-on="click"
+                :input-props="{ name: 'printer-developer-key', autocomplete: 'new-password' }"
+                :placeholder="form.printerDeveloperKeyConfigured ? '已配置，留空则不修改' : '请输入 UserKEY'"
+              />
+              <NText depth="3">
+                密钥仅用于服务端签名，保存后不会回显。
+              </NText>
+            </div>
+          </NFormItem>
+          <NFormItem label="接口 URL">
+            <div class="printer-field">
+              <NInput
+                v-model:value="form.printerApiUrl"
+                clearable
+                placeholder="https://open.xpyun.net/api/openapi/xprinter"
+              />
+              <NText depth="3">
+                填写芯烨云 xprinter 接口根地址，不包含 addPrinters 等具体接口名。
+              </NText>
+            </div>
+          </NFormItem>
           <NFormItem label=" ">
             <NButton
               type="primary"
@@ -257,6 +327,19 @@ async function save(): Promise<void> {
   width: min(100%, 360px);
   flex-direction: column;
   gap: var(--ic-space-sm);
+}
+
+.printer-field {
+  display: flex;
+  width: min(100%, 560px);
+  flex-direction: column;
+  gap: var(--ic-space-sm);
+}
+
+.settings-section-title {
+  margin: var(--ic-space-lg) 0 var(--ic-space-md) 160px;
+  font-size: var(--ic-font-md);
+  font-weight: 600;
 }
 
 .time-field {

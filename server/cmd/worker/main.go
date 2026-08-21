@@ -28,6 +28,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/reporting"
 	"github.com/inwardclub/server/internal/modules/reservation"
 	"github.com/inwardclub/server/internal/modules/rule"
+	"github.com/inwardclub/server/internal/modules/systemsetting"
 	"github.com/inwardclub/server/internal/platform/config"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	"github.com/inwardclub/server/internal/platform/logger"
@@ -116,7 +117,8 @@ func run() error {
 
 	// Printer: real Xpyun client when fakes are off, in-process fake otherwise.
 	// The print:receipt handler executes jobs through it.
-	receiptPrinter := printer.Select(cfg.Xpyun, cfg.UseFakeAdapters)
+	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
+	receiptPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, cfg.UseFakeAdapters)
 
 	// Payment post-process: evaluates a settled, member-bound offline collection
 	// against the enabled low_spend_reward rule and grants coins/points/growth

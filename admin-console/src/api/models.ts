@@ -40,22 +40,17 @@ export interface PrinterDevice extends AuditableEntity {
   provider: string
   deviceSn: string
   status: 'active' | 'disabled'
+  providerStatus: 'offline' | 'online' | 'abnormal' | 'unknown' | 'unconfigured'
+  providerStatusMessage?: string
 }
 
 export interface PrinterDeviceInput {
   storeId: number
-  name: string
-  provider: string
   deviceSn: string
-  deviceKey?: string
-  status: 'active' | 'disabled'
   reason: string
 }
 
 export interface PrinterDevicePatch {
-  name?: string
-  deviceSn?: string
-  deviceKey?: string
   status?: 'active' | 'disabled'
   reason: string
 }
@@ -417,6 +412,9 @@ export interface GlobalSettings {
   franchiseInquirySources: string[]
   franchiseHotline: string
   phoneChangeIntervalDays: number
+  printerDeveloperAccount: string
+  printerDeveloperKeyConfigured: boolean
+  printerApiUrl: string
   updatedAt?: string
 }
 

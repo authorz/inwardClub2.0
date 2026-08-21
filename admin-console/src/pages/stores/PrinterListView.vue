@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NButton, NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui'
+import { NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
@@ -14,9 +14,7 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 
 interface PrinterForm {
   storeId: string | null
-  name: string
   deviceSn: string
-  deviceKey: string
   status: 'active' | 'disabled'
   reason: string
 }
@@ -31,17 +29,20 @@ const deleteShow = ref(false)
 const deleteSubmitting = ref(false)
 const deleteTarget = ref<PrinterDevice | null>(null)
 const deleteReason = ref('')
-const editDeviceSn = ref(false)
-const editDeviceKey = ref(false)
 const form = reactive<PrinterForm>({
   storeId: null,
-  name: '',
   deviceSn: '',
-  deviceKey: '',
   status: 'active',
   reason: '',
 })
 const printerFormStatusOptions = PRINTER_STATUS_OPTIONS.map(({ label, value }) => ({ label, value }))
+const providerStatusLabels: Record<PrinterDevice['providerStatus'], string> = {
+  offline: '离线',
+  online: '在线正常',
+  abnormal: '在线异常',
+  unknown: '查询失败',
+  unconfigured: '账号未配置',
+}
 
 const fields = computed<FilterField[]>(() => [
   {
@@ -55,10 +56,10 @@ const fields = computed<FilterField[]>(() => [
     key: 'keyword',
     label: '打印机',
     type: 'input',
-    placeholder: '搜索名称 / 设备 SN',
+    placeholder: '搜索设备 SN',
     width: 240,
   },
-  { key: 'status', label: '状态', type: 'select', options: PRINTER_STATUS_OPTIONS },
+  { key: 'status', label: '启用状态', type: 'select', options: PRINTER_STATUS_OPTIONS },
 ])
 
 function storeName(storeId: string | number): string {
@@ -68,11 +69,10 @@ function storeName(storeId: string | number): string {
 const columns = [
   textColumn<PrinterDevice>('ID', 'id', { width: 80 }),
   renderColumn<PrinterDevice>('所属门店', 'storeId', (row) => storeName(row.storeId), 180),
-  textColumn<PrinterDevice>('打印机名称', 'name', { width: 170 }),
   textColumn<PrinterDevice>('设备 SN', 'deviceSn', { width: 180 }),
-  renderColumn<PrinterDevice>('服务商', 'provider', (row) =>
-    row.provider === 'xpyun' ? '芯烨云' : row.provider, 110),
-  statusColumn<PrinterDevice>('状态', 'status', PRINTER_STATUS_OPTIONS, 110),
+  renderColumn<PrinterDevice>('设备状态', 'providerStatus', (row) =>
+    providerStatusLabels[row.providerStatus] ?? '查询失败', 120),
+  statusColumn<PrinterDevice>('启用状态', 'status', PRINTER_STATUS_OPTIONS, 110),
   dateTimeColumn<PrinterDevice>('更新时间', 'updatedAt'),
   actionsColumn<PrinterDevice>(
     (row) =>
@@ -111,9 +111,7 @@ async function loadStores(): Promise<void> {
 
 function resetForm(): void {
   form.storeId = null
-  form.name = ''
   form.deviceSn = ''
-  form.deviceKey = ''
   form.status = 'active'
   form.reason = ''
 }
@@ -121,27 +119,20 @@ function resetForm(): void {
 function openCreate(): void {
   editingId.value = null
   resetForm()
-  editDeviceSn.value = true
-  editDeviceKey.value = true
   formShow.value = true
 }
 
 function openEdit(row: PrinterDevice): void {
   editingId.value = String(row.id)
   form.storeId = String(row.storeId)
-  form.name = row.name
   form.deviceSn = row.deviceSn
-  form.deviceKey = ''
   form.status = row.status
   form.reason = ''
-  editDeviceSn.value = false
-  editDeviceKey.value = false
   formShow.value = true
 }
 
 async function submitForm(): Promise<void> {
   if (!form.storeId) return toastError('请选择所属门店')
-  if (!form.name.trim()) return toastError('请输入打印机名称')
   if (!form.deviceSn.trim()) return toastError('请输入设备 SN')
   if (!form.reason.trim()) return toastError('请填写操作原因')
 
@@ -149,9 +140,6 @@ async function submitForm(): Promise<void> {
   try {
     if (editingId.value) {
       await printerService.update(editingId.value, {
-        name: form.name.trim(),
-        ...(editDeviceSn.value ? { deviceSn: form.deviceSn.trim() } : {}),
-        ...(editDeviceKey.value && form.deviceKey ? { deviceKey: form.deviceKey } : {}),
         status: form.status,
         reason: form.reason.trim(),
       })
@@ -159,11 +147,7 @@ async function submitForm(): Promise<void> {
     } else {
       await printerService.create({
         storeId: Number(form.storeId),
-        name: form.name.trim(),
-        provider: 'xpyun',
         deviceSn: form.deviceSn.trim(),
-        ...(form.deviceKey ? { deviceKey: form.deviceKey } : {}),
-        status: form.status,
         reason: form.reason.trim(),
       })
       toastSuccess('打印机已新增')
@@ -253,67 +237,19 @@ onMounted(loadStores)
           />
         </NFormItem>
         <NFormItem
-          label="打印机名称"
-          required
-        >
-          <NInput
-            v-model:value="form.name"
-            placeholder="如：前台小票机"
-            maxlength="64"
-          />
-        </NFormItem>
-        <NFormItem label="服务商">
-          <NSelect
-            :value="'xpyun'"
-            :options="[{ label: '芯烨云', value: 'xpyun' }]"
-            disabled
-          />
-        </NFormItem>
-        <NFormItem
           label="设备 SN"
           required
         >
           <NInput
             v-model:value="form.deviceSn"
             :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
-            :readonly="Boolean(editingId) && !editDeviceSn"
+            :readonly="Boolean(editingId)"
             placeholder="请输入设备序列号"
             maxlength="64"
-          >
-            <template
-              v-if="editingId && !editDeviceSn"
-              #suffix
-            >
-              <NButton
-                text
-                type="primary"
-                attr-type="button"
-                @click="editDeviceSn = true"
-              >
-                修改 SN
-              </NButton>
-            </template>
-          </NInput>
-        </NFormItem>
-        <NFormItem label="设备密钥">
-          <NInput
-            v-if="!editingId || editDeviceKey"
-            v-model:value="form.deviceKey"
-            type="password"
-            :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
-            show-password-on="click"
-            :placeholder="editingId ? '留空则不修改' : '请输入设备密钥（可选）'"
-            maxlength="64"
           />
-          <NButton
-            v-else
-            attr-type="button"
-            @click="editDeviceKey = true"
-          >
-            修改设备密钥
-          </NButton>
         </NFormItem>
         <NFormItem
+          v-if="editingId"
           label="设备状态"
           required
         >

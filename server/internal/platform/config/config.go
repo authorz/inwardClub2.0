@@ -102,8 +102,9 @@ type QiniuConfig struct {
 }
 
 type XpyunConfig struct {
-	User string `yaml:"user"`
-	UKey string `yaml:"ukey"`
+	User    string `yaml:"user"`
+	UKey    string `yaml:"ukey"`
+	BaseURL string `yaml:"baseUrl"`
 }
 
 // BusinessConfig configures the "business day" reference used by day-bucketed
@@ -252,6 +253,7 @@ func applyEnv(cfg *Config) {
 
 	setStr(&cfg.Xpyun.User, "XPYUN_USER")
 	setStr(&cfg.Xpyun.UKey, "XPYUN_UKEY")
+	setStr(&cfg.Xpyun.BaseURL, "XPYUN_BASE_URL")
 }
 
 // WeChatLoginReal reports whether the real WeChat login client should be used:
@@ -335,14 +337,13 @@ func (o OfflineConfig) validate() error {
 	return nil
 }
 
-// validate ensures the Xpyun cloud-printer credentials the real client needs are
-// present.
+// validate ensures legacy environment credentials are supplied as a pair. The
+// preferred runtime source is headquarters global settings, so an entirely
+// empty environment pair is valid and printer calls will report unconfigured
+// until the shared account is saved there.
 func (x XpyunConfig) validate() error {
-	if x.User == "" {
-		return fmt.Errorf("XPYUN_USER is required when USE_FAKE_ADAPTERS=false")
-	}
-	if x.UKey == "" {
-		return fmt.Errorf("XPYUN_UKEY is required when USE_FAKE_ADAPTERS=false")
+	if (x.User == "") != (x.UKey == "") {
+		return fmt.Errorf("XPYUN_USER and XPYUN_UKEY must be configured together")
 	}
 	return nil
 }

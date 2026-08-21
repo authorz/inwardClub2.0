@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,9 +25,13 @@ const (
 	franchiseInquirySourcesKey             = "franchise_inquiry_sources"
 	franchiseHotlineKey                    = "franchise_hotline"
 	phoneChangeIntervalDaysKey             = "phone_change_interval_days"
+	printerDeveloperAccountKey             = "printer_developer_account"
+	printerDeveloperKeyKey                 = "printer_developer_key"
+	printerAPIURLKey                       = "printer_api_url"
 	defaultRechargeDoublePointsThreshold   = int64(1000)
 	defaultPhoneChangeIntervalDays         = 30
 	defaultRechargeNotice                  = "新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。"
+	defaultPrinterAPIURL                   = "https://open.xpyun.net/api/openapi/xprinter"
 )
 
 var defaultFranchiseInquirySources = []string{"美团", "抖音", "小红书", "店员", "微信小程序"}
@@ -39,6 +44,10 @@ type GlobalSettings struct {
 	FranchiseInquirySources             []string   `json:"franchiseInquirySources"`
 	FranchiseHotline                    string     `json:"franchiseHotline"`
 	PhoneChangeIntervalDays             int        `json:"phoneChangeIntervalDays"`
+	PrinterDeveloperAccount             string     `json:"printerDeveloperAccount"`
+	PrinterDeveloperKey                 string     `json:"-"`
+	PrinterDeveloperKeyConfigured       bool       `json:"printerDeveloperKeyConfigured"`
+	PrinterAPIURL                       string     `json:"printerApiUrl"`
 	UpdatedAt                           *time.Time `json:"updatedAt,omitempty"`
 }
 
@@ -50,6 +59,9 @@ type UpdateGlobalSettingsRequest struct {
 	FranchiseInquirySources             []string `json:"franchiseInquirySources"`
 	FranchiseHotline                    string   `json:"franchiseHotline"`
 	PhoneChangeIntervalDays             int      `json:"phoneChangeIntervalDays"`
+	PrinterDeveloperAccount             *string  `json:"printerDeveloperAccount"`
+	PrinterDeveloperKey                 *string  `json:"printerDeveloperKey"`
+	PrinterAPIURL                       *string  `json:"printerApiUrl"`
 }
 
 // Repository persists headquarters-level settings.
@@ -69,9 +81,10 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 		RechargeNotice:                      defaultRechargeNotice,
 		FranchiseInquirySources:             append([]string(nil), defaultFranchiseInquirySources...),
 		PhoneChangeIntervalDays:             defaultPhoneChangeIntervalDays,
+		PrinterAPIURL:                       defaultPrinterAPIURL,
 	}
 	const q = `SELECT setting_key, setting_value, updated_at FROM system_settings
-		WHERE setting_key IN (?, ?, ?, ?, ?, ?)`
+		WHERE setting_key IN (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	rows, err := r.db.QueryContext(
 		ctx, q,
 		firstRechargeDoublePointsEnabledKey,
@@ -80,6 +93,9 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 		franchiseInquirySourcesKey,
 		franchiseHotlineKey,
 		phoneChangeIntervalDaysKey,
+		printerDeveloperAccountKey,
+		printerDeveloperKeyKey,
+		printerAPIURLKey,
 	)
 	if err != nil {
 		return GlobalSettings{}, apperr.Internal(err)
@@ -111,6 +127,14 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 			if days, err := strconv.Atoi(value); err == nil && days > 0 {
 				settings.PhoneChangeIntervalDays = days
 			}
+		case printerDeveloperAccountKey:
+			settings.PrinterDeveloperAccount = value
+		case printerDeveloperKeyKey:
+			settings.PrinterDeveloperKey = value
+		case printerAPIURLKey:
+			if value != "" {
+				settings.PrinterAPIURL = value
+			}
 		}
 		if settings.UpdatedAt == nil || updatedAt.After(*settings.UpdatedAt) {
 			t := updatedAt
@@ -120,6 +144,7 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 	if err := rows.Err(); err != nil {
 		return GlobalSettings{}, apperr.Internal(err)
 	}
+	settings.PrinterDeveloperKeyConfigured = settings.PrinterDeveloperKey != ""
 	return settings, nil
 }
 
@@ -151,6 +176,9 @@ func (r *sqlRepository) UpdateGlobalSettings(
 			{franchiseInquirySourcesKey, string(sourcesJSON)},
 			{franchiseHotlineKey, settings.FranchiseHotline},
 			{phoneChangeIntervalDaysKey, strconv.Itoa(settings.PhoneChangeIntervalDays)},
+			{printerDeveloperAccountKey, settings.PrinterDeveloperAccount},
+			{printerDeveloperKeyKey, settings.PrinterDeveloperKey},
+			{printerAPIURLKey, settings.PrinterAPIURL},
 		}
 		for _, setting := range values {
 			if _, err := tx.ExecContext(ctx, q, setting.key, setting.value, updatedBy, now, now); err != nil {
@@ -215,6 +243,16 @@ func (s *Service) RechargeNotice(ctx context.Context) (string, error) {
 	return settings.RechargeNotice, nil
 }
 
+// PrinterProviderSettings returns the unmasked shared Xpyun account used only
+// by the server-side printer adapter. Console JSON never exposes the key.
+func (s *Service) PrinterProviderSettings(ctx context.Context) (string, string, string, error) {
+	settings, err := s.repo.GetGlobalSettings(ctx)
+	if err != nil {
+		return "", "", "", err
+	}
+	return settings.PrinterDeveloperAccount, settings.PrinterDeveloperKey, settings.PrinterAPIURL, nil
+}
+
 // Update validates and persists the headquarters settings.
 func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, updatedBy int64) (GlobalSettings, error) {
 	if req.RechargeDoublePointsThresholdAmount <= 0 {
@@ -233,12 +271,12 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 	if hotline != "" && (len(hotline) < 6 || len(hotline) > 32) {
 		return GlobalSettings{}, apperr.Invalid("请填写有效的加盟热线")
 	}
+	current, err := s.repo.GetGlobalSettings(ctx)
+	if err != nil {
+		return GlobalSettings{}, err
+	}
 	var sources []string
 	if req.FranchiseInquirySources == nil {
-		current, err := s.repo.GetGlobalSettings(ctx)
-		if err != nil {
-			return GlobalSettings{}, err
-		}
 		sources = current.FranchiseInquirySources
 		if len(sources) == 0 {
 			sources = append([]string(nil), defaultFranchiseInquirySources...)
@@ -250,6 +288,28 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 			return GlobalSettings{}, err
 		}
 	}
+	printerAccount := current.PrinterDeveloperAccount
+	if req.PrinterDeveloperAccount != nil {
+		printerAccount = strings.TrimSpace(*req.PrinterDeveloperAccount)
+	}
+	printerKey := current.PrinterDeveloperKey
+	if req.PrinterDeveloperKey != nil && strings.TrimSpace(*req.PrinterDeveloperKey) != "" {
+		printerKey = strings.TrimSpace(*req.PrinterDeveloperKey)
+	}
+	printerAPIURL := current.PrinterAPIURL
+	if req.PrinterAPIURL != nil {
+		printerAPIURL = strings.TrimRight(strings.TrimSpace(*req.PrinterAPIURL), "/")
+	}
+	if printerAPIURL == "" {
+		printerAPIURL = defaultPrinterAPIURL
+	}
+	parsedPrinterURL, err := url.ParseRequestURI(printerAPIURL)
+	if err != nil || (parsedPrinterURL.Scheme != "https" && parsedPrinterURL.Scheme != "http") || parsedPrinterURL.Host == "" {
+		return GlobalSettings{}, apperr.Invalid("请填写有效的打印机接口 URL")
+	}
+	if (printerAccount == "") != (printerKey == "") {
+		return GlobalSettings{}, apperr.Invalid("打印机开发者账号和开发者密钥必须同时配置")
+	}
 	return s.repo.UpdateGlobalSettings(ctx, GlobalSettings{
 		FirstRechargeDoublePointsEnabled:    req.FirstRechargeDoublePointsEnabled,
 		RechargeDoublePointsThresholdAmount: req.RechargeDoublePointsThresholdAmount,
@@ -257,6 +317,10 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 		FranchiseInquirySources:             sources,
 		FranchiseHotline:                    hotline,
 		PhoneChangeIntervalDays:             req.PhoneChangeIntervalDays,
+		PrinterDeveloperAccount:             printerAccount,
+		PrinterDeveloperKey:                 printerKey,
+		PrinterDeveloperKeyConfigured:       printerKey != "",
+		PrinterAPIURL:                       printerAPIURL,
 	}, updatedBy, s.now().UTC())
 }
 

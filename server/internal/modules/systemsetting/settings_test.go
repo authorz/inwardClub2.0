@@ -2,10 +2,13 @@ package systemsetting
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 )
+
+func stringPointer(value string) *string { return &value }
 
 type memoryRepository struct{ settings GlobalSettings }
 
@@ -95,5 +98,44 @@ func TestUpdateGlobalSettingsNormalizesFranchiseSources(t *testing.T) {
 		FranchiseInquirySources:             []string{},
 	}, 1); err == nil {
 		t.Fatal("expected empty source validation error")
+	}
+}
+
+func TestPrinterProviderSettingsPreserveAndMaskDeveloperKey(t *testing.T) {
+	repo := &memoryRepository{}
+	svc := NewService(repo)
+	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
+		RechargeDoublePointsThresholdAmount: 1000,
+		PhoneChangeIntervalDays:             30,
+		PrinterDeveloperAccount:             stringPointer(" developer-account "),
+		PrinterDeveloperKey:                 stringPointer(" developer-key "),
+		PrinterAPIURL:                       stringPointer("https://open.xpyun.net/api/openapi/xprinter/"),
+	}, 1)
+	if err != nil {
+		t.Fatalf("update printer settings: %v", err)
+	}
+	if got.PrinterDeveloperAccount != "developer-account" || !got.PrinterDeveloperKeyConfigured {
+		t.Fatalf("settings = %#v", got)
+	}
+	if got.PrinterAPIURL != defaultPrinterAPIURL {
+		t.Fatalf("api url = %q", got.PrinterAPIURL)
+	}
+	raw, _ := json.Marshal(got)
+	if strings.Contains(string(raw), "developer-key") {
+		t.Fatalf("developer key leaked in JSON: %s", raw)
+	}
+
+	account, key, apiURL, err := svc.PrinterProviderSettings(context.Background())
+	if err != nil || account != "developer-account" || key != "developer-key" || apiURL != defaultPrinterAPIURL {
+		t.Fatalf("provider settings = %q %q %q, %v", account, key, apiURL, err)
+	}
+	if _, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
+		RechargeDoublePointsThresholdAmount: 1000,
+		PhoneChangeIntervalDays:             30,
+	}, 1); err != nil {
+		t.Fatalf("omitted printer settings should preserve existing values: %v", err)
+	}
+	if repo.settings.PrinterDeveloperKey != "developer-key" {
+		t.Fatal("omitted key should remain unchanged")
 	}
 }

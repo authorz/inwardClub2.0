@@ -7,20 +7,13 @@ import { API_PATHS } from '@/constants/apiPaths'
 import type { PageQuery } from '@/types/api'
 import type { PrinterDevice } from '@/types/models'
 
-/** 新增打印机：name/deviceSn 必填，provider 默认 xpyun、status 默认 active。 */
+/** 新增打印机：门店只需提交设备 SN，开发者账号由总后台统一配置。 */
 export interface PrinterCreatePayload {
-  name: string
   deviceSn: string
-  provider?: string
-  deviceKey?: string
-  status?: PrinterDevice['status']
 }
 
 /** 编辑打印机：nil 字段保持不变。 */
 export interface PrinterPatchPayload {
-  name?: string
-  deviceSn?: string
-  deviceKey?: string
   status?: PrinterDevice['status']
 }
 

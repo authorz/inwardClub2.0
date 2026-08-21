@@ -145,6 +145,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		activity.NewPointReviewSettingsRepository(database),
 	)
 	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
+	cloudPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, cfg.UseFakeAdapters)
 	storeLowSpendRuleSvc := systemsetting.NewStoreLowSpendRuleService(
 		systemsetting.NewStoreLowSpendRuleRepository(database),
 	)
@@ -201,7 +202,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	catalogConsoleSvc := catalog.NewConsoleService(catalog.NewConsoleRepository(database), assetSvc)
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
-	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database))
+	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database), cloudPrinter)
 	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database))
 	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc, assetSvc)
 

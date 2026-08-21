@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
- * 打印机管理：本店打印设备增删改与启用状态。
- * 服务端设备模型为 name/provider(默认 xpyun)/deviceSn/deviceKey/status(active|disabled)；
- * deviceKey 仅写入不回显。启用开关切换 status，写操作带 Idempotency-Key。
+ * 打印机管理：门店只提交设备 SN，开发者账号由总后台统一配置。
+ * 新增成功以芯烨云注册接口成功为前提；启用开关切换本地使用状态。
  */
 import { computed, h, reactive, ref } from 'vue'
 import { NButton, NInput, NModal, NSpace, NSwitch, type DataTableColumns } from 'naive-ui'
@@ -19,54 +18,27 @@ const list = useAsyncList<PrinterDevice>((params) => printerService.list(params)
 const action = useAsyncAction()
 
 const editShow = ref(false)
-const editDeviceSn = ref(false)
-const editDeviceKey = ref(false)
 const form = reactive<{
-  id: string | number | null
-  name: string
   deviceSn: string
-  provider: string
-  deviceKey: string
-}>({ id: null, name: '', deviceSn: '', provider: '', deviceKey: '' })
+}>({ deviceSn: '' })
 
-function openCreate() {
-  form.id = null
-  form.name = ''
-  form.deviceSn = ''
-  form.provider = ''
-  form.deviceKey = ''
-  editDeviceSn.value = true
-  editDeviceKey.value = true
-  editShow.value = true
+const providerStatusLabels: Record<PrinterDevice['providerStatus'], string> = {
+  offline: '离线',
+  online: '在线正常',
+  abnormal: '在线异常',
+  unknown: '查询失败',
+  unconfigured: '账号未配置',
 }
 
-function openEdit(row: PrinterDevice) {
-  form.id = row.id
-  form.name = row.name
-  form.deviceSn = row.deviceSn ?? ''
-  form.provider = row.provider ?? ''
-  form.deviceKey = ''
-  editDeviceSn.value = false
-  editDeviceKey.value = false
+function openCreate() {
+  form.deviceSn = ''
   editShow.value = true
 }
 
 function save() {
   void action.run(
     () =>
-      form.id == null
-        ? printerService.create({
-            name: form.name,
-            deviceSn: form.deviceSn,
-            provider: form.provider || undefined,
-            deviceKey: form.deviceKey || undefined,
-          })
-        : // DevicePatch 不含 provider；provider 仅创建时设置。
-          printerService.update(form.id, {
-            name: form.name,
-            ...(editDeviceSn.value ? { deviceSn: form.deviceSn } : {}),
-            ...(editDeviceKey.value && form.deviceKey ? { deviceKey: form.deviceKey } : {}),
-          }),
+      printerService.create({ deviceSn: form.deviceSn.trim() }),
     {
       successMessage: '已保存',
       onSuccess: () => {
@@ -93,10 +65,9 @@ function remove(row: PrinterDevice) {
 }
 
 const columns = computed<DataTableColumns<PrinterDevice>>(() => [
-  textColumn<PrinterDevice>('名称', (r) => r.name),
   textColumn<PrinterDevice>('SN', (r) => r.deviceSn),
-  textColumn<PrinterDevice>('提供商', (r) => r.provider),
-  statusColumn<PrinterDevice>('状态', ACTIVE_STATUS, (r) => r.status, { width: 100 }),
+  textColumn<PrinterDevice>('设备状态', (r) => providerStatusLabels[r.providerStatus] ?? '查询失败'),
+  statusColumn<PrinterDevice>('启用状态', ACTIVE_STATUS, (r) => r.status, { width: 100 }),
   {
     title: '启用',
     key: 'enabled',
@@ -115,11 +86,6 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
     render: (row: PrinterDevice) =>
       h(NSpace, { size: 4 }, {
         default: () => [
-          h(
-            PermissionButton,
-            { permissions: [PERM.printerWrite], type: 'primary', text: true, onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
           h(
             PermissionButton,
             { permissions: [PERM.printerWrite], type: 'error', text: true, onClick: () => remove(row) },
@@ -163,7 +129,7 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
     <NModal
       v-model:show="editShow"
       preset="card"
-      :title="form.id == null ? '新增打印机' : '编辑打印机'"
+      title="新增打印机"
       style="width: 400px"
     >
       <form
@@ -172,59 +138,12 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
         @submit.prevent="save"
       >
         <label>
-          <span class="ic-muted">名称</span>
-          <NInput
-            v-model:value="form.name"
-            placeholder="如：前台小票机"
-          />
-        </label>
-        <label>
           <span class="ic-muted">设备 SN</span>
           <NInput
             v-model:value="form.deviceSn"
             :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
-            :readonly="form.id != null && !editDeviceSn"
             placeholder="设备序列号"
-          >
-            <template
-              v-if="form.id != null && !editDeviceSn"
-              #suffix
-            >
-              <NButton
-                text
-                type="primary"
-                attr-type="button"
-                @click="editDeviceSn = true"
-              >
-                修改 SN
-              </NButton>
-            </template>
-          </NInput>
-        </label>
-        <label v-if="form.id == null">
-          <span class="ic-muted">提供商</span>
-          <NInput
-            v-model:value="form.provider"
-            placeholder="留空默认 xpyun"
           />
-        </label>
-        <label>
-          <span class="ic-muted">设备密钥</span>
-          <NInput
-            v-if="form.id == null || editDeviceKey"
-            v-model:value="form.deviceKey"
-            type="password"
-            :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
-            show-password-on="click"
-            :placeholder="form.id == null ? '设备密钥（可选）' : '留空则不修改'"
-          />
-          <NButton
-            v-else
-            attr-type="button"
-            @click="editDeviceKey = true"
-          >
-            修改设备密钥
-          </NButton>
         </label>
       </form>
       <template #footer>
@@ -235,7 +154,7 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
           <NButton
             type="primary"
             :loading="action.running.value"
-            :disabled="!form.name || !form.deviceSn"
+            :disabled="!form.deviceSn.trim()"
             @click="save"
           >
             保存

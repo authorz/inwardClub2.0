@@ -237,6 +237,9 @@ export const systemService = {
     franchiseInquirySources: string[]
     franchiseHotline: string
     phoneChangeIntervalDays: number
+    printerDeveloperAccount: string
+    printerDeveloperKey?: string
+    printerApiUrl: string
   }) =>
     http.put<GlobalSettings>(API_PATHS.system.globalSettings, settings, { idempotent: true }),
   getPaymentChannelSettings: () =>

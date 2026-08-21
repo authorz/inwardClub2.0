@@ -313,6 +313,8 @@ export interface PrinterDevice extends AuditFields {
   deviceSn?: string
   deviceKey?: string
   status: ActiveStatus
+  providerStatus: 'offline' | 'online' | 'abnormal' | 'unknown' | 'unconfigured'
+  providerStatusMessage?: string
 }
 
 export interface ReportOverviewBreakdown {
