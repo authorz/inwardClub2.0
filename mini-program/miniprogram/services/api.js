@@ -239,10 +239,11 @@ function rechargeOrderBody(data) {
 function couponRedemptionBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
-    entitlementId: d.entitlementId != null ? d.entitlementId : d.couponId,
+    entitlementId: Number(d.entitlementId != null ? d.entitlementId : d.couponId),
+    storeId: Number(d.storeId),
     items: (d.items || []).map((item) => ({
-      itemId: item.itemId != null ? item.itemId : item.id,
-      quantity: item.quantity != null ? item.quantity : item.qty,
+      itemId: Number(item.itemId != null ? item.itemId : item.id),
+      quantity: Number(item.quantity != null ? item.quantity : item.qty),
     })),
   });
 }

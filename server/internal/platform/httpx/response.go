@@ -124,6 +124,8 @@ func clientMessage(code apperr.Code, message string) string {
 		return "当前资源状态不可用"
 	case strings.HasPrefix(lower, "invalid ") || strings.Contains(lower, ": invalid "):
 		return "请求参数格式不正确"
+	case strings.Contains(lower, "cannot unmarshal"):
+		return "请求参数格式不正确"
 	case strings.Contains(lower, " is required") || strings.Contains(lower, " must "):
 		return "缺少必填参数或参数不符合要求"
 	case strings.Contains(lower, "cannot ") || strings.Contains(lower, " is not "):

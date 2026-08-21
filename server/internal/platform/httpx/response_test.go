@@ -43,4 +43,7 @@ func TestClientMessageDistinguishesInvalidCredentialsFromInvalidArguments(t *tes
 	if got := clientMessage(apperr.CodeInvalidArgument, "invalid storeID"); got != "请求参数格式不正确" {
 		t.Fatalf("invalid argument message = %q", got)
 	}
+	if got := clientMessage(apperr.CodeInvalidArgument, "json: cannot unmarshal string into Go struct field RedeemRequest.entitlementId of type int64"); got != "请求参数格式不正确" {
+		t.Fatalf("json type mismatch message = %q", got)
+	}
 }
