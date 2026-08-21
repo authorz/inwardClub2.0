@@ -437,6 +437,7 @@ onMounted(loadReferences)
   <div>
     <ResourceListView
       ref="listRef"
+      v-model:checked-row-keys="selectedItemIds"
       title="商品管理"
       description="按门店维护商品、分类、图片、价格与库存"
       :breadcrumb="['商品管理', '商品管理']"
@@ -444,17 +445,20 @@ onMounted(loadReferences)
       :columns="columns"
       :fetcher="catalogItemService.list"
       :toolbar-actions="toolbarActions"
-      v-model:checked-row-keys="selectedItemIds"
       empty-text="暂无商品，请先创建门店商品分类"
     />
 
     <FormDrawer
       v-model:show="drawerShow"
       :title="editingId ? '编辑商品' : '新增商品'"
+      :width="760"
       :submitting="submitting"
       @submit="submit"
     >
-      <NForm label-placement="top">
+      <NForm
+        class="item-form"
+        label-placement="top"
+      >
         <NFormItem
           label="所属门店"
           required
@@ -479,6 +483,7 @@ onMounted(loadReferences)
           />
         </NFormItem>
         <NFormItem
+          class="item-form__span-2"
           label="商品名称"
           required
         >
@@ -491,7 +496,7 @@ onMounted(loadReferences)
           <NInput
             v-model:value="form.description"
             type="textarea"
-            :autosize="{ minRows: 2, maxRows: 5 }"
+            :autosize="{ minRows: 3, maxRows: 5 }"
             placeholder="请输入商品描述"
           />
         </NFormItem>
@@ -531,6 +536,7 @@ onMounted(loadReferences)
           />
         </NFormItem>
         <NFormItem
+          class="item-form__span-2"
           label="支付方式"
           required
         >
@@ -543,6 +549,7 @@ onMounted(loadReferences)
         </NFormItem>
         <NFormItem
           v-if="categoryIsCoupon"
+          class="item-form__span-2"
           label="购买后发放的券"
           required
         >
@@ -559,6 +566,7 @@ onMounted(loadReferences)
         </NFormItem>
         <NFormItem
           v-else
+          class="item-form__span-2"
           label="允许兑换该商品的券"
         >
           <NSelect
@@ -570,29 +578,31 @@ onMounted(loadReferences)
             placeholder="请从当前门店可用的券列表中选择"
           />
         </NFormItem>
-        <NFormItem label="购买后赠送积分">
-          <NSwitch v-model:value="form.rewardPointsEnabled">
-            <template #checked>
-              赠送
-            </template>
-            <template #unchecked>
-              不赠送
-            </template>
-          </NSwitch>
-        </NFormItem>
-        <NFormItem
-          v-if="form.rewardPointsEnabled"
-          label="每份赠送积分"
-          required
-        >
-          <NInputNumber
-            v-model:value="form.pointsReward"
-            :min="1"
-            :precision="0"
-            style="width: 100%"
-            placeholder="请输入购买每份商品赠送的积分"
-          />
-        </NFormItem>
+        <div class="item-form__points item-form__span-2">
+          <NFormItem label="购买后赠送积分">
+            <NSwitch v-model:value="form.rewardPointsEnabled">
+              <template #checked>
+                赠送
+              </template>
+              <template #unchecked>
+                不赠送
+              </template>
+            </NSwitch>
+          </NFormItem>
+          <NFormItem
+            v-if="form.rewardPointsEnabled"
+            label="每份赠送积分"
+            required
+          >
+            <NInputNumber
+              v-model:value="form.pointsReward"
+              :min="1"
+              :precision="0"
+              style="width: 100%"
+              placeholder="请输入购买每份商品赠送的积分"
+            />
+          </NFormItem>
+        </div>
         <NFormItem label="排序">
           <NInputNumber
             v-model:value="form.sortOrder"
@@ -615,3 +625,32 @@ onMounted(loadReferences)
     </FormDrawer>
   </div>
 </template>
+
+<style scoped>
+.item-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ic-space-lg);
+}
+
+.item-form__span-2 {
+  grid-column: 1 / -1;
+}
+
+.item-form__points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ic-space-lg);
+}
+
+@media (max-width: 720px) {
+  .item-form,
+  .item-form__points {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .item-form__span-2 {
+    grid-column: auto;
+  }
+}
+</style>
