@@ -33,7 +33,10 @@
       <ic-loading wx:if="{{itemsLoading}}" text="加载餐品" />
       <ic-empty wx:elif="{{!items.length}}" text="当前分类暂无餐品" compact="{{true}}" />
       <block wx:else>
-        <view class="ord__group-title">{{activeCatName}}</view>
+        <view class="ord__group-title">
+          <text>{{activeCatName}}</text>
+          <text wx:if="{{activeCatType === 'coupon'}}" class="ord__group-kind">券商品 · 购买后自动到账</text>
+        </view>
         <view class="ord__grid">
           <view class="ord__item ic-glass-recessed" wx:for="{{items}}" wx:key="id" wx:for-item="it">
             <view class="ord__item-img">
@@ -42,6 +45,8 @@
               <view wx:if="{{it.soldOut}}" class="ord__soldout">已售罄</view>
             </view>
             <text class="ord__item-name ic-ellipsis">{{it.name}}</text>
+            <text wx:if="{{it.isCoupon}}" class="ord__item-benefit">券到账后 30 天有效</text>
+            <text wx:if="{{it.pointsReward > 0}}" class="ord__item-benefit">购买每份赠 {{it.pointsReward}} 积分</text>
             <view class="ord__item-foot">
               <view class="ord__item-row">
                 <text class="ord__item-yuan {{it.priceCompact ? 'ord__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
@@ -58,7 +63,7 @@
                   />
                 </view>
               </view>
-              <text class="ord__item-pay">微信 / 金币可用</text>
+              <text class="ord__item-pay">{{it.payText}}</text>
             </view>
           </view>
         </view>
@@ -113,6 +118,7 @@
       <view wx:else class="ord-cart-sheet__image ord-cart-sheet__image--empty">{{cartItem.initial}}</view>
       <view class="ord-cart-sheet__info">
         <text class="ord-cart-sheet__name ic-ellipsis">{{cartItem.name}}</text>
+        <text wx:if="{{cartItem.isCoupon}}" class="ord-cart-sheet__benefit">支付后自动到账 · 30天有效</text>
         <text class="ord-cart-sheet__price">¥{{cartItem.priceText}}</text>
       </view>
       <view class="ord-cart-sheet__action">

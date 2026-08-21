@@ -123,6 +123,7 @@ export interface CatalogItem extends AuditFields {
   stockQuantity: number
   payChannels: PayChannel[]
   couponTemplateIds?: Array<number | string>
+  grantCouponTemplateId?: number | string | null
   status: PublishStatus
   categoryName?: string
   categoryId?: number | string
@@ -137,6 +138,7 @@ export interface CatalogItem extends AuditFields {
 export interface CatalogCategory extends AuditFields {
   id: number | string
   name: string
+  categoryType?: 'product' | 'coupon'
   scopeType: ScopeType
   sortOrder?: number
   status?: string

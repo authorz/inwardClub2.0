@@ -23,6 +23,10 @@ const storeOptions = ref<OptionItem[]>([])
 const categoryStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
   ['active', 'disabled'].includes(value),
 )
+const categoryTypeOptions = [
+  { label: '普通商品', value: 'product' },
+  { label: '券商品', value: 'coupon' },
+]
 
 const fields = computed<FilterField[]>(() => [
   {
@@ -56,6 +60,12 @@ const columns = [
       ]),
   ),
   renderColumn<CatalogCategory>(
+    '分类类型',
+    'categoryType',
+    (row) => row.categoryType === 'coupon' ? '券商品' : '普通商品',
+    110,
+  ),
+  renderColumn<CatalogCategory>(
     '所属门店',
     'storeName',
     (row) =>
@@ -87,6 +97,7 @@ const uploadKey = ref(0)
 const form = reactive<Partial<CatalogCategory>>({
   storeId: null,
   name: '',
+  categoryType: 'product',
   assetId: null,
   sortOrder: 0,
   status: 'active',
@@ -108,6 +119,7 @@ function openCreate(): void {
   editingId.value = null
   form.storeId = null
   form.name = ''
+  form.categoryType = 'product'
   form.assetId = null
   form.sortOrder = 0
   form.status = 'active'
@@ -120,6 +132,7 @@ function openEdit(row: CatalogCategory): void {
   editingId.value = row.id
   form.storeId = row.storeId == null ? null : String(row.storeId)
   form.name = row.name
+  form.categoryType = row.categoryType ?? 'product'
   form.assetId = row.assetId ?? null
   form.sortOrder = row.sortOrder ?? 0
   form.status = row.status ?? 'active'
@@ -141,6 +154,7 @@ async function submit(): Promise<void> {
   const payload = {
     storeId: Number(form.storeId),
     name: form.name.trim(),
+    categoryType: form.categoryType ?? 'product',
     assetId: form.assetId == null ? null : Number(form.assetId),
     sortOrder: form.sortOrder ?? 0,
     status: form.status ?? 'active',
@@ -211,6 +225,19 @@ onMounted(loadStores)
             v-model:value="form.name"
             placeholder="请输入分类名称"
           />
+        </NFormItem>
+        <NFormItem
+          label="分类类型"
+          required
+        >
+          <NSelect
+            v-model:value="form.categoryType"
+            :options="categoryTypeOptions"
+            placeholder="请选择分类类型"
+          />
+          <NText depth="3">
+            券商品分类下只能发布购买后自动到账的券。
+          </NText>
         </NFormItem>
         <NFormItem label="分类图标">
           <NSpace

@@ -42,6 +42,8 @@ Page({
       imageUrl: it.imageUrl || '',
       priceCent: it.priceCent,
       payChannels: it.payChannels,
+      isCoupon: it.itemType === 'coupon',
+      pointsReward: Number(it.pointsReward || 0),
       lineText: fmt.centToYuan(it.priceCent * it.qty),
     }));
     // 所有商品都支持某渠道，才算整单支持；缺失按兼容默认

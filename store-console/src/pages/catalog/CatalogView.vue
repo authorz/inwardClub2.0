@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 本店商品：商品创建后直接归属当前登录门店。 */
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
   NCheckboxGroup,
@@ -10,6 +10,7 @@ import {
   NModal,
   NSelect,
   NSpace,
+  NSwitch,
   NTooltip,
   type DataTableColumns,
 } from 'naive-ui'
@@ -43,18 +44,28 @@ const list = useAsyncList<CatalogItem>((params) => catalogService.items(params),
 const action = useAsyncAction()
 const categories = ref<CatalogCategory[]>([])
 const couponTemplates = ref<CouponTemplate[]>([])
-const categoryOptions = computed(() => categories.value.map((row) => ({ label: row.name, value: String(row.id) })))
+const categoryOptions = computed(() => categories.value.map((row) => ({
+  label: `${row.name} · ${row.categoryType === 'coupon' ? '券商品' : '普通商品'}`,
+  value: String(row.id),
+})))
 const categoryFilterOptions = computed(() => [
   { label: '全部分类', value: '' },
   ...categoryOptions.value,
 ])
 const itemTypeOptions = [
-  { label: '餐品', value: 'food' }, { label: '券商品', value: 'coupon' },
+  { label: '餐品', value: 'food' },
   { label: '积分兑换', value: 'redeemable' }, { label: '实物', value: 'physical' },
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
 const couponTemplateOptions = computed(() => couponTemplates.value
   .filter((template) => ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType))
+  .map((template) => ({
+    label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
+    value: String(template.id),
+    disabled: template.status !== 'published',
+  })))
+const saleCouponTemplateOptions = computed(() => couponTemplates.value
+  .filter((template) => ['event_ticket', 'snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType))
   .map((template) => ({
     label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
     value: String(template.id),
@@ -77,10 +88,17 @@ const editForm = reactive<{
   stockQuantity: number
   payChannels: PayChannel[]
   couponTemplateIds: string[]
+  grantCouponTemplateId: string | null
+  rewardPointsEnabled: boolean
   pointsReward: number
   sortOrder: number
   status: string
-}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], couponTemplateIds: [], pointsReward: 0, sortOrder: 0, status: 'draft' })
+}>({ id: null, name: '', categoryId: null, description: '', assetId: null, imageUrl: '', itemType: 'food', priceYuan: 0, stockQuantity: 0, payChannels: [], couponTemplateIds: [], grantCouponTemplateId: null, rewardPointsEnabled: false, pointsReward: 0, sortOrder: 0, status: 'draft' })
+
+const selectedCategory = computed(() => categories.value.find(
+  (category) => String(category.id) === String(editForm.categoryId ?? ''),
+))
+const categoryIsCoupon = computed(() => selectedCategory.value?.categoryType === 'coupon')
 
 function openEdit(row?: CatalogItem) {
   editForm.id = row?.id ?? null
@@ -105,6 +123,10 @@ function openEdit(row?: CatalogItem) {
     ITEM_PAY_CHANNELS.includes(channel) && channels.indexOf(channel) === index,
   )
   editForm.couponTemplateIds = (row?.couponTemplateIds ?? []).map(String)
+  editForm.grantCouponTemplateId = row?.grantCouponTemplateId == null
+    ? null
+    : String(row.grantCouponTemplateId)
+  editForm.rewardPointsEnabled = (row?.pointsReward ?? 0) > 0
   editForm.pointsReward = row?.pointsReward ?? 0
   editForm.sortOrder = row?.sortOrder ?? 0
   editForm.status = row?.status ?? 'draft'
@@ -120,17 +142,21 @@ async function saveEdit() {
   await action.run(
     async () => {
       if (!editForm.name.trim()) throw new Error('请填写商品名称')
+      if (categoryIsCoupon.value && !editForm.grantCouponTemplateId) {
+        throw new Error('请选择购买后发放的券')
+      }
       const payload = {
         categoryId: editForm.categoryId ? Number(editForm.categoryId) : undefined,
         name: editForm.name.trim(),
         description: editForm.description.trim(),
         assetId: editForm.assetId ? Number(editForm.assetId) : undefined,
-        itemType: editForm.itemType,
+        itemType: categoryIsCoupon.value ? 'coupon' : editForm.itemType,
         priceCent: yuanToCent(editForm.priceYuan),
         stockQuantity: editForm.stockQuantity,
         payChannels: editForm.payChannels,
-        couponTemplateIds: editForm.couponTemplateIds.map(Number),
-        pointsReward: editForm.pointsReward,
+        couponTemplateIds: categoryIsCoupon.value ? [] : editForm.couponTemplateIds.map(Number),
+        grantCouponTemplateId: categoryIsCoupon.value ? Number(editForm.grantCouponTemplateId) : null,
+        pointsReward: editForm.rewardPointsEnabled ? editForm.pointsReward : 0,
         sortOrder: editForm.sortOrder,
         status: editForm.status,
       }
@@ -163,6 +189,7 @@ function togglePublish(row: CatalogItem) {
         stockQuantity: current.stockQuantity,
         payChannels: current.payChannels,
         couponTemplateIds: current.couponTemplateIds ?? [],
+        grantCouponTemplateId: current.grantCouponTemplateId ?? null,
         pointsReward: current.pointsReward ?? 0,
         sortOrder: current.sortOrder ?? 0,
         status: publishing ? 'published' : 'unpublished',
@@ -265,6 +292,22 @@ onMounted(async () => {
     couponTemplates.value = []
   }
 })
+
+watch(
+  () => editForm.categoryId,
+  (_categoryId, previousCategoryId) => {
+    const previousWasCoupon = categories.value.find(
+      (category) => String(category.id) === String(previousCategoryId ?? ''),
+    )?.categoryType === 'coupon'
+    if (categoryIsCoupon.value) {
+      editForm.itemType = 'coupon'
+      editForm.couponTemplateIds = []
+    } else {
+      if (previousWasCoupon) editForm.itemType = 'food'
+      editForm.grantCouponTemplateId = null
+    }
+  },
+)
 </script>
 
 <template>
@@ -333,10 +376,14 @@ onMounted(async () => {
             :options="categoryOptions"
             clearable
           /></label>
-          <label class="edit-form__field"><span class="ic-muted">商品类型</span><NSelect
+          <label v-if="!categoryIsCoupon" class="edit-form__field"><span class="ic-muted">商品类型</span><NSelect
             v-model:value="editForm.itemType"
             :options="itemTypeOptions"
           /></label>
+          <div v-else class="edit-form__field">
+            <span class="ic-muted">商品类型</span>
+            <span>券商品</span>
+          </div>
           <label class="edit-form__field"><span class="ic-muted">商品说明</span><NInput
             v-model:value="editForm.description"
             type="textarea"
@@ -360,9 +407,13 @@ onMounted(async () => {
               :precision="2"
             />
           </label>
-          <label class="edit-form__field"><span class="ic-muted">赠送积分</span><NInputNumber
+          <div class="edit-form__field">
+            <span class="ic-muted">购买后赠送积分</span>
+            <NSwitch v-model:value="editForm.rewardPointsEnabled" />
+          </div>
+          <label v-if="editForm.rewardPointsEnabled" class="edit-form__field"><span class="ic-muted">每份赠送积分</span><NInputNumber
             v-model:value="editForm.pointsReward"
-            :min="0"
+            :min="1"
             :precision="0"
           /></label>
           <label class="edit-form__field">
@@ -397,7 +448,18 @@ onMounted(async () => {
               </NCheckboxGroup>
             </div>
           </div>
-          <label class="edit-form__field edit-form__span-2">
+          <label v-if="categoryIsCoupon" class="edit-form__field edit-form__span-2">
+            <span class="ic-muted">购买后发放的券</span>
+            <NSelect
+              v-model:value="editForm.grantCouponTemplateId"
+              clearable
+              filterable
+              :options="saleCouponTemplateOptions"
+              placeholder="一份商品对应发放一张券"
+            />
+            <span class="ic-muted">支付成功后按购买数量自动到账，每张券有效期 30 天。</span>
+          </label>
+          <label v-else class="edit-form__field edit-form__span-2">
             <span class="ic-muted">允许兑换该商品的券</span>
             <NSelect
               v-model:value="editForm.couponTemplateIds"

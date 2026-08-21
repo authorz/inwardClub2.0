@@ -11,6 +11,7 @@ import (
 	mrand "math/rand"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/coupon"
 	"github.com/inwardclub/server/internal/modules/printer"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
@@ -102,7 +103,7 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 		var total int64
 		items = items[:0]
 		for _, ln := range in.Lines {
-			name, unit, points, payChannels, err := resolveAndReserveItem(
+			name, unit, points, couponTemplateID, payChannels, err := resolveAndReserveItem(
 				ctx, tx, in.StoreID, in.PayMethod, ln, in.Now,
 			)
 			if err != nil {
@@ -111,14 +112,15 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 			subtotal := unit * int64(ln.Quantity)
 			total += subtotal
 			items = append(items, FoodOrderItem{
-				ItemID:        ln.ItemID,
-				VariantID:     ln.VariantID,
-				NameSnapshot:  name,
-				UnitPriceCent: unit,
-				Quantity:      ln.Quantity,
-				PayChannels:   payChannels,
-				PointsReward:  points,
-				SubtotalCent:  subtotal,
+				ItemID:           ln.ItemID,
+				VariantID:        ln.VariantID,
+				NameSnapshot:     name,
+				UnitPriceCent:    unit,
+				Quantity:         ln.Quantity,
+				PayChannels:      payChannels,
+				PointsReward:     points,
+				CouponTemplateID: couponTemplateID,
+				SubtotalCent:     subtotal,
 			})
 		}
 		if in.PayMethod == PayMethodCoin {
@@ -143,12 +145,12 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 		}
 		const insItem = `INSERT INTO food_order_items
 			(food_order_id, item_id, variant_id, name_snapshot, unit_price_cent, quantity,
-			 pay_channels_snapshot, points_reward_snapshot, subtotal_cent, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			 pay_channels_snapshot, points_reward_snapshot, coupon_template_id_snapshot, subtotal_cent, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		for i := range items {
 			res, err := tx.ExecContext(ctx, insItem, foodID, items[i].ItemID, items[i].VariantID,
 				items[i].NameSnapshot, items[i].UnitPriceCent, items[i].Quantity,
-				items[i].PayChannels, items[i].PointsReward, items[i].SubtotalCent, in.Now)
+				items[i].PayChannels, items[i].PointsReward, items[i].CouponTemplateID, items[i].SubtotalCent, in.Now)
 			if err != nil {
 				return mapWriteErr(err)
 			}
@@ -552,6 +554,11 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 			); err != nil {
 				return err
 			}
+			if _, err := coupon.GrantPurchasedCoupons(
+				ctx, tx, in.PaymentOrderID, businessID, in.MemberID, in.Now,
+			); err != nil {
+				return err
+			}
 			if storeID.Valid {
 				if _, err := wallet.GrantTimedLowSpendReward(
 					ctx, tx, businessID, in.MemberID, storeID.Int64, in.Now,
@@ -621,7 +628,7 @@ func resolveAndReserveItem(
 	payMethod string,
 	line FoodLineItem,
 	now time.Time,
-) (name string, unit, points int64, payChannelsSnapshot string, err error) {
+) (name string, unit, points int64, couponTemplateID *int64, payChannelsSnapshot string, err error) {
 	var (
 		itemStoreID int64
 		itemStatus  string
@@ -630,47 +637,47 @@ func resolveAndReserveItem(
 	)
 	if line.VariantID != nil {
 		var variantStatus string
-		const q = `SELECT cv.name, cv.price_cent, ci.points_reward, ci.store_id,
+		const q = `SELECT cv.name, cv.price_cent, ci.points_reward, ci.grant_coupon_template_id, ci.store_id,
 				ci.status, ci.pay_channels, cv.stock_quantity, cv.status
 			FROM catalog_variants cv
 			JOIN catalog_items ci ON ci.id = cv.item_id
 			WHERE cv.id = ? AND cv.item_id = ? FOR UPDATE`
 		err = tx.QueryRowContext(ctx, q, *line.VariantID, line.ItemID).Scan(
-			&name, &unit, &points, &itemStoreID, &itemStatus,
+			&name, &unit, &points, &couponTemplateID, &itemStoreID, &itemStatus,
 			&payChannels, &stock, &variantStatus,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", 0, 0, "", apperr.NotFound("catalog variant not found")
+			return "", 0, 0, nil, "", apperr.NotFound("catalog variant not found")
 		}
 		if err != nil {
-			return "", 0, 0, "", apperr.Internal(err)
+			return "", 0, 0, nil, "", apperr.Internal(err)
 		}
 		if variantStatus != "active" && variantStatus != "published" {
-			return "", 0, 0, "", apperr.Conflict("catalog variant is not available")
+			return "", 0, 0, nil, "", apperr.Conflict("catalog variant is not available")
 		}
 	} else {
-		const q = `SELECT name, price_cent, points_reward, store_id, status,
+		const q = `SELECT name, price_cent, points_reward, grant_coupon_template_id, store_id, status,
 				pay_channels, stock_quantity
 			FROM catalog_items WHERE id = ? FOR UPDATE`
 		err = tx.QueryRowContext(ctx, q, line.ItemID).Scan(
-			&name, &unit, &points, &itemStoreID, &itemStatus, &payChannels, &stock,
+			&name, &unit, &points, &couponTemplateID, &itemStoreID, &itemStatus, &payChannels, &stock,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", 0, 0, "", apperr.NotFound("catalog item not found")
+			return "", 0, 0, nil, "", apperr.NotFound("catalog item not found")
 		}
 		if err != nil {
-			return "", 0, 0, "", apperr.Internal(err)
+			return "", 0, 0, nil, "", apperr.Internal(err)
 		}
 	}
 	if itemStoreID != storeID {
-		return "", 0, 0, "", apperr.Invalid("catalog item does not belong to the store")
+		return "", 0, 0, nil, "", apperr.Invalid("catalog item does not belong to the store")
 	}
 	if itemStatus != "published" {
-		return "", 0, 0, "", apperr.Conflict("catalog item is not available")
+		return "", 0, 0, nil, "", apperr.Conflict("catalog item is not available")
 	}
 	var channels []string
 	if err := json.Unmarshal(payChannels, &channels); err != nil {
-		return "", 0, 0, "", apperr.Internal(err)
+		return "", 0, 0, nil, "", apperr.Internal(err)
 	}
 	allowed := false
 	for _, channel := range channels {
@@ -680,36 +687,36 @@ func resolveAndReserveItem(
 		}
 	}
 	if !allowed {
-		return "", 0, 0, "", apperr.Invalid("catalog item does not support the selected pay method")
+		return "", 0, 0, nil, "", apperr.Invalid("catalog item does not support the selected pay method")
 	}
 	if stock < int64(line.Quantity) {
-		return "", 0, 0, "", apperr.Conflict("insufficient catalog stock")
+		return "", 0, 0, nil, "", apperr.Conflict("insufficient catalog stock")
 	}
 	if line.VariantID != nil {
 		const reserve = `UPDATE catalog_variants SET stock_quantity = stock_quantity - ?, updated_at = ?
 			WHERE id = ? AND stock_quantity >= ?`
 		res, err := tx.ExecContext(ctx, reserve, line.Quantity, now, *line.VariantID, line.Quantity)
 		if err != nil {
-			return "", 0, 0, "", apperr.Internal(err)
+			return "", 0, 0, nil, "", apperr.Internal(err)
 		}
 		if affected, _ := res.RowsAffected(); affected == 0 {
-			return "", 0, 0, "", apperr.Conflict("insufficient catalog stock")
+			return "", 0, 0, nil, "", apperr.Conflict("insufficient catalog stock")
 		}
 	} else {
 		const reserve = `UPDATE catalog_items SET stock_quantity = stock_quantity - ?, updated_at = ?
 			WHERE id = ? AND stock_quantity >= ?`
 		res, err := tx.ExecContext(ctx, reserve, line.Quantity, now, line.ItemID, line.Quantity)
 		if err != nil {
-			return "", 0, 0, "", apperr.Internal(err)
+			return "", 0, 0, nil, "", apperr.Internal(err)
 		}
 		if affected, _ := res.RowsAffected(); affected == 0 {
-			return "", 0, 0, "", apperr.Conflict("insufficient catalog stock")
+			return "", 0, 0, nil, "", apperr.Conflict("insufficient catalog stock")
 		}
 	}
 	if points < 0 {
 		points = 0
 	}
-	return name, unit, points, string(payChannels), nil
+	return name, unit, points, couponTemplateID, string(payChannels), nil
 }
 
 func insertBusinessOrder(ctx context.Context, tx *sql.Tx, no, orderType string, storeID *int64, memberID, total int64, now time.Time) (int64, error) {

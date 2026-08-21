@@ -41,29 +41,31 @@ type ConsoleScope struct {
 
 // CategoryInput is the create/update body for a console category.
 type CategoryInput struct {
-	StoreID   *int64 `json:"storeId"`
-	Name      string `json:"name" binding:"required"`
-	ParentID  *int64 `json:"parentId"`
-	AssetID   *int64 `json:"assetId"`
-	SortOrder int    `json:"sortOrder"`
-	Status    string `json:"status" binding:"required"`
+	StoreID      *int64 `json:"storeId"`
+	Name         string `json:"name" binding:"required"`
+	CategoryType string `json:"categoryType"`
+	ParentID     *int64 `json:"parentId"`
+	AssetID      *int64 `json:"assetId"`
+	SortOrder    int    `json:"sortOrder"`
+	Status       string `json:"status" binding:"required"`
 }
 
 // ItemInput is the create/update body for a console item.
 type ItemInput struct {
-	StoreID           *int64   `json:"storeId"`
-	CategoryID        *int64   `json:"categoryId"`
-	Name              string   `json:"name" binding:"required"`
-	Description       string   `json:"description"`
-	AssetID           *int64   `json:"assetId"`
-	ItemType          string   `json:"itemType" binding:"required"`
-	PriceCent         int64    `json:"priceCent"`
-	StockQuantity     int64    `json:"stockQuantity"`
-	PayChannels       []string `json:"payChannels"`
-	CouponTemplateIDs []int64  `json:"couponTemplateIds"`
-	PointsReward      int64    `json:"pointsReward"`
-	SortOrder         int      `json:"sortOrder"`
-	Status            string   `json:"status" binding:"required"`
+	StoreID               *int64   `json:"storeId"`
+	CategoryID            *int64   `json:"categoryId"`
+	Name                  string   `json:"name" binding:"required"`
+	Description           string   `json:"description"`
+	AssetID               *int64   `json:"assetId"`
+	ItemType              string   `json:"itemType" binding:"required"`
+	PriceCent             int64    `json:"priceCent"`
+	StockQuantity         int64    `json:"stockQuantity"`
+	PayChannels           []string `json:"payChannels"`
+	CouponTemplateIDs     []int64  `json:"couponTemplateIds"`
+	GrantCouponTemplateID *int64   `json:"grantCouponTemplateId"`
+	PointsReward          int64    `json:"pointsReward"`
+	SortOrder             int      `json:"sortOrder"`
+	Status                string   `json:"status" binding:"required"`
 }
 
 // VariantInput is the create/update body for a console variant.
@@ -77,40 +79,42 @@ type VariantInput struct {
 
 // ConsoleCategoryView is the console representation of a category.
 type ConsoleCategoryView struct {
-	ID        int64  `json:"id"`
-	ScopeType string `json:"scopeType"`
-	StoreID   *int64 `json:"storeId,omitempty"`
-	StoreName string `json:"storeName,omitempty"`
-	ParentID  *int64 `json:"parentId,omitempty"`
-	Name      string `json:"name"`
-	AssetID   *int64 `json:"assetId,omitempty"`
-	ImageURL  string `json:"imageUrl,omitempty"`
-	SortOrder int    `json:"sortOrder"`
-	Status    string `json:"status"`
+	ID           int64  `json:"id"`
+	ScopeType    string `json:"scopeType"`
+	StoreID      *int64 `json:"storeId,omitempty"`
+	StoreName    string `json:"storeName,omitempty"`
+	ParentID     *int64 `json:"parentId,omitempty"`
+	Name         string `json:"name"`
+	CategoryType string `json:"categoryType"`
+	AssetID      *int64 `json:"assetId,omitempty"`
+	ImageURL     string `json:"imageUrl,omitempty"`
+	SortOrder    int    `json:"sortOrder"`
+	Status       string `json:"status"`
 }
 
 // ConsoleItemView is the console representation of an item.
 type ConsoleItemView struct {
-	ID                int64     `json:"id"`
-	ScopeType         string    `json:"scopeType"`
-	StoreID           *int64    `json:"storeId,omitempty"`
-	StoreName         string    `json:"storeName,omitempty"`
-	CategoryID        *int64    `json:"categoryId,omitempty"`
-	CategoryName      string    `json:"categoryName,omitempty"`
-	Name              string    `json:"name"`
-	Description       string    `json:"description,omitempty"`
-	AssetID           *int64    `json:"assetId,omitempty"`
-	ImageURL          string    `json:"imageUrl,omitempty"`
-	ItemType          string    `json:"itemType"`
-	PriceCent         int64     `json:"priceCent"`
-	StockQuantity     int64     `json:"stockQuantity"`
-	PayChannels       []string  `json:"payChannels"`
-	CouponTemplateIDs []int64   `json:"couponTemplateIds"`
-	PointsReward      int64     `json:"pointsReward"`
-	SortOrder         int       `json:"sortOrder"`
-	Status            string    `json:"status"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                    int64     `json:"id"`
+	ScopeType             string    `json:"scopeType"`
+	StoreID               *int64    `json:"storeId,omitempty"`
+	StoreName             string    `json:"storeName,omitempty"`
+	CategoryID            *int64    `json:"categoryId,omitempty"`
+	CategoryName          string    `json:"categoryName,omitempty"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description,omitempty"`
+	AssetID               *int64    `json:"assetId,omitempty"`
+	ImageURL              string    `json:"imageUrl,omitempty"`
+	ItemType              string    `json:"itemType"`
+	PriceCent             int64     `json:"priceCent"`
+	StockQuantity         int64     `json:"stockQuantity"`
+	PayChannels           []string  `json:"payChannels"`
+	CouponTemplateIDs     []int64   `json:"couponTemplateIds"`
+	GrantCouponTemplateID *int64    `json:"grantCouponTemplateId,omitempty"`
+	PointsReward          int64     `json:"pointsReward"`
+	SortOrder             int       `json:"sortOrder"`
+	Status                string    `json:"status"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 // VariantView is the console representation of a variant.
@@ -143,6 +147,7 @@ type ConsoleRepository interface {
 	CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error)
 	UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error)
 	DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error
+	CategoryHasIncompatibleItems(ctx context.Context, scope ConsoleScope, id int64, categoryType string) (bool, error)
 
 	ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error)
 	GetItem(ctx context.Context, scope ConsoleScope, id int64) (Item, error)
@@ -150,6 +155,7 @@ type ConsoleRepository interface {
 	UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (Item, error)
 	DeleteItem(ctx context.Context, scope ConsoleScope, id int64) error
 	CouponTemplatesExistForStore(ctx context.Context, storeID int64, templateIDs []int64) (bool, error)
+	CouponTemplateAvailableForSale(ctx context.Context, storeID, templateID int64) (bool, error)
 
 	ListVariants(ctx context.Context, scope ConsoleScope, itemID int64, page httpx.Page) ([]Variant, int64, error)
 	GetVariant(ctx context.Context, scope ConsoleScope, itemID, id int64) (Variant, error)
@@ -256,6 +262,19 @@ func (r *sqlConsoleRepository) CouponTemplatesExistForStore(ctx context.Context,
 	return count == len(templateIDs), nil
 }
 
+func (r *sqlConsoleRepository) CouponTemplateAvailableForSale(ctx context.Context, storeID, templateID int64) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates
+		WHERE id = ? AND status = 'published'
+		  AND coupon_type IN ('event_ticket', 'snack', 'alcohol', 'beverage', 'meal')
+		  AND (scope_type = 'global' OR (scope_type = 'store' AND store_id = ?))`,
+		templateID, storeID).Scan(&count)
+	if err != nil {
+		return false, apperr.Internal(err)
+	}
+	return count == 1, nil
+}
+
 func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Category, int64, error) {
 	where, args := consoleListWhere(scope, filter, "c")
 	var total int64
@@ -263,7 +282,7 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope Console
 		return nil, 0, apperr.Internal(err)
 	}
 	q := `SELECT c.id, c.scope_type, c.store_id, COALESCE(s.name,''), c.parent_id,
-		c.name, c.asset_id, c.sort_order, c.status
+		c.name, c.category_type, c.asset_id, c.sort_order, c.status
 		FROM catalog_categories c
 		LEFT JOIN stores s ON s.id = c.store_id
 		WHERE ` + where + ` ORDER BY c.sort_order ASC, c.id ASC LIMIT ? OFFSET ?`
@@ -277,7 +296,7 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope Console
 	for rows.Next() {
 		var c Category
 		if err := rows.Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.StoreName, &c.ParentID,
-			&c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
+			&c.Name, &c.CategoryType, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, c)
@@ -291,14 +310,14 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, scope Console
 func (r *sqlConsoleRepository) GetCategory(ctx context.Context, scope ConsoleScope, id int64) (Category, error) {
 	where, args := scopedAliasWhere(scope, "c")
 	q := `SELECT c.id, c.scope_type, c.store_id, COALESCE(s.name,''), c.parent_id,
-		c.name, c.asset_id, c.sort_order, c.status
+		c.name, c.category_type, c.asset_id, c.sort_order, c.status
 		FROM catalog_categories c
 		LEFT JOIN stores s ON s.id = c.store_id
 		WHERE c.id = ?` + where
 	qArgs := append([]any{id}, args...)
 	var c Category
 	if err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&c.ID, &c.ScopeType, &c.StoreID, &c.StoreName,
-		&c.ParentID, &c.Name, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
+		&c.ParentID, &c.Name, &c.CategoryType, &c.AssetID, &c.SortOrder, &c.Status); err != nil {
 		if err == sql.ErrNoRows {
 			return Category{}, apperr.NotFound("catalog category not found")
 		}
@@ -310,9 +329,9 @@ func (r *sqlConsoleRepository) GetCategory(ctx context.Context, scope ConsoleSco
 func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error) {
 	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	res, err := r.db.ExecContext(ctx, `INSERT INTO catalog_categories
-		(scope_type, store_id, parent_id, name, asset_id, sort_order, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-		scopeType, storeID, in.ParentID, in.Name, in.AssetID, in.SortOrder, in.Status)
+		(scope_type, store_id, parent_id, name, category_type, asset_id, sort_order, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		scopeType, storeID, in.ParentID, in.Name, in.CategoryType, in.AssetID, in.SortOrder, in.Status)
 	if err != nil {
 		return Category{}, apperr.Internal(err)
 	}
@@ -326,24 +345,41 @@ func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, scope Console
 func (r *sqlConsoleRepository) UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error) {
 	if scope.StoreID == nil {
 		if _, err := r.db.ExecContext(ctx, `UPDATE catalog_categories
-			SET scope_type = 'store', store_id = ?, parent_id = ?, name = ?, asset_id = ?,
+			SET scope_type = 'store', store_id = ?, parent_id = ?, name = ?, category_type = ?, asset_id = ?,
 			    sort_order = ?, status = ?, updated_at = NOW()
 			WHERE id = ?`,
-			in.StoreID, in.ParentID, in.Name, in.AssetID, in.SortOrder, in.Status, id); err != nil {
+			in.StoreID, in.ParentID, in.Name, in.CategoryType, in.AssetID, in.SortOrder, in.Status, id); err != nil {
 			return Category{}, apperr.Internal(err)
 		}
 		return r.GetCategory(ctx, scope, id)
 	}
 	where, args := scopeWhere(scope)
-	execArgs := append([]any{in.ParentID, in.Name, in.AssetID, in.SortOrder, in.Status, id}, args...)
+	execArgs := append([]any{in.ParentID, in.Name, in.CategoryType, in.AssetID, in.SortOrder, in.Status, id}, args...)
 	if _, err := r.db.ExecContext(ctx, `UPDATE catalog_categories
-		SET parent_id = ?, name = ?, asset_id = ?, sort_order = ?, status = ?, updated_at = NOW()
+		SET parent_id = ?, name = ?, category_type = ?, asset_id = ?, sort_order = ?, status = ?, updated_at = NOW()
 		WHERE id = ?`+where, execArgs...); err != nil {
 		return Category{}, apperr.Internal(err)
 	}
 	// GetCategory re-applies the scope filter, so an out-of-scope or missing
 	// row surfaces as NotFound.
 	return r.GetCategory(ctx, scope, id)
+}
+
+func (r *sqlConsoleRepository) CategoryHasIncompatibleItems(ctx context.Context, scope ConsoleScope, id int64, categoryType string) (bool, error) {
+	where, args := scopeWhere(scope)
+	condition := "item_type = 'coupon'"
+	if categoryType == CategoryTypeCoupon {
+		condition = "item_type <> 'coupon' OR grant_coupon_template_id IS NULL"
+	} else {
+		condition = "grant_coupon_template_id IS NOT NULL"
+	}
+	queryArgs := append([]any{id}, args...)
+	var count int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_items
+		WHERE category_id = ?`+where+` AND (`+condition+`)`, queryArgs...).Scan(&count); err != nil {
+		return false, apperr.Internal(err)
+	}
+	return count > 0, nil
 }
 
 func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error {
@@ -375,7 +411,7 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 	}
 	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
 		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
-		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.points_reward, i.sort_order,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.grant_coupon_template_id, i.points_reward, i.sort_order,
 		i.status, i.created_at, i.updated_at
 		FROM catalog_items i
 		LEFT JOIN stores s ON s.id = i.store_id
@@ -393,7 +429,7 @@ func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope
 		var payChannels, couponTemplateIDs []byte
 		if err := rows.Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName, &it.CategoryID,
 			&it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
-			&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.PointsReward, &it.SortOrder,
+			&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.GrantCouponTemplateID, &it.PointsReward, &it.SortOrder,
 			&it.Status, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
@@ -411,7 +447,7 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 	where, args := scopedAliasWhere(scope, "i")
 	q := `SELECT i.id, i.scope_type, i.store_id, COALESCE(s.name,''), i.category_id,
 		COALESCE(c.name,''), i.name, COALESCE(i.description,''), i.asset_id, i.item_type,
-		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.points_reward, i.sort_order,
+		i.price_cent, i.stock_quantity, i.pay_channels, i.coupon_template_ids, i.grant_coupon_template_id, i.points_reward, i.sort_order,
 		i.status, i.created_at, i.updated_at
 		FROM catalog_items i
 		LEFT JOIN stores s ON s.id = i.store_id
@@ -422,7 +458,7 @@ func (r *sqlConsoleRepository) GetItem(ctx context.Context, scope ConsoleScope, 
 	var payChannels, couponTemplateIDs []byte
 	err := r.db.QueryRowContext(ctx, q, qArgs...).Scan(&it.ID, &it.ScopeType, &it.StoreID, &it.StoreName,
 		&it.CategoryID, &it.CategoryName, &it.Name, &it.Description, &it.AssetID, &it.ItemType,
-		&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.PointsReward, &it.SortOrder,
+		&it.PriceCent, &it.StockQuantity, &payChannels, &couponTemplateIDs, &it.GrantCouponTemplateID, &it.PointsReward, &it.SortOrder,
 		&it.Status, &it.CreatedAt, &it.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -439,10 +475,10 @@ func (r *sqlConsoleRepository) CreateItem(ctx context.Context, scope ConsoleScop
 	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	res, err := r.db.ExecContext(ctx, `INSERT INTO catalog_items
 		(scope_type, store_id, category_id, name, description, asset_id, item_type,
-		 price_cent, stock_quantity, pay_channels, coupon_template_ids, points_reward, sort_order, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		 price_cent, stock_quantity, pay_channels, coupon_template_ids, grant_coupon_template_id, points_reward, sort_order, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 		scopeType, storeID, in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs),
+		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs), in.GrantCouponTemplateID,
 		in.PointsReward, in.SortOrder, in.Status)
 	if err != nil {
 		return Item{}, apperr.Internal(err)
@@ -459,11 +495,11 @@ func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScop
 		if _, err := r.db.ExecContext(ctx, `UPDATE catalog_items
 			SET scope_type = 'store', store_id = ?, category_id = ?, name = ?,
 			    description = ?, asset_id = ?, item_type = ?, price_cent = ?,
-			    stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, points_reward = ?, sort_order = ?,
+			    stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, grant_coupon_template_id = ?, points_reward = ?, sort_order = ?,
 			    status = ?, updated_at = NOW()
 			WHERE id = ?`,
 			in.StoreID, in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-			in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs), in.PointsReward,
+			in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs), in.GrantCouponTemplateID, in.PointsReward,
 			in.SortOrder, in.Status, id); err != nil {
 			return Item{}, apperr.Internal(err)
 		}
@@ -471,11 +507,11 @@ func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScop
 	}
 	where, args := scopeWhere(scope)
 	execArgs := append([]any{in.CategoryID, in.Name, in.Description, in.AssetID, in.ItemType,
-		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs),
+		in.PriceCent, in.StockQuantity, encodeChannels(in.PayChannels), encodeInt64List(in.CouponTemplateIDs), in.GrantCouponTemplateID,
 		in.PointsReward, in.SortOrder, in.Status, id}, args...)
 	if _, err := r.db.ExecContext(ctx, `UPDATE catalog_items
 		SET category_id = ?, name = ?, description = ?, asset_id = ?, item_type = ?,
-		    price_cent = ?, stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, points_reward = ?,
+		    price_cent = ?, stock_quantity = ?, pay_channels = ?, coupon_template_ids = ?, grant_coupon_template_id = ?, points_reward = ?,
 		    sort_order = ?, status = ?, updated_at = NOW()
 		WHERE id = ?`+where, execArgs...); err != nil {
 		return Item{}, apperr.Internal(err)
@@ -637,7 +673,7 @@ func NewConsoleService(repo ConsoleRepository, assets ...AssetResolver) *Console
 func (s *ConsoleService) categoryToView(ctx context.Context, c Category) ConsoleCategoryView {
 	view := ConsoleCategoryView{
 		ID: c.ID, ScopeType: c.ScopeType, StoreID: c.StoreID, ParentID: c.ParentID,
-		StoreName: c.StoreName, Name: c.Name, AssetID: c.AssetID,
+		StoreName: c.StoreName, Name: c.Name, CategoryType: c.CategoryType, AssetID: c.AssetID,
 		SortOrder: c.SortOrder, Status: c.Status,
 	}
 	if s.assets != nil && c.AssetID != nil {
@@ -647,13 +683,18 @@ func (s *ConsoleService) categoryToView(ctx context.Context, c Category) Console
 }
 
 func (s *ConsoleService) itemToView(ctx context.Context, it Item) ConsoleItemView {
+	itemType := it.ItemType
+	if itemType == ItemTypeCoupon && it.GrantCouponTemplateID == nil {
+		itemType = ItemTypeFood
+	}
 	view := ConsoleItemView{
 		ID: it.ID, ScopeType: it.ScopeType, StoreID: it.StoreID, CategoryID: it.CategoryID,
 		StoreName: it.StoreName, CategoryName: it.CategoryName, Name: it.Name,
-		Description: it.Description, AssetID: it.AssetID, ItemType: it.ItemType,
+		Description: it.Description, AssetID: it.AssetID, ItemType: itemType,
 		PriceCent: it.PriceCent, StockQuantity: it.StockQuantity, PayChannels: it.PayChannels,
-		CouponTemplateIDs: it.CouponTemplateIDs,
-		PointsReward:      it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
+		CouponTemplateIDs:     it.CouponTemplateIDs,
+		GrantCouponTemplateID: it.GrantCouponTemplateID,
+		PointsReward:          it.PointsReward, SortOrder: it.SortOrder, Status: it.Status,
 		CreatedAt: it.CreatedAt, UpdatedAt: it.UpdatedAt,
 	}
 	if s.assets != nil && it.AssetID != nil {
@@ -705,6 +746,35 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 	if err != nil {
 		return err
 	}
+	category, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID)
+	if err != nil {
+		if apperr.From(err).Code == apperr.CodeNotFound {
+			return apperr.Invalid("商品分类已失效，请重新选择有效分类")
+		}
+		return err
+	}
+	if category.CategoryType == CategoryTypeCoupon {
+		if in.GrantCouponTemplateID == nil || *in.GrantCouponTemplateID <= 0 {
+			return apperr.Invalid("券分类下的商品必须选择购买后发放的券")
+		}
+		available, err := s.repo.CouponTemplateAvailableForSale(ctx, *storeID, *in.GrantCouponTemplateID)
+		if err != nil {
+			return err
+		}
+		if !available {
+			return apperr.Invalid("购买后发放的券不存在、未发布或不适用于当前门店")
+		}
+		in.ItemType = ItemTypeCoupon
+		couponTemplateIDs = []int64{}
+	} else {
+		if in.GrantCouponTemplateID != nil {
+			return apperr.Invalid("普通商品分类下不能发布券商品")
+		}
+		if in.ItemType == ItemTypeCoupon {
+			in.ItemType = ItemTypeFood
+		}
+		in.GrantCouponTemplateID = nil
+	}
 	if len(couponTemplateIDs) > 0 {
 		exists, err := s.repo.CouponTemplatesExistForStore(ctx, *storeID, couponTemplateIDs)
 		if err != nil {
@@ -714,12 +784,6 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 			return apperr.Invalid("部分优惠券不存在、不是兑换券或不适用于当前门店")
 		}
 	}
-	if _, err := s.repo.GetCategory(ctx, ConsoleScope{StoreID: storeID}, *in.CategoryID); err != nil {
-		if apperr.From(err).Code == apperr.CodeNotFound {
-			return apperr.Invalid("商品分类已失效，请重新选择有效分类")
-		}
-		return err
-	}
 	in.StoreID = storeID
 	in.Name = strings.TrimSpace(in.Name)
 	in.PayChannels = payChannels
@@ -728,6 +792,16 @@ func (s *ConsoleService) validateItemInput(ctx context.Context, scope ConsoleSco
 		in.ItemType = ItemTypeFood
 	}
 	return nil
+}
+
+func normalizeCategoryType(categoryType string) (string, error) {
+	if categoryType == "" {
+		return CategoryTypeProduct, nil
+	}
+	if categoryType != CategoryTypeProduct && categoryType != CategoryTypeCoupon {
+		return "", apperr.Invalid("catalog: unsupported categoryType")
+	}
+	return categoryType, nil
 }
 
 func normalizeCouponTemplateIDs(values []int64) ([]int64, error) {
@@ -779,6 +853,10 @@ func (s *ConsoleService) CreateCategory(ctx context.Context, scope ConsoleScope,
 	}
 	in.StoreID = storeID
 	in.Name = strings.TrimSpace(in.Name)
+	in.CategoryType, err = normalizeCategoryType(in.CategoryType)
+	if err != nil {
+		return ConsoleCategoryView{}, err
+	}
 	c, err := s.repo.CreateCategory(ctx, scope, in)
 	if err != nil {
 		return ConsoleCategoryView{}, err
@@ -797,6 +875,17 @@ func (s *ConsoleService) UpdateCategory(ctx context.Context, scope ConsoleScope,
 	}
 	in.StoreID = storeID
 	in.Name = strings.TrimSpace(in.Name)
+	in.CategoryType, err = normalizeCategoryType(in.CategoryType)
+	if err != nil {
+		return ConsoleCategoryView{}, err
+	}
+	incompatible, err := s.repo.CategoryHasIncompatibleItems(ctx, ConsoleScope{StoreID: storeID}, id, in.CategoryType)
+	if err != nil {
+		return ConsoleCategoryView{}, err
+	}
+	if incompatible {
+		return ConsoleCategoryView{}, apperr.Conflict("分类下已有其他类型的商品，无法切换分类类型")
+	}
 	c, err := s.repo.UpdateCategory(ctx, scope, id, in)
 	if err != nil {
 		return ConsoleCategoryView{}, err

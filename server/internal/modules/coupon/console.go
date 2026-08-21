@@ -290,6 +290,14 @@ func (r *sqlConsoleRepository) DeleteTemplate(ctx context.Context, scope Console
 	if bound > 0 {
 		return apperr.Conflict("该优惠券已绑定充值档位，请先解除绑定")
 	}
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM catalog_items WHERE grant_coupon_template_id = ?`, id,
+	).Scan(&bound); err != nil {
+		return apperr.Internal(err)
+	}
+	if bound > 0 {
+		return apperr.Conflict("该优惠券已绑定在售券商品，请先解除绑定")
+	}
 	q := `DELETE FROM coupon_templates WHERE id=?`
 	args := []any{id}
 	if scope.StoreID != nil {
@@ -322,6 +330,14 @@ func (r *sqlConsoleRepository) SetTemplateStatus(ctx context.Context, scope Cons
 		}
 		if bound > 0 {
 			return Template{}, apperr.Conflict("该优惠券已绑定启用中的充值档位，不能停用")
+		}
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM catalog_items WHERE grant_coupon_template_id = ? AND status = 'published'`, id,
+		).Scan(&bound); err != nil {
+			return Template{}, apperr.Internal(err)
+		}
+		if bound > 0 {
+			return Template{}, apperr.Conflict("该优惠券已绑定已发布的券商品，不能停用")
 		}
 	}
 	q := `UPDATE coupon_templates SET status = ?, updated_at = ? WHERE id = ?`

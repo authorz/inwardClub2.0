@@ -25,6 +25,7 @@ Page({
     itemsLoading: false,
     activeCat: '',
     activeCatName: '',
+    activeCatType: 'product',
     cartCount: 0,
     cartItems: [],
     totalText: '0.00',
@@ -124,6 +125,7 @@ Page({
           id: category.id,
           name: category.name,
           iconUrl: category.imageUrl || '',
+          categoryType: category.categoryType || 'product',
           items: [],
         }));
         const first = groups[0] || null;
@@ -131,6 +133,7 @@ Page({
           groups,
           activeCat: first ? first.id : '',
           activeCatName: first ? first.name : '',
+          activeCatType: first ? first.categoryType : 'product',
           loading: false,
         });
         if (first) return this.loadCategoryItems(storeId, first.id, requestId);
@@ -177,6 +180,10 @@ Page({
       priceCompact: yuanDigits >= 3,
       imageUrl: it.imageUrl || '',
       payChannels: it.payChannels,
+      payText: (it.payChannels || []).map((channel) => channel === 'coin' ? '金币' : '微信').join(' / ') + '可用',
+      itemType: it.itemType || 'food',
+      isCoupon: it.itemType === 'coupon',
+      pointsReward: Number(it.pointsReward || 0),
       stock: it.stock,
       soldOut: it.stock <= 0,
       qty: this.qty[it.id] || 0,
@@ -188,7 +195,7 @@ Page({
     if (String(id) === String(this.data.activeCat)) return;
     const category = this.data.groups.find((group) => String(group.id) === String(id));
     if (!category || !this.data.store) return;
-    this.setData({ activeCat: category.id, activeCatName: category.name });
+    this.setData({ activeCat: category.id, activeCatName: category.name, activeCatType: category.categoryType });
     this.loadCategoryItems(this.data.store.id, category.id, this._catalogRequestId);
   },
 
@@ -304,12 +311,26 @@ Page({
       ui.toast('请先选择商品');
       return;
     }
+    const hasCouponProduct = this.data.cartItems.some((item) => item.isCoupon);
+    if (hasCouponProduct && this.data.selectedCoupon) {
+      ui.toast('券商品不能使用券兑换，请先移除已选券');
+      return;
+    }
     if (this.data.showCartSheet) this.setCartSheetVisible(false);
     const lines = [];
     this.data.groups.forEach((g) =>
       g.items.forEach((it) => {
         if (it.qty > 0) {
-          lines.push({ id: it.id, name: it.name, qty: it.qty, priceCent: it.priceCent, imageUrl: it.imageUrl, payChannels: it.payChannels });
+          lines.push({
+            id: it.id,
+            name: it.name,
+            qty: it.qty,
+            priceCent: it.priceCent,
+            imageUrl: it.imageUrl,
+            payChannels: it.payChannels,
+            itemType: it.itemType,
+            pointsReward: it.pointsReward,
+          });
         }
       })
     );

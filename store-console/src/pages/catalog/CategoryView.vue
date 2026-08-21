@@ -14,11 +14,16 @@ import type { CatalogCategory } from '@/types/models'
 const list = useAsyncList<CatalogCategory>((params) => catalogService.categories(params), { initialFilters: { keyword: '', status: '' } })
 const statuses = toOptions(ACTIVE_STATUS)
 const selectStatuses = statuses.map(({ label, value }) => ({ label, value }))
+const categoryTypeOptions = [
+  { label: '普通商品', value: 'product' },
+  { label: '券商品', value: 'coupon' },
+]
 const show = ref(false)
 const saving = ref(false)
 const form = reactive({
   id: null as string | number | null,
   name: '',
+  categoryType: 'product' as 'product' | 'coupon',
   assetId: null as string | null,
   imageUrl: '',
   sortOrder: 0,
@@ -29,6 +34,7 @@ function open(row?: CatalogCategory): void {
   Object.assign(form, row ? {
     id: row.id,
     name: row.name,
+    categoryType: row.categoryType ?? 'product',
     assetId: row.assetId == null ? null : String(row.assetId),
     imageUrl: row.imageUrl ?? '',
     sortOrder: row.sortOrder ?? 0,
@@ -36,6 +42,7 @@ function open(row?: CatalogCategory): void {
   } : {
     id: null,
     name: '',
+    categoryType: 'product',
     assetId: null,
     imageUrl: '',
     sortOrder: 0,
@@ -49,6 +56,7 @@ async function save(): Promise<void> {
   try {
     const body = {
       name: form.name.trim(),
+      categoryType: form.categoryType,
       parentId: null,
       assetId: form.assetId ? Number(form.assetId) : null,
       sortOrder: form.sortOrder,
@@ -74,6 +82,7 @@ const columns = computed<DataTableColumns<CatalogCategory>>(() => [
     render: (row) => h(AssetImage, { src: row.imageUrl, assetId: row.assetId, width: 44, height: 44 }),
   },
   textColumn<CatalogCategory>('分类名称', (row) => row.name),
+  textColumn<CatalogCategory>('分类类型', (row) => row.categoryType === 'coupon' ? '券商品' : '普通商品', { width: 110 }),
   textColumn<CatalogCategory>('排序', (row) => row.sortOrder ?? 0, { width: 90 }),
   statusColumn<CatalogCategory>('状态', ACTIVE_STATUS, (row) => row.status, { width: 100 }),
   { title: '操作', key: 'actions', width: 130, render: (row) => h(NSpace, { size: 4 }, () => [
@@ -133,6 +142,15 @@ const columns = computed<DataTableColumns<CatalogCategory>>(() => [
           required
         >
           <NInput v-model:value="form.name" />
+        </NFormItem>
+        <NFormItem
+          label="分类类型"
+          required
+        >
+          <NSelect
+            v-model:value="form.categoryType"
+            :options="categoryTypeOptions"
+          />
         </NFormItem>
         <NFormItem label="分类图标">
           <AssetUpload

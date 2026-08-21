@@ -72,6 +72,7 @@ export interface AccountEntity extends AuditableEntity {
 
 export interface CatalogCategory extends AuditableEntity {
   name: string
+  categoryType?: 'product' | 'coupon'
   storeName?: string
   parentId?: string | null
   sortOrder?: number
@@ -90,6 +91,7 @@ export interface CatalogItem extends AuditableEntity {
   stockQuantity?: number
   payChannels?: string[]
   couponTemplateIds?: Array<string | number>
+  grantCouponTemplateId?: string | number | null
   assetId?: string | number
   categoryId?: string | number
   pointsReward?: number

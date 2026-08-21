@@ -19,6 +19,7 @@ type fakeConsoleRepo struct {
 	lastScope             ConsoleScope
 	lastFilter            ConsoleListFilter
 	rejectCouponTemplates bool
+	incompatibleCategory  bool
 }
 
 type fakeCatalogAssets struct{}
@@ -47,7 +48,7 @@ func (r *fakeConsoleRepo) CreateCategory(_ context.Context, scope ConsoleScope, 
 	r.lastScope = scope
 	scopeType, storeID := scopeForWrite(scope, in.StoreID)
 	c := Category{ID: 100, ScopeType: scopeType, StoreID: storeID, ParentID: in.ParentID,
-		Name: in.Name, AssetID: in.AssetID, SortOrder: in.SortOrder, Status: in.Status}
+		Name: in.Name, CategoryType: in.CategoryType, AssetID: in.AssetID, SortOrder: in.SortOrder, Status: in.Status}
 	r.categories = append(r.categories, c)
 	return c, nil
 }
@@ -58,12 +59,16 @@ func (r *fakeConsoleRepo) UpdateCategory(_ context.Context, scope ConsoleScope, 
 			r.categories[i].ScopeType = "store"
 			r.categories[i].StoreID = in.StoreID
 			r.categories[i].Name = in.Name
+			r.categories[i].CategoryType = in.CategoryType
 			r.categories[i].AssetID = in.AssetID
 			r.categories[i].Status = in.Status
 			return r.categories[i], nil
 		}
 	}
 	return Category{}, apperr.NotFound("catalog category not found")
+}
+func (r *fakeConsoleRepo) CategoryHasIncompatibleItems(_ context.Context, _ ConsoleScope, _ int64, _ string) (bool, error) {
+	return r.incompatibleCategory, nil
 }
 func (r *fakeConsoleRepo) DeleteCategory(_ context.Context, scope ConsoleScope, id int64) error {
 	r.lastScope = scope
@@ -98,7 +103,8 @@ func (r *fakeConsoleRepo) CreateItem(_ context.Context, scope ConsoleScope, in I
 	it := Item{ID: 200, ScopeType: scopeType, StoreID: storeID, CategoryID: in.CategoryID,
 		Name: in.Name, Description: in.Description, AssetID: in.AssetID, ItemType: in.ItemType, PriceCent: in.PriceCent,
 		StockQuantity: in.StockQuantity, PayChannels: in.PayChannels,
-		CouponTemplateIDs: in.CouponTemplateIDs, Status: in.Status}
+		CouponTemplateIDs: in.CouponTemplateIDs, PointsReward: in.PointsReward, Status: in.Status}
+	it.GrantCouponTemplateID = in.GrantCouponTemplateID
 	r.items = append(r.items, it)
 	return it, nil
 }
@@ -112,6 +118,7 @@ func (r *fakeConsoleRepo) UpdateItem(_ context.Context, scope ConsoleScope, id i
 			r.items[i].AssetID = in.AssetID
 			r.items[i].Name = in.Name
 			r.items[i].CouponTemplateIDs = in.CouponTemplateIDs
+			r.items[i].GrantCouponTemplateID = in.GrantCouponTemplateID
 			r.items[i].Status = in.Status
 			return r.items[i], nil
 		}
@@ -120,6 +127,9 @@ func (r *fakeConsoleRepo) UpdateItem(_ context.Context, scope ConsoleScope, id i
 }
 
 func (r *fakeConsoleRepo) CouponTemplatesExistForStore(_ context.Context, _ int64, _ []int64) (bool, error) {
+	return !r.rejectCouponTemplates, nil
+}
+func (r *fakeConsoleRepo) CouponTemplateAvailableForSale(_ context.Context, _, _ int64) (bool, error) {
 	return !r.rejectCouponTemplates, nil
 }
 func (r *fakeConsoleRepo) DeleteItem(_ context.Context, scope ConsoleScope, id int64) error {
@@ -205,6 +215,72 @@ func TestConsoleService_ListCategories_MapsAndPropagatesScope(t *testing.T) {
 	}
 	if repo.lastFilter.Keyword != "Drink" {
 		t.Fatalf("expected filter to propagate, got %+v", repo.lastFilter)
+	}
+}
+
+func TestConsoleService_CreateCouponItem_RequiresAndPersistsGrantTemplate(t *testing.T) {
+	storeID := int64(42)
+	assetID := int64(18)
+	templateID := int64(9)
+	categoryID := int64(7)
+	repo := &fakeConsoleRepo{categories: []Category{{
+		ID: categoryID, StoreID: &storeID, CategoryType: CategoryTypeCoupon,
+	}}}
+	svc := NewConsoleService(repo)
+
+	view, err := svc.CreateItem(context.Background(), ConsoleScope{StoreID: &storeID}, ItemInput{
+		CategoryID: &categoryID, Name: "酒水券 3 张装", AssetID: &assetID,
+		ItemType: ItemTypeFood, PriceCent: 9900, StockQuantity: 20,
+		PayChannels: []string{"wechat", "coin"}, CouponTemplateIDs: []int64{88},
+		GrantCouponTemplateID: &templateID, PointsReward: 100, Status: "draft",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if view.ItemType != ItemTypeCoupon || view.GrantCouponTemplateID == nil || *view.GrantCouponTemplateID != templateID {
+		t.Fatalf("expected coupon item bound to template %d, got %+v", templateID, view)
+	}
+	if len(view.CouponTemplateIDs) != 0 {
+		t.Fatalf("coupon sale item must not also be coupon-redeemable, got %+v", view.CouponTemplateIDs)
+	}
+	if view.PointsReward != 100 {
+		t.Fatalf("expected points reward to remain configurable, got %d", view.PointsReward)
+	}
+}
+
+func TestConsoleService_CreateProductItem_RejectsGrantTemplate(t *testing.T) {
+	storeID := int64(42)
+	assetID := int64(18)
+	templateID := int64(9)
+	categoryID := int64(7)
+	repo := &fakeConsoleRepo{categories: []Category{{
+		ID: categoryID, StoreID: &storeID, CategoryType: CategoryTypeProduct,
+	}}}
+	svc := NewConsoleService(repo)
+
+	_, err := svc.CreateItem(context.Background(), ConsoleScope{StoreID: &storeID}, ItemInput{
+		CategoryID: &categoryID, Name: "啤酒", AssetID: &assetID,
+		ItemType: ItemTypeFood, PayChannels: []string{"wechat"},
+		GrantCouponTemplateID: &templateID, Status: "draft",
+	})
+	if err == nil || apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid argument, got %v", err)
+	}
+}
+
+func TestConsoleService_UpdateCategory_RejectsIncompatibleItems(t *testing.T) {
+	storeID := int64(42)
+	repo := &fakeConsoleRepo{
+		categories:           []Category{{ID: 7, StoreID: &storeID, CategoryType: CategoryTypeProduct}},
+		incompatibleCategory: true,
+	}
+	svc := NewConsoleService(repo)
+
+	_, err := svc.UpdateCategory(context.Background(), ConsoleScope{StoreID: &storeID}, 7, CategoryInput{
+		Name: "售券", CategoryType: CategoryTypeCoupon, Status: "active",
+	})
+	if err == nil || apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected conflict, got %v", err)
 	}
 }
 

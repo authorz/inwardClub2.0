@@ -72,18 +72,19 @@ type FoodOrder struct {
 
 // FoodOrderItem is one snapshotted line of a food order.
 type FoodOrderItem struct {
-	ID            int64
-	FoodOrderID   int64
-	ItemID        int64
-	VariantID     *int64
-	NameSnapshot  string
-	UnitPriceCent int64
-	Quantity      int
-	PayChannels   string
-	PointsReward  int64
-	SubtotalCent  int64
-	AssetID       *int64
-	ImageURL      string
+	ID               int64
+	FoodOrderID      int64
+	ItemID           int64
+	VariantID        *int64
+	NameSnapshot     string
+	UnitPriceCent    int64
+	Quantity         int
+	PayChannels      string
+	PointsReward     int64
+	CouponTemplateID *int64
+	SubtotalCent     int64
+	AssetID          *int64
+	ImageURL         string
 }
 
 // RechargeOrder is a wallet top-up order. Recharge has no dedicated table; it is

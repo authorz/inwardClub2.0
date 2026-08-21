@@ -62,7 +62,8 @@
 
 /* ---- right item grid ---- */
 .ord__items { flex: 1; min-height: 0; height: 100%; box-sizing: border-box; padding: 0 18rpx; padding-bottom: calc(260rpx + env(safe-area-inset-bottom)); }
-.ord__group-title { padding: 26rpx 8rpx 12rpx; font-size: 22rpx; font-weight: 500; color: rgba(255, 255, 255, 0.78); }
+.ord__group-title { padding: 26rpx 8rpx 12rpx; display: flex; align-items: baseline; justify-content: space-between; gap: 16rpx; font-size: 22rpx; font-weight: 500; color: rgba(255, 255, 255, 0.78); }
+.ord__group-kind { font-size: 19rpx; font-weight: 400; color: rgba(255, 255, 255, 0.52); }
 .ord__grid { display: flex; flex-wrap: wrap; justify-content: space-between; }
 .ord__item {
   width: 48%;
@@ -89,6 +90,7 @@
 .ord__item-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 20rpx; box-sizing: border-box; text-align: center; color: rgba(255,255,255,0.82); font-size: 22rpx; background: linear-gradient(160deg, #2a2622, #0e0d0c); }
 .ord__soldout { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); color: #fff; font-size: 22rpx; }
 .ord__item-name { display: block; margin-top: 14rpx; padding: 0 4rpx; font-size: 24rpx; font-weight: 650; color: rgba(255, 255, 255, 0.96); }
+.ord__item-benefit { display: block; margin-top: 5rpx; padding: 0 4rpx; font-size: 18rpx; line-height: 1.25; color: rgba(255, 255, 255, 0.58); }
 .ord__item-foot { margin-top: 8rpx; min-height: 82rpx; padding: 0 4rpx; }
 .ord__item-row {
   height: 48rpx;
@@ -192,6 +194,7 @@
 .ord-cart-sheet__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10rpx; }
 .ord-cart-sheet__name { display: block; font-size: 24rpx; font-weight: 600; color: var(--ic-black); }
 .ord-cart-sheet__price { font-size: 20rpx; color: var(--ic-text-3); }
+.ord-cart-sheet__benefit { font-size: 19rpx; color: var(--ic-text-3); }
 .ord-cart-sheet__action { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 14rpx; }
 .ord-cart-sheet__subtotal { font-size: 24rpx; font-weight: 600; color: var(--ic-black); font-variant-numeric: tabular-nums; }
 .ord-cart-sheet__checkout { width: 100% !important; margin: 0 !important; }

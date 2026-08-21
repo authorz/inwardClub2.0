@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/coupon"
 	"github.com/inwardclub/server/internal/modules/printer"
 	"github.com/inwardclub/server/internal/modules/referral"
 	"github.com/inwardclub/server/internal/modules/wallet"
@@ -173,6 +174,11 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		lowSpendQualified := false
 		if orderType == "food" && memberID.Valid {
 			if _, err := wallet.GrantFoodOrderPoints(
+				ctx, tx, paymentID, businessID, memberID.Int64, now,
+			); err != nil {
+				return err
+			}
+			if _, err := coupon.GrantPurchasedCoupons(
 				ctx, tx, paymentID, businessID, memberID.Int64, now,
 			); err != nil {
 				return err

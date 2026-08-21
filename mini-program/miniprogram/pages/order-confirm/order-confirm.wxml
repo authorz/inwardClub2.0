@@ -29,7 +29,11 @@
         <image wx:if="{{item.imageUrl}}" class="oc__item-pic" src="{{item.imageUrl}}" mode="aspectFill" />
         <view wx:else class="oc__item-ph"></view>
       </view>
-      <text class="oc__item-name ic-ellipsis">{{item.name}}</text>
+      <view class="oc__item-main">
+        <text class="oc__item-name ic-ellipsis">{{item.name}}</text>
+        <text wx:if="{{item.isCoupon}}" class="oc__item-benefit">支付后自动到账 · 30天有效</text>
+        <text wx:if="{{item.pointsReward > 0}}" class="oc__item-benefit">每份赠 {{item.pointsReward}} 积分</text>
+      </view>
       <text class="oc__item-qty">x{{item.qty}}</text>
       <text class="oc__item-amt">¥{{item.lineText}}</text>
     </view>

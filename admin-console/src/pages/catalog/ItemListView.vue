@@ -99,7 +99,9 @@ const columns = [
     '券兑换',
     'couponTemplateIds',
     (row) =>
-      row.couponTemplateIds?.length
+      row.grantCouponTemplateId
+        ? `购买发放：${couponTemplateName(row.grantCouponTemplateId)}`
+        : row.couponTemplateIds?.length
         ? row.couponTemplateIds.map(couponTemplateName).join(' / ')
         : '不可兑换',
     180,
@@ -169,6 +171,7 @@ interface ItemForm {
   stockQuantity: number
   payChannels: string[]
   couponTemplateIds: string[]
+  grantCouponTemplateId: string | null
   rewardPointsEnabled: boolean
   pointsReward: number
   sortOrder: number
@@ -190,6 +193,7 @@ const form = reactive<ItemForm>({
   stockQuantity: 0,
   payChannels: ['wechat'],
   couponTemplateIds: [],
+  grantCouponTemplateId: null,
   rewardPointsEnabled: false,
   pointsReward: 0,
   sortOrder: 0,
@@ -199,13 +203,34 @@ const form = reactive<ItemForm>({
 const formCategoryOptions = computed<OptionItem[]>(() =>
   categories.value
     .filter((category) => String(category.storeId ?? '') === String(form.storeId ?? ''))
-    .map((category) => ({ label: category.name, value: String(category.id) })),
+    .map((category) => ({
+      label: `${category.name} · ${category.categoryType === 'coupon' ? '券商品' : '普通商品'}`,
+      value: String(category.id),
+    })),
 )
+
+const selectedCategory = computed(() => categories.value.find(
+  (category) => String(category.id) === String(form.categoryId ?? ''),
+))
+const categoryIsCoupon = computed(() => selectedCategory.value?.categoryType === 'coupon')
 
 const formCouponTemplateOptions = computed(() =>
   couponTemplates.value
     .filter((template) =>
       ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType)
+      && (template.scopeType === 'global'
+        || String(template.storeId ?? '') === String(form.storeId ?? '')),
+    )
+    .map((template) => ({
+      label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
+      value: String(template.id),
+      disabled: template.status !== 'published',
+    })),
+)
+const saleCouponTemplateOptions = computed(() =>
+  couponTemplates.value
+    .filter((template) =>
+      ['event_ticket', 'snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType)
       && (template.scopeType === 'global'
         || String(template.storeId ?? '') === String(form.storeId ?? '')),
     )
@@ -246,6 +271,7 @@ function resetForm(): void {
   form.stockQuantity = 0
   form.payChannels = ['wechat']
   form.couponTemplateIds = []
+  form.grantCouponTemplateId = null
   form.rewardPointsEnabled = false
   form.pointsReward = 0
   form.sortOrder = 0
@@ -273,6 +299,9 @@ function openEdit(row: CatalogItem): void {
   form.stockQuantity = row.stockQuantity ?? 0
   form.payChannels = row.payChannels?.length ? [...row.payChannels] : ['wechat']
   form.couponTemplateIds = (row.couponTemplateIds ?? []).map(String)
+  form.grantCouponTemplateId = row.grantCouponTemplateId == null
+    ? null
+    : String(row.grantCouponTemplateId)
   form.rewardPointsEnabled = (row.pointsReward ?? 0) > 0
   form.pointsReward = row.pointsReward ?? 0
   form.sortOrder = row.sortOrder ?? 0
@@ -292,6 +321,26 @@ watch(
     }
     const availableCouponIDs = new Set(formCouponTemplateOptions.value.map(({ value }) => value))
     form.couponTemplateIds = form.couponTemplateIds.filter((id) => availableCouponIDs.has(id))
+    const availableSaleCouponIDs = new Set(saleCouponTemplateOptions.value.map(({ value }) => value))
+    if (form.grantCouponTemplateId && !availableSaleCouponIDs.has(form.grantCouponTemplateId)) {
+      form.grantCouponTemplateId = null
+    }
+  },
+)
+
+watch(
+  () => form.categoryId,
+  (_categoryId, previousCategoryId) => {
+    const previousWasCoupon = categories.value.find(
+      (category) => String(category.id) === String(previousCategoryId ?? ''),
+    )?.categoryType === 'coupon'
+    if (categoryIsCoupon.value) {
+      form.itemType = 'coupon'
+      form.couponTemplateIds = []
+    } else {
+      if (previousWasCoupon) form.itemType = 'food'
+      form.grantCouponTemplateId = null
+    }
   },
 )
 
@@ -301,6 +350,9 @@ async function submit(): Promise<void> {
   if (!form.name.trim()) return toastError('请填写商品名称')
   if (!form.assetId) return toastError('请上传商品图片')
   if (!form.payChannels.length) return toastError('请选择至少一种支付方式')
+  if (categoryIsCoupon.value && !form.grantCouponTemplateId) {
+    return toastError('请选择购买后发放的券')
+  }
   if (form.rewardPointsEnabled && form.pointsReward <= 0) {
     return toastError('请填写每份商品赠送的积分')
   }
@@ -311,11 +363,12 @@ async function submit(): Promise<void> {
     name: form.name.trim(),
     description: form.description.trim(),
     assetId: Number(form.assetId),
-    itemType: form.itemType || 'food',
+    itemType: categoryIsCoupon.value ? 'coupon' : (form.itemType || 'food'),
     priceCent: Math.round(form.priceYuan * 100),
     stockQuantity: form.stockQuantity,
     payChannels: form.payChannels,
-    couponTemplateIds: form.couponTemplateIds.map(Number),
+    couponTemplateIds: categoryIsCoupon.value ? [] : form.couponTemplateIds.map(Number),
+    grantCouponTemplateId: categoryIsCoupon.value ? Number(form.grantCouponTemplateId) : null,
     pointsReward: form.rewardPointsEnabled ? Math.floor(form.pointsReward) : 0,
     sortOrder: form.sortOrder,
     status: form.status,
@@ -454,7 +507,26 @@ onMounted(loadReferences)
             placeholder="请选择支付方式"
           />
         </NFormItem>
-        <NFormItem label="允许兑换该商品的券">
+        <NFormItem
+          v-if="categoryIsCoupon"
+          label="购买后发放的券"
+          required
+        >
+          <NSelect
+            v-model:value="form.grantCouponTemplateId"
+            clearable
+            filterable
+            :options="saleCouponTemplateOptions"
+            placeholder="一份商品对应发放一张券"
+          />
+          <NText depth="3">
+            用户支付成功后按购买数量自动到账，每张券有效期 30 天。
+          </NText>
+        </NFormItem>
+        <NFormItem
+          v-else
+          label="允许兑换该商品的券"
+        >
           <NSelect
             v-model:value="form.couponTemplateIds"
             multiple
