@@ -37,21 +37,13 @@
 .cp__right { width: 170rpx; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12rpx; }
 .cp__countdown {
   width: 100%;
-  padding: 8rpx 10rpx;
-  box-sizing: border-box;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--ic-ink);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rpx;
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
   text-align: center;
 }
-.cp__countdown-label { font-size: 18rpx; font-weight: 600; line-height: 1.2; opacity: 0.84; }
-.cp__countdown-time { font-size: 20rpx; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
-.cp__countdown.is-urgent { background: var(--ic-white); }
-.cp__countdown.is-urgent .cp__countdown-label { font-weight: 700; opacity: 1; }
 .cp__action {
   width: 164rpx;
   height: 72rpx;

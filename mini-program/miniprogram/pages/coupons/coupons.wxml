@@ -24,13 +24,10 @@
           <text class="cp__valid">{{item.dateLabel}} {{item.dateText}}</text>
         </view>
         <view class="cp__right">
-          <view
+          <text
             wx:if="{{item.status === 'unused' && item.countdownText}}"
-            class="cp__countdown {{item.expiringSoon ? 'is-urgent' : ''}}"
-          >
-            <text class="cp__countdown-label">{{item.expiringSoon ? '即将到期' : '剩余'}}</text>
-            <text class="cp__countdown-time">{{item.countdownText}}</text>
-          </view>
+            class="cp__countdown"
+          >{{item.countdownText}}</text>
           <view
             wx:if="{{item.status === 'unused'}}"
             class="cp__action ic-glass-recessed"
