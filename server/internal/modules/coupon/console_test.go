@@ -3,9 +3,13 @@ package coupon
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -219,7 +223,11 @@ func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, memberID int
 
 func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, memberID int64, req GrantRequest, _ string, _ audit.Entry) (EntitlementView, error) {
 	req.MemberID = memberID
-	return r.Grant(context.Background(), ConsoleScope{}, req)
+	view, err := r.Grant(context.Background(), ConsoleScope{}, req)
+	if err == nil && len(r.ents) > 0 {
+		r.ents[len(r.ents)-1].storeID = req.StoreID
+	}
+	return view, err
 }
 
 func (r *fakeConsoleRepo) UpdateMemberEntitlementExpiry(_ context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, _ string, _ audit.Entry) (EntitlementView, error) {
@@ -475,7 +483,7 @@ func TestAdminMemberEntitlementLifecycle(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
 
 	granted, err := svc.GrantMemberEntitlement(ctx, 100, GrantRequest{
-		TemplateID: 1, ExpiresAt: &expiresAt, Reason: "客服补发",
+		TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Reason: "客服补发",
 	}, "idem-grant", audit.Entry{ActorID: 9})
 	if err != nil {
 		t.Fatalf("grant member entitlement: %v", err)
@@ -505,6 +513,50 @@ func TestAdminMemberEntitlementLifecycle(t *testing.T) {
 		"idem-after-void", audit.Entry{ActorID: 9},
 	); apperr.From(err).Code != apperr.CodeConflict {
 		t.Fatalf("expected voided entitlement update conflict, got %v", err)
+	}
+}
+
+func TestResolveMemberGrantStore(t *testing.T) {
+	global := Template{ID: 1, ScopeType: "global"}
+	storeFive := Template{ID: 2, ScopeType: "store", StoreID: storeIDPtr(5)}
+
+	if storeID, err := resolveMemberGrantStore(global, GrantRequest{ScopeType: "global"}); err != nil || storeID != nil {
+		t.Fatalf("global template should support all stores: store=%v err=%v", storeID, err)
+	}
+	if storeID, err := resolveMemberGrantStore(global, GrantRequest{ScopeType: "store", StoreID: storeIDPtr(6)}); err != nil || storeID == nil || *storeID != 6 {
+		t.Fatalf("global template should support one store: store=%v err=%v", storeID, err)
+	}
+	if storeID, err := resolveMemberGrantStore(storeFive, GrantRequest{ScopeType: "store", StoreID: storeIDPtr(5)}); err != nil || storeID == nil || *storeID != 5 {
+		t.Fatalf("store template should support its own store: store=%v err=%v", storeID, err)
+	}
+	if _, err := resolveMemberGrantStore(storeFive, GrantRequest{ScopeType: "global"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("store template must not become global: %v", err)
+	}
+	if _, err := resolveMemberGrantStore(storeFive, GrantRequest{ScopeType: "store", StoreID: storeIDPtr(6)}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("store template must not move to another store: %v", err)
+	}
+}
+
+func TestGrantMemberEntitlementHandlerUsesPathMemberID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &fakeConsoleRepo{templates: []Template{{
+		ID: 1, Name: "酒水券", CouponType: TypeAlcohol, ScopeType: "global", Status: "published",
+	}}}
+	handler := NewConsoleHandler(NewConsoleService(repo))
+	router := gin.New()
+	router.POST("/admin/members/:memberID/coupon-entitlements", handler.GrantMemberEntitlement)
+
+	body := `{"templateId":1,"scopeType":"store","storeId":5,"expiresAt":"2099-09-30T15:24:14Z","reason":"测试补发"}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/members/100/coupon-entitlements", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201 without memberId in body, got %d: %s", response.Code, response.Body.String())
+	}
+	if len(repo.ents) != 1 || repo.ents[0].memberID != 100 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != 5 {
+		t.Fatalf("path member and selected store were not persisted: %+v", repo.ents)
 	}
 }
 

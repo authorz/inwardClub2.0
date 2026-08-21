@@ -62,7 +62,9 @@ type TemplateInput struct {
 // GrantRequest grants an entitlement to a member from a template.
 type GrantRequest struct {
 	TemplateID int64      `json:"templateId" binding:"required"`
-	MemberID   int64      `json:"memberId" binding:"required"`
+	MemberID   int64      `json:"memberId"`
+	ScopeType  string     `json:"scopeType"`
+	StoreID    *int64     `json:"storeId"`
 	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
 	Reason     string     `json:"reason"`
 }
@@ -471,6 +473,13 @@ func (r *sqlConsoleRepository) grantEntitlement(
 	if requirePublished && tmpl.Status != "published" {
 		return EntitlementView{}, apperr.Conflict("只能补发已发布的优惠券")
 	}
+	entitlementStoreID := tmpl.StoreID
+	if requirePublished {
+		entitlementStoreID, err = resolveMemberGrantStore(tmpl, req)
+		if err != nil {
+			return EntitlementView{}, err
+		}
+	}
 	now := time.Now().UTC()
 	expiresAt := now.AddDate(0, 0, 30)
 	if req.ExpiresAt != nil {
@@ -511,6 +520,18 @@ func (r *sqlConsoleRepository) grantEntitlement(
 		if requirePublished && lockedStatus != "published" {
 			return apperr.Conflict("只能补发已发布的优惠券")
 		}
+		if entitlementStoreID != nil {
+			var storeExists int
+			if err := tx.QueryRowContext(ctx,
+				`SELECT COUNT(*) FROM stores WHERE id = ? AND status = 'active'`,
+				*entitlementStoreID,
+			).Scan(&storeExists); err != nil {
+				return apperr.Internal(err)
+			}
+			if storeExists == 0 {
+				return apperr.Invalid("所选门店不存在或未启用")
+			}
+		}
 		if stock > 0 && issued >= stock {
 			return apperr.Conflict("coupon template is out of stock")
 		}
@@ -530,7 +551,7 @@ func (r *sqlConsoleRepository) grantEntitlement(
 			(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
 			 granted_by_type, expires_at, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
-		res, err := tx.ExecContext(ctx, ins, entNo, req.TemplateID, req.MemberID, tmpl.StoreID,
+		res, err := tx.ExecContext(ctx, ins, entNo, req.TemplateID, req.MemberID, entitlementStoreID,
 			req.Reason, grantedBy, expiresAt, now, now)
 		if err != nil {
 			return apperr.Internal(err)
@@ -548,9 +569,13 @@ func (r *sqlConsoleRepository) grantEntitlement(
 		if entry != nil {
 			entry.TargetType = "member"
 			entry.TargetID = req.MemberID
+			if entitlementStoreID != nil {
+				entry.StoreID = *entitlementStoreID
+			}
 			entry.Reason = strings.TrimSpace(req.Reason)
 			entry.After = map[string]any{
 				"entitlementId": id, "entitlementNo": entNo, "templateId": req.TemplateID,
+				"scopeType": req.ScopeType, "storeId": entitlementStoreID,
 				"status": StatusActive, "expiresAt": expiresAt,
 			}
 			if err := audit.RecordTx(ctx, tx, *entry); err != nil {
@@ -563,6 +588,30 @@ func (r *sqlConsoleRepository) grantEntitlement(
 		return EntitlementView{}, err
 	}
 	return view, nil
+}
+
+func resolveMemberGrantStore(tmpl Template, req GrantRequest) (*int64, error) {
+	switch req.ScopeType {
+	case "global":
+		if req.StoreID != nil {
+			return nil, apperr.Invalid("全部门店券不能指定门店")
+		}
+		if tmpl.ScopeType != "global" || tmpl.StoreID != nil {
+			return nil, apperr.Invalid("门店专属券不能补发为全部门店券")
+		}
+		return nil, nil
+	case "store":
+		if req.StoreID == nil || *req.StoreID <= 0 {
+			return nil, apperr.Invalid("请选择适用门店")
+		}
+		if tmpl.ScopeType == "store" && (tmpl.StoreID == nil || *tmpl.StoreID != *req.StoreID) {
+			return nil, apperr.Invalid("门店专属券只能补发到所属门店")
+		}
+		storeID := *req.StoreID
+		return &storeID, nil
+	default:
+		return nil, apperr.Invalid("请选择全部门店或指定门店")
+	}
 }
 
 // Void marks an active entitlement void. A store console may only void an
@@ -918,6 +967,15 @@ func (s *ConsoleService) GrantMemberEntitlement(
 	}
 	if req.Reason == "" {
 		return EntitlementView{}, apperr.Invalid("请填写补发原因")
+	}
+	if req.ScopeType != "global" && req.ScopeType != "store" {
+		return EntitlementView{}, apperr.Invalid("请选择全部门店或指定门店")
+	}
+	if req.ScopeType == "store" && (req.StoreID == nil || *req.StoreID <= 0) {
+		return EntitlementView{}, apperr.Invalid("请选择适用门店")
+	}
+	if req.ScopeType == "global" && req.StoreID != nil {
+		return EntitlementView{}, apperr.Invalid("全部门店券不能指定门店")
 	}
 	return s.repo.GrantMemberEntitlement(ctx, memberID, req, idemKey, entry)
 }
