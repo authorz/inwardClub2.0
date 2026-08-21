@@ -473,7 +473,10 @@ func (r *sqlConsoleRepository) DeleteCategories(ctx context.Context, scope Conso
 		}
 		return nil
 	})
-	return apperr.From(err)
+	if err != nil {
+		return apperr.From(err)
+	}
+	return nil
 }
 
 func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error) {
@@ -658,7 +661,10 @@ func (r *sqlConsoleRepository) DeleteItems(ctx context.Context, scope ConsoleSco
 		}
 		return nil
 	})
-	return apperr.From(err)
+	if err != nil {
+		return apperr.From(err)
+	}
+	return nil
 }
 
 func (r *sqlConsoleRepository) ListVariants(ctx context.Context, scope ConsoleScope, itemID int64, page httpx.Page) ([]Variant, int64, error) {
