@@ -1,6 +1,7 @@
 // 我的券 — 可用/已使用/已过期 分段 + 带券进入点餐
 // Reference: design/mini-program/final/member-subpages/08-my-coupons-v23.png
 const api = require('../../services/api');
+const fmt = require('../../utils/format');
 const { COUPON_STATUS_LABEL } = require('../../constants/index');
 
 const COUPON_TYPE_LABEL = {
@@ -9,7 +10,7 @@ const COUPON_TYPE_LABEL = {
 };
 
 function countdown(validUntil, now) {
-  const end = validUntil ? new Date(validUntil).getTime() : NaN;
+  const end = fmt.timestamp(validUntil);
   if (!Number.isFinite(end)) return '';
   const seconds = Math.max(0, Math.floor((end - now) / 1000));
   const days = Math.floor(seconds / 86400);
@@ -90,7 +91,6 @@ Page({
     const now = Date.now();
     const all = this.data.all.map((item) => Object.assign({}, item, {
       countdownText: item.status === 'unused' ? countdown(item.validUntil, now) : '',
-      expiringSoon: item.status === 'unused' && item.validUntil && new Date(item.validUntil).getTime() - now <= 3 * 86400000,
     }));
     this.setData({ all });
     this.applyFilter();

@@ -12,6 +12,10 @@ import (
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
 
+const couponDateTimeLayout = "2006-01-02 15:04:05"
+
+var couponBusinessLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
 // Service provides the mini-program coupon read path and redemption entry point.
 type Service struct {
 	repo    Repository
@@ -206,7 +210,14 @@ func couponView(c MemberCoupon) MemberCouponView {
 		CouponType:    c.CouponType,
 		StoreID:       c.StoreID,
 		Status:        c.Status,
-		ExpiresAt:     c.ExpiresAt,
+		ExpiresAt:     formatCouponDateTime(c.ExpiresAt),
 		CreatedAt:     c.CreatedAt,
 	}
+}
+
+func formatCouponDateTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.In(couponBusinessLocation).Format(couponDateTimeLayout)
 }

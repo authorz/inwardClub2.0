@@ -69,6 +69,12 @@ function toDate(input) {
   return null;
 }
 
+/** Date-like input -> epoch milliseconds; invalid input -> NaN. */
+function timestamp(input) {
+  const d = toDate(input);
+  return d ? d.getTime() : NaN;
+}
+
 /** "2026-07-14T20:00:00Z" -> "07-14 20:00" (relative today/昨天 aware) */
 function dateTime(input, opts) {
   const d = toDate(input);
@@ -135,6 +141,7 @@ module.exports = {
   amount,
   maskPhone,
   codeGroups,
+  timestamp,
   dateTime,
   dateOnly,
   dotDay,

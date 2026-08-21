@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/inwardclub/server/internal/modules/catalog"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -79,9 +80,10 @@ func codeOf(t *testing.T, err error) apperr.Code {
 }
 
 func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
+	expiresAt := time.Date(2026, time.September, 11, 18, 46, 5, 0, time.UTC)
 	repo := &memRepo{byMember: map[int64][]MemberCoupon{
 		10: {
-			{EntitlementID: 1, TemplateID: 100, Name: "Free Latte", CouponType: TypeBeverage, Status: StatusActive},
+			{EntitlementID: 1, TemplateID: 100, Name: "Free Latte", CouponType: TypeBeverage, Status: StatusActive, ExpiresAt: &expiresAt},
 			{EntitlementID: 2, TemplateID: 101, Name: "Old", CouponType: TypeSnack, Status: StatusExpired},
 		},
 	}}
@@ -100,6 +102,9 @@ func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 	}
 	if total != 1 || active[0].Name != "Free Latte" {
 		t.Fatalf("unexpected active coupons: %+v", active)
+	}
+	if active[0].ExpiresAt != "2026-09-12 02:46:05" {
+		t.Fatalf("unexpected expiresAt format: %q", active[0].ExpiresAt)
 	}
 }
 

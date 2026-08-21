@@ -42,10 +42,10 @@ Page({
           .filter((coupon) => coupon.type === 'event_ticket' && coupon.status === 'unused')
           .filter((coupon) => coupon.storeId == null
             || (a.storeId != null && String(coupon.storeId) === String(a.storeId)))
-          .filter((coupon) => !coupon.validUntil || new Date(coupon.validUntil).getTime() > now)
+          .filter((coupon) => !coupon.validUntil || fmt.timestamp(coupon.validUntil) > now)
           .sort((left, right) => {
-            const leftTime = left.validUntil ? new Date(left.validUntil).getTime() : Number.MAX_SAFE_INTEGER;
-            const rightTime = right.validUntil ? new Date(right.validUntil).getTime() : Number.MAX_SAFE_INTEGER;
+            const leftTime = left.validUntil ? fmt.timestamp(left.validUntil) : Number.MAX_SAFE_INTEGER;
+            const rightTime = right.validUntil ? fmt.timestamp(right.validUntil) : Number.MAX_SAFE_INTEGER;
             return leftTime - rightTime;
           })
           .map((coupon) => ({
