@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref } from 'vue'
 import { NButton, NForm, NFormItem, NInput, NInputNumber, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
+import type { DataTableRowKey } from 'naive-ui'
 import { catalogService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { confirm } from '@/composables/useConfirm'
@@ -12,6 +13,7 @@ import { statusColumn, textColumn } from '@/utils/columns'
 import type { CatalogCategory } from '@/types/models'
 
 const list = useAsyncList<CatalogCategory>((params) => catalogService.categories(params), { initialFilters: { keyword: '', status: '' } })
+const selectedCategoryIds = ref<DataTableRowKey[]>([])
 const statuses = toOptions(ACTIVE_STATUS)
 const selectStatuses = statuses.map(({ label, value }) => ({ label, value }))
 const categoryTypeOptions = [
@@ -73,7 +75,26 @@ async function remove(row: CatalogCategory): Promise<void> {
   try { await catalogService.deleteCategory(row.id); feedback.message.success('分类已删除'); list.refresh() }
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '删除失败') }
 }
+async function removeSelected(): Promise<void> {
+  const ids = selectedCategoryIds.value.map(Number)
+  if (!ids.length) return
+  if (!await confirm({
+    title: '批量删除商品分类',
+    content: `确认永久删除已选择的 ${ids.length} 个分类？只要其中一个分类仍有关联商品，本次将全部不删除。`,
+    positiveText: '确认批量删除',
+    danger: true,
+  })) return
+  try {
+    await catalogService.batchDeleteCategories(ids)
+    selectedCategoryIds.value = []
+    feedback.message.success(`已删除 ${ids.length} 个分类`)
+    list.refresh()
+  } catch (error) {
+    feedback.message.error((error as { message?: string }).message ?? '批量删除失败')
+  }
+}
 const columns = computed<DataTableColumns<CatalogCategory>>(() => [
+  { type: 'selection', multiple: true },
   textColumn<CatalogCategory>('分类 ID', (row) => row.id, { width: 90 }),
   {
     title: '图标',
@@ -110,16 +131,27 @@ const columns = computed<DataTableColumns<CatalogCategory>>(() => [
       @reset="list.reset()"
     >
       <template #actions>
-        <PermissionButton
-          :permissions="[PERM.catalogWrite]"
-          type="primary"
-          @click="open()"
-        >
-          新增分类
-        </PermissionButton>
+        <NSpace>
+          <PermissionButton
+            :permissions="[PERM.catalogWrite]"
+            type="error"
+            :disabled="selectedCategoryIds.length === 0"
+            @click="removeSelected"
+          >
+            批量删除{{ selectedCategoryIds.length ? `（${selectedCategoryIds.length}）` : '' }}
+          </PermissionButton>
+          <PermissionButton
+            :permissions="[PERM.catalogWrite]"
+            type="primary"
+            @click="open()"
+          >
+            新增分类
+          </PermissionButton>
+        </NSpace>
       </template>
     </StatusFilterBar>
     <DataTable
+      v-model:checked-row-keys="selectedCategoryIds"
       :columns="columns"
       :data="list.rows.value"
       :loading="list.loading.value"

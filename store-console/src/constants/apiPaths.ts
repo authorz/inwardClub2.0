@@ -51,10 +51,12 @@ export const API_PATHS = {
   catalog: {
     categories: '/store/catalog/categories',
     category: (id: string | number) => `/store/catalog/categories/${id}`,
+    categoryBatchDelete: '/store/catalog/categories/batch-delete',
     globalItems: '/store/catalog/global-items',
     adoptGlobalItem: (id: string | number) => `/store/catalog/global-items/${id}/adopt`,
     items: '/store/catalog/items',
     item: (id: string | number) => `/store/catalog/items/${id}`,
+    itemBatchDelete: '/store/catalog/items/batch-delete',
     publishItem: (id: string | number) => `/store/catalog/items/${id}/publish`,
     unpublishItem: (id: string | number) => `/store/catalog/items/${id}/unpublish`,
     itemStock: (id: string | number) => `/store/catalog/items/${id}/stock`,

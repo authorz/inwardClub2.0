@@ -1325,6 +1325,15 @@ func (h *ConsoleHandler) StoreDeleteCategory(c *gin.Context) {
 	h.deleteCategory(c, scope)
 }
 
+// StoreBatchDeleteCategories handles POST /store/catalog/categories/batch-delete.
+func (h *ConsoleHandler) StoreBatchDeleteCategories(c *gin.Context) {
+	scope, ok := storeScopeFromContext(c)
+	if !ok {
+		return
+	}
+	h.batchDeleteCategories(c, scope)
+}
+
 // StoreItems handles GET /store/catalog/items.
 func (h *ConsoleHandler) StoreItems(c *gin.Context) {
 	scope, ok := storeScopeFromContext(c)
@@ -1368,6 +1377,15 @@ func (h *ConsoleHandler) StoreDeleteItem(c *gin.Context) {
 		return
 	}
 	h.deleteItem(c, scope)
+}
+
+// StoreBatchDeleteItems handles POST /store/catalog/items/batch-delete.
+func (h *ConsoleHandler) StoreBatchDeleteItems(c *gin.Context) {
+	scope, ok := storeScopeFromContext(c)
+	if !ok {
+		return
+	}
+	h.batchDeleteItems(c, scope)
 }
 
 // StoreVariants handles GET /store/catalog/items/{itemID}/variants.

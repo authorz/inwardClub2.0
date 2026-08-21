@@ -14,6 +14,7 @@ import {
   NTooltip,
   type DataTableColumns,
 } from 'naive-ui'
+import type { DataTableRowKey } from 'naive-ui'
 import { catalogService, couponService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
@@ -41,6 +42,7 @@ import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/types/model
 const list = useAsyncList<CatalogItem>((params) => catalogService.items(params), {
   initialFilters: { status: '', keyword: '', categoryId: '' },
 })
+const selectedItemIds = ref<DataTableRowKey[]>([])
 const action = useAsyncAction()
 const categories = ref<CatalogCategory[]>([])
 const couponTemplates = ref<CouponTemplate[]>([])
@@ -203,7 +205,29 @@ function togglePublish(row: CatalogItem) {
   )
 }
 
+async function removeSelected(): Promise<void> {
+  const ids = selectedItemIds.value.map(Number)
+  if (!ids.length) return
+  await action.run(
+    () => catalogService.batchRemove(ids),
+    {
+      confirm: {
+        title: '批量删除商品',
+        content: `确认永久删除已选择的 ${ids.length} 个商品？商品及其规格数据将被物理删除。`,
+        positiveText: '确认批量删除',
+        danger: true,
+      },
+      successMessage: `已删除 ${ids.length} 个商品`,
+      onSuccess: () => {
+        selectedItemIds.value = []
+        list.refresh()
+      },
+    },
+  )
+}
+
 const columns = computed<DataTableColumns<CatalogItem>>(() => [
+  { type: 'selection', multiple: true },
   textColumn<CatalogItem>('ID', (r) => r.id, { width: 72 }),
   {
     title: '商品图片',
@@ -317,13 +341,23 @@ watch(
       description="维护当前门店的商品、库存、支付方式和购买赠送积分"
     >
       <template #actions>
-        <PermissionButton
-          :permissions="[PERM.catalogWrite]"
-          type="primary"
-          @click="openEdit()"
-        >
-          新增商品
-        </PermissionButton>
+        <NSpace>
+          <PermissionButton
+            :permissions="[PERM.catalogWrite]"
+            type="error"
+            :disabled="selectedItemIds.length === 0"
+            @click="removeSelected"
+          >
+            批量删除{{ selectedItemIds.length ? `（${selectedItemIds.length}）` : '' }}
+          </PermissionButton>
+          <PermissionButton
+            :permissions="[PERM.catalogWrite]"
+            type="primary"
+            @click="openEdit()"
+          >
+            新增商品
+          </PermissionButton>
+        </NSpace>
       </template>
     </PageHeader>
 
@@ -350,6 +384,7 @@ watch(
     </StatusFilterBar>
 
     <DataTable
+      v-model:checked-row-keys="selectedItemIds"
       :columns="columns"
       :data="list.rows.value"
       :loading="list.loading.value"

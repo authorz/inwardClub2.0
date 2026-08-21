@@ -1,10 +1,14 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -665,6 +669,64 @@ func TestConsoleService_BatchDeleteItems_DeletesSelectedItemsAndVariants(t *test
 	}
 	if len(repo.variants) != 1 || repo.variants[0].ItemID != 3 {
 		t.Fatalf("unexpected remaining variants: %+v", repo.variants)
+	}
+}
+
+func TestStoreBatchDeleteCatalog_RejectsCrossStoreAndDeletesOwnRows(t *testing.T) {
+	storeID := int64(11)
+	otherStoreID := int64(22)
+	ownCategoryID := int64(101)
+	otherCategoryID := int64(202)
+	repo := &fakeConsoleRepo{
+		categories: []Category{
+			{ID: ownCategoryID, StoreID: &storeID, Name: "Own"},
+			{ID: otherCategoryID, StoreID: &otherStoreID, Name: "Other"},
+		},
+		items: []Item{
+			{ID: 1, StoreID: &storeID, Name: "Own"},
+			{ID: 2, StoreID: &otherStoreID, Name: "Other"},
+		},
+	}
+	handler := NewConsoleHandler(NewConsoleService(repo))
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(httpx.CtxStoreScope, storeID)
+		c.Next()
+	})
+	router.POST("/store/catalog/items/batch-delete", handler.StoreBatchDeleteItems)
+	router.POST("/store/catalog/categories/batch-delete", handler.StoreBatchDeleteCategories)
+
+	request := httptest.NewRequest(http.MethodPost, "/store/catalog/items/batch-delete", bytes.NewBufferString(`{"ids":[1,2]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || len(repo.items) != 2 {
+		t.Fatalf("cross-store item batch must be atomic: status=%d items=%+v", response.Code, repo.items)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/store/catalog/items/batch-delete", bytes.NewBufferString(`{"ids":[1]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || len(repo.items) != 1 || repo.items[0].ID != 2 {
+		t.Fatalf("own-store item batch delete failed: status=%d items=%+v", response.Code, repo.items)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/store/catalog/categories/batch-delete", bytes.NewBufferString(`{"ids":[101,202]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || len(repo.categories) != 2 {
+		t.Fatalf("cross-store category batch must be atomic: status=%d categories=%+v", response.Code, repo.categories)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/store/catalog/categories/batch-delete", bytes.NewBufferString(`{"ids":[101]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || len(repo.categories) != 1 || repo.categories[0].ID != otherCategoryID {
+		t.Fatalf("own-store category batch delete failed: status=%d categories=%+v", response.Code, repo.categories)
 	}
 }
 

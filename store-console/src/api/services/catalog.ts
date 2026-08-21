@@ -27,6 +27,9 @@ export const catalogService = {
   deleteCategory(id: string | number) {
     return del<void>(API_PATHS.catalog.category(id), { idempotent: true })
   },
+  batchDeleteCategories(ids: number[]) {
+    return post<void>(API_PATHS.catalog.categoryBatchDelete, { ids }, { idempotent: true })
+  },
   detail(id: string | number) {
     return get<CatalogItem>(API_PATHS.catalog.item(id))
   },
@@ -38,5 +41,8 @@ export const catalogService = {
   },
   remove(id: string | number) {
     return del<void>(API_PATHS.catalog.item(id), { idempotent: true })
+  },
+  batchRemove(ids: number[]) {
+    return post<void>(API_PATHS.catalog.itemBatchDelete, { ids }, { idempotent: true })
   },
 }

@@ -440,12 +440,14 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	p.GET("/catalog/categories/:id", a.catalogConsoleHandler.StoreGetCategory)
 	idem.POST("/catalog/categories", a.catalogConsoleHandler.StoreCreateCategory)
 	idem.PUT("/catalog/categories/:id", a.catalogConsoleHandler.StoreUpdateCategory)
+	idem.POST("/catalog/categories/batch-delete", a.catalogConsoleHandler.StoreBatchDeleteCategories)
 	idem.DELETE("/catalog/categories/:id", a.catalogConsoleHandler.StoreDeleteCategory)
 
 	// Catalog items (list read already registered above).
 	p.GET("/catalog/items/:id", a.catalogConsoleHandler.StoreGetItem)
 	idem.POST("/catalog/items", a.catalogConsoleHandler.StoreCreateItem)
 	idem.PUT("/catalog/items/:id", a.catalogConsoleHandler.StoreUpdateItem)
+	idem.POST("/catalog/items/batch-delete", a.catalogConsoleHandler.StoreBatchDeleteItems)
 	idem.DELETE("/catalog/items/:id", a.catalogConsoleHandler.StoreDeleteItem)
 
 	// Catalog variants (scoped by :itemID; see admin console prefix note).

@@ -4,7 +4,7 @@
  * 全站列表页共用；页面只需提供 columns 与 useAsyncList 的状态。
  */
 import { computed } from 'vue'
-import { NDataTable, type DataTableColumns, type PaginationProps } from 'naive-ui'
+import { NDataTable, type DataTableColumns, type DataTableRowKey, type PaginationProps } from 'naive-ui'
 import type { DataTableSortState } from 'naive-ui'
 import EmptyState from './EmptyState.vue'
 
@@ -20,6 +20,7 @@ const props = withDefaults(
     pageSize?: number
     total?: number
     rowKey?: (row: T) => string | number
+    checkedRowKeys?: DataTableRowKey[]
     emptyText?: string
     scrollX?: number
   }>(),
@@ -30,6 +31,7 @@ const emit = defineEmits<{
   'update:page': [page: number]
   'update:pageSize': [size: number]
   'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
+  'update:checkedRowKeys': [keys: DataTableRowKey[]]
 }>()
 
 // 把泛型 T 的列/数据/rowKey 桥接为 naive 期望的内部行类型（值不变，仅类型转换）。
@@ -61,6 +63,7 @@ const defaultRowKey = (row: T): string | number => {
     :data="nData"
     :loading="loading"
     :row-key="nRowKey"
+    :checked-row-keys="checkedRowKeys"
     :pagination="total > 0 ? pagination : false"
     remote
     :bordered="false"
@@ -70,6 +73,7 @@ const defaultRowKey = (row: T): string | number => {
     @update:page="emit('update:page', $event)"
     @update:page-size="emit('update:pageSize', $event)"
     @update:sorter="emit('update:sorter', $event)"
+    @update:checked-row-keys="emit('update:checkedRowKeys', $event)"
   >
     <template #empty>
       <EmptyState :description="emptyText" />
