@@ -17,6 +17,7 @@ type memRepo struct {
 	foodItems    map[int64][]FoodOrderItem
 	payments     map[int64]PaymentOrder
 	tickets      map[int64][]MemberTicket
+	lastFood     *FoodOrderCreate
 	lastActivity *ActivityOrderCreate
 
 	// Expiry-sweep fixtures, exercised by expiry_test.go; unused by the other
@@ -92,6 +93,7 @@ func (r *memRepo) GetPaymentOrder(_ context.Context, id int64) (PaymentOrder, er
 // The create/settle write methods are covered end-to-end against MySQL; the
 // in-memory repo returns canned success so the service wiring can be unit-tested.
 func (r *memRepo) CreateFoodOrder(_ context.Context, in FoodOrderCreate) (FoodOrder, []FoodOrderItem, PaymentOrder, error) {
+	r.lastFood = &in
 	var total int64
 	items := make([]FoodOrderItem, 0, len(in.Lines))
 	for _, ln := range in.Lines {
@@ -102,6 +104,33 @@ func (r *memRepo) CreateFoodOrder(_ context.Context, in FoodOrderCreate) (FoodOr
 	food := FoodOrder{ID: 1, BusinessOrderID: 1, StoreID: in.StoreID, MemberID: in.MemberID, TotalAmountCent: total, FulfillmentStatus: "pending"}
 	po := PaymentOrder{ID: 1, PaymentOrderNo: in.PaymentOrderNo, AmountCent: total, PayMethod: in.PayMethod, Status: PaymentStatusPending}
 	return food, items, po, nil
+}
+
+func TestCreateFoodOrderWithCouponRequiresOneItemAndForwardsEntitlement(t *testing.T) {
+	repo := newMemRepo()
+	svc := newService(repo)
+	entitlementID := int64(88)
+
+	if _, err := svc.CreateFoodOrder(context.Background(), 10, "idem-invalid", CreateFoodOrderRequest{
+		StoreID: 5, PayMethod: PayMethodCoupon,
+		CouponEntitlementID: &entitlementID,
+		Items:               []FoodLineItem{{ItemID: 7, Quantity: 2}},
+	}); codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected coupon quantity validation error, got %v", err)
+	}
+
+	view, err := svc.CreateFoodOrder(context.Background(), 10, "idem-coupon", CreateFoodOrderRequest{
+		StoreID: 5, PayMethod: PayMethodCoupon,
+		CouponEntitlementID: &entitlementID,
+		Items:               []FoodLineItem{{ItemID: 7, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("create coupon food order: %v", err)
+	}
+	if repo.lastFood == nil || repo.lastFood.CouponEntitlementID == nil ||
+		*repo.lastFood.CouponEntitlementID != entitlementID || view.PayMethod != PayMethodCoupon {
+		t.Fatalf("coupon entitlement was not forwarded: input=%+v view=%+v", repo.lastFood, view)
+	}
 }
 
 func (r *memRepo) CreateRechargeOrder(_ context.Context, in RechargeOrderCreate) (RechargeOrder, PaymentOrder, error) {

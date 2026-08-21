@@ -37,16 +37,17 @@ func coinAmountForPayment(amountCent int64) (int64, error) {
 // prices are resolved from the catalog inside the transaction, so only the
 // requested item/variant/quantity are carried here — never a client price.
 type FoodOrderCreate struct {
-	MemberID        int64
-	StoreID         int64
-	TableID         *int64
-	Remark          string
-	PayMethod       string
-	Lines           []FoodLineItem
-	BusinessOrderNo string
-	PaymentOrderNo  string
-	IdemKey         string
-	Now             time.Time
+	MemberID            int64
+	StoreID             int64
+	TableID             *int64
+	Remark              string
+	PayMethod           string
+	CouponEntitlementID *int64
+	Lines               []FoodLineItem
+	BusinessOrderNo     string
+	PaymentOrderNo      string
+	IdemKey             string
+	Now                 time.Time
 }
 
 // RechargeOrderCreate is the input for a wallet top-up order. Recharge has no
@@ -99,6 +100,43 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 		if err := validateFoodOrderScope(ctx, tx, in.StoreID, in.TableID); err != nil {
 			return err
 		}
+		var redeemCouponTemplateID int64
+		if in.PayMethod == PayMethodCoupon {
+			if in.CouponEntitlementID == nil {
+				return apperr.Invalid("请选择优惠券")
+			}
+			var (
+				couponStatus string
+				couponMember int64
+				couponStore  sql.NullInt64
+				couponExpiry sql.NullTime
+				couponType   string
+			)
+			const selectCoupon = `SELECT e.status, e.member_id, e.store_id, e.expires_at,
+				e.coupon_template_id, ct.coupon_type
+				FROM coupon_entitlements e JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+				WHERE e.id = ? FOR UPDATE`
+			err := tx.QueryRowContext(ctx, selectCoupon, *in.CouponEntitlementID).Scan(
+				&couponStatus, &couponMember, &couponStore, &couponExpiry,
+				&redeemCouponTemplateID, &couponType,
+			)
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.NotFound("优惠券不存在")
+			}
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			if couponMember != in.MemberID {
+				return apperr.NotFound("优惠券不存在")
+			}
+			if couponStatus != coupon.StatusActive || !isProductCouponType(couponType) ||
+				(couponExpiry.Valid && !couponExpiry.Time.After(in.Now)) {
+				return apperr.Conflict("优惠券不可用或已过期")
+			}
+			if couponStore.Valid && couponStore.Int64 != in.StoreID {
+				return apperr.Invalid("优惠券不适用于当前门店")
+			}
+		}
 		// Resolve each line's price/name from the catalog; never trust the client.
 		var total int64
 		items = items[:0]
@@ -108,6 +146,19 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 			)
 			if err != nil {
 				return err
+			}
+			if in.PayMethod == PayMethodCoupon {
+				var eligible int
+				const couponEligible = `SELECT COUNT(*) FROM catalog_items
+					WHERE id = ? AND JSON_CONTAINS(
+						COALESCE(coupon_template_ids, JSON_ARRAY()), CAST(? AS JSON), '$'
+					)`
+				if err := tx.QueryRowContext(ctx, couponEligible, ln.ItemID, redeemCouponTemplateID).Scan(&eligible); err != nil {
+					return apperr.Internal(err)
+				}
+				if eligible == 0 {
+					return apperr.Invalid("所选商品不可使用当前优惠券兑换")
+				}
 			}
 			subtotal := unit * int64(ln.Quantity)
 			total += subtotal
@@ -128,14 +179,20 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 				return err
 			}
 		}
+		chargedTotal := total
+		if in.PayMethod == PayMethodCoupon {
+			chargedTotal = 0
+		}
 		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeFood, &in.StoreID, in.MemberID, total, in.Now)
 		if err != nil {
 			return err
 		}
 		const insFood = `INSERT INTO food_orders
-			(business_order_id, store_id, member_id, table_id, total_amount_cent, fulfillment_status, remark, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
-		res, err := tx.ExecContext(ctx, insFood, businessID, in.StoreID, in.MemberID, in.TableID, total, in.Remark, in.Now, in.Now)
+			(business_order_id, store_id, member_id, coupon_entitlement_id, table_id,
+			 total_amount_cent, fulfillment_status, remark, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
+		res, err := tx.ExecContext(ctx, insFood, businessID, in.StoreID, in.MemberID,
+			in.CouponEntitlementID, in.TableID, total, in.Remark, in.Now, in.Now)
 		if err != nil {
 			return mapWriteErr(err)
 		}
@@ -161,9 +218,51 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 			items[i].ID = id
 			items[i].FoodOrderID = foodID
 		}
-		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, &in.StoreID, in.MemberID, total, in.PayMethod, in.Now)
+		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, &in.StoreID, in.MemberID, chargedTotal, in.PayMethod, in.Now)
 		if err != nil {
 			return err
+		}
+		paymentStatus := PaymentStatusPending
+		paymentStatusText := "unpaid"
+		fulfillmentStatus := "pending"
+		if in.PayMethod == PayMethodCoupon {
+			const consumeCoupon = `UPDATE coupon_entitlements SET status = 'used', updated_at = ?
+				WHERE id = ? AND member_id = ? AND status = 'active'`
+			res, err := tx.ExecContext(ctx, consumeCoupon, in.Now, *in.CouponEntitlementID, in.MemberID)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			if affected, _ := res.RowsAffected(); affected != 1 {
+				return apperr.Conflict("优惠券已被使用")
+			}
+			const insTxn = `INSERT INTO payment_transactions
+				(payment_order_id, provider, channel, out_trade_no, amount_cent, status, created_at)
+				VALUES (?, 'coupon', '', ?, 0, 'success', ?)`
+			if _, err := tx.ExecContext(ctx, insTxn, paymentID, in.PaymentOrderNo, in.Now); err != nil {
+				return mapWriteErr(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE payment_orders
+				SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?`, in.Now, in.Now, paymentID); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE business_orders
+				SET payment_status = 'paid', order_status = 'completed', updated_at = ? WHERE id = ?`, in.Now, businessID); err != nil {
+				return apperr.Internal(err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE food_orders
+				SET fulfillment_status = 'completed', updated_at = ? WHERE id = ?`, in.Now, foodID); err != nil {
+				return apperr.Internal(err)
+			}
+			if err := printer.WriteReceipt(ctx, tx, printer.Receipt{
+				StoreID: in.StoreID, PaymentOrderID: paymentID, BusinessOrderID: businessID,
+				BusinessOrderNo: in.BusinessOrderNo, OrderType: OrderTypeFood,
+				AmountCent: chargedTotal, PaidAt: in.Now,
+			}); err != nil {
+				return err
+			}
+			paymentStatus = PaymentStatusPaid
+			paymentStatusText = "paid"
+			fulfillmentStatus = "completed"
 		}
 		food = FoodOrder{
 			ID:                foodID,
@@ -173,14 +272,15 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 			MemberID:          in.MemberID,
 			TableID:           in.TableID,
 			TotalAmountCent:   total,
-			PaymentStatus:     "unpaid",
+			PaymentStatus:     paymentStatusText,
 			PayMethod:         in.PayMethod,
-			FulfillmentStatus: "pending",
+			PaidAmountCent:    chargedTotal,
+			FulfillmentStatus: fulfillmentStatus,
 			Remark:            in.Remark,
 			CreatedAt:         in.Now,
 		}
 		po = PaymentOrder{ID: paymentID, PaymentOrderNo: in.PaymentOrderNo, BusinessOrderID: businessID,
-			MemberID: &in.MemberID, AmountCent: total, PayMethod: in.PayMethod, Status: PaymentStatusPending, CreatedAt: in.Now}
+			MemberID: &in.MemberID, AmountCent: chargedTotal, PayMethod: in.PayMethod, Status: paymentStatus, CreatedAt: in.Now}
 		return nil
 	})
 	if err != nil {
@@ -384,6 +484,12 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			if affected, _ := res.RowsAffected(); affected != 1 {
 				return apperr.Conflict("赛事门票券已被使用")
 			}
+			const insTxn = `INSERT INTO payment_transactions
+				(payment_order_id, provider, channel, out_trade_no, amount_cent, status, created_at)
+				VALUES (?, 'coupon', '', ?, 0, 'success', ?)`
+			if _, err := tx.ExecContext(ctx, insTxn, paymentID, in.PaymentOrderNo, in.Now); err != nil {
+				return mapWriteErr(err)
+			}
 			if _, err := tx.ExecContext(ctx, `UPDATE payment_orders
 				SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?`, in.Now, in.Now, paymentID); err != nil {
 				return apperr.Internal(err)
@@ -403,6 +509,15 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			for i := range tickets {
 				tickets[i].Status = TicketStatusActive
 			}
+			if storePtr != nil {
+				if err := printer.WriteReceipt(ctx, tx, printer.Receipt{
+					StoreID: *storePtr, PaymentOrderID: paymentID, BusinessOrderID: businessID,
+					BusinessOrderNo: in.BusinessOrderNo, OrderType: OrderTypeActivity,
+					AmountCent: chargedTotal, PaidAt: in.Now,
+				}); err != nil {
+					return err
+				}
+			}
 			paymentStatus = PaymentStatusPaid
 			orderStatus = "paid"
 		}
@@ -415,6 +530,7 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			TicketCount:     in.Quantity,
 			TotalAmountCent: chargedTotal,
 			Status:          orderStatus,
+			PayMethod:       in.PayMethod,
 			CreatedAt:       in.Now,
 		}
 		po = PaymentOrder{ID: paymentID, PaymentOrderNo: in.PaymentOrderNo, BusinessOrderID: businessID,
@@ -679,7 +795,7 @@ func resolveAndReserveItem(
 	if err := json.Unmarshal(payChannels, &channels); err != nil {
 		return "", 0, 0, nil, "", apperr.Internal(err)
 	}
-	allowed := false
+	allowed := payMethod == PayMethodCoupon
 	for _, channel := range channels {
 		if channel == payMethod || (channel == "balance" && payMethod == PayMethodCoin) {
 			allowed = true
@@ -689,12 +805,14 @@ func resolveAndReserveItem(
 	if !allowed {
 		return "", 0, 0, nil, "", apperr.Invalid("catalog item does not support the selected pay method")
 	}
-	if stock < int64(line.Quantity) {
+	// stock_quantity=0 means unlimited; positive values are finite stock.
+	if stock > 0 && stock < int64(line.Quantity) {
 		return "", 0, 0, nil, "", apperr.Conflict("insufficient catalog stock")
 	}
 	if line.VariantID != nil {
-		const reserve = `UPDATE catalog_variants SET stock_quantity = stock_quantity - ?, updated_at = ?
-			WHERE id = ? AND stock_quantity >= ?`
+		const reserve = `UPDATE catalog_variants
+			SET stock_quantity = CASE WHEN stock_quantity = 0 THEN 0 ELSE stock_quantity - ? END, updated_at = ?
+			WHERE id = ? AND (stock_quantity = 0 OR stock_quantity >= ?)`
 		res, err := tx.ExecContext(ctx, reserve, line.Quantity, now, *line.VariantID, line.Quantity)
 		if err != nil {
 			return "", 0, 0, nil, "", apperr.Internal(err)
@@ -703,8 +821,9 @@ func resolveAndReserveItem(
 			return "", 0, 0, nil, "", apperr.Conflict("insufficient catalog stock")
 		}
 	} else {
-		const reserve = `UPDATE catalog_items SET stock_quantity = stock_quantity - ?, updated_at = ?
-			WHERE id = ? AND stock_quantity >= ?`
+		const reserve = `UPDATE catalog_items
+			SET stock_quantity = CASE WHEN stock_quantity = 0 THEN 0 ELSE stock_quantity - ? END, updated_at = ?
+			WHERE id = ? AND (stock_quantity = 0 OR stock_quantity >= ?)`
 		res, err := tx.ExecContext(ctx, reserve, line.Quantity, now, line.ItemID, line.Quantity)
 		if err != nil {
 			return "", 0, 0, nil, "", apperr.Internal(err)
@@ -717,6 +836,15 @@ func resolveAndReserveItem(
 		points = 0
 	}
 	return name, unit, points, couponTemplateID, string(payChannels), nil
+}
+
+func isProductCouponType(couponType string) bool {
+	switch couponType {
+	case "snack", "alcohol", "beverage", "meal":
+		return true
+	default:
+		return false
+	}
 }
 
 func insertBusinessOrder(ctx context.Context, tx *sql.Tx, no, orderType string, storeID *int64, memberID, total int64, now time.Time) (int64, error) {

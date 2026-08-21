@@ -33,7 +33,7 @@
 
   <view class="od-card">
     <view class="od-row"><text class="od-row__label">支付方式</text><text class="od-row__value">{{order.payChannelText}}</text></view>
-    <view class="od-row"><text class="od-row__label">订单金额</text><text class="od-row__value od-row__value--strong">¥{{order.amountText}}</text></view>
+    <view class="od-row"><text class="od-row__label">实付金额</text><text class="od-row__value od-row__value--strong">¥{{order.amountText}}</text></view>
     <view class="od-row"><text class="od-row__label">购买时间</text><text class="od-row__value">{{order.createdText}}</text></view>
   </view>
 

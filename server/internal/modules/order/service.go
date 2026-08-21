@@ -114,18 +114,26 @@ func (s *Service) CreateFoodOrder(ctx context.Context, memberID int64, idemKey s
 	if err != nil {
 		return FoodOrderView{}, err
 	}
+	if req.PayMethod == PayMethodCoupon {
+		if len(lines) != 1 || lines[0].Quantity != 1 || req.CouponEntitlementID == nil || *req.CouponEntitlementID <= 0 {
+			return FoodOrderView{}, apperr.Invalid("一张优惠券只能兑换一件商品")
+		}
+	} else if req.CouponEntitlementID != nil {
+		return FoodOrderView{}, apperr.Invalid("当前支付方式不能使用优惠券")
+	}
 	now := time.Now().UTC()
 	o, items, po, err := s.repo.CreateFoodOrder(ctx, FoodOrderCreate{
-		MemberID:        memberID,
-		StoreID:         req.StoreID,
-		TableID:         req.TableID,
-		Remark:          remark,
-		PayMethod:       req.PayMethod,
-		Lines:           lines,
-		BusinessOrderNo: newNo("BO", now),
-		PaymentOrderNo:  newNo("PO", now),
-		IdemKey:         idemKey,
-		Now:             now,
+		MemberID:            memberID,
+		StoreID:             req.StoreID,
+		TableID:             req.TableID,
+		Remark:              remark,
+		PayMethod:           req.PayMethod,
+		CouponEntitlementID: req.CouponEntitlementID,
+		Lines:               lines,
+		BusinessOrderNo:     newNo("BO", now),
+		PaymentOrderNo:      newNo("PO", now),
+		IdemKey:             idemKey,
+		Now:                 now,
 	})
 	if err != nil {
 		return FoodOrderView{}, err
@@ -424,6 +432,7 @@ func activityOrderView(o ActivityOrder, tickets []Ticket) ActivityOrderView {
 		TicketCount:     o.TicketCount,
 		TotalAmountCent: o.TotalAmountCent,
 		Status:          o.Status,
+		PayMethod:       o.PayMethod,
 		CreatedAt:       o.CreatedAt,
 	}
 	for _, t := range tickets {

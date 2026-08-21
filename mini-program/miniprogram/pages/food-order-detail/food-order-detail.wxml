@@ -37,7 +37,7 @@
     <text class="fod__section-title">金额明细</text>
     <view class="fod__sum">
       <view class="fod__sum-row"><text>商品金额</text><text>¥{{order.goodsText}}</text></view>
-      <view class="fod__sum-row"><text>金币抵扣</text><text>- ¥{{order.discountText}}</text></view>
+      <view wx:if="{{order.showDiscount}}" class="fod__sum-row"><text>{{order.discountLabel}}</text><text>- ¥{{order.discountText}}</text></view>
       <view class="fod__sum-row fod__sum-row--total"><text>实付</text><text class="fod__pay">¥{{order.payText}}</text></view>
       <view wx:if="{{order.refundText}}" class="fod__sum-row"><text>已退款</text><text>¥{{order.refundText}}</text></view>
     </view>

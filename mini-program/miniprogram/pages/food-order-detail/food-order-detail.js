@@ -8,6 +8,7 @@ function payChannelText(ch) {
   if (!ch) return '';
   if (ch.indexOf('wechat') >= 0 && ch.indexOf('coin') >= 0) return '微信支付 + 金币抵扣';
   if (ch === 'coin') return '金币支付';
+  if (ch === 'coupon') return '优惠券兑换';
   return '微信支付';
 }
 
@@ -19,6 +20,8 @@ Page({
       .getFoodOrder(options.id)
       .then((res) => {
         const d = res.data || {};
+        const isCoupon = d.payChannel === 'coupon';
+        const discountCent = isCoupon ? d.totalCent : (d.discountCent || 0);
         const items = (d.items || []).map((it) => ({
           itemId: it.itemId,
           name: it.name,
@@ -37,7 +40,9 @@ Page({
             timeText: fmt.dateTime(d.createdAt),
             payChannelText: payChannelText(d.payChannel),
             goodsText: fmt.centToYuan(d.totalCent),
-            discountText: fmt.centToYuan(d.discountCent || 0),
+            showDiscount: discountCent > 0,
+            discountLabel: isCoupon ? '优惠券抵扣' : '优惠抵扣',
+            discountText: fmt.centToYuan(discountCent),
             payText: fmt.centToYuan(d.payCent != null ? d.payCent : d.totalCent),
             refundText: d.refundCent ? fmt.centToYuan(d.refundCent) : '',
             items,

@@ -212,6 +212,7 @@ function foodOrderBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
     payMethod: d.payMethod || d.payChannel,
+    couponEntitlementId: d.couponEntitlementId != null ? Number(d.couponEntitlementId) : undefined,
     remark: d.remark != null ? d.remark : d.note || '',
     items: (d.items || []).map((it) => ({
       itemId: it.itemId != null ? it.itemId : it.id,

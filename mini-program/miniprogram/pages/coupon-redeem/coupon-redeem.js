@@ -247,19 +247,20 @@ Page({
       quantity: item.qty,
     }));
     api
-      .createCouponRedemption(
+      .createFoodOrder(
         {
-          entitlementId: this.data.entitlementId,
           storeId: this.data.store.id,
+          payMethod: 'coupon',
+          couponEntitlementId: this.data.entitlementId,
           items,
         },
         http.uuid()
       )
       .then((res) => {
-        const redemptionId = res.data && res.data.id;
-        if (!redemptionId) throw new Error('兑换记录创建失败');
+        const orderId = res.data && res.data.id;
+        if (!orderId) throw new Error('食品订单创建失败');
         wx.redirectTo({
-          url: `/pages/redemption-order-detail/redemption-order-detail?id=${redemptionId}`,
+          url: `/pages/food-order-detail/food-order-detail?id=${orderId}`,
         });
       })
       .catch((err) => {

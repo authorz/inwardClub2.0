@@ -8,11 +8,12 @@ import (
 
 // CreateFoodOrderRequest is the mini-program body for POST /mini/food-orders.
 type CreateFoodOrderRequest struct {
-	StoreID   int64          `json:"storeId" binding:"required"`
-	TableID   *int64         `json:"tableId"`
-	Items     []FoodLineItem `json:"items" binding:"required,min=1,dive"`
-	Remark    string         `json:"remark"`
-	PayMethod string         `json:"payMethod" binding:"required,oneof=wechat coin"`
+	StoreID             int64          `json:"storeId" binding:"required"`
+	TableID             *int64         `json:"tableId"`
+	Items               []FoodLineItem `json:"items" binding:"required,min=1,dive"`
+	Remark              string         `json:"remark"`
+	PayMethod           string         `json:"payMethod" binding:"required,oneof=wechat coin coupon"`
+	CouponEntitlementID *int64         `json:"couponEntitlementId,omitempty"`
 }
 
 // FoodLineItem is one requested line of a food order.

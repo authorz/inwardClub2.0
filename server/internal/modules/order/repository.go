@@ -216,9 +216,11 @@ func (r *sqlRepository) ListActivityOrders(ctx context.Context, memberID int64, 
 		`SELECT COUNT(*) FROM activity_orders WHERE member_id = ?`, memberID).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT id, business_order_id, activity_id, store_id, member_id, ticket_count,
-		total_amount_cent, status, created_at, updated_at
-		FROM activity_orders WHERE member_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
+	const q = `SELECT ao.id, ao.business_order_id, ao.activity_id, ao.store_id, ao.member_id, ao.ticket_count,
+		ao.total_amount_cent, ao.status, COALESCE(po.pay_method, ''), ao.created_at, ao.updated_at
+		FROM activity_orders ao
+		LEFT JOIN payment_orders po ON po.business_order_id = ao.business_order_id
+		WHERE ao.member_id = ? ORDER BY ao.id DESC LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, q, memberID, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -236,9 +238,11 @@ func (r *sqlRepository) ListActivityOrders(ctx context.Context, memberID int64, 
 }
 
 func (r *sqlRepository) GetActivityOrder(ctx context.Context, memberID, id int64) (ActivityOrder, []Ticket, error) {
-	const q = `SELECT id, business_order_id, activity_id, store_id, member_id, ticket_count,
-		total_amount_cent, status, created_at, updated_at
-		FROM activity_orders WHERE id = ? AND member_id = ?`
+	const q = `SELECT ao.id, ao.business_order_id, ao.activity_id, ao.store_id, ao.member_id, ao.ticket_count,
+		ao.total_amount_cent, ao.status, COALESCE(po.pay_method, ''), ao.created_at, ao.updated_at
+		FROM activity_orders ao
+		LEFT JOIN payment_orders po ON po.business_order_id = ao.business_order_id
+		WHERE ao.id = ? AND ao.member_id = ?`
 	o, err := scanActivityOrder(r.db.QueryRowContext(ctx, q, id, memberID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -303,6 +307,6 @@ func scanRechargeOrder(s scanner) (RechargeOrder, error) {
 func scanActivityOrder(s scanner) (ActivityOrder, error) {
 	var o ActivityOrder
 	err := s.Scan(&o.ID, &o.BusinessOrderID, &o.ActivityID, &o.StoreID, &o.MemberID,
-		&o.TicketCount, &o.TotalAmountCent, &o.Status, &o.CreatedAt, &o.UpdatedAt)
+		&o.TicketCount, &o.TotalAmountCent, &o.Status, &o.PayMethod, &o.CreatedAt, &o.UpdatedAt)
 	return o, err
 }

@@ -111,6 +111,7 @@ type ActivityOrder struct {
 	TicketCount     int
 	TotalAmountCent int64
 	Status          string
+	PayMethod       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

@@ -31,7 +31,9 @@ Page({
             ticketName: d.ticketName,
             qty: d.qty,
             verifyCode: fmt.codeGroups(d.verifyCode),
-            payChannelText: d.payChannel === 'coin' ? '金币支付' : '微信支付',
+            payChannelText: d.payChannel === 'coupon'
+              ? '优惠券兑换'
+              : (d.payChannel === 'coin' ? '金币支付' : '微信支付'),
             amountText: fmt.centToYuan(d.amountCent),
             createdText: fmt.dateTime(d.createdAt),
           },
