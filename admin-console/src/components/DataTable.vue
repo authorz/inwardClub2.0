@@ -9,7 +9,12 @@
  */
 import { computed } from 'vue'
 import { NDataTable, NEmpty } from 'naive-ui'
-import type { DataTableColumns, DataTableSortState, PaginationProps } from 'naive-ui'
+import type {
+  DataTableColumns,
+  DataTableRowKey,
+  DataTableSortState,
+  PaginationProps,
+} from 'naive-ui'
 import type { TableColumnList } from './ui-types'
 
 const props = withDefaults(
@@ -18,6 +23,7 @@ const props = withDefaults(
     data: T[]
     loading?: boolean
     rowKey?: (row: T) => string
+    checkedRowKeys?: DataTableRowKey[]
     page?: number
     pageSize?: number
     itemCount?: number
@@ -36,6 +42,7 @@ const emit = defineEmits<{
   'update:page': [page: number]
   'update:pageSize': [size: number]
   'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
+  'update:checkedRowKeys': [keys: DataTableRowKey[]]
 }>()
 
 type AnyRow = Record<string, unknown>
@@ -65,6 +72,7 @@ const pagination = computed<PaginationProps>(() => ({
       :data="tableData"
       :loading="loading"
       :row-key="tableRowKey"
+      :checked-row-keys="checkedRowKeys"
       :pagination="pagination"
       remote
       :bordered="false"
@@ -72,6 +80,7 @@ const pagination = computed<PaginationProps>(() => ({
       @update:page="(p) => emit('update:page', p)"
       @update:page-size="(s) => emit('update:pageSize', s)"
       @update:sorter="(sorter) => emit('update:sorter', sorter)"
+      @update:checked-row-keys="(keys) => emit('update:checkedRowKeys', keys)"
     >
       <template #empty>
         <NEmpty :description="emptyText" />

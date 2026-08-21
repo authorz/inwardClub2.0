@@ -77,6 +77,11 @@ type VariantInput struct {
 	Status        string `json:"status" binding:"required"`
 }
 
+// BatchDeleteInput is the bounded ID list accepted by console batch deletion.
+type BatchDeleteInput struct {
+	IDs []int64 `json:"ids" binding:"required,min=1,max=100,dive,gt=0"`
+}
+
 // ConsoleCategoryView is the console representation of a category.
 type ConsoleCategoryView struct {
 	ID           int64  `json:"id"`
@@ -147,6 +152,7 @@ type ConsoleRepository interface {
 	CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error)
 	UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error)
 	DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error
+	DeleteCategories(ctx context.Context, scope ConsoleScope, ids []int64) error
 	CategoryHasItems(ctx context.Context, scope ConsoleScope, id int64) (bool, error)
 	CategoryHasIncompatibleItems(ctx context.Context, scope ConsoleScope, id int64, categoryType string) (bool, error)
 
@@ -155,6 +161,7 @@ type ConsoleRepository interface {
 	CreateItem(ctx context.Context, scope ConsoleScope, in ItemInput) (Item, error)
 	UpdateItem(ctx context.Context, scope ConsoleScope, id int64, in ItemInput) (Item, error)
 	DeleteItem(ctx context.Context, scope ConsoleScope, id int64) error
+	DeleteItems(ctx context.Context, scope ConsoleScope, ids []int64) error
 	CouponTemplatesExistForStore(ctx context.Context, storeID int64, templateIDs []int64) (bool, error)
 	CouponTemplateAvailableForSale(ctx context.Context, storeID, templateID int64) (bool, error)
 
@@ -191,6 +198,14 @@ func scopeForWrite(scope ConsoleScope, requestedStoreID *int64) (string, *int64)
 		return "store", scope.StoreID
 	}
 	return "store", requestedStoreID
+}
+
+func batchIDPlaceholders(ids []int64) (string, []any) {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", len(ids)), ","), args
 }
 
 func escapeLike(value string) string {
@@ -406,6 +421,61 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, scope Console
 	return nil
 }
 
+func (r *sqlConsoleRepository) DeleteCategories(ctx context.Context, scope ConsoleScope, ids []int64) error {
+	placeholders, idArgs := batchIDPlaceholders(ids)
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		where, scopeArgs := scopedAliasWhere(scope, "c")
+		args := append(idArgs, scopeArgs...)
+		rows, err := tx.QueryContext(ctx, `SELECT c.id,
+			EXISTS (SELECT 1 FROM catalog_items i WHERE i.category_id = c.id)
+			FROM catalog_categories c WHERE c.id IN (`+placeholders+`)`+where+` FOR UPDATE`, args...)
+		if err != nil {
+			return err
+		}
+		found := 0
+		occupied := false
+		for rows.Next() {
+			var id int64
+			var hasItems bool
+			if err := rows.Scan(&id, &hasItems); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			found++
+			occupied = occupied || hasItems
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if found != len(ids) {
+			return apperr.NotFound("部分商品分类不存在或无权操作")
+		}
+		if occupied {
+			return apperr.Conflict("所选分类中仍有关联商品，请先移动或删除商品")
+		}
+
+		deleteWhere, deleteScopeArgs := scopeWhere(scope)
+		deleteArgs := append(idArgs, deleteScopeArgs...)
+		res, err := tx.ExecContext(ctx, `DELETE FROM catalog_categories WHERE id IN (`+placeholders+`)`+deleteWhere, deleteArgs...)
+		if err != nil {
+			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected != int64(len(ids)) {
+			return apperr.Conflict("商品分类已发生变化，请刷新后重试")
+		}
+		return nil
+	})
+	return apperr.From(err)
+}
+
 func (r *sqlConsoleRepository) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error) {
 	where, args := consoleListWhere(scope, filter, "i")
 	// Legacy redemption-zone duplicates may still point at a removed category.
@@ -534,15 +604,61 @@ func (r *sqlConsoleRepository) UpdateItem(ctx context.Context, scope ConsoleScop
 }
 
 func (r *sqlConsoleRepository) DeleteItem(ctx context.Context, scope ConsoleScope, id int64) error {
-	where, args := scopeWhere(scope)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM catalog_items WHERE id = ?`+where, append([]any{id}, args...)...)
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return apperr.NotFound("catalog item not found")
-	}
-	return nil
+	return r.DeleteItems(ctx, scope, []int64{id})
+}
+
+func (r *sqlConsoleRepository) DeleteItems(ctx context.Context, scope ConsoleScope, ids []int64) error {
+	placeholders, idArgs := batchIDPlaceholders(ids)
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		where, scopeArgs := scopedAliasWhere(scope, "i")
+		args := append(idArgs, scopeArgs...)
+		rows, err := tx.QueryContext(ctx, `SELECT i.id FROM catalog_items i
+			WHERE i.id IN (`+placeholders+`)`+where+` FOR UPDATE`, args...)
+		if err != nil {
+			return err
+		}
+		found := 0
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			found++
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if found != len(ids) {
+			return apperr.NotFound("部分商品不存在或无权操作")
+		}
+
+		if _, err := tx.ExecContext(ctx, `DELETE FROM catalog_variants WHERE item_id IN (`+placeholders+`)`, idArgs...); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM store_item_overrides WHERE item_id IN (`+placeholders+`)`, idArgs...); err != nil {
+			return err
+		}
+		deleteWhere, deleteScopeArgs := scopeWhere(scope)
+		deleteArgs := append(idArgs, deleteScopeArgs...)
+		res, err := tx.ExecContext(ctx, `DELETE FROM catalog_items WHERE id IN (`+placeholders+`)`+deleteWhere, deleteArgs...)
+		if err != nil {
+			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected != int64(len(ids)) {
+			return apperr.Conflict("商品数据已发生变化，请刷新后重试")
+		}
+		return nil
+	})
+	return apperr.From(err)
 }
 
 func (r *sqlConsoleRepository) ListVariants(ctx context.Context, scope ConsoleScope, itemID int64, page httpx.Page) ([]Variant, int64, error) {
@@ -917,6 +1033,15 @@ func (s *ConsoleService) DeleteCategory(ctx context.Context, scope ConsoleScope,
 	return s.repo.DeleteCategory(ctx, scope, id)
 }
 
+// BatchDeleteCategories atomically deletes up to 100 categories under scope.
+func (s *ConsoleService) BatchDeleteCategories(ctx context.Context, scope ConsoleScope, ids []int64) error {
+	normalized, err := normalizeBatchIDs(ids)
+	if err != nil {
+		return err
+	}
+	return s.repo.DeleteCategories(ctx, scope, normalized)
+}
+
 // ListItems returns the items visible under scope.
 func (s *ConsoleService) ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]ConsoleItemView, int64, error) {
 	items, total, err := s.repo.ListItems(ctx, scope, filter, page)
@@ -966,6 +1091,34 @@ func (s *ConsoleService) UpdateItem(ctx context.Context, scope ConsoleScope, id 
 // DeleteItem deletes an item under scope.
 func (s *ConsoleService) DeleteItem(ctx context.Context, scope ConsoleScope, id int64) error {
 	return s.repo.DeleteItem(ctx, scope, id)
+}
+
+// BatchDeleteItems atomically deletes up to 100 items and their dependent catalog data.
+func (s *ConsoleService) BatchDeleteItems(ctx context.Context, scope ConsoleScope, ids []int64) error {
+	normalized, err := normalizeBatchIDs(ids)
+	if err != nil {
+		return err
+	}
+	return s.repo.DeleteItems(ctx, scope, normalized)
+}
+
+func normalizeBatchIDs(ids []int64) ([]int64, error) {
+	if len(ids) == 0 || len(ids) > 100 {
+		return nil, apperr.Invalid("批量删除数量必须在 1 到 100 之间")
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	normalized := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, apperr.Invalid("批量删除包含无效 ID")
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalized = append(normalized, id)
+	}
+	return normalized, nil
 }
 
 // ListVariants returns the variants of itemID visible under scope.
@@ -1059,6 +1212,11 @@ func (h *ConsoleHandler) DeleteCategory(c *gin.Context) {
 	h.deleteCategory(c, adminScope())
 }
 
+// BatchDeleteCategories handles POST /admin/catalog/categories/batch-delete.
+func (h *ConsoleHandler) BatchDeleteCategories(c *gin.Context) {
+	h.batchDeleteCategories(c, adminScope())
+}
+
 // Items handles GET /admin/catalog/items.
 func (h *ConsoleHandler) Items(c *gin.Context) {
 	h.listItems(c, adminScope())
@@ -1082,6 +1240,11 @@ func (h *ConsoleHandler) UpdateItem(c *gin.Context) {
 // DeleteItem handles DELETE /admin/catalog/items/{id}.
 func (h *ConsoleHandler) DeleteItem(c *gin.Context) {
 	h.deleteItem(c, adminScope())
+}
+
+// BatchDeleteItems handles POST /admin/catalog/items/batch-delete.
+func (h *ConsoleHandler) BatchDeleteItems(c *gin.Context) {
+	h.batchDeleteItems(c, adminScope())
 }
 
 // Variants handles GET /admin/catalog/items/{itemID}/variants.
@@ -1323,6 +1486,19 @@ func (h *ConsoleHandler) deleteCategory(c *gin.Context, scope ConsoleScope) {
 	httpx.OK(c, gin.H{"id": id})
 }
 
+func (h *ConsoleHandler) batchDeleteCategories(c *gin.Context, scope ConsoleScope) {
+	var in BatchDeleteInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	if err := h.svc.BatchDeleteCategories(c.Request.Context(), scope, in.IDs); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"ids": in.IDs})
+}
+
 func (h *ConsoleHandler) listItems(c *gin.Context, scope ConsoleScope) {
 	page := httpx.ParsePage(c)
 	filter, err := consoleListFilterFromQuery(c, true)
@@ -1428,6 +1604,19 @@ func (h *ConsoleHandler) deleteItem(c *gin.Context, scope ConsoleScope) {
 		return
 	}
 	httpx.OK(c, gin.H{"id": id})
+}
+
+func (h *ConsoleHandler) batchDeleteItems(c *gin.Context, scope ConsoleScope) {
+	var in BatchDeleteInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	if err := h.svc.BatchDeleteItems(c.Request.Context(), scope, in.IDs); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"ids": in.IDs})
 }
 
 func (h *ConsoleHandler) listVariants(c *gin.Context, scope ConsoleScope) {

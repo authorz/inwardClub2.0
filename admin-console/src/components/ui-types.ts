@@ -4,16 +4,16 @@
  * FilterBar、ResourceListView、工具栏按钮都以这些 schema 驱动，
  * 页面只写「配置」，不重复写筛选/表格/按钮布局代码。
  */
-import type { DataTableBaseColumn } from 'naive-ui'
+import type { DataTableBaseColumn, DataTableSelectionColumn } from 'naive-ui'
 import type { OptionItem } from '@/constants/enums'
 import type { PermissionCode } from '@/constants/permissions'
 
 /**
  * 统一的表格列列表类型。
- * 全站表格列一律使用基础列 `DataTableBaseColumn<T>`（由 utils/columns 工厂生成），
- * 不使用 Naive UI 的联合列类型，避免泛型 render/title 推断歧义与不变型报错。
+ * 业务数据列使用 `DataTableBaseColumn<T>`（由 utils/columns 工厂生成），
+ * 需要批量操作的列表可在首列加入 Naive UI 的选择列。
  */
-export type TableColumnList<T> = DataTableBaseColumn<T>[]
+export type TableColumnList<T> = Array<DataTableBaseColumn<T> | DataTableSelectionColumn<T>>
 
 /**
  * ResourceListView 通过 defineExpose 暴露的实例形状。
@@ -45,6 +45,8 @@ export interface ToolbarAction {
   permission?: PermissionCode
   /** 是否高风险（视觉强调 + 提示） */
   type?: 'default' | 'primary' | 'error'
+  /** 当前状态下是否禁用（例如批量操作尚未选择记录） */
+  disabled?: boolean
   /** 点击回调 */
   onClick: () => void
 }

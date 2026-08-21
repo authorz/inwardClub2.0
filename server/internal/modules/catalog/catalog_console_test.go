@@ -88,6 +88,38 @@ func (r *fakeConsoleRepo) DeleteCategory(_ context.Context, scope ConsoleScope, 
 	}
 	return apperr.NotFound("catalog category not found")
 }
+func (r *fakeConsoleRepo) DeleteCategories(_ context.Context, scope ConsoleScope, ids []int64) error {
+	r.lastScope = scope
+	selected := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		found := false
+		for _, category := range r.categories {
+			if category.ID == id && (scope.StoreID == nil || category.StoreID != nil && *category.StoreID == *scope.StoreID) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return apperr.NotFound("catalog category not found")
+		}
+		selected[id] = struct{}{}
+	}
+	for _, item := range r.items {
+		if item.CategoryID != nil {
+			if _, exists := selected[*item.CategoryID]; exists {
+				return apperr.Conflict("category has items")
+			}
+		}
+	}
+	remaining := r.categories[:0]
+	for _, category := range r.categories {
+		if _, exists := selected[category.ID]; !exists {
+			remaining = append(remaining, category)
+		}
+	}
+	r.categories = remaining
+	return nil
+}
 
 func (r *fakeConsoleRepo) ListItems(_ context.Context, scope ConsoleScope, filter ConsoleListFilter, _ httpx.Page) ([]Item, int64, error) {
 	r.lastScope = scope
@@ -149,6 +181,38 @@ func (r *fakeConsoleRepo) DeleteItem(_ context.Context, scope ConsoleScope, id i
 		}
 	}
 	return apperr.NotFound("catalog item not found")
+}
+func (r *fakeConsoleRepo) DeleteItems(_ context.Context, scope ConsoleScope, ids []int64) error {
+	r.lastScope = scope
+	selected := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		found := false
+		for _, item := range r.items {
+			if item.ID == id && (scope.StoreID == nil || item.StoreID != nil && *item.StoreID == *scope.StoreID) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return apperr.NotFound("catalog item not found")
+		}
+		selected[id] = struct{}{}
+	}
+	remainingItems := r.items[:0]
+	for _, item := range r.items {
+		if _, exists := selected[item.ID]; !exists {
+			remainingItems = append(remainingItems, item)
+		}
+	}
+	r.items = remainingItems
+	remainingVariants := r.variants[:0]
+	for _, variant := range r.variants {
+		if _, exists := selected[variant.ItemID]; !exists {
+			remainingVariants = append(remainingVariants, variant)
+		}
+	}
+	r.variants = remainingVariants
+	return nil
 }
 
 func (r *fakeConsoleRepo) ListVariants(_ context.Context, scope ConsoleScope, _ int64, _ httpx.Page) ([]Variant, int64, error) {
@@ -559,6 +623,55 @@ func TestConsoleService_DeleteCategory_RejectsCategoryWithItems(t *testing.T) {
 	}
 	if len(repo.categories) != 1 {
 		t.Fatal("occupied category must not be deleted")
+	}
+}
+
+func TestConsoleService_BatchDeleteCategories_IsAtomicWhenOccupied(t *testing.T) {
+	occupiedID := int64(2)
+	repo := &fakeConsoleRepo{
+		categories: []Category{
+			{ID: 1, ScopeType: "store", Name: "Empty", Status: "active"},
+			{ID: occupiedID, ScopeType: "store", Name: "Drinks", Status: "active"},
+		},
+		items: []Item{{ID: 10, CategoryID: &occupiedID, Name: "Beer"}},
+	}
+	svc := NewConsoleService(repo)
+
+	err := svc.BatchDeleteCategories(context.Background(), adminScope(), []int64{1, occupiedID})
+	if apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected occupied category conflict, got %v", err)
+	}
+	if len(repo.categories) != 2 {
+		t.Fatalf("batch delete must be atomic, got %d categories", len(repo.categories))
+	}
+}
+
+func TestConsoleService_BatchDeleteItems_DeletesSelectedItemsAndVariants(t *testing.T) {
+	repo := &fakeConsoleRepo{
+		items: []Item{{ID: 1, Name: "One"}, {ID: 2, Name: "Two"}, {ID: 3, Name: "Three"}},
+		variants: []Variant{
+			{ID: 10, ItemID: 1, Name: "One SKU"},
+			{ID: 20, ItemID: 2, Name: "Two SKU"},
+			{ID: 30, ItemID: 3, Name: "Three SKU"},
+		},
+	}
+	svc := NewConsoleService(repo)
+
+	if err := svc.BatchDeleteItems(context.Background(), adminScope(), []int64{1, 2, 1}); err != nil {
+		t.Fatalf("unexpected batch delete error: %v", err)
+	}
+	if len(repo.items) != 1 || repo.items[0].ID != 3 {
+		t.Fatalf("unexpected remaining items: %+v", repo.items)
+	}
+	if len(repo.variants) != 1 || repo.variants[0].ItemID != 3 {
+		t.Fatalf("unexpected remaining variants: %+v", repo.variants)
+	}
+}
+
+func TestConsoleService_BatchDeleteRejectsEmptyIDs(t *testing.T) {
+	svc := NewConsoleService(&fakeConsoleRepo{})
+	if err := svc.BatchDeleteItems(context.Background(), adminScope(), nil); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid argument, got %v", err)
 	}
 }
 

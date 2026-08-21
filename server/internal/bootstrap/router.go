@@ -271,12 +271,14 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 
 	// Catalog categories.
 	p.GET("/catalog/categories", a.catalogConsoleHandler.Categories)
+	p.POST("/catalog/categories/batch-delete", idempotency.Require(), a.catalogConsoleHandler.BatchDeleteCategories)
 	p.GET("/catalog/categories/:id", a.catalogConsoleHandler.GetCategory)
 	p.POST("/catalog/categories", a.catalogConsoleHandler.CreateCategory)
 	p.PUT("/catalog/categories/:id", a.catalogConsoleHandler.UpdateCategory)
 	p.DELETE("/catalog/categories/:id", a.catalogConsoleHandler.DeleteCategory)
 
 	// Catalog items (list read already registered as catalogConsoleHandler.Items).
+	p.POST("/catalog/items/batch-delete", idempotency.Require(), a.catalogConsoleHandler.BatchDeleteItems)
 	p.GET("/catalog/items/:id", a.catalogConsoleHandler.GetItem)
 	p.POST("/catalog/items", a.catalogConsoleHandler.CreateItem)
 	p.PUT("/catalog/items/:id", a.catalogConsoleHandler.UpdateItem)

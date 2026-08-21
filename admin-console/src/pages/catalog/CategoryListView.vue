@@ -5,8 +5,14 @@
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NText } from 'naive-ui'
+import type { DataTableRowKey } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
-import type { FilterField, ResourceListInstance } from '@/components/ui-types'
+import type {
+  FilterField,
+  ResourceListInstance,
+  TableColumnList,
+  ToolbarAction,
+} from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import AssetImage from '@/components/AssetImage.vue'
@@ -20,6 +26,7 @@ import type { CatalogCategory } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
+const selectedCategoryIds = ref<DataTableRowKey[]>([])
 const storeOptions = ref<OptionItem[]>([])
 const categoryStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
   ['active', 'disabled'].includes(value),
@@ -47,7 +54,8 @@ const fields = computed<FilterField[]>(() => [
   { key: 'status', label: '状态', type: 'select', options: categoryStatusOptions },
 ])
 
-const columns = [
+const columns: TableColumnList<CatalogCategory> = [
+  { type: 'selection', multiple: true },
   textColumn<CatalogCategory>('分类 ID', 'id', { width: 90 }),
   renderColumn<CatalogCategory>(
     '分类名称',
@@ -194,15 +202,39 @@ async function remove(row: CatalogCategory): Promise<void> {
   if (ok) listRef.value?.reload()
 }
 
-const toolbarActions = [
+async function removeSelected(): Promise<void> {
+  const ids = selectedCategoryIds.value.map((id) => Number(id))
+  if (!ids.length) return
+  const ok = await runAudited({
+    title: '批量删除商品分类',
+    content: `确认删除已选择的 ${ids.length} 个商品分类？只要其中一个分类仍有关联商品，本次将全部不删除。`,
+    highRisk: true,
+    positiveText: '确认批量删除',
+    execute: () => categoryService.batchRemove(ids),
+    successText: `已删除 ${ids.length} 个商品分类`,
+  })
+  if (ok) await listRef.value?.reload()
+}
+
+const toolbarActions = computed<ToolbarAction[]>(() => [
+  {
+    key: 'batch-remove',
+    label: selectedCategoryIds.value.length
+      ? `批量删除（${selectedCategoryIds.value.length}）`
+      : '批量删除',
+    type: 'error',
+    permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
+    disabled: selectedCategoryIds.value.length === 0,
+    onClick: removeSelected,
+  },
   {
     key: 'create',
     label: '新增商品分类',
-    type: 'primary' as const,
+    type: 'primary',
     permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
     onClick: openCreate,
   },
-]
+])
 
 onMounted(loadStores)
 </script>
@@ -218,6 +250,7 @@ onMounted(loadStores)
       :columns="columns"
       :fetcher="categoryService.list"
       :toolbar-actions="toolbarActions"
+      v-model:checked-row-keys="selectedCategoryIds"
       empty-text="暂无商品分类，请先选择门店后新增"
     />
     <FormDrawer

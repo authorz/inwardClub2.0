@@ -14,8 +14,14 @@ import {
   NSwitch,
   NText,
 } from 'naive-ui'
+import type { DataTableRowKey } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
-import type { FilterField, ResourceListInstance } from '@/components/ui-types'
+import type {
+  FilterField,
+  ResourceListInstance,
+  TableColumnList,
+  ToolbarAction,
+} from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import AssetImage from '@/components/AssetImage.vue'
@@ -37,10 +43,12 @@ import {
 import { PERMISSIONS } from '@/constants/permissions'
 import { catalogItemService, categoryService, couponTemplateService, storeService } from '@/api/services'
 import { usePublishableActions } from '@/composables/usePublishableActions'
+import { runAudited } from '@/composables/useAuditedAction'
 import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
+const selectedItemIds = ref<DataTableRowKey[]>([])
 const stores = ref<OptionItem[]>([])
 const categories = ref<CatalogCategory[]>([])
 const couponTemplates = ref<CouponTemplate[]>([])
@@ -88,7 +96,8 @@ const { publish, unpublish } = usePublishableActions(
   () => listRef.value?.reload(),
 )
 
-const columns = [
+const columns: TableColumnList<CatalogItem> = [
+  { type: 'selection', multiple: true },
   renderColumn<CatalogItem>(
     '商品图片',
     'imageUrl',
@@ -387,15 +396,39 @@ async function submit(): Promise<void> {
   }
 }
 
-const toolbarActions = [
+async function removeSelected(): Promise<void> {
+  const ids = selectedItemIds.value.map((id) => Number(id))
+  if (!ids.length) return
+  const ok = await runAudited({
+    title: '批量删除商品',
+    content: `确认删除已选择的 ${ids.length} 个商品？商品及其规格数据将被永久删除。`,
+    highRisk: true,
+    positiveText: '确认批量删除',
+    execute: () => catalogItemService.batchRemove(ids),
+    successText: `已删除 ${ids.length} 个商品`,
+  })
+  if (ok) await listRef.value?.reload()
+}
+
+const toolbarActions = computed<ToolbarAction[]>(() => [
+  {
+    key: 'batch-remove',
+    label: selectedItemIds.value.length
+      ? `批量删除（${selectedItemIds.value.length}）`
+      : '批量删除',
+    type: 'error',
+    permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
+    disabled: selectedItemIds.value.length === 0,
+    onClick: removeSelected,
+  },
   {
     key: 'create',
     label: '新增商品',
-    type: 'primary' as const,
+    type: 'primary',
     permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
     onClick: openCreate,
   },
-]
+])
 
 onMounted(loadReferences)
 </script>
@@ -411,6 +444,7 @@ onMounted(loadReferences)
       :columns="columns"
       :fetcher="catalogItemService.list"
       :toolbar-actions="toolbarActions"
+      v-model:checked-row-keys="selectedItemIds"
       empty-text="暂无商品，请先创建门店商品分类"
     />
 

@@ -87,15 +87,25 @@ export const staffAccountService = {
 }
 
 // 服务端 catalog/activity/coupon-template 的更新为 PUT（整体覆盖），非 PATCH。
-export const categoryService = createResource<CatalogCategory>({
+const categoryResource = createResource<CatalogCategory>({
   base: API_PATHS.catalog.categories,
   updateMethod: 'put',
 })
-export const catalogItemService = createResource<CatalogItem>({
+export const categoryService = {
+  ...categoryResource,
+  batchRemove: (ids: number[]) =>
+    http.post<void>(API_PATHS.catalog.categoryBatchDelete, { ids }, { idempotent: true }),
+}
+const catalogItemResource = createResource<CatalogItem>({
   base: API_PATHS.catalog.items,
   idempotentWrites: true,
   updateMethod: 'put',
 })
+export const catalogItemService = {
+  ...catalogItemResource,
+  batchRemove: (ids: number[]) =>
+    http.post<void>(API_PATHS.catalog.itemBatchDelete, { ids }, { idempotent: true }),
+}
 
 const activityResource = createResource<Activity>({
   base: API_PATHS.activities.list,

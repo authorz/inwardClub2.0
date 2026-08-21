@@ -21,7 +21,7 @@ import FilterBar from './FilterBar.vue'
 import DataTable from './DataTable.vue'
 import PermissionButton from './PermissionButton.vue'
 import type { FilterField, TableColumnList, ToolbarAction } from './ui-types'
-import type { DataTableSortState } from 'naive-ui'
+import type { DataTableRowKey, DataTableSortState } from 'naive-ui'
 import { useDataTable } from '@/composables/useDataTable'
 import type { ListQuery, ListResult } from '@/api/types'
 
@@ -35,11 +35,13 @@ const props = defineProps<{
   toolbarActions?: ToolbarAction[]
   initialFilters?: Record<string, unknown>
   rowKey?: (row: T) => string
+  checkedRowKeys?: DataTableRowKey[]
   emptyText?: string
 }>()
 
 const emit = defineEmits<{
   'update:sorter': [sorter: DataTableSortState | DataTableSortState[] | null]
+  'update:checkedRowKeys': [keys: DataTableRowKey[]]
 }>()
 
 const {
@@ -51,7 +53,7 @@ const {
   resetFilters,
   handlePageChange,
   handlePageSizeChange,
-  reload,
+  reload: reloadData,
 } = useDataTable<T>({
   fetcher: props.fetcher,
   initialFilters: props.initialFilters,
@@ -64,6 +66,40 @@ function onFiltersUpdate(next: Record<string, unknown>): void {
     if (!(key in next)) delete current[key]
   }
   Object.assign(current, next)
+}
+
+function clearSelection(): void {
+  if (props.checkedRowKeys?.length) emit('update:checkedRowKeys', [])
+}
+
+function applyCurrentFilters(): void {
+  clearSelection()
+  applyFilters()
+}
+
+function resetCurrentFilters(): void {
+  clearSelection()
+  resetFilters()
+}
+
+function changePage(page: number): void {
+  clearSelection()
+  handlePageChange(page)
+}
+
+function changePageSize(size: number): void {
+  clearSelection()
+  handlePageSizeChange(size)
+}
+
+function changeSorter(sorter: DataTableSortState | DataTableSortState[] | null): void {
+  clearSelection()
+  emit('update:sorter', sorter)
+}
+
+async function reload(): Promise<void> {
+  clearSelection()
+  await reloadData()
 }
 
 // 供父组件在增删改后手动刷新
@@ -83,6 +119,7 @@ defineExpose({ reload })
           :key="action.key"
           :permission="action.permission"
           :type="action.type ?? 'default'"
+          :disabled="action.disabled"
           @click="action.onClick"
         >
           {{ action.label }}
@@ -95,8 +132,8 @@ defineExpose({ reload })
       :model-value="filters"
       :fields="fields"
       @update:model-value="onFiltersUpdate"
-      @search="applyFilters()"
-      @reset="resetFilters()"
+      @search="applyCurrentFilters"
+      @reset="resetCurrentFilters"
     />
 
     <DataTable
@@ -107,10 +144,12 @@ defineExpose({ reload })
       :page-size="pagination.pageSize"
       :item-count="pagination.itemCount"
       :row-key="rowKey"
+      :checked-row-keys="checkedRowKeys"
       :empty-text="emptyText"
-      @update:page="handlePageChange"
-      @update:page-size="handlePageSizeChange"
-      @update:sorter="(sorter) => emit('update:sorter', sorter)"
+      @update:page="changePage"
+      @update:page-size="changePageSize"
+      @update:sorter="changeSorter"
+      @update:checked-row-keys="(keys) => emit('update:checkedRowKeys', keys)"
     />
 
     <slot :reload="reload" />

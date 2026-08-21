@@ -78,8 +78,10 @@ export const API_PATHS = {
 
   catalog: {
     categories: '/admin/catalog/categories',
+    categoryBatchDelete: '/admin/catalog/categories/batch-delete',
     categoryDetail: (id: string) => `/admin/catalog/categories/${id}`,
     items: '/admin/catalog/items',
+    itemBatchDelete: '/admin/catalog/items/batch-delete',
     itemDetail: (id: string) => `/admin/catalog/items/${id}`,
     itemAssignStores: (id: string) => `/admin/catalog/items/${id}/assign-stores`,
     itemStoreOverrides: (id: string) => `/admin/catalog/items/${id}/store-overrides`,
