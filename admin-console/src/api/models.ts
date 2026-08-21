@@ -46,11 +46,13 @@ export interface PrinterDevice extends AuditableEntity {
 
 export interface PrinterDeviceInput {
   storeId: number
+  name: string
   deviceSn: string
   reason: string
 }
 
 export interface PrinterDevicePatch {
+  name?: string
   status?: 'active' | 'disabled'
   reason: string
 }

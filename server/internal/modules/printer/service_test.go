@@ -20,17 +20,28 @@ type memRepo struct {
 
 type cloudStub struct {
 	*FakePrinter
-	addErr    error
-	addedSN   string
-	deletedSN string
-	statuses  map[string]ProviderStatus
+	addErr      error
+	updateErr   error
+	addedSN     string
+	addedName   string
+	updatedSN   string
+	updatedName string
+	deletedSN   string
+	statuses    map[string]ProviderStatus
 }
 
 func newCloudStub() *cloudStub { return &cloudStub{FakePrinter: NewFakePrinter()} }
 
-func (c *cloudStub) AddPrinter(_ context.Context, sn, _ string) error {
+func (c *cloudStub) AddPrinter(_ context.Context, sn, name string) error {
 	c.addedSN = sn
+	c.addedName = name
 	return c.addErr
+}
+
+func (c *cloudStub) UpdatePrinterName(_ context.Context, sn, name string) error {
+	c.updatedSN = sn
+	c.updatedName = name
+	return c.updateErr
 }
 
 func (c *cloudStub) DeletePrinter(_ context.Context, sn string) error {
@@ -110,7 +121,7 @@ func TestStoreCreateDefaultsAndScope(t *testing.T) {
 	svc := NewConsoleService(newMemRepo())
 	ctx := context.Background()
 
-	v, err := svc.StoreCreate(ctx, 7, DeviceInput{DeviceSN: "SN-1"})
+	v, err := svc.StoreCreate(ctx, 7, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -123,14 +134,20 @@ func TestStoreCreateDefaultsAndScope(t *testing.T) {
 	if v.Status != StatusActive {
 		t.Fatalf("status = %q, want default active", v.Status)
 	}
+	if v.Name != "前台" {
+		t.Fatalf("name = %q, want 前台", v.Name)
+	}
 }
 
 func TestStoreCreateValidation(t *testing.T) {
 	svc := NewConsoleService(newMemRepo())
 	ctx := context.Background()
 
-	if _, err := svc.StoreCreate(ctx, 1, DeviceInput{}); err == nil {
+	if _, err := svc.StoreCreate(ctx, 1, DeviceInput{Name: "前台"}); err == nil {
 		t.Fatal("expected error for missing deviceSn")
+	}
+	if _, err := svc.StoreCreate(ctx, 1, DeviceInput{DeviceSN: "SN-1"}); err == nil {
+		t.Fatal("expected error for missing name")
 	}
 }
 
@@ -140,11 +157,14 @@ func TestStoreCreatePersistsOnlyAfterProviderAccepts(t *testing.T) {
 	cloud.addErr = apperr.Invalid("芯烨云拒绝添加")
 	svc := NewConsoleService(repo, cloud)
 
-	if _, err := svc.StoreCreate(context.Background(), 1, DeviceInput{DeviceSN: "SN-1"}); err == nil {
+	if _, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"}); err == nil {
 		t.Fatal("expected provider rejection")
 	}
 	if cloud.addedSN != "SN-1" {
 		t.Fatalf("provider received %q", cloud.addedSN)
+	}
+	if cloud.addedName != "前台" {
+		t.Fatalf("provider received name %q", cloud.addedName)
 	}
 	if len(repo.devices) != 0 {
 		t.Fatalf("local device persisted before provider success: %#v", repo.devices)
@@ -155,7 +175,7 @@ func TestStoreListIncludesProviderStatus(t *testing.T) {
 	repo := newMemRepo()
 	cloud := newCloudStub()
 	svc := NewConsoleService(repo, cloud)
-	created, err := svc.StoreCreate(context.Background(), 1, DeviceInput{DeviceSN: "SN-1"})
+	created, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -173,7 +193,7 @@ func TestStoreScopeIsolation(t *testing.T) {
 	svc := NewConsoleService(newMemRepo())
 	ctx := context.Background()
 
-	owned, _ := svc.StoreCreate(ctx, 1, DeviceInput{DeviceSN: "SN-A"})
+	owned, _ := svc.StoreCreate(ctx, 1, DeviceInput{Name: "前台", DeviceSN: "SN-A"})
 
 	// Another store cannot read, update or delete it.
 	if _, err := svc.StoreUpdate(ctx, 2, owned.ID, DevicePatch{}); !isNotFound(err) {
@@ -193,7 +213,7 @@ func TestStoreUpdatePartial(t *testing.T) {
 	svc := NewConsoleService(newMemRepo())
 	ctx := context.Background()
 
-	d, _ := svc.StoreCreate(ctx, 1, DeviceInput{DeviceSN: "SN-1"})
+	d, _ := svc.StoreCreate(ctx, 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
 	disabled := StatusDisabled
 	v, err := svc.StoreUpdate(ctx, 1, d.ID, DevicePatch{Status: &disabled})
 	if err != nil {
@@ -207,12 +227,53 @@ func TestStoreUpdatePartial(t *testing.T) {
 	}
 }
 
+func TestStoreUpdateNameSyncsProviderBeforePersisting(t *testing.T) {
+	repo := newMemRepo()
+	cloud := newCloudStub()
+	svc := NewConsoleService(repo, cloud)
+	d, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	name := "后厨"
+	updated, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{Name: &name})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if cloud.updatedSN != "SN-1" || cloud.updatedName != "后厨" {
+		t.Fatalf("provider update = (%q, %q)", cloud.updatedSN, cloud.updatedName)
+	}
+	if updated.Name != "后厨" || repo.devices[d.ID].Name != "后厨" {
+		t.Fatalf("updated device = %#v", updated)
+	}
+}
+
+func TestStoreUpdateNameDoesNotPersistWhenProviderRejects(t *testing.T) {
+	repo := newMemRepo()
+	cloud := newCloudStub()
+	svc := NewConsoleService(repo, cloud)
+	d, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	cloud.updateErr = apperr.Invalid("芯烨云拒绝修改")
+
+	name := "后厨"
+	if _, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{Name: &name}); err == nil {
+		t.Fatal("expected provider rejection")
+	}
+	if repo.devices[d.ID].Name != "前台" {
+		t.Fatalf("local name changed to %q", repo.devices[d.ID].Name)
+	}
+}
+
 func TestAdminListCrossStore(t *testing.T) {
 	svc := NewConsoleService(newMemRepo())
 	ctx := context.Background()
 
-	svc.StoreCreate(ctx, 1, DeviceInput{DeviceSN: "SN-A"})
-	svc.StoreCreate(ctx, 2, DeviceInput{DeviceSN: "SN-B"})
+	svc.StoreCreate(ctx, 1, DeviceInput{Name: "前台", DeviceSN: "SN-A"})
+	svc.StoreCreate(ctx, 2, DeviceInput{Name: "后厨", DeviceSN: "SN-B"})
 
 	all, err := svc.AdminList(ctx, nil)
 	if err != nil {
@@ -234,19 +295,20 @@ func TestAdminCRUDRequiresStoreAndReason(t *testing.T) {
 	ctx := context.Background()
 	entry := audit.Entry{}
 
-	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{DeviceSN: "SN-1", Reason: "配置前台打印"}, "k1", entry); err == nil {
+	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{Name: "前台", DeviceSN: "SN-1", Reason: "配置前台打印"}, "k1", entry); err == nil {
 		t.Fatal("expected store validation error")
 	}
-	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, DeviceSN: "SN-1"}, "k2", entry); err == nil {
+	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, Name: "前台", DeviceSN: "SN-1"}, "k2", entry); err == nil {
 		t.Fatal("expected reason validation error")
 	}
-	created, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, DeviceSN: "SN-1", Reason: "配置前台打印"}, "k3", entry)
+	created, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, Name: "前台", DeviceSN: "SN-1", Reason: "配置前台打印"}, "k3", entry)
 	if err != nil {
 		t.Fatalf("admin create: %v", err)
 	}
 	disabled := StatusDisabled
-	updated, err := svc.AdminUpdate(ctx, created.ID, AdminDevicePatch{DevicePatch: DevicePatch{Status: &disabled}, Reason: "设备维护"}, "k4", entry)
-	if err != nil || updated.Status != StatusDisabled {
+	name := "后厨"
+	updated, err := svc.AdminUpdate(ctx, created.ID, AdminDevicePatch{DevicePatch: DevicePatch{Name: &name, Status: &disabled}, Reason: "设备维护"}, "k4", entry)
+	if err != nil || updated.Status != StatusDisabled || updated.Name != "后厨" {
 		t.Fatalf("admin update = %+v, %v", updated, err)
 	}
 	if err := svc.AdminDelete(ctx, created.ID, AdminDeleteInput{Reason: "设备退役"}, "k5", entry); err != nil {

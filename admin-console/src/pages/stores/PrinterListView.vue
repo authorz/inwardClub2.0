@@ -14,6 +14,7 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 
 interface PrinterForm {
   storeId: string | null
+  name: string
   deviceSn: string
   status: 'active' | 'disabled'
   reason: string
@@ -31,6 +32,7 @@ const deleteTarget = ref<PrinterDevice | null>(null)
 const deleteReason = ref('')
 const form = reactive<PrinterForm>({
   storeId: null,
+  name: '',
   deviceSn: '',
   status: 'active',
   reason: '',
@@ -56,7 +58,7 @@ const fields = computed<FilterField[]>(() => [
     key: 'keyword',
     label: '打印机',
     type: 'input',
-    placeholder: '搜索设备 SN',
+    placeholder: '搜索名称 / SN',
     width: 240,
   },
   { key: 'status', label: '启用状态', type: 'select', options: PRINTER_STATUS_OPTIONS },
@@ -69,6 +71,7 @@ function storeName(storeId: string | number): string {
 const columns = [
   textColumn<PrinterDevice>('ID', 'id', { width: 80 }),
   renderColumn<PrinterDevice>('所属门店', 'storeId', (row) => storeName(row.storeId), 180),
+  textColumn<PrinterDevice>('设备位置/名称', 'name', { width: 160 }),
   textColumn<PrinterDevice>('设备 SN', 'deviceSn', { width: 180 }),
   renderColumn<PrinterDevice>('设备状态', 'providerStatus', (row) =>
     providerStatusLabels[row.providerStatus] ?? '查询失败', 120),
@@ -111,6 +114,7 @@ async function loadStores(): Promise<void> {
 
 function resetForm(): void {
   form.storeId = null
+  form.name = ''
   form.deviceSn = ''
   form.status = 'active'
   form.reason = ''
@@ -125,6 +129,7 @@ function openCreate(): void {
 function openEdit(row: PrinterDevice): void {
   editingId.value = String(row.id)
   form.storeId = String(row.storeId)
+  form.name = row.name
   form.deviceSn = row.deviceSn
   form.status = row.status
   form.reason = ''
@@ -133,6 +138,7 @@ function openEdit(row: PrinterDevice): void {
 
 async function submitForm(): Promise<void> {
   if (!form.storeId) return toastError('请选择所属门店')
+  if (!form.name.trim()) return toastError('请输入设备位置/名称')
   if (!form.deviceSn.trim()) return toastError('请输入设备 SN')
   if (!form.reason.trim()) return toastError('请填写操作原因')
 
@@ -140,6 +146,7 @@ async function submitForm(): Promise<void> {
   try {
     if (editingId.value) {
       await printerService.update(editingId.value, {
+        name: form.name.trim(),
         status: form.status,
         reason: form.reason.trim(),
       })
@@ -147,6 +154,7 @@ async function submitForm(): Promise<void> {
     } else {
       await printerService.create({
         storeId: Number(form.storeId),
+        name: form.name.trim(),
         deviceSn: form.deviceSn.trim(),
         reason: form.reason.trim(),
       })
@@ -234,6 +242,16 @@ onMounted(loadStores)
             :disabled="Boolean(editingId)"
             filterable
             placeholder="请选择打印机所属门店"
+          />
+        </NFormItem>
+        <NFormItem
+          label="设备位置/名称"
+          required
+        >
+          <NInput
+            v-model:value="form.name"
+            placeholder="如：前台、后厨、包房"
+            maxlength="64"
           />
         </NFormItem>
         <NFormItem

@@ -25,8 +25,9 @@ type Device struct {
 }
 
 // DeviceInput is the store-console create payload. All Xpyun account details
-// are headquarters-global; a store only supplies the physical device SN.
+// are headquarters-global; a store supplies the device location/name and SN.
 type DeviceInput struct {
+	Name     string `json:"name"`
 	DeviceSN string `json:"deviceSn"`
 }
 
@@ -35,12 +36,14 @@ type DeviceInput struct {
 // and provide an audit reason for the cross-store write.
 type AdminDeviceInput struct {
 	StoreID  int64  `json:"storeId"`
+	Name     string `json:"name"`
 	DeviceSN string `json:"deviceSn"`
 	Reason   string `json:"reason"`
 }
 
 // DevicePatch is the partial-update payload; nil fields are left unchanged.
 type DevicePatch struct {
+	Name   *string `json:"name"`
 	Status *string `json:"status"`
 }
 

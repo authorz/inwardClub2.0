@@ -40,7 +40,7 @@ func (s *ConsoleService) AdminCreate(ctx context.Context, in AdminDeviceInput, i
 	}
 	d := Device{
 		StoreID:  in.StoreID,
-		Name:     strings.TrimSpace(in.DeviceSN),
+		Name:     strings.TrimSpace(in.Name),
 		Provider: ProviderXpyun,
 		DeviceSN: strings.TrimSpace(in.DeviceSN),
 		Status:   StatusActive,
@@ -71,12 +71,22 @@ func (s *ConsoleService) AdminUpdate(ctx context.Context, id int64, in AdminDevi
 	if err := validateAdminReason(in.Reason); err != nil {
 		return DeviceView{}, err
 	}
-	if in.Status != nil && *in.Status != StatusActive && *in.Status != StatusDisabled {
-		return DeviceView{}, apperr.Invalid("invalid status")
+	if err := validatePatch(in.DevicePatch); err != nil {
+		return DeviceView{}, err
+	}
+	before, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return DeviceView{}, err
+	}
+	if err := s.updateProviderName(ctx, before, in.DevicePatch); err != nil {
+		return DeviceView{}, err
 	}
 	entry.Reason = strings.TrimSpace(in.Reason)
 	updated, err := s.repo.AdminUpdate(ctx, id, in.DevicePatch, idemKey, entry)
 	if err != nil {
+		if apperr.From(err).Code != apperr.CodeIdempotencyConflict {
+			s.rollbackProviderName(ctx, before, in.DevicePatch)
+		}
 		return DeviceView{}, err
 	}
 	return updated.view(), nil
@@ -108,13 +118,20 @@ func (s *ConsoleService) StoreList(ctx context.Context, storeID int64) ([]Device
 
 // StoreCreate registers a device pinned to the caller's own store scope.
 func (s *ConsoleService) StoreCreate(ctx context.Context, storeID int64, in DeviceInput) (DeviceView, error) {
+	name := strings.TrimSpace(in.Name)
 	deviceSN := strings.TrimSpace(in.DeviceSN)
+	if name == "" {
+		return DeviceView{}, apperr.Invalid("name is required")
+	}
+	if len([]rune(name)) > 64 {
+		return DeviceView{}, apperr.Invalid("name is too long")
+	}
 	if deviceSN == "" {
 		return DeviceView{}, apperr.Invalid("deviceSn is required")
 	}
 	d := Device{
 		StoreID:  storeID,
-		Name:     deviceSN,
+		Name:     name,
 		Provider: ProviderXpyun,
 		DeviceSN: deviceSN,
 		Status:   StatusActive,
@@ -135,16 +152,21 @@ func (s *ConsoleService) StoreCreate(ctx context.Context, storeID int64, in Devi
 
 // StoreUpdate applies a partial update to one of the caller's own devices.
 func (s *ConsoleService) StoreUpdate(ctx context.Context, storeID, id int64, patch DevicePatch) (DeviceView, error) {
-	if patch.Status != nil && *patch.Status != StatusActive && *patch.Status != StatusDisabled {
-		return DeviceView{}, apperr.Invalid("invalid status")
+	if err := validatePatch(patch); err != nil {
+		return DeviceView{}, err
 	}
 	d, err := s.own(ctx, storeID, id)
 	if err != nil {
 		return DeviceView{}, err
 	}
+	before := d
+	if err := s.updateProviderName(ctx, before, patch); err != nil {
+		return DeviceView{}, err
+	}
 	applyPatch(&d, patch)
 	updated, err := s.repo.Update(ctx, d)
 	if err != nil {
+		s.rollbackProviderName(ctx, before, patch)
 		return DeviceView{}, err
 	}
 	return updated.view(), nil
@@ -214,9 +236,43 @@ func (s *ConsoleService) list(ctx context.Context, storeID *int64) ([]DeviceView
 }
 
 func applyPatch(d *Device, p DevicePatch) {
+	if p.Name != nil {
+		d.Name = strings.TrimSpace(*p.Name)
+	}
 	if p.Status != nil {
 		d.Status = *p.Status
 	}
+}
+
+func validatePatch(p DevicePatch) error {
+	if p.Name != nil && strings.TrimSpace(*p.Name) == "" {
+		return apperr.Invalid("name is required")
+	}
+	if p.Name != nil && len([]rune(strings.TrimSpace(*p.Name))) > 64 {
+		return apperr.Invalid("name is too long")
+	}
+	if p.Status != nil && *p.Status != StatusActive && *p.Status != StatusDisabled {
+		return apperr.Invalid("invalid status")
+	}
+	return nil
+}
+
+func (s *ConsoleService) updateProviderName(ctx context.Context, before Device, patch DevicePatch) error {
+	if patch.Name == nil {
+		return nil
+	}
+	name := strings.TrimSpace(*patch.Name)
+	if name == before.Name {
+		return nil
+	}
+	return s.cloud.UpdatePrinterName(ctx, before.DeviceSN, name)
+}
+
+func (s *ConsoleService) rollbackProviderName(ctx context.Context, before Device, patch DevicePatch) {
+	if patch.Name == nil || strings.TrimSpace(*patch.Name) == before.Name {
+		return
+	}
+	_ = s.cloud.UpdatePrinterName(ctx, before.DeviceSN, before.Name)
 }
 
 func (s *ConsoleService) ensureSNAvailable(ctx context.Context, deviceSN string) error {
@@ -244,6 +300,12 @@ func validateAdminReason(reason string) error {
 }
 
 func validateAdminDevice(d Device) error {
+	if strings.TrimSpace(d.Name) == "" {
+		return apperr.Invalid("name is required")
+	}
+	if len([]rune(strings.TrimSpace(d.Name))) > 64 {
+		return apperr.Invalid("name is too long")
+	}
 	if strings.TrimSpace(d.DeviceSN) == "" {
 		return apperr.Invalid("deviceSn is required")
 	}
