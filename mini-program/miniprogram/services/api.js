@@ -210,14 +210,18 @@ function normalizeRechargeOrder(o) {
 // page already supplied (no invented fields). The Go binder ignores extra keys.
 function foodOrderBody(data) {
   const d = data || {};
+  // Persisted store selections and route/dataset values may be strings in WeChat.
+  // Normalize every numeric DTO field before Go's strict JSON binding.
   return Object.assign({}, d, {
+    storeId: Number(d.storeId),
+    tableId: d.tableId != null && d.tableId !== '' ? Number(d.tableId) : undefined,
     payMethod: d.payMethod || d.payChannel,
     couponEntitlementId: d.couponEntitlementId != null ? Number(d.couponEntitlementId) : undefined,
     remark: d.remark != null ? d.remark : d.note || '',
     items: (d.items || []).map((it) => ({
-      itemId: it.itemId != null ? it.itemId : it.id,
-      variantId: it.variantId,
-      quantity: it.quantity != null ? it.quantity : it.qty,
+      itemId: Number(it.itemId != null ? it.itemId : it.id),
+      variantId: it.variantId != null && it.variantId !== '' ? Number(it.variantId) : undefined,
+      quantity: Number(it.quantity != null ? it.quantity : it.qty),
     })),
   });
 }
