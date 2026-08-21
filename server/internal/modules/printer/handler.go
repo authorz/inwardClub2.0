@@ -5,8 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	"github.com/inwardclub/server/internal/platform/idempotency"
 	"github.com/inwardclub/server/internal/platform/storescope"
 )
 
@@ -40,6 +42,63 @@ func (h *ConsoleHandler) AdminList(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, views)
+}
+
+// AdminCreate handles POST /admin/printer-devices.
+func (h *ConsoleHandler) AdminCreate(c *gin.Context) {
+	var in AdminDeviceInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	entry := audit.FromContext(c, "printer.device.create", "printer_device", 0)
+	view, err := h.svc.AdminCreate(c.Request.Context(), in, idempotency.Key(c), entry)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// AdminUpdate handles PATCH /admin/printer-devices/:id.
+func (h *ConsoleHandler) AdminUpdate(c *gin.Context) {
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var in AdminDevicePatch
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	entry := audit.FromContext(c, "printer.device.update", "printer_device", id)
+	view, err := h.svc.AdminUpdate(c.Request.Context(), id, in, idempotency.Key(c), entry)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// AdminDelete handles DELETE /admin/printer-devices/:id.
+func (h *ConsoleHandler) AdminDelete(c *gin.Context) {
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var in AdminDeleteInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	entry := audit.FromContext(c, "printer.device.delete", "printer_device", id)
+	if err := h.svc.AdminDelete(c.Request.Context(), id, in, idempotency.Key(c), entry); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"id": id})
 }
 
 // --- Store ---

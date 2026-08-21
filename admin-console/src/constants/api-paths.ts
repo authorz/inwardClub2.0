@@ -38,6 +38,11 @@ export const API_PATHS = {
     remove: (id: string) => `/admin/stores/${id}`,
   },
 
+  printers: {
+    list: '/admin/printer-devices',
+    detail: (id: string) => `/admin/printer-devices/${id}`,
+  },
+
   franchiseInquiries: {
     list: '/admin/franchise-inquiries',
     status: (id: string) => `/admin/franchise-inquiries/${id}/status`,

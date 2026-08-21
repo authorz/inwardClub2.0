@@ -34,6 +34,26 @@ export interface Store extends AuditableEntity {
   logoAssetId?: string
 }
 
+export interface PrinterDevice extends AuditableEntity {
+  storeId: string | number
+  name: string
+  provider: string
+  deviceSn: string
+  status: 'active' | 'disabled'
+}
+
+export interface PrinterDeviceInput {
+  storeId: number
+  name: string
+  provider: string
+  deviceSn: string
+  deviceKey?: string
+  status: 'active' | 'disabled'
+  reason: string
+}
+
+export type PrinterDevicePatch = Omit<PrinterDeviceInput, 'storeId' | 'provider'>
+
 export interface VenueTable extends AuditableEntity {
   storeName: string
   name: string

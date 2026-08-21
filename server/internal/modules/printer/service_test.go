@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -59,6 +60,23 @@ func (r *memRepo) Delete(_ context.Context, id int64) error {
 	}
 	delete(r.devices, id)
 	return nil
+}
+
+func (r *memRepo) AdminCreate(ctx context.Context, d Device, _ string, _ audit.Entry) (Device, error) {
+	return r.Create(ctx, d)
+}
+
+func (r *memRepo) AdminUpdate(ctx context.Context, id int64, patch DevicePatch, _ string, _ audit.Entry) (Device, error) {
+	d, err := r.Get(ctx, id)
+	if err != nil {
+		return Device{}, err
+	}
+	applyPatch(&d, patch)
+	return r.Update(ctx, d)
+}
+
+func (r *memRepo) AdminDelete(ctx context.Context, id int64, _ string, _ audit.Entry) error {
+	return r.Delete(ctx, id)
 }
 
 func TestStoreCreateDefaultsAndScope(t *testing.T) {
@@ -150,5 +168,33 @@ func TestAdminListCrossStore(t *testing.T) {
 	filtered, _ := svc.AdminList(ctx, &one)
 	if len(filtered) != 1 || filtered[0].StoreID != 2 {
 		t.Fatalf("filtered = %+v", filtered)
+	}
+}
+
+func TestAdminCRUDRequiresStoreAndReason(t *testing.T) {
+	svc := NewConsoleService(newMemRepo())
+	ctx := context.Background()
+	entry := audit.Entry{}
+
+	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{Name: "Front", DeviceSN: "SN-1", Reason: "配置前台打印"}, "k1", entry); err == nil {
+		t.Fatal("expected store validation error")
+	}
+	if _, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, Name: "Front", DeviceSN: "SN-1"}, "k2", entry); err == nil {
+		t.Fatal("expected reason validation error")
+	}
+	created, err := svc.AdminCreate(ctx, AdminDeviceInput{StoreID: 1, Name: "Front", DeviceSN: "SN-1", Reason: "配置前台打印"}, "k3", entry)
+	if err != nil {
+		t.Fatalf("admin create: %v", err)
+	}
+	disabled := StatusDisabled
+	updated, err := svc.AdminUpdate(ctx, created.ID, AdminDevicePatch{DevicePatch: DevicePatch{Status: &disabled}, Reason: "设备维护"}, "k4", entry)
+	if err != nil || updated.Status != StatusDisabled {
+		t.Fatalf("admin update = %+v, %v", updated, err)
+	}
+	if err := svc.AdminDelete(ctx, created.ID, AdminDeleteInput{Reason: "设备退役"}, "k5", entry); err != nil {
+		t.Fatalf("admin delete: %v", err)
+	}
+	if _, err := svc.AdminList(ctx, nil); err != nil {
+		t.Fatalf("admin list after delete: %v", err)
 	}
 }

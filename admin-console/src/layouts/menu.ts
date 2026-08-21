@@ -53,6 +53,12 @@ export const MENU: MenuNode[] = [
         path: '/stores',
         permission: PERMISSIONS.STORE_READ,
       },
+      {
+        key: 'printer-list',
+        label: '打印机管理',
+        path: '/stores/printers',
+        permission: PERMISSIONS.STORE_READ,
+      },
     ],
   },
   {

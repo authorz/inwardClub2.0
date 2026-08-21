@@ -36,6 +36,7 @@ function metaFor(path: string): AppRouteMeta {
 const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['component']> }[] = [
   { path: '/dashboard', component: () => import('@/pages/DashboardView.vue') },
   { path: '/stores', component: () => import('@/pages/stores/StoreListView.vue') },
+  { path: '/stores/printers', component: () => import('@/pages/stores/PrinterListView.vue') },
   {
     path: '/franchise-inquiries',
     component: () => import('@/pages/franchise/FranchiseInquiryListView.vue'),

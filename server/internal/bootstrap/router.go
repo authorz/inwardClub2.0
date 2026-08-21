@@ -322,6 +322,12 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	idem.POST("/coupon-voids", a.couponConsoleHandler.Void)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.Verify)
 
+	// Printer device writes are cross-store operations and must be both
+	// idempotent and audited by the printer repository transaction.
+	idem.POST("/printer-devices", a.printerConsoleHandler.AdminCreate)
+	idem.PATCH("/printer-devices/:id", a.printerConsoleHandler.AdminUpdate)
+	idem.DELETE("/printer-devices/:id", a.printerConsoleHandler.AdminDelete)
+
 	// Activity sessions and ticket types (writes).
 	idem.POST("/activities/:activityID/sessions", a.activityConsoleHandler.CreateSession)
 	idem.PUT("/activities/:activityID/sessions/:sessionID", a.activityConsoleHandler.UpdateSession)

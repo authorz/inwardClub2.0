@@ -33,6 +33,9 @@ import type {
   MembershipTier,
   PaymentChannelSetting,
   PointReviewSettings,
+  PrinterDevice,
+  PrinterDeviceInput,
+  PrinterDevicePatch,
   PaymentOrder,
   PaymentTransaction,
   RechargeProduct,
@@ -60,6 +63,33 @@ export const storeService = {
       idempotent: true,
     })
   },
+}
+export const printerService = {
+  list: async (query: Record<string, unknown> = {}) => {
+    const devices = await http.get<PrinterDevice[]>(API_PATHS.printers.list, {
+      ...(query.storeId ? { storeId: query.storeId } : {}),
+    })
+    const keyword = String(query.keyword ?? '').trim().toLowerCase()
+    const status = String(query.status ?? '').trim()
+    const filtered = devices.filter((device) => {
+      if (status && device.status !== status) return false
+      if (!keyword) return true
+      return `${device.name} ${device.deviceSn} ${device.provider}`.toLowerCase().includes(keyword)
+    })
+    const page = Math.max(1, Number(query.page) || 1)
+    const pageSize = Math.max(1, Number(query.pageSize) || 20)
+    const start = (page - 1) * pageSize
+    return {
+      items: filtered.slice(start, start + pageSize),
+      meta: { page, pageSize, total: filtered.length },
+    }
+  },
+  create: (payload: PrinterDeviceInput) =>
+    http.post<PrinterDevice>(API_PATHS.printers.list, payload, { idempotent: true }),
+  update: (id: string, payload: PrinterDevicePatch) =>
+    http.patch<PrinterDevice>(API_PATHS.printers.detail(id), payload, { idempotent: true }),
+  remove: (id: string, reason: string) =>
+    http.delete<void>(API_PATHS.printers.detail(id), { data: { reason }, idempotent: true }),
 }
 export const tableService = createResource<VenueTable>({ base: API_PATHS.tables.list })
 export const seatService = createResource<VenueSeat>({ base: API_PATHS.seats.list })

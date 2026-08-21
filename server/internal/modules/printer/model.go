@@ -33,12 +33,39 @@ type DeviceInput struct {
 	Status    string `json:"status"`
 }
 
+// AdminDeviceInput is the headquarters create payload. Unlike store-console
+// creation, the headquarters operator must explicitly select the owning store
+// and provide an audit reason for the cross-store write.
+type AdminDeviceInput struct {
+	StoreID   int64  `json:"storeId"`
+	Name      string `json:"name"`
+	Provider  string `json:"provider"`
+	DeviceSN  string `json:"deviceSn"`
+	DeviceKey string `json:"deviceKey"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason"`
+}
+
 // DevicePatch is the partial-update payload; nil fields are left unchanged.
 type DevicePatch struct {
 	Name      *string `json:"name"`
 	DeviceSN  *string `json:"deviceSn"`
 	DeviceKey *string `json:"deviceKey"`
 	Status    *string `json:"status"`
+}
+
+// AdminDevicePatch is the headquarters update payload. Store ownership is
+// immutable after creation; changing it requires deleting and recreating the
+// device so the audit trail remains unambiguous.
+type AdminDevicePatch struct {
+	DevicePatch
+	Reason string `json:"reason"`
+}
+
+// AdminDeleteInput carries the mandatory audit reason for a headquarters
+// deletion.
+type AdminDeleteInput struct {
+	Reason string `json:"reason"`
 }
 
 // DeviceView is the JSON shape returned by the console endpoints. The device

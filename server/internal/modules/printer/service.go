@@ -2,7 +2,9 @@ package printer
 
 import (
 	"context"
+	"strings"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -18,6 +20,71 @@ func NewConsoleService(repo Repository) *ConsoleService { return &ConsoleService
 // AdminList returns every store's devices, optionally filtered to one store.
 func (s *ConsoleService) AdminList(ctx context.Context, storeID *int64) ([]DeviceView, error) {
 	return s.list(ctx, storeID)
+}
+
+// AdminCreate registers a printer for an explicitly selected non-deleted store and
+// persists the cross-store audit record atomically with the device row.
+func (s *ConsoleService) AdminCreate(ctx context.Context, in AdminDeviceInput, idemKey string, entry audit.Entry) (DeviceView, error) {
+	if in.StoreID <= 0 {
+		return DeviceView{}, apperr.Invalid("storeId is required")
+	}
+	if err := validateAdminReason(in.Reason); err != nil {
+		return DeviceView{}, err
+	}
+	d := Device{
+		StoreID:   in.StoreID,
+		Name:      in.Name,
+		Provider:  orDefault(in.Provider, ProviderXpyun),
+		DeviceSN:  in.DeviceSN,
+		DeviceKey: in.DeviceKey,
+		Status:    orDefault(in.Status, StatusActive),
+	}
+	if err := validateAdminDevice(d); err != nil {
+		return DeviceView{}, err
+	}
+	entry.Reason = strings.TrimSpace(in.Reason)
+	created, err := s.repo.AdminCreate(ctx, d, idemKey, entry)
+	if err != nil {
+		return DeviceView{}, err
+	}
+	return created.view(), nil
+}
+
+// AdminUpdate updates a device without allowing its owning store to change.
+func (s *ConsoleService) AdminUpdate(ctx context.Context, id int64, in AdminDevicePatch, idemKey string, entry audit.Entry) (DeviceView, error) {
+	if id <= 0 {
+		return DeviceView{}, apperr.Invalid("invalid id")
+	}
+	if err := validateAdminReason(in.Reason); err != nil {
+		return DeviceView{}, err
+	}
+	if in.Name != nil && strings.TrimSpace(*in.Name) == "" {
+		return DeviceView{}, apperr.Invalid("name is required")
+	}
+	if in.DeviceSN != nil && strings.TrimSpace(*in.DeviceSN) == "" {
+		return DeviceView{}, apperr.Invalid("deviceSn is required")
+	}
+	if in.Status != nil && *in.Status != StatusActive && *in.Status != StatusDisabled {
+		return DeviceView{}, apperr.Invalid("invalid status")
+	}
+	entry.Reason = strings.TrimSpace(in.Reason)
+	updated, err := s.repo.AdminUpdate(ctx, id, in.DevicePatch, idemKey, entry)
+	if err != nil {
+		return DeviceView{}, err
+	}
+	return updated.view(), nil
+}
+
+// AdminDelete permanently removes a printer with an atomic audit record.
+func (s *ConsoleService) AdminDelete(ctx context.Context, id int64, in AdminDeleteInput, idemKey string, entry audit.Entry) error {
+	if id <= 0 {
+		return apperr.Invalid("invalid id")
+	}
+	if err := validateAdminReason(in.Reason); err != nil {
+		return err
+	}
+	entry.Reason = strings.TrimSpace(in.Reason)
+	return s.repo.AdminDelete(ctx, id, idemKey, entry)
 }
 
 // StoreList returns only the caller's own store devices.
@@ -115,4 +182,31 @@ func orDefault(v, def string) string {
 		return def
 	}
 	return v
+}
+
+func validateAdminReason(reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return apperr.Invalid("reason is required")
+	}
+	if len([]rune(reason)) > 200 {
+		return apperr.Invalid("reason is too long")
+	}
+	return nil
+}
+
+func validateAdminDevice(d Device) error {
+	if strings.TrimSpace(d.Name) == "" {
+		return apperr.Invalid("name is required")
+	}
+	if strings.TrimSpace(d.DeviceSN) == "" {
+		return apperr.Invalid("deviceSn is required")
+	}
+	if d.Provider != ProviderXpyun {
+		return apperr.Invalid("unsupported provider")
+	}
+	if d.Status != StatusActive && d.Status != StatusDisabled {
+		return apperr.Invalid("invalid status")
+	}
+	return nil
 }

@@ -39,6 +39,12 @@ export const STORE_STATUS_OPTIONS: OptionItem[] = [
   { label: '休息中', value: 'inactive', tone: 'default' },
 ]
 
+/** 云打印机启用状态。 */
+export const PRINTER_STATUS_OPTIONS: OptionItem[] = [
+  { label: '启用', value: 'active', tone: 'success' },
+  { label: '已停用', value: 'disabled', tone: 'error' },
+]
+
 /** Banner 展示状态（后端仅在 active 时向小程序返回）。 */
 export const BANNER_STATUS_OPTIONS: OptionItem[] = [
   { label: '显示', value: 'active', tone: 'success' },
