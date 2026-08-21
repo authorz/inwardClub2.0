@@ -235,6 +235,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 
 	// Printer devices (cross-store read; optional ?storeId filter).
 	p.GET("/printer-devices", a.printerConsoleHandler.AdminList)
+	p.GET("/print-jobs", a.printerConsoleHandler.AdminPrintJobs)
 
 	a.registerAdminConsole(p)
 }

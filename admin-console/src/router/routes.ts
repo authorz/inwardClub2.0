@@ -82,6 +82,7 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
   },
   { path: '/reports', component: () => import('@/pages/reports/ReportsView.vue') },
   { path: '/audit/logs', component: () => import('@/pages/audit/AuditLogView.vue') },
+  { path: '/audit/print-jobs', component: () => import('@/pages/audit/PrintJobLogView.vue') },
   { path: '/audit/error-events', component: () => import('@/pages/audit/ErrorEventView.vue') },
   {
     path: '/system/global-settings',

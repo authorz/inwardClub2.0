@@ -71,12 +71,19 @@ func WriteReceipt(ctx context.Context, tx *sql.Tx, r Receipt) error {
 		}
 	}
 	for _, device := range devices {
+		job := BuildReceiptJob(device.sn, r)
+		idemKey := receiptIdemKey(r.PaymentOrderID, device.id)
+		jobID, err := createPrintJob(ctx, tx, r.StoreID, device.id, r.BusinessOrderNo, idemKey, job)
+		if err != nil {
+			return err
+		}
+		job.ID = jobID
 		if err := outbox.Write(
 			ctx,
 			tx,
 			ReceiptTopic,
-			BuildReceiptJob(device.sn, r),
-			receiptIdemKey(r.PaymentOrderID, device.id),
+			job,
+			idemKey,
 		); err != nil {
 			return err
 		}

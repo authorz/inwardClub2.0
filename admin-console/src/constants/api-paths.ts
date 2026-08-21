@@ -187,6 +187,7 @@ export const API_PATHS = {
 
   audit: {
     logs: '/admin/audit-logs',
+    printJobs: '/admin/print-jobs',
     errorEvents: '/admin/error-events',
     maintenanceCleanup: '/admin/audit-log-maintenance/cleanup',
   },

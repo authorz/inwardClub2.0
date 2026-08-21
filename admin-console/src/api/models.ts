@@ -390,6 +390,22 @@ export interface ErrorEvent {
   createdAt: string
 }
 
+export interface PrintJobLog {
+  id: string
+  storeId: string | number
+  storeName: string
+  deviceId?: string | number
+  deviceName: string
+  deviceSn: string
+  template: string
+  businessOrderNo: string
+  status: 'pending' | 'processing' | 'printed' | 'failed'
+  attempts: number
+  lastError?: string
+  createdAt: string
+  updatedAt: string
+}
+
 // 对齐 server payment.ChannelSetting：GET /admin/payment-channel-settings 返回渠道开关列表。
 export interface PaymentChannelSetting {
   channel: string

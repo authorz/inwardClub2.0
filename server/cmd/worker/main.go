@@ -119,6 +119,7 @@ func run() error {
 	// The print:receipt handler executes jobs through it.
 	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
 	receiptPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, cfg.UseFakeAdapters)
+	printJobRecorder := printer.NewJobRepository(database)
 
 	// Payment post-process: evaluates a settled, member-bound offline collection
 	// against the enabled low_spend_reward rule and grants coins/points/growth
@@ -165,7 +166,7 @@ func run() error {
 		case TaskPaymentPostProcess:
 			mux.HandleFunc(task, postProcessHandler(log, postProcessSvc))
 		case TaskPrint:
-			mux.HandleFunc(task, printHandler(log, receiptPrinter))
+			mux.HandleFunc(task, printHandler(log, receiptPrinter, printJobRecorder))
 		case TaskReportRollup:
 			mux.HandleFunc(task, rollupHandler(log, rollupSvc))
 		case TaskReservationExpire:
@@ -344,16 +345,38 @@ func logHandler(log *slog.Logger, task string) func(context.Context, *asynq.Task
 // SettleWeChat / SettleOffline / SettleByCoin settlement paths append a
 // print:receipt outbox event (printer.WriteReceipt) for store-bound orders, which
 // the dispatcher relays here (see docs/adapters.md §3.1).
-func printHandler(log *slog.Logger, p printer.Printer) func(context.Context, *asynq.Task) error {
+func printHandler(log *slog.Logger, p printer.Printer, recorders ...printer.JobRecorder) func(context.Context, *asynq.Task) error {
+	var recorder printer.JobRecorder
+	if len(recorders) > 0 {
+		recorder = recorders[0]
+	}
 	return func(ctx context.Context, t *asynq.Task) error {
 		var job printer.Job
 		if err := json.Unmarshal(t.Payload(), &job); err != nil {
 			log.Error("print task: undecodable payload dropped", "error", err, "payload", string(t.Payload()))
 			return nil
 		}
+		if recorder != nil && job.ID > 0 {
+			if err := recorder.StartAttempt(ctx, job.ID); err != nil {
+				log.Error("print task: could not record attempt", "error", err, "job_id", job.ID)
+				return err
+			}
+		}
 		if err := p.Print(ctx, job); err != nil {
+			if recorder != nil && job.ID > 0 {
+				if recordErr := recorder.MarkFailed(ctx, job.ID, err); recordErr != nil {
+					log.Error("print task: could not record failure", "error", recordErr, "job_id", job.ID)
+				}
+			}
 			log.Error("print task: print failed", "error", err, "sn", job.DeviceSN)
 			return err
+		}
+		if recorder != nil && job.ID > 0 {
+			if err := recorder.MarkPrinted(ctx, job.ID); err != nil {
+				// The receipt has already reached the provider. A log-write failure
+				// must not retry and risk printing the same receipt twice.
+				log.Error("print task: printed but status update failed", "error", err, "job_id", job.ID)
+			}
 		}
 		log.Info("print task: printed", "sn", job.DeviceSN, "template", job.Template)
 		return nil

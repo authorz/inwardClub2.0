@@ -2,6 +2,8 @@ package printer
 
 import (
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,11 +18,18 @@ import (
 // read) and store (own-store CRUD) consoles. Route wiring decides which group
 // mounts which method.
 type ConsoleHandler struct {
-	svc *ConsoleService
+	svc  *ConsoleService
+	jobs *JobRepository
 }
 
 // NewConsoleHandler builds the printer console handler.
-func NewConsoleHandler(svc *ConsoleService) *ConsoleHandler { return &ConsoleHandler{svc: svc} }
+func NewConsoleHandler(svc *ConsoleService, jobRepositories ...*JobRepository) *ConsoleHandler {
+	h := &ConsoleHandler{svc: svc}
+	if len(jobRepositories) > 0 {
+		h.jobs = jobRepositories[0]
+	}
+	return h
+}
 
 // --- Admin ---
 
@@ -42,6 +51,50 @@ func (h *ConsoleHandler) AdminList(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, views)
+}
+
+// AdminPrintJobs handles GET /admin/print-jobs.
+func (h *ConsoleHandler) AdminPrintJobs(c *gin.Context) {
+	if h.jobs == nil {
+		httpx.Fail(c, apperr.Internal(nil))
+		return
+	}
+	f := PrintJobFilter{
+		Page:    httpx.ParsePage(c),
+		Status:  strings.TrimSpace(c.Query("status")),
+		Keyword: strings.TrimSpace(c.Query("keyword")),
+	}
+	if raw := c.Query("storeId"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			httpx.Fail(c, apperr.Invalid("invalid storeId"))
+			return
+		}
+		f.StoreID = &id
+	}
+	if raw := c.Query("createdFrom"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			httpx.Fail(c, apperr.Invalid("invalid createdFrom"))
+			return
+		}
+		f.CreatedFrom = &parsed
+	}
+	if raw := c.Query("createdTo"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			httpx.Fail(c, apperr.Invalid("invalid createdTo"))
+			return
+		}
+		before := parsed.Add(24 * time.Hour)
+		f.CreatedBefore = &before
+	}
+	jobs, total, err := h.jobs.List(c.Request.Context(), f)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.List(c, jobs, httpx.MetaFor(f.Page, total))
 }
 
 // AdminCreate handles POST /admin/printer-devices.

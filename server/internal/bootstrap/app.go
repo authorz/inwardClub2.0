@@ -203,6 +203,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 	activityConsoleSvc := activity.NewConsoleService(activity.NewConsoleRepository(database), assetSvc)
 	couponConsoleSvc := coupon.NewConsoleService(coupon.NewConsoleRepository(database))
 	printerConsoleSvc := printer.NewConsoleService(printer.NewRepository(database), cloudPrinter)
+	printJobRepo := printer.NewJobRepository(database)
 	reservationConsoleSvc := reservation.NewConsoleService(reservation.NewConsoleRepository(database))
 	orderStoreConsoleSvc := order.NewStoreConsoleService(order.NewStoreConsoleRepository(database), paymentAdminSvc, authSvc, assetSvc)
 
@@ -246,7 +247,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		catalogConsoleHandler:     catalog.NewConsoleHandler(catalogConsoleSvc),
 		activityConsoleHandler:    activity.NewConsoleHandler(activityConsoleSvc),
 		couponConsoleHandler:      coupon.NewConsoleHandler(couponConsoleSvc),
-		printerConsoleHandler:     printer.NewConsoleHandler(printerConsoleSvc),
+		printerConsoleHandler:     printer.NewConsoleHandler(printerConsoleSvc, printJobRepo),
 		reservationConsoleHandler: reservation.NewConsoleHandler(reservationConsoleSvc),
 		orderStoreConsoleHandler:  order.NewStoreConsoleHandler(orderStoreConsoleSvc),
 

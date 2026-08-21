@@ -237,6 +237,12 @@ export const MENU: MenuNode[] = [
         permission: PERMISSIONS.AUDIT_READ,
       },
       {
+        key: 'print-jobs',
+        label: '打印日志',
+        path: '/audit/print-jobs',
+        permission: PERMISSIONS.AUDIT_READ,
+      },
+      {
         key: 'error-events',
         label: '错误事件',
         path: '/audit/error-events',

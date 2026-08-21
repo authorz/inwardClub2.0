@@ -11,6 +11,7 @@ import (
 
 // Job is a single print request.
 type Job struct {
+	ID       int64
 	DeviceSN string
 	Template string
 	Content  string

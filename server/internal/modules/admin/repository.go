@@ -781,16 +781,18 @@ func (r *sqlRepository) ListAuditLogs(ctx context.Context, f ListFilter) ([]Audi
 	for rows.Next() {
 		var a AuditLog
 		var targetID int64
-		var actorSnapshotJSON, targetSnapshotJSON, scopeSnapshotJSON []byte
+		var actorSnapshotJSON, targetSnapshotJSON, scopeSnapshotJSON, beforeJSON, afterJSON []byte
 		if err := rows.Scan(&a.ID, &a.ActorType, &a.ActorID, &a.ActorRole, &actorSnapshotJSON,
 			&a.Action, &a.TargetType, &targetID, &targetSnapshotJSON, &a.StoreID,
-			&scopeSnapshotJSON, &a.BeforeJSON, &a.AfterJSON, &a.Reason, &a.RequestID, &a.CreatedAt); err != nil {
+			&scopeSnapshotJSON, &beforeJSON, &afterJSON, &a.Reason, &a.RequestID, &a.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		a.TargetID = strconv.FormatInt(targetID, 10)
 		a.ActorSnapshotJSON = actorSnapshotJSON
 		a.TargetSnapshotJSON = targetSnapshotJSON
 		a.ScopeSnapshotJSON = scopeSnapshotJSON
+		a.BeforeJSON = beforeJSON
+		a.AfterJSON = afterJSON
 		out = append(out, a)
 	}
 	return out, total, rows.Err()

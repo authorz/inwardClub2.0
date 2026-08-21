@@ -51,6 +51,72 @@ func TestPrintHandlerDropsUndecodablePayload(t *testing.T) {
 	}
 }
 
+type printRecorderStub struct {
+	started []int64
+	printed []int64
+	failed  []int64
+}
+
+func (r *printRecorderStub) StartAttempt(_ context.Context, id int64) error {
+	r.started = append(r.started, id)
+	return nil
+}
+
+func (r *printRecorderStub) MarkPrinted(_ context.Context, id int64) error {
+	r.printed = append(r.printed, id)
+	return nil
+}
+
+func (r *printRecorderStub) MarkFailed(_ context.Context, id int64, _ error) error {
+	r.failed = append(r.failed, id)
+	return nil
+}
+
+type failingPrinter struct{ err error }
+
+func (p failingPrinter) Print(context.Context, printer.Job) error { return p.err }
+
+func TestPrintHandlerRecordsSuccessfulAttempt(t *testing.T) {
+	fake := printer.NewFakePrinter()
+	recorder := &printRecorderStub{}
+	handler := printHandler(quietLogger(), fake, recorder)
+	payload, _ := json.Marshal(printer.Job{ID: 42, DeviceSN: "SN-42", Content: "receipt"})
+
+	if err := handler(context.Background(), asynq.NewTask(TaskPrint, payload)); err != nil {
+		t.Fatalf("printHandler: %v", err)
+	}
+	if len(recorder.started) != 1 || recorder.started[0] != 42 {
+		t.Fatalf("started = %v, want [42]", recorder.started)
+	}
+	if len(recorder.printed) != 1 || recorder.printed[0] != 42 {
+		t.Fatalf("printed = %v, want [42]", recorder.printed)
+	}
+	if len(recorder.failed) != 0 {
+		t.Fatalf("failed = %v, want none", recorder.failed)
+	}
+}
+
+func TestPrintHandlerRecordsFailedAttempt(t *testing.T) {
+	printErr := errors.New("provider unavailable")
+	recorder := &printRecorderStub{}
+	handler := printHandler(quietLogger(), failingPrinter{err: printErr}, recorder)
+	payload, _ := json.Marshal(printer.Job{ID: 77, DeviceSN: "SN-77", Content: "receipt"})
+
+	err := handler(context.Background(), asynq.NewTask(TaskPrint, payload))
+	if !errors.Is(err, printErr) {
+		t.Fatalf("error = %v, want %v", err, printErr)
+	}
+	if len(recorder.started) != 1 || recorder.started[0] != 77 {
+		t.Fatalf("started = %v, want [77]", recorder.started)
+	}
+	if len(recorder.failed) != 1 || recorder.failed[0] != 77 {
+		t.Fatalf("failed = %v, want [77]", recorder.failed)
+	}
+	if len(recorder.printed) != 0 {
+		t.Fatalf("printed = %v, want none", recorder.printed)
+	}
+}
+
 // stubRollupRepo is a reporting.RollupRepository that records the request and
 // returns canned output, so the handler wiring can be exercised without a DB.
 type stubRollupRepo struct {

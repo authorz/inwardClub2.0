@@ -33,6 +33,7 @@ import type {
   MembershipTier,
   PaymentChannelSetting,
   PointReviewSettings,
+  PrintJobLog,
   PrinterDevice,
   PrinterDeviceInput,
   PrinterDevicePatch,
@@ -223,6 +224,8 @@ export const readonlyLists = {
     http.getList(API_PATHS.coupons.redemptions, query),
   auditLogs: (query?: Record<string, unknown>) =>
     http.getList<AuditLog>(API_PATHS.audit.logs, query),
+  printJobs: (query?: Record<string, unknown>) =>
+    http.getList<PrintJobLog>(API_PATHS.audit.printJobs, query),
   errorEvents: (query?: Record<string, unknown>) =>
     http.getList<ErrorEvent>(API_PATHS.audit.errorEvents, query),
 }
