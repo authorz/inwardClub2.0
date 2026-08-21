@@ -6,7 +6,7 @@
 import { get, getPaged, post } from '../request'
 import { API_PATHS } from '@/constants/apiPaths'
 import type { PageQuery } from '@/types/api'
-import type { Member, WalletLedgerEntry } from '@/types/models'
+import type { Member, MemberCouponEntitlement, WalletLedgerEntry } from '@/types/models'
 
 export interface WalletAdjustmentPayload {
   assetType: string
@@ -37,6 +37,9 @@ export const memberService = {
   },
   grantCoupon(id: string | number, body: CouponGrantPayload) {
     return post<unknown>(API_PATHS.members.couponEntitlements(id), body, { idempotent: true })
+  },
+  couponEntitlements(id: string | number, params?: PageQuery) {
+    return getPaged<MemberCouponEntitlement>(API_PATHS.members.couponEntitlements(id), params)
   },
   walletLedger(params?: PageQuery) {
     return getPaged<WalletLedgerEntry>(API_PATHS.members.walletLedger, params)

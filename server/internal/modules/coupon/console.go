@@ -150,7 +150,7 @@ type ConsoleRepository interface {
 	SetTemplateStatus(ctx context.Context, scope ConsoleScope, id int64, status string) (Template, error)
 	DeleteTemplate(ctx context.Context, scope ConsoleScope, id int64) error
 	GetApplicableScope(ctx context.Context, scope ConsoleScope, templateID int64) (ApplicableScope, error)
-	ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error)
+	ListMemberEntitlements(ctx context.Context, scope ConsoleScope, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error)
 	GrantMemberEntitlement(ctx context.Context, scope ConsoleScope, memberID int64, req GrantRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
 	UpdateMemberEntitlementExpiry(ctx context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
 	VoidMemberEntitlement(ctx context.Context, memberID, entitlementID int64, reason, idemKey string, entry audit.Entry) (EntitlementView, error)
@@ -396,8 +396,9 @@ func (r *sqlConsoleRepository) SetTemplateStatus(ctx context.Context, scope Cons
 	return r.GetTemplate(ctx, scope, id)
 }
 
-// ListMemberEntitlements returns one member's coupons for headquarters asset management.
-func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+// ListMemberEntitlements returns one member's coupons within the requested
+// console scope. Store callers can only see entitlements bound to their store.
+func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, scope ConsoleScope, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
 	var exists int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE id = ?`, memberID).Scan(&exists); err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -405,20 +406,26 @@ func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, membe
 	if exists == 0 {
 		return nil, 0, apperr.NotFound("member not found")
 	}
+	where := ` WHERE e.member_id = ?`
+	args := []any{memberID}
+	if scope.StoreID != nil {
+		where += ` AND e.store_id = ?`
+		args = append(args, *scope.StoreID)
+	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM coupon_entitlements WHERE member_id = ?`, memberID,
+		`SELECT COUNT(*) FROM coupon_entitlements e`+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT e.id, e.entitlement_no, e.coupon_template_id, ct.name, ct.coupon_type,
+	const selectSQL = `SELECT e.id, e.entitlement_no, e.coupon_template_id, ct.name, ct.coupon_type,
 		e.member_id, e.store_id, COALESCE(s.name, ''), e.status,
 		COALESCE(e.granted_reason, ''), e.expires_at, e.created_at, e.updated_at
 		FROM coupon_entitlements e
 		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
-		LEFT JOIN stores s ON s.id = e.store_id
-		WHERE e.member_id = ? ORDER BY e.id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, memberID, page.Limit(), page.Offset())
+		LEFT JOIN stores s ON s.id = e.store_id`
+	queryArgs := append(append([]any{}, args...), page.Limit(), page.Offset())
+	rows, err := r.db.QueryContext(ctx, selectSQL+where+` ORDER BY e.id DESC LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
@@ -951,11 +958,11 @@ func (s *ConsoleService) GetApplicableItems(ctx context.Context, scope ConsoleSc
 	return ApplicableItemsView{TemplateID: templateID, ItemIDs: a.ItemIDs, CategoryIDs: a.CategoryIDs}, nil
 }
 
-func (s *ConsoleService) ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+func (s *ConsoleService) ListMemberEntitlements(ctx context.Context, scope ConsoleScope, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
 	if memberID <= 0 {
 		return nil, 0, apperr.Invalid("会员信息不正确")
 	}
-	return s.repo.ListMemberEntitlements(ctx, memberID, page)
+	return s.repo.ListMemberEntitlements(ctx, scope, memberID, page)
 }
 
 func (s *ConsoleService) GrantMemberEntitlement(
@@ -1116,7 +1123,7 @@ func (h *ConsoleHandler) ListMemberEntitlements(c *gin.Context) {
 		return
 	}
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListMemberEntitlements(c.Request.Context(), memberID, page)
+	views, total, err := h.svc.ListMemberEntitlements(c.Request.Context(), ConsoleScope{}, memberID, page)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -1283,6 +1290,28 @@ func (h *ConsoleHandler) StoreApplicableItems(c *gin.Context) {
 		return
 	}
 	h.applicableItems(c, ConsoleScope{StoreID: &storeID})
+}
+
+// StoreListMemberEntitlements handles GET /store/members/:memberID/coupon-entitlements.
+func (h *ConsoleHandler) StoreListMemberEntitlements(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	page := httpx.ParsePage(c)
+	views, total, err := h.svc.ListMemberEntitlements(
+		c.Request.Context(), ConsoleScope{StoreID: &storeID}, memberID, page,
+	)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.List(c, views, httpx.MetaFor(page, total))
 }
 
 // StoreGrantMemberEntitlement handles POST /store/members/:memberID/coupon-entitlements.

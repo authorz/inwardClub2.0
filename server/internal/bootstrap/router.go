@@ -364,6 +364,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/members", a.adminHandler.StoreMembers)
 	p.GET("/member-lookup", a.adminHandler.StoreLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.StoreMemberDetail)
+	p.GET("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.StoreListMemberEntitlements)
 	p.GET("/wallet-ledger", a.adminHandler.StoreWalletLedger)
 	p.GET("/staff-accounts", a.adminHandler.StoreStaffAccounts)
 

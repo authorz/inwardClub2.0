@@ -389,6 +389,22 @@ export interface Member {
   wallet?: WalletAccount[]
 }
 
+export interface MemberCouponEntitlement {
+  entitlementId: number | string
+  entitlementNo: string
+  templateId: number | string
+  templateName: string
+  couponType: string
+  memberId: number | string
+  storeId?: number | string | null
+  storeName?: string
+  status: string
+  grantedReason?: string
+  expiresAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface WalletLedgerEntry {
   id: number | string
   recordKey: string

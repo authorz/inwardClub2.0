@@ -28,7 +28,12 @@ import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
 import { feedback } from '@/utils/feedback'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
-import type { CouponTemplate, Member, WalletLedgerEntry } from '@/types/models'
+import type {
+  CouponTemplate,
+  Member,
+  MemberCouponEntitlement,
+  WalletLedgerEntry,
+} from '@/types/models'
 import {
   ACTIVE_STATUS,
   toOptions,
@@ -54,7 +59,13 @@ const registrationRange = ref<[number, number] | null>(null)
 const detailShow = ref(false)
 const detailLoading = ref(false)
 const currentMember = ref<Member | null>(null)
-const detailTab = ref<'ledger' | 'adjust'>('ledger')
+const detailTab = ref<'coupons' | 'ledger' | 'adjust'>('coupons')
+const couponMemberId = ref<string | number | null>(null)
+
+const memberCoupons = useAsyncList<MemberCouponEntitlement>(
+  (params) => memberService.couponEntitlements(couponMemberId.value!, params),
+  { immediate: false },
+)
 
 const ledger = useAsyncList<WalletLedgerEntry>(
   (params) => memberService.walletLedger(params),
@@ -79,6 +90,12 @@ const COUPON_TYPE_LABELS: Record<string, string> = {
   alcohol: '酒水券',
   beverage: '饮料券',
   meal: '餐食券',
+}
+const COUPON_STATUS = {
+  active: { value: 'active', label: '未使用', tone: 'success' as const },
+  used: { value: 'used', label: '已使用', tone: 'default' as const },
+  expired: { value: 'expired', label: '已过期', tone: 'warning' as const },
+  void: { value: 'void', label: '已作废', tone: 'error' as const },
 }
 
 const adjustAssetTypeOptions = toOptions(WALLET_ASSET_TYPE)
@@ -131,7 +148,7 @@ function handleSorter(sorter: DataTableSortState | DataTableSortState[] | null):
   list.refresh()
 }
 
-async function openMember(row: Member, tab: 'ledger' | 'adjust') {
+async function openMember(row: Member, tab: 'coupons' | 'ledger' | 'adjust') {
   currentMember.value = row
   detailTab.value = tab
   detailShow.value = true
@@ -146,12 +163,14 @@ async function openMember(row: Member, tab: 'ledger' | 'adjust') {
   } finally {
     detailLoading.value = false
   }
+  couponMemberId.value = row.id
+  memberCoupons.applyFilters({})
   ledger.filters.memberId = row.id
   ledger.applyFilters({})
 }
 
 function openDetail(row: Member): void {
-  void openMember(row, 'ledger')
+  void openMember(row, 'coupons')
 }
 
 function openAdjust(row: Member): void {
@@ -164,8 +183,9 @@ function resetCouponForm(): void {
   couponForm.reason = ''
 }
 
-async function openCouponGrant(row: Member): Promise<void> {
-  couponTarget.value = row
+async function openCouponGrant(): Promise<void> {
+  if (!currentMember.value) return
+  couponTarget.value = currentMember.value
   resetCouponForm()
   couponLoading.value = true
   try {
@@ -222,6 +242,7 @@ function submitCouponGrant(): void {
         couponShow.value = false
         couponTarget.value = null
         resetCouponForm()
+        memberCoupons.refresh()
       },
     },
   )
@@ -324,18 +345,9 @@ const columns = computed<DataTableColumns<Member>>(() => [
           },
           { default: () => '人工调账' },
         ),
-        h(
-          PermissionButton,
-          {
-            permissions: [PERM.couponWrite],
-            loading: couponLoading.value && String(couponTarget.value?.id) === String(row.id),
-            onClick: () => void openCouponGrant(row),
-          },
-          { default: () => '补发券' },
-        ),
       ]),
     '操作',
-    260,
+    180,
   ),
 ])
 
@@ -352,6 +364,16 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     (r) => WALLET_REASON_LABELS[r.reason || ''] ?? r.reason,
   ),
   dateColumn<WalletLedgerEntry>('时间', (r) => r.createdAt, { width: 150 }),
+])
+
+const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => [
+  textColumn<MemberCouponEntitlement>('券名称', (r) => r.templateName, { minWidth: 150 }),
+  textColumn<MemberCouponEntitlement>('类型', (r) => COUPON_TYPE_LABELS[r.couponType] ?? r.couponType, {
+    width: 110,
+  }),
+  statusColumn<MemberCouponEntitlement>('状态', COUPON_STATUS, (r) => r.status, { width: 90 }),
+  dateColumn<MemberCouponEntitlement>('有效期至', (r) => r.expiresAt, { width: 170 }),
+  dateColumn<MemberCouponEntitlement>('发放时间', (r) => r.createdAt, { width: 170 }),
 ])
 </script>
 
@@ -412,7 +434,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         :page="list.page.value"
         :page-size="list.pageSize.value"
         :total="list.total.value"
-        :scroll-x="1440"
+        :scroll-x="1360"
         empty-text="暂无会员"
         @update:page="list.setPage"
         @update:page-size="list.setPageSize"
@@ -486,6 +508,36 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
           v-model:value="detailTab"
           type="line"
         >
+          <NTabPane
+            name="coupons"
+            tab="用户优惠券"
+          >
+            <div class="member-detail__coupon-toolbar">
+              <span>仅显示当前门店发放的优惠券。</span>
+              <PermissionButton
+                :permissions="[PERM.couponWrite]"
+                type="primary"
+                :loading="couponLoading"
+                @click="openCouponGrant"
+              >
+                补发券
+              </PermissionButton>
+            </div>
+            <DataTable
+              :columns="couponColumns"
+              :data="memberCoupons.rows.value"
+              :loading="memberCoupons.loading.value"
+              :page="memberCoupons.page.value"
+              :page-size="memberCoupons.pageSize.value"
+              :total="memberCoupons.total.value"
+              :row-key="(row) => row.entitlementId"
+              :scroll-x="720"
+              empty-text="该用户暂无本店优惠券"
+              @update:page="memberCoupons.setPage"
+              @update:page-size="memberCoupons.setPageSize"
+            />
+          </NTabPane>
+
           <NTabPane
             name="ledger"
             tab="钱包流水"
@@ -691,6 +743,16 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   display: flex;
   flex-direction: column;
   gap: var(--ic-space-2);
+  font-size: var(--ic-font-sm);
+}
+.member-detail__coupon-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-4);
+  padding: var(--ic-space-3) 0;
+  color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-sm);
 }
 .member-detail__footer {

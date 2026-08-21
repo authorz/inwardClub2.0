@@ -202,10 +202,13 @@ func (r *fakeConsoleRepo) Grant(_ context.Context, scope ConsoleScope, req Grant
 	return EntitlementView{EntitlementID: ent.id, EntitlementNo: ent.no, Status: StatusActive}, nil
 }
 
-func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, memberID int64, _ httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, scope ConsoleScope, memberID int64, _ httpx.Page) ([]ConsoleEntitlementView, int64, error) {
 	var out []ConsoleEntitlementView
 	for _, e := range r.ents {
 		if e.memberID != memberID {
+			continue
+		}
+		if scope.StoreID != nil && (e.storeID == nil || *e.storeID != *scope.StoreID) {
 			continue
 		}
 		view := ConsoleEntitlementView{
@@ -488,7 +491,7 @@ func TestAdminMemberEntitlementLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grant member entitlement: %v", err)
 	}
-	rows, total, err := svc.ListMemberEntitlements(ctx, 100, httpx.Page{Page: 1, PageSize: 20})
+	rows, total, err := svc.ListMemberEntitlements(ctx, ConsoleScope{}, 100, httpx.Page{Page: 1, PageSize: 20})
 	if err != nil || total != 1 || len(rows) != 1 || rows[0].Status != StatusActive {
 		t.Fatalf("unexpected member entitlements: rows=%+v total=%d err=%v", rows, total, err)
 	}
@@ -583,6 +586,16 @@ func TestStoreGrantMemberEntitlementForcesAuthenticatedStore(t *testing.T) {
 	}
 	if granted.Status != StatusActive || len(repo.ents) != 1 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != storeFive {
 		t.Fatalf("store scope was not forced onto entitlement: view=%+v entitlements=%+v", granted, repo.ents)
+	}
+	repo.ents = append(repo.ents, &fakeEnt{
+		id: 99, no: "E2-99", tmplID: 2, memberID: 100, storeID: &storeSix, status: StatusActive,
+	})
+	rows, total, err := svc.ListMemberEntitlements(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		httpx.Page{Page: 1, PageSize: 20},
+	)
+	if err != nil || total != 1 || len(rows) != 1 || rows[0].StoreID == nil || *rows[0].StoreID != storeFive {
+		t.Fatalf("store entitlement list leaked another store: rows=%+v total=%d err=%v", rows, total, err)
 	}
 
 	_, err = svc.GrantMemberEntitlement(
