@@ -79,6 +79,7 @@ var clientMessageTranslations = map[string]string{
 	"invalid credentials":                                "账号或密码错误",
 	"table code already exists in this store":            "当前门店已存在相同的桌子编号",
 	"capacity cannot be lower than existing seat count":  "座位数量不能小于该桌子已有的座位数",
+	"device with this provider and sn already exists":    "设备 SN 已被其他打印机使用",
 	"table seat capacity has been reached":               "该桌子的座位数量已达到上限",
 	"table with seats or reservations cannot be deleted": "桌子下仍有座位或预约，无法删除",
 	"store not found":                                    "门店不存在",

@@ -160,7 +160,11 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
       :title="form.id == null ? '新增打印机' : '编辑打印机'"
       style="width: 400px"
     >
-      <div class="printer-form">
+      <form
+        class="printer-form"
+        autocomplete="off"
+        @submit.prevent="save"
+      >
         <label>
           <span class="ic-muted">名称</span>
           <NInput
@@ -172,6 +176,7 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
           <span class="ic-muted">设备 SN</span>
           <NInput
             v-model:value="form.deviceSn"
+            :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
             placeholder="设备序列号"
           />
         </label>
@@ -187,11 +192,12 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
           <NInput
             v-model:value="form.deviceKey"
             type="password"
+            :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
             show-password-on="click"
             :placeholder="form.id == null ? '设备密钥（可选）' : '留空则不修改'"
           />
         </label>
-      </div>
+      </form>
       <template #footer>
         <div class="printer-form__footer">
           <NButton @click="editShow = false">

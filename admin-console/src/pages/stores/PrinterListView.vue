@@ -230,7 +230,10 @@ onMounted(loadStores)
       cross-store
       @submit="submitForm"
     >
-      <NForm label-placement="top">
+      <NForm
+        label-placement="top"
+        autocomplete="off"
+      >
         <NFormItem
           label="所属门店"
           required
@@ -266,6 +269,7 @@ onMounted(loadStores)
         >
           <NInput
             v-model:value="form.deviceSn"
+            :input-props="{ name: 'printer-device-sn', autocomplete: 'off' }"
             placeholder="请输入设备序列号"
             maxlength="64"
           />
@@ -274,6 +278,7 @@ onMounted(loadStores)
           <NInput
             v-model:value="form.deviceKey"
             type="password"
+            :input-props="{ name: 'printer-device-key', autocomplete: 'new-password' }"
             show-password-on="click"
             :placeholder="editingId ? '留空则不修改' : '请输入设备密钥（可选）'"
             maxlength="64"
