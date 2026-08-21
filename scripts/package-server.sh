@@ -5,6 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVER_DIR="${REPO_ROOT}/server"
+ADMIN_CONSOLE_DIR="${REPO_ROOT}/admin-console"
+STORE_CONSOLE_DIR="${REPO_ROOT}/store-console"
 DIST_DIR="${REPO_ROOT}/dist"
 TARGET_OS="linux"
 TARGET_ARCH="amd64"
@@ -37,7 +39,9 @@ trap cleanup EXIT
 
 STAGED_PACKAGE_DIR="${STAGING_DIR}/${PACKAGE_NAME}"
 STAGED_BIN_DIR="${STAGED_PACKAGE_DIR}/bin"
-mkdir -p "${STAGED_BIN_DIR}"
+STAGED_ADMIN_CONSOLE_DIR="${STAGED_PACKAGE_DIR}/web/admin-console"
+STAGED_STORE_CONSOLE_DIR="${STAGED_PACKAGE_DIR}/web/store-console"
+mkdir -p "${STAGED_BIN_DIR}" "${STAGED_ADMIN_CONSOLE_DIR}" "${STAGED_STORE_CONSOLE_DIR}"
 
 sha256_files() {
   if command -v shasum >/dev/null 2>&1; then
@@ -50,13 +54,23 @@ sha256_files() {
   fi
 }
 
-echo "[1/4] 运行服务端测试"
+echo "[1/6] 运行服务端测试"
 (
   cd "${SERVER_DIR}"
   go test ./...
 )
 
-echo "[2/4] 构建 ${TARGET_OS}/${TARGET_ARCH} 静态二进制"
+echo "[2/6] 构建总后台和门店后台"
+(
+  cd "${ADMIN_CONSOLE_DIR}"
+  npm run build
+)
+(
+  cd "${STORE_CONSOLE_DIR}"
+  npm run build
+)
+
+echo "[3/6] 构建 ${TARGET_OS}/${TARGET_ARCH} 静态二进制"
 (
   cd "${SERVER_DIR}"
   CGO_ENABLED=0 GOOS="${TARGET_OS}" GOARCH="${TARGET_ARCH}" \
@@ -66,6 +80,10 @@ echo "[2/4] 构建 ${TARGET_OS}/${TARGET_ARCH} 静态二进制"
   CGO_ENABLED=0 GOOS="${TARGET_OS}" GOARCH="${TARGET_ARCH}" \
     go build -trimpath -ldflags="-s -w" -o "${STAGED_BIN_DIR}/inwardclub-migrate" ./cmd/migrate
 )
+
+echo "[4/6] 复制后台静态文件"
+cp -R "${ADMIN_CONSOLE_DIR}/dist/." "${STAGED_ADMIN_CONSOLE_DIR}/"
+cp -R "${STORE_CONSOLE_DIR}/dist/." "${STAGED_STORE_CONSOLE_DIR}/"
 
 COMMIT_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 WORKTREE_DIRTY="false"
@@ -80,17 +98,18 @@ builtAt=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 goVersion=$(go version)
 target=${TARGET_OS}/${TARGET_ARCH}
 dirtyWorktree=${WORKTREE_DIRTY}
+adminConsole=web/admin-console
+storeConsole=web/store-console
 EOF
 
 (
   cd "${STAGED_PACKAGE_DIR}"
-  sha256_files \
-    bin/inwardclub-api \
-    bin/inwardclub-worker \
-    bin/inwardclub-migrate > SHA256SUMS
+  find BUILD_INFO.txt bin web -type f | LC_ALL=C sort | while IFS= read -r packaged_file; do
+    sha256_files "${packaged_file}"
+  done > SHA256SUMS
 )
 
-echo "[3/4] 校验二进制格式"
+echo "[5/6] 校验二进制格式和后台入口"
 for binary in "${STAGED_BIN_DIR}"/*; do
   binary_type="$(file "${binary}")"
   echo "${binary_type}"
@@ -99,10 +118,18 @@ for binary in "${STAGED_BIN_DIR}"/*; do
     exit 1
   fi
 done
+for frontend_entry in \
+  "${STAGED_ADMIN_CONSOLE_DIR}/index.html" \
+  "${STAGED_STORE_CONSOLE_DIR}/index.html"; do
+  if [[ ! -s "${frontend_entry}" ]]; then
+    echo "错误：后台入口 ${frontend_entry} 不存在或为空。" >&2
+    exit 1
+  fi
+done
 
 mv "${STAGED_PACKAGE_DIR}" "${PACKAGE_DIR}"
 
-echo "[4/4] 生成压缩包与校验和"
+echo "[6/6] 生成压缩包与校验和"
 tar -czf "${ARCHIVE_PATH}" -C "${DIST_DIR}" "${PACKAGE_NAME}"
 sha256_files "${ARCHIVE_PATH}" > "${ARCHIVE_CHECKSUM_PATH}"
 tar -tzf "${ARCHIVE_PATH}" >/dev/null
