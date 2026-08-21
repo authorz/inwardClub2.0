@@ -70,6 +70,14 @@ func (r *fakeConsoleRepo) UpdateCategory(_ context.Context, scope ConsoleScope, 
 func (r *fakeConsoleRepo) CategoryHasIncompatibleItems(_ context.Context, _ ConsoleScope, _ int64, _ string) (bool, error) {
 	return r.incompatibleCategory, nil
 }
+func (r *fakeConsoleRepo) CategoryHasItems(_ context.Context, _ ConsoleScope, id int64) (bool, error) {
+	for _, item := range r.items {
+		if item.CategoryID != nil && *item.CategoryID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 func (r *fakeConsoleRepo) DeleteCategory(_ context.Context, scope ConsoleScope, id int64) error {
 	r.lastScope = scope
 	for i, c := range r.categories {
@@ -534,6 +542,23 @@ func TestConsoleService_UpdateAndDeleteCategory(t *testing.T) {
 	}
 	if err := svc.DeleteCategory(context.Background(), scope, 1); err == nil {
 		t.Fatal("expected not found on second delete")
+	}
+}
+
+func TestConsoleService_DeleteCategory_RejectsCategoryWithItems(t *testing.T) {
+	categoryID := int64(1)
+	repo := &fakeConsoleRepo{
+		categories: []Category{{ID: categoryID, ScopeType: "store", Name: "Drinks", Status: "active"}},
+		items:      []Item{{ID: 10, CategoryID: &categoryID, Name: "Beer"}},
+	}
+	svc := NewConsoleService(repo)
+
+	err := svc.DeleteCategory(context.Background(), adminScope(), categoryID)
+	if apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected occupied category conflict, got %v", err)
+	}
+	if len(repo.categories) != 1 {
+		t.Fatal("occupied category must not be deleted")
 	}
 }
 

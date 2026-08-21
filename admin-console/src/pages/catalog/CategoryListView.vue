@@ -14,6 +14,7 @@ import AssetUpload from '@/components/AssetUpload.vue'
 import { actionsColumn, renderColumn, statusColumn, textColumn } from '@/utils/columns'
 import { RESOURCE_STATUS_OPTIONS, type OptionItem } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
+import { runAudited } from '@/composables/useAuditedAction'
 import { categoryService, storeService } from '@/api/services'
 import type { CatalogCategory } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
@@ -78,14 +79,23 @@ const columns = [
   statusColumn<CatalogCategory>('状态', 'status', categoryStatusOptions),
   actionsColumn<CatalogCategory>(
     (row) =>
-      h(NSpace, {}, () => [
+      h(NSpace, { size: 6, wrap: false }, () => [
         h(
           PermissionButton,
           { permission: PERMISSIONS.CATALOG_GLOBAL_WRITE, onClick: () => openEdit(row) },
           () => '编辑',
         ),
+        h(
+          PermissionButton,
+          {
+            permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
+            type: 'error',
+            onClick: () => remove(row),
+          },
+          () => '删除',
+        ),
       ]),
-    120,
+    150,
   ),
 ]
 
@@ -171,6 +181,17 @@ async function submit(): Promise<void> {
   } finally {
     submitting.value = false
   }
+}
+
+async function remove(row: CatalogCategory): Promise<void> {
+  const ok = await runAudited({
+    title: '删除商品分类',
+    content: `确认删除“${row.name}”？仅未关联商品的分类可以删除。`,
+    highRisk: true,
+    execute: () => categoryService.remove(String(row.id)),
+    successText: '商品分类已删除',
+  })
+  if (ok) listRef.value?.reload()
 }
 
 const toolbarActions = [

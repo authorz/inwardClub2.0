@@ -147,6 +147,7 @@ type ConsoleRepository interface {
 	CreateCategory(ctx context.Context, scope ConsoleScope, in CategoryInput) (Category, error)
 	UpdateCategory(ctx context.Context, scope ConsoleScope, id int64, in CategoryInput) (Category, error)
 	DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error
+	CategoryHasItems(ctx context.Context, scope ConsoleScope, id int64) (bool, error)
 	CategoryHasIncompatibleItems(ctx context.Context, scope ConsoleScope, id int64, categoryType string) (bool, error)
 
 	ListItems(ctx context.Context, scope ConsoleScope, filter ConsoleListFilter, page httpx.Page) ([]Item, int64, error)
@@ -377,6 +378,17 @@ func (r *sqlConsoleRepository) CategoryHasIncompatibleItems(ctx context.Context,
 	var count int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_items
 		WHERE category_id = ?`+where+` AND (`+condition+`)`, queryArgs...).Scan(&count); err != nil {
+		return false, apperr.Internal(err)
+	}
+	return count > 0, nil
+}
+
+func (r *sqlConsoleRepository) CategoryHasItems(ctx context.Context, scope ConsoleScope, id int64) (bool, error) {
+	where, args := scopeWhere(scope)
+	queryArgs := append([]any{id}, args...)
+	var count int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM catalog_items
+		WHERE category_id = ?`+where, queryArgs...).Scan(&count); err != nil {
 		return false, apperr.Internal(err)
 	}
 	return count > 0, nil
@@ -895,6 +907,13 @@ func (s *ConsoleService) UpdateCategory(ctx context.Context, scope ConsoleScope,
 
 // DeleteCategory deletes a category under scope.
 func (s *ConsoleService) DeleteCategory(ctx context.Context, scope ConsoleScope, id int64) error {
+	hasItems, err := s.repo.CategoryHasItems(ctx, scope, id)
+	if err != nil {
+		return err
+	}
+	if hasItems {
+		return apperr.Conflict("分类下仍有关联商品，请先移动或删除商品")
+	}
 	return s.repo.DeleteCategory(ctx, scope, id)
 }
 
