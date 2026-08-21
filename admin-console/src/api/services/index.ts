@@ -28,6 +28,7 @@ import type {
   FranchiseInquiry,
   GlobalSettings,
   Member,
+  MemberCouponEntitlement,
   MemberReportRow,
   MembershipTier,
   PaymentChannelSetting,
@@ -179,6 +180,8 @@ export const readonlyLists = {
     http.getList<RefundOrder>(API_PATHS.payments.refundOrders, query),
   walletLedger: (query?: Record<string, unknown>) =>
     http.getList<WalletLedgerEntry>(API_PATHS.members.walletLedger, query),
+  memberCouponEntitlements: (memberId: string, query?: Record<string, unknown>) =>
+    http.getList<MemberCouponEntitlement>(API_PATHS.members.couponEntitlements(memberId), query),
   activityOrders: (query?: Record<string, unknown>) =>
     http.getList(API_PATHS.activities.orders, query),
   tickets: (query?: Record<string, unknown>) => http.getList(API_PATHS.activities.tickets, query),

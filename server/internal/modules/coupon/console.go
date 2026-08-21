@@ -7,13 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
+	"github.com/inwardclub/server/internal/platform/idempotency"
 	"github.com/inwardclub/server/internal/platform/storescope"
 )
 
@@ -58,9 +61,10 @@ type TemplateInput struct {
 
 // GrantRequest grants an entitlement to a member from a template.
 type GrantRequest struct {
-	TemplateID int64  `json:"templateId" binding:"required"`
-	MemberID   int64  `json:"memberId" binding:"required"`
-	Reason     string `json:"reason"`
+	TemplateID int64      `json:"templateId" binding:"required"`
+	MemberID   int64      `json:"memberId" binding:"required"`
+	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
+	Reason     string     `json:"reason"`
 }
 
 // VoidRequest voids an existing entitlement.
@@ -105,6 +109,34 @@ type EntitlementView struct {
 	Status        string `json:"status"`
 }
 
+// ConsoleEntitlementView is one member-owned coupon shown in the admin console.
+type ConsoleEntitlementView struct {
+	EntitlementID int64      `json:"entitlementId"`
+	EntitlementNo string     `json:"entitlementNo"`
+	TemplateID    int64      `json:"templateId"`
+	TemplateName  string     `json:"templateName"`
+	CouponType    string     `json:"couponType"`
+	MemberID      int64      `json:"memberId"`
+	StoreID       *int64     `json:"storeId,omitempty"`
+	StoreName     string     `json:"storeName,omitempty"`
+	Status        string     `json:"status"`
+	GrantedReason string     `json:"grantedReason,omitempty"`
+	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+}
+
+// UpdateEntitlementExpiryRequest changes an unused coupon's expiry.
+type UpdateEntitlementExpiryRequest struct {
+	ExpiresAt time.Time `json:"expiresAt" binding:"required"`
+	Reason    string    `json:"reason" binding:"required"`
+}
+
+// EntitlementReasonRequest captures the mandatory audit reason for revocation.
+type EntitlementReasonRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
 // ConsoleRepository is the console persistence port for coupon templates and
 // their write actions. Grant/Void/Verify need a generated entitlement number,
 // idempotency handling and a transaction, and land in a later milestone.
@@ -116,6 +148,10 @@ type ConsoleRepository interface {
 	SetTemplateStatus(ctx context.Context, scope ConsoleScope, id int64, status string) (Template, error)
 	DeleteTemplate(ctx context.Context, scope ConsoleScope, id int64) error
 	GetApplicableScope(ctx context.Context, scope ConsoleScope, templateID int64) (ApplicableScope, error)
+	ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error)
+	GrantMemberEntitlement(ctx context.Context, memberID int64, req GrantRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
+	UpdateMemberEntitlementExpiry(ctx context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
+	VoidMemberEntitlement(ctx context.Context, memberID, entitlementID int64, reason, idemKey string, entry audit.Entry) (EntitlementView, error)
 	Grant(ctx context.Context, scope ConsoleScope, req GrantRequest) (EntitlementView, error)
 	Void(ctx context.Context, scope ConsoleScope, req VoidRequest) (EntitlementView, error)
 	Verify(ctx context.Context, scope ConsoleScope, req VerifyRequest) (EntitlementView, error)
@@ -358,17 +394,91 @@ func (r *sqlConsoleRepository) SetTemplateStatus(ctx context.Context, scope Cons
 	return r.GetTemplate(ctx, scope, id)
 }
 
+// ListMemberEntitlements returns one member's coupons for headquarters asset management.
+func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE id = ?`, memberID).Scan(&exists); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	if exists == 0 {
+		return nil, 0, apperr.NotFound("member not found")
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM coupon_entitlements WHERE member_id = ?`, memberID,
+	).Scan(&total); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	const q = `SELECT e.id, e.entitlement_no, e.coupon_template_id, ct.name, ct.coupon_type,
+		e.member_id, e.store_id, COALESCE(s.name, ''), e.status,
+		COALESCE(e.granted_reason, ''), e.expires_at, e.created_at, e.updated_at
+		FROM coupon_entitlements e
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		LEFT JOIN stores s ON s.id = e.store_id
+		WHERE e.member_id = ? ORDER BY e.id DESC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, q, memberID, page.Limit(), page.Offset())
+	if err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	defer rows.Close()
+	views := make([]ConsoleEntitlementView, 0, page.Limit())
+	for rows.Next() {
+		var view ConsoleEntitlementView
+		if err := rows.Scan(
+			&view.EntitlementID, &view.EntitlementNo, &view.TemplateID, &view.TemplateName,
+			&view.CouponType, &view.MemberID, &view.StoreID, &view.StoreName, &view.Status,
+			&view.GrantedReason, &view.ExpiresAt, &view.CreatedAt, &view.UpdatedAt,
+		); err != nil {
+			return nil, 0, apperr.Internal(err)
+		}
+		views = append(views, view)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	return views, total, nil
+}
+
 // Grant issues one entitlement to a member from a template, enforcing the
-// template's stock and per-member limit under a row lock. The entitlement
-// inherits the template's store scope; issued_quantity is bumped atomically.
+// template's stock and per-member limit under a row lock.
 func (r *sqlConsoleRepository) Grant(ctx context.Context, scope ConsoleScope, req GrantRequest) (EntitlementView, error) {
-	// The template must be visible within the caller's scope.
+	return r.grantEntitlement(ctx, scope, req, "", nil, false)
+}
+
+func (r *sqlConsoleRepository) GrantMemberEntitlement(
+	ctx context.Context,
+	memberID int64,
+	req GrantRequest,
+	idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	req.MemberID = memberID
+	return r.grantEntitlement(ctx, ConsoleScope{}, req, idemKey, &entry, true)
+}
+
+func (r *sqlConsoleRepository) grantEntitlement(
+	ctx context.Context,
+	scope ConsoleScope,
+	req GrantRequest,
+	idemKey string,
+	entry *audit.Entry,
+	requirePublished bool,
+) (EntitlementView, error) {
 	tmpl, err := r.GetTemplate(ctx, scope, req.TemplateID)
 	if err != nil {
 		return EntitlementView{}, err
 	}
+	if requirePublished && tmpl.Status != "published" {
+		return EntitlementView{}, apperr.Conflict("只能补发已发布的优惠券")
+	}
 	now := time.Now().UTC()
 	expiresAt := now.AddDate(0, 0, 30)
+	if req.ExpiresAt != nil {
+		expiresAt = req.ExpiresAt.UTC()
+	}
+	if !expiresAt.After(now) {
+		return EntitlementView{}, apperr.Invalid("优惠券有效期必须晚于当前时间")
+	}
 	entNo := fmt.Sprintf("E%d-%d", req.TemplateID, now.UnixNano())
 	grantedBy := "admin"
 	if scope.StoreID != nil {
@@ -376,11 +486,30 @@ func (r *sqlConsoleRepository) Grant(ctx context.Context, scope ConsoleScope, re
 	}
 	var view EntitlementView
 	err = r.db.WithinTx(ctx, func(tx *sql.Tx) error {
-		var stock, issued, perLimit int64
-		if err := tx.QueryRowContext(ctx,
-			`SELECT stock_quantity, issued_quantity, per_member_limit FROM coupon_templates WHERE id = ? FOR UPDATE`,
-			req.TemplateID).Scan(&stock, &issued, &perLimit); err != nil {
+		if idemKey != "" {
+			if err := idempotency.Claim(ctx, tx, "admin/member-coupon-grant", idemKey, "member", req.MemberID); err != nil {
+				return err
+			}
+		}
+		var memberExists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE id = ?`, req.MemberID).Scan(&memberExists); err != nil {
 			return apperr.Internal(err)
+		}
+		if memberExists == 0 {
+			return apperr.NotFound("member not found")
+		}
+		var (
+			stock, issued, perLimit int64
+			lockedStatus            string
+		)
+		if err := tx.QueryRowContext(ctx,
+			`SELECT stock_quantity, issued_quantity, per_member_limit, status
+			 FROM coupon_templates WHERE id = ? FOR UPDATE`,
+			req.TemplateID).Scan(&stock, &issued, &perLimit, &lockedStatus); err != nil {
+			return apperr.Internal(err)
+		}
+		if requirePublished && lockedStatus != "published" {
+			return apperr.Conflict("只能补发已发布的优惠券")
 		}
 		if stock > 0 && issued >= stock {
 			return apperr.Conflict("coupon template is out of stock")
@@ -416,6 +545,18 @@ func (r *sqlConsoleRepository) Grant(ctx context.Context, scope ConsoleScope, re
 			return apperr.Internal(err)
 		}
 		view = EntitlementView{EntitlementID: id, EntitlementNo: entNo, Status: StatusActive}
+		if entry != nil {
+			entry.TargetType = "member"
+			entry.TargetID = req.MemberID
+			entry.Reason = strings.TrimSpace(req.Reason)
+			entry.After = map[string]any{
+				"entitlementId": id, "entitlementNo": entNo, "templateId": req.TemplateID,
+				"status": StatusActive, "expiresAt": expiresAt,
+			}
+			if err := audit.RecordTx(ctx, tx, *entry); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -462,6 +603,130 @@ func (r *sqlConsoleRepository) Void(ctx context.Context, scope ConsoleScope, req
 		return EntitlementView{}, err
 	}
 	return view, nil
+}
+
+func (r *sqlConsoleRepository) UpdateMemberEntitlementExpiry(
+	ctx context.Context,
+	memberID, entitlementID int64,
+	req UpdateEntitlementExpiryRequest,
+	idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	now := time.Now().UTC()
+	expiresAt := req.ExpiresAt.UTC()
+	if !expiresAt.After(now) {
+		return EntitlementView{}, apperr.Invalid("优惠券有效期必须晚于当前时间")
+	}
+	var view EntitlementView
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if idemKey != "" {
+			if err := idempotency.Claim(
+				ctx, tx, "admin/member-coupon-expiry", idemKey, "coupon_entitlement", entitlementID,
+			); err != nil {
+				return err
+			}
+		}
+		var (
+			entNo     string
+			status    string
+			oldExpiry sql.NullTime
+		)
+		err := tx.QueryRowContext(ctx,
+			`SELECT entitlement_no, status, expires_at FROM coupon_entitlements
+			 WHERE id = ? AND member_id = ? FOR UPDATE`, entitlementID, memberID,
+		).Scan(&entNo, &status, &oldExpiry)
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("coupon entitlement not found")
+		}
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if status != StatusActive && status != StatusExpired {
+			return apperr.Conflict("已使用或已删除的优惠券不能修改有效期")
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE coupon_entitlements SET status = ?, expires_at = ?, updated_at = ?
+			 WHERE id = ? AND member_id = ?`,
+			StatusActive, expiresAt, now, entitlementID, memberID,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		entry.TargetType = "member"
+		entry.TargetID = memberID
+		entry.Reason = strings.TrimSpace(req.Reason)
+		entry.Before = map[string]any{"entitlementId": entitlementID, "status": status, "expiresAt": nullableTime(oldExpiry)}
+		entry.After = map[string]any{"entitlementId": entitlementID, "status": StatusActive, "expiresAt": expiresAt}
+		if err := audit.RecordTx(ctx, tx, entry); err != nil {
+			return err
+		}
+		view = EntitlementView{EntitlementID: entitlementID, EntitlementNo: entNo, Status: StatusActive}
+		return nil
+	})
+	if err != nil {
+		return EntitlementView{}, err
+	}
+	return view, nil
+}
+
+func (r *sqlConsoleRepository) VoidMemberEntitlement(
+	ctx context.Context,
+	memberID, entitlementID int64,
+	reason, idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	now := time.Now().UTC()
+	var view EntitlementView
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if idemKey != "" {
+			if err := idempotency.Claim(
+				ctx, tx, "admin/member-coupon-void", idemKey, "coupon_entitlement", entitlementID,
+			); err != nil {
+				return err
+			}
+		}
+		var entNo, status string
+		err := tx.QueryRowContext(ctx,
+			`SELECT entitlement_no, status FROM coupon_entitlements
+			 WHERE id = ? AND member_id = ? FOR UPDATE`, entitlementID, memberID,
+		).Scan(&entNo, &status)
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("coupon entitlement not found")
+		}
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if status != StatusActive && status != StatusExpired {
+			return apperr.Conflict("已使用或已删除的优惠券不能删除")
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE coupon_entitlements SET status = ?, updated_at = ?
+			 WHERE id = ? AND member_id = ?`,
+			StatusVoid, now, entitlementID, memberID,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		entry.TargetType = "member"
+		entry.TargetID = memberID
+		entry.Reason = strings.TrimSpace(reason)
+		entry.Before = map[string]any{"entitlementId": entitlementID, "status": status}
+		entry.After = map[string]any{"entitlementId": entitlementID, "status": StatusVoid}
+		if err := audit.RecordTx(ctx, tx, entry); err != nil {
+			return err
+		}
+		view = EntitlementView{EntitlementID: entitlementID, EntitlementNo: entNo, Status: StatusVoid}
+		return nil
+	})
+	if err != nil {
+		return EntitlementView{}, err
+	}
+	return view, nil
+}
+
+func nullableTime(v sql.NullTime) any {
+	if !v.Valid {
+		return nil
+	}
+	return v.Time
 }
 
 // Verify redeems an active entitlement at a store, recording a redemption and
@@ -632,6 +897,64 @@ func (s *ConsoleService) GetApplicableItems(ctx context.Context, scope ConsoleSc
 	return ApplicableItemsView{TemplateID: templateID, ItemIDs: a.ItemIDs, CategoryIDs: a.CategoryIDs}, nil
 }
 
+func (s *ConsoleService) ListMemberEntitlements(ctx context.Context, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+	if memberID <= 0 {
+		return nil, 0, apperr.Invalid("会员信息不正确")
+	}
+	return s.repo.ListMemberEntitlements(ctx, memberID, page)
+}
+
+func (s *ConsoleService) GrantMemberEntitlement(
+	ctx context.Context,
+	memberID int64,
+	req GrantRequest,
+	idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	req.MemberID = memberID
+	req.Reason = strings.TrimSpace(req.Reason)
+	if memberID <= 0 || req.TemplateID <= 0 {
+		return EntitlementView{}, apperr.Invalid("会员或优惠券信息不正确")
+	}
+	if req.Reason == "" {
+		return EntitlementView{}, apperr.Invalid("请填写补发原因")
+	}
+	return s.repo.GrantMemberEntitlement(ctx, memberID, req, idemKey, entry)
+}
+
+func (s *ConsoleService) UpdateMemberEntitlementExpiry(
+	ctx context.Context,
+	memberID, entitlementID int64,
+	req UpdateEntitlementExpiryRequest,
+	idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	req.Reason = strings.TrimSpace(req.Reason)
+	if memberID <= 0 || entitlementID <= 0 {
+		return EntitlementView{}, apperr.Invalid("会员或优惠券信息不正确")
+	}
+	if req.ExpiresAt.IsZero() || req.Reason == "" {
+		return EntitlementView{}, apperr.Invalid("请填写新的有效期和修改原因")
+	}
+	return s.repo.UpdateMemberEntitlementExpiry(ctx, memberID, entitlementID, req, idemKey, entry)
+}
+
+func (s *ConsoleService) VoidMemberEntitlement(
+	ctx context.Context,
+	memberID, entitlementID int64,
+	reason, idemKey string,
+	entry audit.Entry,
+) (EntitlementView, error) {
+	reason = strings.TrimSpace(reason)
+	if memberID <= 0 || entitlementID <= 0 {
+		return EntitlementView{}, apperr.Invalid("会员或优惠券信息不正确")
+	}
+	if reason == "" {
+		return EntitlementView{}, apperr.Invalid("请填写删除原因")
+	}
+	return s.repo.VoidMemberEntitlement(ctx, memberID, entitlementID, reason, idemKey, entry)
+}
+
 // Grant issues an entitlement to a member from a template.
 func (s *ConsoleService) Grant(ctx context.Context, scope ConsoleScope, req GrantRequest) (EntitlementView, error) {
 	return s.repo.Grant(ctx, scope, req)
@@ -667,8 +990,16 @@ func NewConsoleHandler(svc *ConsoleService) *ConsoleHandler { return &ConsoleHan
 
 func templateID(c *gin.Context) (int64, error) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		return 0, apperr.Invalid("invalid id")
+	}
+	return id, nil
+}
+
+func positivePathID(c *gin.Context, name string) (int64, error) {
+	id, err := strconv.ParseInt(c.Param(name), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, apperr.Invalid("invalid " + name)
 	}
 	return id, nil
 }
@@ -707,6 +1038,101 @@ func (h *ConsoleHandler) Delete(c *gin.Context) {
 // ApplicableItems handles GET /admin/coupon-templates/:id/applicable-items.
 func (h *ConsoleHandler) ApplicableItems(c *gin.Context) {
 	h.applicableItems(c, ConsoleScope{})
+}
+
+// ListMemberEntitlements handles GET /admin/members/:memberID/coupon-entitlements.
+func (h *ConsoleHandler) ListMemberEntitlements(c *gin.Context) {
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	page := httpx.ParsePage(c)
+	views, total, err := h.svc.ListMemberEntitlements(c.Request.Context(), memberID, page)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.List(c, views, httpx.MetaFor(page, total))
+}
+
+// GrantMemberEntitlement handles POST /admin/members/:memberID/coupon-entitlements.
+func (h *ConsoleHandler) GrantMemberEntitlement(c *gin.Context) {
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req GrantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("优惠券补发参数不正确"))
+		return
+	}
+	entry := audit.FromContext(c, "member.coupon.grant", "member", memberID)
+	view, err := h.svc.GrantMemberEntitlement(
+		c.Request.Context(), memberID, req, idempotency.Key(c), entry,
+	)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, view)
+}
+
+// UpdateMemberEntitlementExpiry handles PATCH /admin/members/:memberID/coupon-entitlements/:entitlementID.
+func (h *ConsoleHandler) UpdateMemberEntitlementExpiry(c *gin.Context) {
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	entitlementID, err := positivePathID(c, "entitlementID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req UpdateEntitlementExpiryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("优惠券有效期参数不正确"))
+		return
+	}
+	entry := audit.FromContext(c, "member.coupon.expiry.update", "member", memberID)
+	view, err := h.svc.UpdateMemberEntitlementExpiry(
+		c.Request.Context(), memberID, entitlementID, req, idempotency.Key(c), entry,
+	)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+// VoidMemberEntitlement handles POST /admin/members/:memberID/coupon-entitlements/:entitlementID/void.
+func (h *ConsoleHandler) VoidMemberEntitlement(c *gin.Context) {
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	entitlementID, err := positivePathID(c, "entitlementID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req EntitlementReasonRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("请填写删除原因"))
+		return
+	}
+	entry := audit.FromContext(c, "member.coupon.delete", "member", memberID)
+	view, err := h.svc.VoidMemberEntitlement(
+		c.Request.Context(), memberID, entitlementID, req.Reason, idempotency.Key(c), entry,
+	)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
 }
 
 // Void handles POST /admin/coupon-voids.

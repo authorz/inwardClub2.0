@@ -262,6 +262,23 @@ export interface MemberDetail extends Member {
   wallet: WalletAccount[]
 }
 
+/** 总后台会员详情中的持券资产。 */
+export interface MemberCouponEntitlement {
+  entitlementId: string
+  entitlementNo: string
+  templateId: string
+  templateName: string
+  couponType: string
+  memberId: string
+  storeId?: string | null
+  storeName?: string
+  status: string
+  grantedReason?: string
+  expiresAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface WalletLedgerEntry {
   id: string
   recordKey: string

@@ -189,6 +189,7 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/members", a.adminHandler.Members)
 	p.GET("/member-lookup", a.adminHandler.AdminLookupMember)
 	p.GET("/members/:memberID", a.adminHandler.MemberDetail)
+	p.GET("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.ListMemberEntitlements)
 	p.GET("/wallet-ledger", a.adminHandler.WalletLedger)
 	p.GET("/admin-accounts", a.adminHandler.AdminAccounts)
 	p.POST("/admin-accounts", a.adminHandler.CreateAdminAccount)
@@ -315,7 +316,9 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	// High-risk coupon entitlement actions require an Idempotency-Key.
 	idem := p.Group("", idempotency.Require())
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.CreateWalletAdjustment)
-	// Manual coupon issuing is disabled: console coupon management defines types only.
+	idem.POST("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.GrantMemberEntitlement)
+	idem.PATCH("/members/:memberID/coupon-entitlements/:entitlementID", a.couponConsoleHandler.UpdateMemberEntitlementExpiry)
+	idem.POST("/members/:memberID/coupon-entitlements/:entitlementID/void", a.couponConsoleHandler.VoidMemberEntitlement)
 	idem.POST("/coupon-voids", a.couponConsoleHandler.Void)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.Verify)
 

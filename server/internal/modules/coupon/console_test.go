@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -31,6 +33,7 @@ type fakeEnt struct {
 	storeID  *int64
 	status   string
 	redeemed bool
+	expires  *time.Time
 }
 
 func (r *fakeConsoleRepo) allocTmplID() int64 {
@@ -188,10 +191,61 @@ func (r *fakeConsoleRepo) Grant(_ context.Context, scope ConsoleScope, req Grant
 		memberID: req.MemberID,
 		storeID:  t.StoreID,
 		status:   StatusActive,
+		expires:  req.ExpiresAt,
 	}
 	r.ents = append(r.ents, ent)
 	t.IssuedQty++
 	return EntitlementView{EntitlementID: ent.id, EntitlementNo: ent.no, Status: StatusActive}, nil
+}
+
+func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, memberID int64, _ httpx.Page) ([]ConsoleEntitlementView, int64, error) {
+	var out []ConsoleEntitlementView
+	for _, e := range r.ents {
+		if e.memberID != memberID {
+			continue
+		}
+		view := ConsoleEntitlementView{
+			EntitlementID: e.id, EntitlementNo: e.no, TemplateID: e.tmplID,
+			MemberID: e.memberID, StoreID: e.storeID, Status: e.status, ExpiresAt: e.expires,
+		}
+		if i := r.templateIndex(ConsoleScope{}, e.tmplID); i >= 0 {
+			view.TemplateName = r.templates[i].Name
+			view.CouponType = r.templates[i].CouponType
+		}
+		out = append(out, view)
+	}
+	return out, int64(len(out)), nil
+}
+
+func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, memberID int64, req GrantRequest, _ string, _ audit.Entry) (EntitlementView, error) {
+	req.MemberID = memberID
+	return r.Grant(context.Background(), ConsoleScope{}, req)
+}
+
+func (r *fakeConsoleRepo) UpdateMemberEntitlementExpiry(_ context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, _ string, _ audit.Entry) (EntitlementView, error) {
+	e := r.entByID(entitlementID)
+	if e == nil || e.memberID != memberID {
+		return EntitlementView{}, apperr.NotFound("coupon entitlement not found")
+	}
+	if e.status != StatusActive && e.status != StatusExpired {
+		return EntitlementView{}, apperr.Conflict("coupon entitlement cannot be updated")
+	}
+	expires := req.ExpiresAt.UTC()
+	e.expires = &expires
+	e.status = StatusActive
+	return EntitlementView{EntitlementID: e.id, EntitlementNo: e.no, Status: e.status}, nil
+}
+
+func (r *fakeConsoleRepo) VoidMemberEntitlement(_ context.Context, memberID, entitlementID int64, _ string, _ string, _ audit.Entry) (EntitlementView, error) {
+	e := r.entByID(entitlementID)
+	if e == nil || e.memberID != memberID {
+		return EntitlementView{}, apperr.NotFound("coupon entitlement not found")
+	}
+	if e.status != StatusActive && e.status != StatusExpired {
+		return EntitlementView{}, apperr.Conflict("coupon entitlement cannot be voided")
+	}
+	e.status = StatusVoid
+	return EntitlementView{EntitlementID: e.id, EntitlementNo: e.no, Status: e.status}, nil
 }
 
 func (r *fakeConsoleRepo) entByID(id int64) *fakeEnt {
@@ -409,6 +463,48 @@ func TestConsoleGrantStockAndLimit(t *testing.T) {
 	// Out of stock.
 	if _, err := svc.Grant(ctx, ConsoleScope{}, GrantRequest{TemplateID: 1, MemberID: 102}); apperr.From(err).Code != apperr.CodeConflict {
 		t.Fatalf("expected out-of-stock CONFLICT, got %v", err)
+	}
+}
+
+func TestAdminMemberEntitlementLifecycle(t *testing.T) {
+	repo := &fakeConsoleRepo{templates: []Template{{
+		ID: 1, Name: "饮料券", CouponType: TypeBeverage, Status: "published",
+	}}}
+	svc := NewConsoleService(repo)
+	ctx := context.Background()
+	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+
+	granted, err := svc.GrantMemberEntitlement(ctx, 100, GrantRequest{
+		TemplateID: 1, ExpiresAt: &expiresAt, Reason: "客服补发",
+	}, "idem-grant", audit.Entry{ActorID: 9})
+	if err != nil {
+		t.Fatalf("grant member entitlement: %v", err)
+	}
+	rows, total, err := svc.ListMemberEntitlements(ctx, 100, httpx.Page{Page: 1, PageSize: 20})
+	if err != nil || total != 1 || len(rows) != 1 || rows[0].Status != StatusActive {
+		t.Fatalf("unexpected member entitlements: rows=%+v total=%d err=%v", rows, total, err)
+	}
+
+	newExpiry := expiresAt.Add(15 * 24 * time.Hour)
+	updated, err := svc.UpdateMemberEntitlementExpiry(ctx, 100, granted.EntitlementID,
+		UpdateEntitlementExpiryRequest{ExpiresAt: newExpiry, Reason: "延长有效期"},
+		"idem-expiry", audit.Entry{ActorID: 9},
+	)
+	if err != nil || updated.Status != StatusActive || repo.ents[0].expires == nil || !repo.ents[0].expires.Equal(newExpiry) {
+		t.Fatalf("unexpected expiry update: view=%+v entitlement=%+v err=%v", updated, repo.ents[0], err)
+	}
+
+	voided, err := svc.VoidMemberEntitlement(ctx, 100, granted.EntitlementID,
+		"重复补发，删除旧券", "idem-void", audit.Entry{ActorID: 9},
+	)
+	if err != nil || voided.Status != StatusVoid {
+		t.Fatalf("unexpected void result: view=%+v err=%v", voided, err)
+	}
+	if _, err := svc.UpdateMemberEntitlementExpiry(ctx, 100, granted.EntitlementID,
+		UpdateEntitlementExpiryRequest{ExpiresAt: newExpiry, Reason: "不应成功"},
+		"idem-after-void", audit.Entry{ActorID: 9},
+	); apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected voided entitlement update conflict, got %v", err)
 	}
 }
 

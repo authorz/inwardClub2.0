@@ -7,6 +7,7 @@ import { computed, h, reactive, ref } from 'vue'
 import {
   NAvatar,
   NButton,
+  NDatePicker,
   NForm,
   NFormItem,
   NInput,
@@ -26,20 +27,32 @@ import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
 import { dateTimeColumn, statusColumn, textColumn, actionsColumn, renderColumn } from '@/utils/columns'
-import { ASSET_TYPE, ASSET_TYPE_OPTIONS, RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
+import {
+  ASSET_TYPE,
+  ASSET_TYPE_OPTIONS,
+  COUPON_ENTITLEMENT_STATUS_OPTIONS,
+  RESOURCE_STATUS_OPTIONS,
+} from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
 import { useDataTable } from '@/composables/useDataTable'
-import { memberService, readonlyLists } from '@/api/services'
+import { couponTemplateService, memberService, readonlyLists } from '@/api/services'
 import { http } from '@/api/http'
 import { API_PATHS } from '@/constants/api-paths'
 import { formatDateTime } from '@/utils/format'
-import type { Member, MemberDetail, WalletLedgerEntry } from '@/api/models'
+import type {
+  CouponTemplate,
+  Member,
+  MemberCouponEntitlement,
+  MemberDetail,
+  WalletLedgerEntry,
+} from '@/api/models'
 import type { ListQuery } from '@/api/types'
 import type { FilterField, TableColumnList } from '@/components/ui-types'
 import { toastError } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
+const target = ref<Member | null>(null)
 type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
 const sortBy = ref<MemberSortField | ''>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
@@ -162,11 +175,18 @@ function handleSorter(sorter: DataTableSortState | DataTableSortState[] | null):
 const detailDrawerShow = ref(false)
 const detailLoading = ref(false)
 const detail = ref<MemberDetail | null>(null)
-const detailTab = ref<'ledger' | 'adjust'>('ledger')
+const detailTab = ref<'coupons' | 'ledger' | 'adjust'>('coupons')
+const detailMemberId = ref('')
 
 const ledgerTable = useDataTable<WalletLedgerEntry>({
   fetcher: readonlyLists.walletLedger,
   immediate: false,
+})
+
+const couponTable = useDataTable<MemberCouponEntitlement>({
+  fetcher: (query) => readonlyLists.memberCouponEntitlements(detailMemberId.value, query),
+  immediate: false,
+  defaultPageSize: 10,
 })
 
 const ledgerReasonLabels: Record<string, string> = {
@@ -216,6 +236,62 @@ const ledgerColumns: TableColumnList<WalletLedgerEntry> = [
   dateTimeColumn<WalletLedgerEntry>('时间', 'createdAt', 168),
 ]
 
+const couponTypeLabels: Record<string, string> = {
+  event_ticket: '赛事门票券',
+  snack: '小吃券',
+  alcohol: '酒水券',
+  beverage: '饮料券',
+  meal: '餐食券',
+}
+
+const couponColumns: TableColumnList<MemberCouponEntitlement> = [
+  textColumn<MemberCouponEntitlement>('券名称', 'templateName', { minWidth: 140 }),
+  renderColumn<MemberCouponEntitlement>(
+    '类型',
+    'couponType',
+    (row) => couponTypeLabels[row.couponType] ?? row.couponType,
+    100,
+  ),
+  renderColumn<MemberCouponEntitlement>(
+    '适用门店',
+    'storeName',
+    (row) => row.storeName || '全部门店',
+    120,
+  ),
+  statusColumn<MemberCouponEntitlement>(
+    '状态',
+    'status',
+    COUPON_ENTITLEMENT_STATUS_OPTIONS,
+    92,
+  ),
+  dateTimeColumn<MemberCouponEntitlement>('有效期至', 'expiresAt', 168),
+  actionsColumn<MemberCouponEntitlement>(
+    (row) => {
+      if (row.status !== 'active' && row.status !== 'expired') return '—'
+      return h(NSpace, { size: 6, wrap: false }, () => [
+        h(
+          PermissionButton,
+          {
+            permission: PERMISSIONS.COUPON_GLOBAL_WRITE,
+            onClick: () => openCouponExpiry(row),
+          },
+          () => '改期',
+        ),
+        h(
+          PermissionButton,
+          {
+            permission: PERMISSIONS.COUPON_GLOBAL_WRITE,
+            type: 'error',
+            onClick: () => openCouponVoid(row),
+          },
+          () => '删除',
+        ),
+      ])
+    },
+    150,
+  ),
+]
+
 function assetTypeLabel(assetType: string): string {
   return ASSET_TYPE_OPTIONS.find((o) => o.value === assetType)?.label ?? assetType
 }
@@ -226,7 +302,8 @@ function statusLabel(status: string): string {
 
 async function openDetail(row: Member): Promise<void> {
   detail.value = null
-  detailTab.value = 'ledger'
+  detailTab.value = 'coupons'
+  detailMemberId.value = String(row.id)
   target.value = row
   resetAdjustForm()
   detailDrawerShow.value = true
@@ -234,6 +311,8 @@ async function openDetail(row: Member): Promise<void> {
   ledgerTable.filters.memberId = row.id
   ledgerTable.pagination.page = 1
   void ledgerTable.load()
+  couponTable.pagination.page = 1
+  void couponTable.load()
   try {
     detail.value = await http.get<MemberDetail>(API_PATHS.members.detail(row.id))
   } catch (e) {
@@ -247,7 +326,6 @@ async function openDetail(row: Member): Promise<void> {
 // —— 人工调账表单 ——
 const drawerShow = ref(false)
 const submitting = ref(false)
-const target = ref<Member | null>(null)
 const adjust = reactive<{ assetType: string | null; amount: number | null; reason: string }>({
   assetType: null,
   amount: null,
@@ -306,6 +384,161 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
     submitting.value = false
   }
 }
+
+// —— 用户持券管理 ——
+type CouponActionMode = 'grant' | 'expiry' | 'void'
+const couponDrawerShow = ref(false)
+const couponSubmitting = ref(false)
+const couponActionMode = ref<CouponActionMode>('grant')
+const couponActionTarget = ref<MemberCouponEntitlement | null>(null)
+const couponTemplateOptions = ref<{ label: string; value: string }[]>([])
+const couponForm = reactive<{
+  templateId: string | null
+  expiresAt: number | null
+  reason: string
+}>({
+  templateId: null,
+  expiresAt: null,
+  reason: '',
+})
+
+const couponDrawerTitle = computed(() => {
+  if (couponActionMode.value === 'grant') return '补发优惠券'
+  if (couponActionMode.value === 'expiry') return '修改优惠券有效期'
+  return '删除用户优惠券'
+})
+
+const couponSubmitText = computed(() => {
+  if (couponActionMode.value === 'grant') return '确认补发'
+  if (couponActionMode.value === 'expiry') return '确认改期'
+  return '确认删除'
+})
+
+function defaultCouponExpiry(): number {
+  return Date.now() + 30 * 24 * 60 * 60 * 1000
+}
+
+function resetCouponForm(): void {
+  couponForm.templateId = null
+  couponForm.expiresAt = defaultCouponExpiry()
+  couponForm.reason = ''
+  couponActionTarget.value = null
+}
+
+async function loadCouponTemplateOptions(): Promise<void> {
+  const result = await couponTemplateService.list({ page: 1, pageSize: 100 })
+  couponTemplateOptions.value = result.items
+    .filter((item: CouponTemplate) => item.status === 'published')
+    .map((item: CouponTemplate) => ({
+      label: `${item.name} · ${couponTypeLabels[item.couponType] ?? item.couponType}`,
+      value: String(item.id),
+    }))
+}
+
+async function openCouponGrant(): Promise<void> {
+  resetCouponForm()
+  couponActionMode.value = 'grant'
+  try {
+    await loadCouponTemplateOptions()
+  } catch (error) {
+    toastError((error as { message?: string }).message ?? '读取券类型失败')
+    return
+  }
+  if (!couponTemplateOptions.value.length) {
+    toastError('暂无已发布的券类型，请先在券管理中发布')
+    return
+  }
+  couponDrawerShow.value = true
+}
+
+function openCouponExpiry(row: MemberCouponEntitlement): void {
+  resetCouponForm()
+  couponActionMode.value = 'expiry'
+  couponActionTarget.value = row
+  couponForm.expiresAt = row.expiresAt ? new Date(row.expiresAt).getTime() : defaultCouponExpiry()
+  couponDrawerShow.value = true
+}
+
+function openCouponVoid(row: MemberCouponEntitlement): void {
+  resetCouponForm()
+  couponActionMode.value = 'void'
+  couponActionTarget.value = row
+  couponForm.expiresAt = null
+  couponDrawerShow.value = true
+}
+
+async function submitCouponAction(): Promise<void> {
+  const member = target.value
+  if (!member) return
+  const reason = couponForm.reason.trim()
+  if (!reason) return toastError('请填写操作原因')
+  if (couponActionMode.value === 'grant' && !couponForm.templateId) {
+    return toastError('请选择需要补发的券类型')
+  }
+  if (couponActionMode.value !== 'void') {
+    if (!couponForm.expiresAt || couponForm.expiresAt <= Date.now()) {
+      return toastError('有效期必须晚于当前时间')
+    }
+  }
+  if (couponActionMode.value !== 'grant' && !couponActionTarget.value) return
+
+  const memberId = String(member.id)
+  const entitlement = couponActionTarget.value
+  const mode = couponActionMode.value
+  const expiresAt = couponForm.expiresAt
+    ? new Date(couponForm.expiresAt).toISOString()
+    : undefined
+  const title = mode === 'grant' ? '确认补发优惠券' : mode === 'expiry' ? '确认修改有效期' : '确认删除优惠券'
+  const content = mode === 'grant'
+    ? `将向会员「${member.nickname ?? member.id}」补发所选优惠券，有效期至 ${formatDateTime(expiresAt)}。原因：${reason}`
+    : mode === 'expiry'
+      ? `将“${entitlement?.templateName}”的有效期修改至 ${formatDateTime(expiresAt)}。原因：${reason}`
+      : `将从会员账户删除“${entitlement?.templateName}”。已使用券不能删除，操作记录会保留在审计日志中。原因：${reason}`
+
+  couponSubmitting.value = true
+  try {
+    const ok = await runAudited({
+      title,
+      content,
+      highRisk: true,
+      positiveText: couponSubmitText.value,
+      execute: () => {
+        if (mode === 'grant') {
+          return http.post(
+            API_PATHS.members.couponEntitlements(memberId),
+            {
+              templateId: Number(couponForm.templateId),
+              expiresAt,
+              reason,
+            },
+            { idempotent: true },
+          )
+        }
+        const entitlementId = String(entitlement!.entitlementId)
+        if (mode === 'expiry') {
+          return http.patch(
+            API_PATHS.members.couponEntitlement(memberId, entitlementId),
+            { expiresAt, reason },
+            { idempotent: true },
+          )
+        }
+        return http.post(
+          API_PATHS.members.voidCouponEntitlement(memberId, entitlementId),
+          { reason },
+          { idempotent: true },
+        )
+      },
+      successText: mode === 'grant' ? '优惠券已补发' : mode === 'expiry' ? '有效期已更新' : '优惠券已删除',
+    })
+    if (ok) {
+      couponDrawerShow.value = false
+      resetCouponForm()
+      void couponTable.reload()
+    }
+  } finally {
+    couponSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -360,12 +593,60 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
         </NFormItem>
       </NForm>
     </FormDrawer>
+    <FormDrawer
+      v-model:show="couponDrawerShow"
+      :title="couponDrawerTitle"
+      :submitting="couponSubmitting"
+      high-risk
+      :submit-text="couponSubmitText"
+      @submit="submitCouponAction"
+    >
+      <NForm label-placement="top">
+        <NFormItem
+          v-if="couponActionMode === 'grant'"
+          label="券类型"
+          required
+        >
+          <NSelect
+            v-model:value="couponForm.templateId"
+            :options="couponTemplateOptions"
+            filterable
+            placeholder="选择已发布的券类型"
+          />
+        </NFormItem>
+        <NFormItem
+          v-if="couponActionMode !== 'void'"
+          label="有效期至"
+          required
+        >
+          <NDatePicker
+            v-model:value="couponForm.expiresAt"
+            type="datetime"
+            clearable
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          label="操作原因"
+          required
+        >
+          <NInput
+            v-model:value="couponForm.reason"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 5 }"
+            :placeholder="couponActionMode === 'void' ? '说明删除原因，将写入审计日志' : '说明补发或改期原因，将写入审计日志'"
+            maxlength="200"
+            show-count
+          />
+        </NFormItem>
+      </NForm>
+    </FormDrawer>
     <NModal
       v-model:show="detailDrawerShow"
       preset="card"
       title="会员详情"
       :mask-closable="false"
-      style="width: 760px; max-width: 92vw"
+      style="width: 980px; max-width: 94vw"
       content-style="max-height: 72vh; overflow: auto"
     >
       <NSpin :show="detailLoading">
@@ -430,6 +711,35 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
             v-model:value="detailTab"
             type="line"
           >
+            <NTabPane
+              name="coupons"
+              tab="用户优惠券"
+            >
+              <div class="member-detail__coupon-toolbar">
+                <span>删除操作会撤销券资产并保留审计记录，已使用券不可删除。</span>
+                <PermissionButton
+                  :permission="PERMISSIONS.COUPON_GLOBAL_WRITE"
+                  type="primary"
+                  @click="openCouponGrant"
+                >
+                  补发券
+                </PermissionButton>
+              </div>
+              <DataTable
+                class="member-detail__coupons"
+                :columns="couponColumns"
+                :data="couponTable.rows.value"
+                :loading="couponTable.loading.value"
+                :page="couponTable.pagination.page"
+                :page-size="couponTable.pagination.pageSize"
+                :item-count="couponTable.pagination.itemCount"
+                :row-key="(row) => String(row.entitlementId)"
+                empty-text="该用户暂无优惠券"
+                @update:page="couponTable.handlePageChange"
+                @update:page-size="couponTable.handlePageSizeChange"
+              />
+            </NTabPane>
+
             <NTabPane
               name="ledger"
               tab="钱包流水"
@@ -551,6 +861,20 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
   border: 0;
   border-radius: 0;
 }
+.member-detail__coupon-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-md);
+  margin-bottom: var(--ic-space-sm);
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+}
+.member-detail__coupons {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
 .member-detail__footer {
   display: flex;
   justify-content: flex-end;
@@ -558,6 +882,10 @@ async function submitAdjust(closeOnSuccess = true): Promise<void> {
 @media (max-width: 640px) {
   .member-detail__summary {
     grid-template-columns: 1fr;
+  }
+  .member-detail__coupon-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

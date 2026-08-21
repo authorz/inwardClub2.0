@@ -210,6 +210,14 @@ export const VERIFICATION_STATUS_OPTIONS: OptionItem[] = [
   { label: '已作废', value: VERIFICATION_STATUS.VOID, tone: 'error' },
 ]
 
+/** 用户持有优惠券状态。 */
+export const COUPON_ENTITLEMENT_STATUS_OPTIONS: OptionItem[] = [
+  { label: '可使用', value: 'active', tone: 'success' },
+  { label: '已使用', value: 'used', tone: 'default' },
+  { label: '已过期', value: 'expired', tone: 'warning' },
+  { label: '已删除', value: 'void', tone: 'error' },
+]
+
 /**
  * 从任意 options 列表构造 value -> OptionItem 的查表，供 StatusTag / 展示复用。
  */
