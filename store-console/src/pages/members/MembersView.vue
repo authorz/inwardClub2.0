@@ -19,15 +19,16 @@ import {
   NTag,
 } from 'naive-ui'
 import type { DataTableColumns, DataTableSortOrder, DataTableSortState } from 'naive-ui'
-import { memberService } from '@/api/services'
+import { couponService, memberService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { PERM } from '@/constants/permissions'
 import { actionColumn, dateColumn, statusColumn, textColumn } from '@/utils/columns'
 import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
+import { feedback } from '@/utils/feedback'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
-import type { Member, WalletLedgerEntry } from '@/types/models'
+import type { CouponTemplate, Member, WalletLedgerEntry } from '@/types/models'
 import {
   ACTIVE_STATUS,
   toOptions,
@@ -61,6 +62,24 @@ const ledger = useAsyncList<WalletLedgerEntry>(
 )
 
 const action = useAsyncAction()
+const couponAction = useAsyncAction()
+
+const couponShow = ref(false)
+const couponLoading = ref(false)
+const couponTarget = ref<Member | null>(null)
+const couponTemplateOptions = ref<Array<{ label: string; value: number }>>([])
+const couponForm = reactive<{ templateId: number | null; expiresAt: number | null; reason: string }>({
+  templateId: null,
+  expiresAt: null,
+  reason: '',
+})
+const COUPON_TYPE_LABELS: Record<string, string> = {
+  event_ticket: '赛事门票券',
+  snack: '小吃券',
+  alcohol: '酒水券',
+  beverage: '饮料券',
+  meal: '餐食券',
+}
 
 const adjustAssetTypeOptions = toOptions(WALLET_ASSET_TYPE)
   .filter(({ value }) => value !== WALLET_ASSET_TYPE.cash_balance.value)
@@ -137,6 +156,75 @@ function openDetail(row: Member): void {
 
 function openAdjust(row: Member): void {
   void openMember(row, 'adjust')
+}
+
+function resetCouponForm(): void {
+  couponForm.templateId = null
+  couponForm.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000
+  couponForm.reason = ''
+}
+
+async function openCouponGrant(row: Member): Promise<void> {
+  couponTarget.value = row
+  resetCouponForm()
+  couponLoading.value = true
+  try {
+    const result = await couponService.list({ page: 1, pageSize: 100, status: 'published' })
+    const templates = result.rows.filter((item: CouponTemplate) => item.status === 'published')
+    couponTemplateOptions.value = templates.map((item) => ({
+      label: `${item.name} · ${COUPON_TYPE_LABELS[item.couponType] ?? item.couponType}`,
+      value: Number(item.id),
+    }))
+    if (!couponTemplateOptions.value.length) {
+      feedback.message.warning('本店暂无已发布的优惠券，请先在“本店优惠券”中发布')
+      return
+    }
+    couponShow.value = true
+  } catch (error) {
+    feedback.message.error(error instanceof ApiError ? error.message : '读取本店优惠券失败')
+  } finally {
+    couponLoading.value = false
+  }
+}
+
+function submitCouponGrant(): void {
+  const member = couponTarget.value
+  const reason = couponForm.reason.trim()
+  if (!member || couponForm.templateId == null) {
+    feedback.message.error('请选择需要补发的优惠券')
+    return
+  }
+  if (!couponForm.expiresAt || couponForm.expiresAt <= Date.now()) {
+    feedback.message.error('有效期必须晚于当前时间')
+    return
+  }
+  if (!reason) {
+    feedback.message.error('请填写补发原因')
+    return
+  }
+  const templateLabel = couponTemplateOptions.value.find(
+    (item) => item.value === couponForm.templateId,
+  )?.label ?? `优惠券 #${couponForm.templateId}`
+  const expiresAt = new Date(couponForm.expiresAt).toISOString()
+  void couponAction.run(
+    () => memberService.grantCoupon(member.id, {
+      templateId: couponForm.templateId!,
+      expiresAt,
+      reason,
+    }),
+    {
+      confirm: {
+        content: `确认向会员“${member.nickname || member.id}”补发本店券“${templateLabel}”？有效期至 ${formatDateTime(expiresAt)}，操作将写入审计日志。`,
+        danger: true,
+      },
+      successMessage: '本店优惠券已补发',
+      onSuccess: () => {
+        couponShow.value = false
+        couponTarget.value = null
+        resetCouponForm()
+      },
+    },
+  )
 }
 
 function submitAdjust() {
@@ -236,9 +324,18 @@ const columns = computed<DataTableColumns<Member>>(() => [
           },
           { default: () => '人工调账' },
         ),
+        h(
+          PermissionButton,
+          {
+            permissions: [PERM.couponWrite],
+            loading: couponLoading.value && String(couponTarget.value?.id) === String(row.id),
+            onClick: () => void openCouponGrant(row),
+          },
+          { default: () => '补发券' },
+        ),
       ]),
     '操作',
-    180,
+    260,
   ),
 ])
 
@@ -262,7 +359,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   <section class="member-list">
     <PageHeader
       title="会员列表"
-      description="全局会员查询；人工调账为高风险操作"
+      description="全局会员查询；人工调账和补发券均为高风险操作"
       :breadcrumb="['用户 / 会员', '会员列表']"
     />
 
@@ -315,7 +412,7 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         :page="list.page.value"
         :page-size="list.pageSize.value"
         :total="list.total.value"
-        :scroll-x="1360"
+        :scroll-x="1440"
         empty-text="暂无会员"
         @update:page="list.setPage"
         @update:page-size="list.setPageSize"
@@ -457,6 +554,64 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         </div>
       </template>
     </NModal>
+
+    <NModal
+      v-model:show="couponShow"
+      preset="card"
+      :title="`补发本店优惠券 · ${couponTarget?.nickname || couponTarget?.id || ''}`"
+      :mask-closable="false"
+      style="width: 520px; max-width: 92vw"
+    >
+      <div class="coupon-grant">
+        <p class="coupon-grant__notice">
+          仅展示并发放当前门店已发布的优惠券，适用门店由系统自动锁定。
+        </p>
+        <label>
+          <span>优惠券</span>
+          <NSelect
+            v-model:value="couponForm.templateId"
+            :options="couponTemplateOptions"
+            filterable
+            placeholder="选择本店已发布优惠券"
+          />
+        </label>
+        <label>
+          <span>有效期至</span>
+          <NDatePicker
+            v-model:value="couponForm.expiresAt"
+            type="datetime"
+            clearable
+            style="width: 100%"
+          />
+        </label>
+        <label>
+          <span>补发原因</span>
+          <NInput
+            v-model:value="couponForm.reason"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 5 }"
+            maxlength="200"
+            show-count
+            placeholder="必填，将写入审计日志"
+          />
+        </label>
+      </div>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="couponShow = false">
+            取消
+          </NButton>
+          <PermissionButton
+            :permissions="[PERM.couponWrite]"
+            type="primary"
+            :loading="couponAction.running.value"
+            @click="submitCouponGrant"
+          >
+            确认补发
+          </PermissionButton>
+        </NSpace>
+      </template>
+    </NModal>
   </section>
 </template>
 
@@ -541,5 +696,21 @@ const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
 .member-detail__footer {
   display: flex;
   justify-content: flex-end;
+}
+.coupon-grant {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-4);
+}
+.coupon-grant__notice {
+  margin: 0;
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+}
+.coupon-grant label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-2);
+  font-size: var(--ic-font-sm);
 }
 </style>

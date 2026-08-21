@@ -133,6 +133,7 @@ export const API_PATHS = {
     lookup: '/store/member-lookup',
     detail: (id: string | number) => `/store/members/${id}`,
     walletAdjustments: (id: string | number) => `/store/members/${id}/wallet-adjustments`,
+    couponEntitlements: (id: string | number) => `/store/members/${id}/coupon-entitlements`,
     walletLedger: '/store/wallet-ledger',
   },
 

@@ -221,9 +221,9 @@ func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, memberID int
 	return out, int64(len(out)), nil
 }
 
-func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, memberID int64, req GrantRequest, _ string, _ audit.Entry) (EntitlementView, error) {
+func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, scope ConsoleScope, memberID int64, req GrantRequest, _ string, _ audit.Entry) (EntitlementView, error) {
 	req.MemberID = memberID
-	view, err := r.Grant(context.Background(), ConsoleScope{}, req)
+	view, err := r.Grant(context.Background(), scope, req)
 	if err == nil && len(r.ents) > 0 {
 		r.ents[len(r.ents)-1].storeID = req.StoreID
 	}
@@ -482,7 +482,7 @@ func TestAdminMemberEntitlementLifecycle(t *testing.T) {
 	ctx := context.Background()
 	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
 
-	granted, err := svc.GrantMemberEntitlement(ctx, 100, GrantRequest{
+	granted, err := svc.GrantMemberEntitlement(ctx, ConsoleScope{}, 100, GrantRequest{
 		TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Reason: "客服补发",
 	}, "idem-grant", audit.Entry{ActorID: 9})
 	if err != nil {
@@ -557,6 +557,74 @@ func TestGrantMemberEntitlementHandlerUsesPathMemberID(t *testing.T) {
 	}
 	if len(repo.ents) != 1 || repo.ents[0].memberID != 100 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != 5 {
 		t.Fatalf("path member and selected store were not persisted: %+v", repo.ents)
+	}
+}
+
+func TestStoreGrantMemberEntitlementForcesAuthenticatedStore(t *testing.T) {
+	storeFive := int64(5)
+	storeSix := int64(6)
+	repo := &fakeConsoleRepo{templates: []Template{
+		{ID: 1, Name: "本店饮料券", CouponType: TypeBeverage, ScopeType: "store", StoreID: &storeFive, Status: "published"},
+		{ID: 2, Name: "其他门店饮料券", CouponType: TypeBeverage, ScopeType: "store", StoreID: &storeSix, Status: "published"},
+	}}
+	svc := NewConsoleService(repo)
+	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+
+	granted, err := svc.GrantMemberEntitlement(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		GrantRequest{
+			TemplateID: 1, ScopeType: "global", StoreID: &storeSix,
+			ExpiresAt: &expiresAt, Reason: "门店补发",
+		},
+		"store-idem-grant", audit.Entry{ActorID: 9, StoreID: storeFive},
+	)
+	if err != nil {
+		t.Fatalf("grant own-store entitlement: %v", err)
+	}
+	if granted.Status != StatusActive || len(repo.ents) != 1 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != storeFive {
+		t.Fatalf("store scope was not forced onto entitlement: view=%+v entitlements=%+v", granted, repo.ents)
+	}
+
+	_, err = svc.GrantMemberEntitlement(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		GrantRequest{TemplateID: 2, ExpiresAt: &expiresAt, Reason: "越权补发"},
+		"store-idem-foreign", audit.Entry{ActorID: 9, StoreID: storeFive},
+	)
+	if apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected foreign-store template NOT_FOUND, got %v", err)
+	}
+}
+
+func TestStoreGrantMemberEntitlementHandlerUsesPinnedStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storeFive := int64(5)
+	storeSix := int64(6)
+	repo := &fakeConsoleRepo{templates: []Template{{
+		ID: 1, Name: "本店酒水券", CouponType: TypeAlcohol,
+		ScopeType: "store", StoreID: &storeFive, Status: "published",
+	}}}
+	handler := NewConsoleHandler(NewConsoleService(repo))
+	router := gin.New()
+	router.POST(
+		"/store/members/:memberID/coupon-entitlements",
+		func(c *gin.Context) {
+			c.Set(httpx.CtxStoreScope, storeFive)
+			c.Next()
+		},
+		handler.StoreGrantMemberEntitlement,
+	)
+
+	body := `{"templateId":1,"scopeType":"global","storeId":6,"expiresAt":"2099-09-30T15:24:14Z","reason":"测试门店补发"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/members/100/coupon-entitlements", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", response.Code, response.Body.String())
+	}
+	if len(repo.ents) != 1 || repo.ents[0].memberID != 100 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != storeFive {
+		t.Fatalf("handler did not pin entitlement to authenticated store: %+v (foreign=%d)", repo.ents, storeSix)
 	}
 }
 

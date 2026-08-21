@@ -394,6 +394,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/point-savings/:requestID/review", a.activityStoreHandler.ReviewPointSaving)
 	idem.POST("/refunds", a.paymentStoreHandler.CreateRefund)
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.StoreCreateWalletAdjustment)
+	idem.POST("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.StoreGrantMemberEntitlement)
 
 	a.registerStoreConsole(p, idem)
 
@@ -494,7 +495,6 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/coupon-templates/:id/publish", a.couponConsoleHandler.StorePublish)
 	idem.POST("/coupon-templates/:id/disable", a.couponConsoleHandler.StoreDisable)
 
-	// Manual coupon issuing is disabled: console coupon management defines types only.
 	idem.POST("/coupon-voids", a.couponConsoleHandler.StoreVoid)
 	idem.POST("/coupon-verifications", a.couponConsoleHandler.StoreVerify)
 
