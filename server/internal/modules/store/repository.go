@@ -127,8 +127,8 @@ func (r *sqlRepository) UpdateStore(ctx context.Context, id int64, input StoreIn
 	return r.GetStore(ctx, id)
 }
 
-// DeleteStore permanently removes the store row. Historical orders keep their
-// immutable store snapshots/ids, while live store-scoped sessions are revoked.
+// DeleteStore permanently removes the store and its live access/device rows.
+// Historical orders keep their immutable store snapshots/ids.
 func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry audit.Entry) error {
 	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
 		const selectStore = `SELECT ` + storeColumns + ` FROM stores WHERE id = ? AND status <> ? FOR UPDATE`
@@ -139,19 +139,13 @@ func (r *sqlRepository) DeleteStore(ctx context.Context, id int64, auditEntry au
 		if err != nil {
 			return apperr.Internal(err)
 		}
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE admin_accounts SET status = 'disabled', token_version = token_version + 1, updated_at = NOW() WHERE store_id = ?`, id,
-		); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM admin_accounts WHERE store_id = ?`, id); err != nil {
 			return apperr.Internal(err)
 		}
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE staff_accounts SET status = 'disabled', token_version = token_version + 1, updated_at = NOW() WHERE store_id = ?`, id,
-		); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM staff_accounts WHERE store_id = ?`, id); err != nil {
 			return apperr.Internal(err)
 		}
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE printer_devices SET status = 'disabled', updated_at = NOW() WHERE store_id = ?`, id,
-		); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM printer_devices WHERE store_id = ?`, id); err != nil {
 			return apperr.Internal(err)
 		}
 

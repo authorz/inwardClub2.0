@@ -35,10 +35,11 @@ func scanDevice(row interface{ Scan(...any) error }) (Device, error) {
 }
 
 func (r *sqlRepository) List(ctx context.Context, storeID *int64) ([]Device, error) {
-	q := `SELECT ` + deviceColumns + ` FROM printer_devices`
+	q := `SELECT ` + deviceColumns + ` FROM printer_devices pd
+		WHERE EXISTS (SELECT 1 FROM stores live_store WHERE live_store.id = pd.store_id)`
 	args := []any{}
 	if storeID != nil {
-		q += ` WHERE store_id = ?`
+		q += ` AND pd.store_id = ?`
 		args = append(args, *storeID)
 	}
 	q += ` ORDER BY id ASC`

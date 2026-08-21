@@ -91,7 +91,7 @@ func (r *consoleFakeRepo) DeleteStore(_ context.Context, id int64, auditEntry au
 	}
 	r.gotDeleteID = id
 	r.gotDeleteAudit = auditEntry
-	r.store.Status = StatusDeleted
+	r.store = Store{}
 	return nil
 }
 
@@ -310,8 +310,8 @@ func TestConsoleDeleteStoreVerifiesPasswordAndDeletes(t *testing.T) {
 	if repo.gotDeleteID != 42 || repo.gotDeleteAudit.Action != "store.delete" {
 		t.Fatalf("expected deletion and audit entry, got id=%d audit=%+v", repo.gotDeleteID, repo.gotDeleteAudit)
 	}
-	if repo.store.Status != StatusDeleted {
-		t.Fatalf("expected deleted status, got %q", repo.store.Status)
+	if _, err := repo.GetStore(context.Background(), 42); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("deleted store must no longer exist, got %v", err)
 	}
 }
 

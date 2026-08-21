@@ -890,6 +890,7 @@ func (r *sqlRepository) UpdateRuleDefinition(ctx context.Context, ruleID int64, 
 
 func (r *sqlRepository) ListAdminAccounts(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error) {
 	where, args := filterClauses(f, "aa.store_id", "aa.status", "aa.username")
+	where += " AND (aa.store_id IS NULL OR EXISTS (SELECT 1 FROM stores live_store WHERE live_store.id = aa.store_id))"
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -970,7 +971,7 @@ func (r *sqlRepository) ListSuperAdmins(ctx context.Context, f ListFilter) ([]Ad
 
 func (r *sqlRepository) ListStoreAdmins(ctx context.Context, f ListFilter) ([]AdminAccount, int64, error) {
 	where, args := filterClauses(f, "aa.store_id", "aa.status", "aa.username")
-	where += " AND aa.role IN ('store_admin', 'cashier')"
+	where += " AND aa.role IN ('store_admin', 'cashier') AND EXISTS (SELECT 1 FROM stores live_store WHERE live_store.id = aa.store_id)"
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_accounts aa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -1205,6 +1206,7 @@ func (r *sqlRepository) DisableAdminAccountByID(ctx context.Context, id int64) (
 
 func (r *sqlRepository) ListStaffAccounts(ctx context.Context, f ListFilter) ([]StaffAccount, int64, error) {
 	where, args := filterClauses(f, "sa.store_id", "sa.status", "sa.name")
+	where += " AND EXISTS (SELECT 1 FROM stores live_store WHERE live_store.id = sa.store_id)"
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM staff_accounts sa WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
