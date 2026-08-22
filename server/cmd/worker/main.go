@@ -118,7 +118,14 @@ func run() error {
 	// Printer: real Xpyun client when fakes are off, in-process fake otherwise.
 	// The print:receipt handler executes jobs through it.
 	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
-	receiptPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, cfg.UseFakeAdapters)
+	printerMode := "fake"
+	if cfg.PrinterReal() {
+		printerMode = "real"
+	} else {
+		log.Warn("printer adapter is fake; Xpyun will not receive print jobs")
+	}
+	log.Info("printer adapter configured", "mode", printerMode)
+	receiptPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, !cfg.PrinterReal())
 	printJobRecorder := printer.NewJobRepository(database)
 
 	// Payment post-process: evaluates a settled, member-bound offline collection
@@ -388,7 +395,11 @@ func printHandler(log *slog.Logger, p printer.Printer, recorders ...printer.JobR
 				log.Error("print task: printed but status update failed", "error", err, "job_id", job.ID)
 			}
 		}
-		log.Info("print task: printed", "sn", job.DeviceSN, "template", job.Template)
+		message := "print task: printed"
+		if _, simulated := p.(*printer.FakePrinter); simulated {
+			message = "print task: simulated"
+		}
+		log.Info(message, "sn", job.DeviceSN, "template", job.Template)
 		return nil
 	}
 }

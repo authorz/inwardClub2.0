@@ -57,3 +57,22 @@ func TestXpyunConfigValidate(t *testing.T) {
 		t.Fatalf("expected XPYUN_UKEY error, got %v", err)
 	}
 }
+
+func TestPrinterRealOverride(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{name: "global real", cfg: Config{UseFakeAdapters: false}, want: true},
+		{name: "printer override", cfg: Config{UseFakeAdapters: true, PrinterUseReal: true}, want: true},
+		{name: "global fake", cfg: Config{UseFakeAdapters: true}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.PrinterReal(); got != tt.want {
+				t.Fatalf("PrinterReal() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

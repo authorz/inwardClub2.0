@@ -145,7 +145,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		activity.NewPointReviewSettingsRepository(database),
 	)
 	globalSettingsSvc := systemsetting.NewService(systemsetting.NewRepository(database))
-	cloudPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, cfg.UseFakeAdapters)
+	cloudPrinter := printer.SelectWithSettings(globalSettingsSvc, cfg.Xpyun, !cfg.PrinterReal())
 	storeLowSpendRuleSvc := systemsetting.NewStoreLowSpendRuleService(
 		systemsetting.NewStoreLowSpendRuleRepository(database),
 	)

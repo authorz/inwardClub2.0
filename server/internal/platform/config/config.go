@@ -32,11 +32,12 @@ type Config struct {
 	UseFakeAdapters bool `yaml:"useFakeAdapters"`
 
 	// Per-adapter overrides let a single external service go real while the rest
-	// stay faked (e.g. real WeChat login+pay while the offline acquirer/printer
-	// are still being configured). Empty/false → the adapter follows
-	// UseFakeAdapters. Only WeChat login and pay have overrides today.
+	// stay faked (e.g. real WeChat login+pay and printer while the offline
+	// acquirer is still being configured). Empty/false → the adapter follows
+	// UseFakeAdapters.
 	WeChatLoginUseReal bool `yaml:"wechatLoginUseReal"`
 	WeChatPayUseReal   bool `yaml:"wechatPayUseReal"`
+	PrinterUseReal     bool `yaml:"printerUseReal"`
 	PaymentDebugMode   bool `yaml:"paymentDebugMode"`
 
 	JWT                  JWTConfig                  `yaml:"jwt"`
@@ -214,6 +215,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.UseFakeAdapters, "USE_FAKE_ADAPTERS")
 	setBool(&cfg.WeChatLoginUseReal, "WECHAT_LOGIN_USE_REAL")
 	setBool(&cfg.WeChatPayUseReal, "WECHAT_PAY_USE_REAL")
+	setBool(&cfg.PrinterUseReal, "PRINTER_USE_REAL")
 	setBool(&cfg.PaymentDebugMode, "PAYMENT_DEBUG_MODE")
 
 	setStr(&cfg.Business.TZ, "BUSINESS_TZ")
@@ -267,6 +269,12 @@ func (c *Config) WeChatPayReal() bool {
 	return !c.UseFakeAdapters || c.WeChatPayUseReal
 }
 
+// PrinterReal reports whether the worker and console device operations should
+// call Xpyun instead of the in-process fake printer.
+func (c *Config) PrinterReal() bool {
+	return !c.UseFakeAdapters || c.PrinterUseReal
+}
+
 // WeChatPayAmountOverrideCent returns the real channel amount used in payment
 // debug mode. Business orders and entitlements keep their original amounts.
 // Production always returns zero so a stray debug flag cannot discount a live
@@ -302,14 +310,16 @@ func (c *Config) Validate() error {
 			return err
 		}
 	}
+	if c.PrinterReal() {
+		if err := c.Xpyun.validate(); err != nil {
+			return err
+		}
+	}
 	if !c.UseFakeAdapters {
 		if c.Qiniu.AccessKey == "" || c.Qiniu.SecretKey == "" || c.Qiniu.Bucket == "" {
 			return fmt.Errorf("qiniu credentials required when USE_FAKE_ADAPTERS=false")
 		}
 		if err := c.Offline.validate(); err != nil {
-			return err
-		}
-		if err := c.Xpyun.validate(); err != nil {
 			return err
 		}
 	}
