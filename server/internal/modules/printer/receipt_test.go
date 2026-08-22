@@ -35,12 +35,17 @@ func TestBuildReceiptJob(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<IMG></IMG>", "<CB>InwardClub</CB>", "南滨公园店", "订单号：BO-20260718-1",
-		"手机尾号", "138****5678", "会员等级", "VIP3 会员下单", "消费方式", "金币支付",
+		"手机号  138****5678", "会员等级                 VIP3", "消费方式", "金币",
 		"赠送积分", "20", "金币余额", "12345", "订单备注：少冰，不要柠檬", "商品名称", "数量", "金额",
 		"苏打水", "2", "¥15.00", "合计", "谢谢惠顾！", "<CUT>", "2026-07-18 23:04:05",
 	} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("content missing %q:\n%s", want, job.Content)
+		}
+	}
+	for _, unwanted := range []string{"会员下单", "金币支付", "手机尾号"} {
+		if strings.Contains(job.Content, unwanted) {
+			t.Fatalf("content contains obsolete wording %q:\n%s", unwanted, job.Content)
 		}
 	}
 }
@@ -67,7 +72,7 @@ func TestBuildReceiptJobShowsWechatPaymentAndBalance(t *testing.T) {
 		CoinBalance:     &coinBalance,
 		PaidAt:          time.Date(2026, 7, 18, 15, 4, 5, 0, time.UTC),
 	})
-	for _, want := range []string{"VIP1 会员下单", "微信支付", "金币余额", "8800"} {
+	for _, want := range []string{"会员等级                 VIP1", "消费方式                 微信", "金币余额", "8800"} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("wechat receipt missing %q:\n%s", want, job.Content)
 		}
@@ -76,10 +81,10 @@ func TestBuildReceiptJobShowsWechatPaymentAndBalance(t *testing.T) {
 
 func TestPaymentMethodLabel(t *testing.T) {
 	cases := map[string]string{
-		"wechat":  "微信支付",
-		"coin":    "金币支付",
-		"coupon":  "券兑换",
-		"voucher": "券兑换",
+		"wechat":  "微信",
+		"coin":    "金币",
+		"coupon":  "券",
+		"voucher": "券",
 		"unknown": "",
 	}
 	for in, want := range cases {

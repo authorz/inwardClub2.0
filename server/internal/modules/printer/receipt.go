@@ -226,12 +226,12 @@ func renderReceipt(r Receipt) string {
 	fmt.Fprintf(&b, "%s\n", r.PaidAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
 	b.WriteString(rule)
 	if r.Member != "" {
-		fmt.Fprintf(&b, "手机尾号                 %s\n", r.Member)
+		fmt.Fprintf(&b, "手机号  %s\n", r.Member)
 	}
 	if r.OrderType == "food" {
 		b.WriteString(rule)
 		if r.VIPLevel > 0 {
-			fmt.Fprintf(&b, "会员等级                 VIP%d 会员下单\n", r.VIPLevel)
+			fmt.Fprintf(&b, "会员等级                 VIP%d\n", r.VIPLevel)
 		}
 		if payMethod := paymentMethodLabel(r.PayMethod); payMethod != "" {
 			fmt.Fprintf(&b, "消费方式                 %s\n", payMethod)
@@ -263,11 +263,11 @@ func renderReceipt(r Receipt) string {
 func paymentMethodLabel(payMethod string) string {
 	switch strings.ToLower(strings.TrimSpace(payMethod)) {
 	case "wechat":
-		return "微信支付"
+		return "微信"
 	case "coin", "coins", "balance":
-		return "金币支付"
+		return "金币"
 	case "coupon", "voucher":
-		return "券兑换"
+		return "券"
 	default:
 		return ""
 	}
