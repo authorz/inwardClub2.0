@@ -13,15 +13,16 @@ const (
 
 // Device is a cloud printer registered to a store (row of printer_devices).
 type Device struct {
-	ID        int64
-	StoreID   int64
-	Name      string
-	Provider  string
-	DeviceSN  string
-	DeviceKey string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           int64
+	StoreID      int64
+	Name         string
+	Provider     string
+	DeviceSN     string
+	DeviceKey    string
+	Status       string
+	SoundEnabled bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // DeviceInput is the store-console create payload. All Xpyun account details
@@ -43,8 +44,9 @@ type AdminDeviceInput struct {
 
 // DevicePatch is the partial-update payload; nil fields are left unchanged.
 type DevicePatch struct {
-	Name   *string `json:"name"`
-	Status *string `json:"status"`
+	Name         *string `json:"name"`
+	Status       *string `json:"status"`
+	SoundEnabled *bool   `json:"soundEnabled"`
 }
 
 // AdminDevicePatch is the headquarters update payload. Store ownership is
@@ -70,6 +72,7 @@ type DeviceView struct {
 	Provider              string         `json:"provider"`
 	DeviceSN              string         `json:"deviceSn"`
 	Status                string         `json:"status"`
+	SoundEnabled          bool           `json:"soundEnabled"`
 	ProviderStatus        ProviderStatus `json:"providerStatus"`
 	ProviderStatusMessage string         `json:"providerStatusMessage,omitempty"`
 	CreatedAt             time.Time      `json:"createdAt"`
@@ -84,6 +87,7 @@ func (d Device) view() DeviceView {
 		Provider:       d.Provider,
 		DeviceSN:       d.DeviceSN,
 		Status:         d.Status,
+		SoundEnabled:   d.SoundEnabled,
 		ProviderStatus: ProviderStatusUnknown,
 		CreatedAt:      d.CreatedAt,
 		UpdatedAt:      d.UpdatedAt,

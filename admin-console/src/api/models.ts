@@ -40,6 +40,7 @@ export interface PrinterDevice extends AuditableEntity {
   provider: string
   deviceSn: string
   status: 'active' | 'disabled'
+  soundEnabled: boolean
   providerStatus: 'offline' | 'online' | 'abnormal' | 'unknown' | 'unconfigured'
   providerStatusMessage?: string
 }
@@ -54,6 +55,7 @@ export interface PrinterDeviceInput {
 export interface PrinterDevicePatch {
   name?: string
   status?: 'active' | 'disabled'
+  soundEnabled?: boolean
   reason: string
 }
 

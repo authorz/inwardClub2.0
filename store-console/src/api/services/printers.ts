@@ -17,6 +17,7 @@ export interface PrinterCreatePayload {
 export interface PrinterPatchPayload {
   name?: string
   status?: PrinterDevice['status']
+  soundEnabled?: boolean
 }
 
 export const printerService = {
@@ -28,6 +29,9 @@ export const printerService = {
   },
   update(id: string | number, body: PrinterPatchPayload) {
     return patch<PrinterDevice>(API_PATHS.printers.device(id), body, { idempotent: true })
+  },
+  testPrint(id: string | number) {
+    return post<{ id: string | number; printed: boolean }>(API_PATHS.printers.testPrint(id), {}, { idempotent: true })
   },
   remove(id: string | number) {
     return del<unknown>(API_PATHS.printers.device(id), { idempotent: true })

@@ -154,6 +154,20 @@ func (h *ConsoleHandler) AdminDelete(c *gin.Context) {
 	httpx.OK(c, gin.H{"id": id})
 }
 
+// AdminTestPrint handles POST /admin/printer-devices/:id/test-print.
+func (h *ConsoleHandler) AdminTestPrint(c *gin.Context) {
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.AdminTestPrint(c.Request.Context(), id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"id": id, "printed": true})
+}
+
 // --- Store ---
 
 // StoreList handles GET /store/printer-devices.
@@ -230,6 +244,24 @@ func (h *ConsoleHandler) StoreDelete(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, gin.H{"id": id})
+}
+
+// StoreTestPrint handles POST /store/printer-devices/:id/test-print.
+func (h *ConsoleHandler) StoreTestPrint(c *gin.Context) {
+	storeID, ok := storescope.MustFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := pathID(c, "id")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.svc.StoreTestPrint(c.Request.Context(), storeID, id); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, gin.H{"id": id, "printed": true})
 }
 
 func pathID(c *gin.Context, name string) (int64, error) {

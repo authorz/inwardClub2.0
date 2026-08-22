@@ -2,7 +2,9 @@ package printer
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -39,11 +41,12 @@ func (s *ConsoleService) AdminCreate(ctx context.Context, in AdminDeviceInput, i
 		return DeviceView{}, err
 	}
 	d := Device{
-		StoreID:  in.StoreID,
-		Name:     strings.TrimSpace(in.Name),
-		Provider: ProviderXpyun,
-		DeviceSN: strings.TrimSpace(in.DeviceSN),
-		Status:   StatusActive,
+		StoreID:      in.StoreID,
+		Name:         strings.TrimSpace(in.Name),
+		Provider:     ProviderXpyun,
+		DeviceSN:     strings.TrimSpace(in.DeviceSN),
+		Status:       StatusActive,
+		SoundEnabled: true,
 	}
 	if err := validateAdminDevice(d); err != nil {
 		return DeviceView{}, err
@@ -78,14 +81,14 @@ func (s *ConsoleService) AdminUpdate(ctx context.Context, id int64, in AdminDevi
 	if err != nil {
 		return DeviceView{}, err
 	}
-	if err := s.updateProviderName(ctx, before, in.DevicePatch); err != nil {
+	if err := s.updateProviderSettings(ctx, before, in.DevicePatch); err != nil {
 		return DeviceView{}, err
 	}
 	entry.Reason = strings.TrimSpace(in.Reason)
 	updated, err := s.repo.AdminUpdate(ctx, id, in.DevicePatch, idemKey, entry)
 	if err != nil {
 		if apperr.From(err).Code != apperr.CodeIdempotencyConflict {
-			s.rollbackProviderName(ctx, before, in.DevicePatch)
+			s.rollbackProviderSettings(ctx, before, in.DevicePatch)
 		}
 		return DeviceView{}, err
 	}
@@ -130,11 +133,12 @@ func (s *ConsoleService) StoreCreate(ctx context.Context, storeID int64, in Devi
 		return DeviceView{}, apperr.Invalid("deviceSn is required")
 	}
 	d := Device{
-		StoreID:  storeID,
-		Name:     name,
-		Provider: ProviderXpyun,
-		DeviceSN: deviceSN,
-		Status:   StatusActive,
+		StoreID:      storeID,
+		Name:         name,
+		Provider:     ProviderXpyun,
+		DeviceSN:     deviceSN,
+		Status:       StatusActive,
+		SoundEnabled: true,
 	}
 	if err := s.ensureSNAvailable(ctx, d.DeviceSN); err != nil {
 		return DeviceView{}, err
@@ -160,13 +164,13 @@ func (s *ConsoleService) StoreUpdate(ctx context.Context, storeID, id int64, pat
 		return DeviceView{}, err
 	}
 	before := d
-	if err := s.updateProviderName(ctx, before, patch); err != nil {
+	if err := s.updateProviderSettings(ctx, before, patch); err != nil {
 		return DeviceView{}, err
 	}
 	applyPatch(&d, patch)
 	updated, err := s.repo.Update(ctx, d)
 	if err != nil {
-		s.rollbackProviderName(ctx, before, patch)
+		s.rollbackProviderSettings(ctx, before, patch)
 		return DeviceView{}, err
 	}
 	return updated.view(), nil
@@ -182,6 +186,24 @@ func (s *ConsoleService) StoreDelete(ctx context.Context, storeID, id int64) err
 		return err
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+// AdminTestPrint sends a fixed diagnostic slip to any configured device.
+func (s *ConsoleService) AdminTestPrint(ctx context.Context, id int64) error {
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.cloud.Print(ctx, buildTestPrintJob(d, time.Now()))
+}
+
+// StoreTestPrint sends a diagnostic slip only to a device owned by storeID.
+func (s *ConsoleService) StoreTestPrint(ctx context.Context, storeID, id int64) error {
+	d, err := s.own(ctx, storeID, id)
+	if err != nil {
+		return err
+	}
+	return s.cloud.Print(ctx, buildTestPrintJob(d, time.Now()))
 }
 
 // own fetches a device and asserts it belongs to storeID; other stores'
@@ -242,6 +264,9 @@ func applyPatch(d *Device, p DevicePatch) {
 	if p.Status != nil {
 		d.Status = *p.Status
 	}
+	if p.SoundEnabled != nil {
+		d.SoundEnabled = *p.SoundEnabled
+	}
 }
 
 func validatePatch(p DevicePatch) error {
@@ -257,22 +282,39 @@ func validatePatch(p DevicePatch) error {
 	return nil
 }
 
-func (s *ConsoleService) updateProviderName(ctx context.Context, before Device, patch DevicePatch) error {
-	if patch.Name == nil {
-		return nil
+func (s *ConsoleService) updateProviderSettings(ctx context.Context, before Device, patch DevicePatch) error {
+	nameChanged := patch.Name != nil && strings.TrimSpace(*patch.Name) != before.Name
+	if nameChanged {
+		if err := s.cloud.UpdatePrinterName(ctx, before.DeviceSN, strings.TrimSpace(*patch.Name)); err != nil {
+			return err
+		}
 	}
-	name := strings.TrimSpace(*patch.Name)
-	if name == before.Name {
-		return nil
+	if patch.SoundEnabled != nil && *patch.SoundEnabled != before.SoundEnabled {
+		if err := s.setProviderSound(ctx, before.DeviceSN, *patch.SoundEnabled); err != nil {
+			if nameChanged {
+				_ = s.cloud.UpdatePrinterName(ctx, before.DeviceSN, before.Name)
+			}
+			return err
+		}
 	}
-	return s.cloud.UpdatePrinterName(ctx, before.DeviceSN, name)
+	return nil
 }
 
-func (s *ConsoleService) rollbackProviderName(ctx context.Context, before Device, patch DevicePatch) {
-	if patch.Name == nil || strings.TrimSpace(*patch.Name) == before.Name {
-		return
+func (s *ConsoleService) rollbackProviderSettings(ctx context.Context, before Device, patch DevicePatch) {
+	if patch.SoundEnabled != nil && *patch.SoundEnabled != before.SoundEnabled {
+		_ = s.setProviderSound(ctx, before.DeviceSN, before.SoundEnabled)
 	}
-	_ = s.cloud.UpdatePrinterName(ctx, before.DeviceSN, before.Name)
+	if patch.Name != nil && strings.TrimSpace(*patch.Name) != before.Name {
+		_ = s.cloud.UpdatePrinterName(ctx, before.DeviceSN, before.Name)
+	}
+}
+
+func (s *ConsoleService) setProviderSound(ctx context.Context, sn string, enabled bool) error {
+	voiceType, volumeLevel := 4, 3
+	if enabled {
+		voiceType, volumeLevel = 0, 0
+	}
+	return s.cloud.SetVoice(ctx, sn, voiceType, &volumeLevel)
 }
 
 func (s *ConsoleService) ensureSNAvailable(ctx context.Context, deviceSN string) error {
@@ -316,4 +358,15 @@ func validateAdminDevice(d Device) error {
 		return apperr.Invalid("invalid status")
 	}
 	return nil
+}
+
+func buildTestPrintJob(d Device, now time.Time) Job {
+	content := fmt.Sprintf("<CB>InwardClub</CB>\n<CB>测试打印</CB>\n--------------------------------\n打印机连接正常\n%s\n--------------------------------\n<CUT>",
+		now.In(receiptLocation).Format("2006-01-02 15:04:05"))
+	return Job{
+		DeviceSN: d.DeviceSN,
+		Template: "test-print",
+		Content:  content,
+		Silent:   !d.SoundEnabled,
+	}
 }

@@ -151,5 +151,6 @@ export const API_PATHS = {
   printers: {
     list: '/store/printer-devices',
     device: (id: string | number) => `/store/printer-devices/${id}`,
+    testPrint: (id: string | number) => `/store/printer-devices/${id}/test-print`,
   },
 } as const

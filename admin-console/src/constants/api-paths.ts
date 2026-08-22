@@ -41,6 +41,7 @@ export const API_PATHS = {
   printers: {
     list: '/admin/printer-devices',
     detail: (id: string) => `/admin/printer-devices/${id}`,
+    testPrint: (id: string) => `/admin/printer-devices/${id}/test-print`,
   },
 
   franchiseInquiries: {

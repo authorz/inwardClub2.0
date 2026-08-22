@@ -16,6 +16,8 @@ import type { PrinterDevice } from '@/types/models'
 
 const list = useAsyncList<PrinterDevice>((params) => printerService.list(params))
 const action = useAsyncAction()
+const soundUpdatingId = ref<string | number | null>(null)
+const testingId = ref<string | number | null>(null)
 
 const editShow = ref(false)
 const form = reactive<{
@@ -69,6 +71,30 @@ function toggleStatus(row: PrinterDevice, enabled: boolean) {
   })
 }
 
+async function toggleSound(row: PrinterDevice, enabled: boolean) {
+  soundUpdatingId.value = row.id
+  try {
+    await action.run(() => printerService.update(row.id, { soundEnabled: enabled }), {
+      successMessage: enabled ? '打印声音已开启' : '打印声音已关闭',
+      onSuccess: () => list.refresh(),
+    })
+  } finally {
+    soundUpdatingId.value = null
+  }
+}
+
+async function testPrint(row: PrinterDevice) {
+  testingId.value = row.id
+  try {
+    await action.run(() => printerService.testPrint(row.id), {
+      confirm: { content: `确认向打印机「${row.name}」发送一张测试小票？` },
+      successMessage: '测试小票已发送',
+    })
+  } finally {
+    testingId.value = null
+  }
+}
+
 function remove(row: PrinterDevice) {
   void action.run(() => printerService.remove(row.id), {
     confirm: { content: `确认删除打印机「${row.name}」？`, danger: true },
@@ -101,13 +127,42 @@ const columns = computed<DataTableColumns<PrinterDevice>>(() => [
       }),
   },
   {
+    title: '打印声音',
+    key: 'soundEnabled',
+    width: 130,
+    render: (row: PrinterDevice) =>
+      h(NSpace, { size: 8, align: 'center', wrap: false }, {
+        default: () => [
+          h(NSwitch, {
+            value: row.soundEnabled,
+            loading: soundUpdatingId.value === row.id,
+            disabled: action.running.value,
+            'aria-label': `${row.name}打印声音`,
+            onUpdateValue: (value: boolean) => toggleSound(row, value),
+          }),
+          h('span', row.soundEnabled ? '开启' : '静音'),
+        ],
+      }),
+  },
+  {
     title: '操作',
     key: 'actions',
-    width: 180,
+    width: 240,
     fixed: 'right',
     render: (row: PrinterDevice) =>
       h(NSpace, { size: 4 }, {
         default: () => [
+          h(
+            PermissionButton,
+            {
+              permissions: [PERM.printerWrite],
+              text: true,
+              loading: testingId.value === row.id,
+              disabled: action.running.value && testingId.value !== row.id,
+              onClick: () => testPrint(row),
+            },
+            { default: () => '测试打印' },
+          ),
           h(
             PermissionButton,
             { permissions: [PERM.printerWrite], text: true, onClick: () => openEdit(row) },

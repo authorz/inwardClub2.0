@@ -126,9 +126,13 @@ func (p *XpyunPrinter) Print(ctx context.Context, job Job) error {
 	if strings.TrimSpace(job.DeviceSN) == "" {
 		return apperr.Invalid("printer job requires a device sn")
 	}
+	voice := 2
+	if job.Silent {
+		voice = 1
+	}
 	var orderID string
 	return p.post(ctx, "print", map[string]any{
-		"sn": job.DeviceSN, "content": job.Content, "copies": 1, "voice": 2, "mode": 0,
+		"sn": job.DeviceSN, "content": job.Content, "copies": 1, "voice": voice, "mode": 0,
 	}, &orderID)
 }
 

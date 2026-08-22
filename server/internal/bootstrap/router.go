@@ -328,6 +328,7 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	idem.POST("/printer-devices", a.printerConsoleHandler.AdminCreate)
 	idem.PATCH("/printer-devices/:id", a.printerConsoleHandler.AdminUpdate)
 	idem.DELETE("/printer-devices/:id", a.printerConsoleHandler.AdminDelete)
+	idem.POST("/printer-devices/:id/test-print", a.printerConsoleHandler.AdminTestPrint)
 
 	// Activity sessions and ticket types (writes).
 	idem.POST("/activities/:activityID/sessions", a.activityConsoleHandler.CreateSession)
@@ -505,6 +506,7 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.POST("/printer-devices", a.printerConsoleHandler.StoreCreate)
 	idem.PATCH("/printer-devices/:id", a.printerConsoleHandler.StoreUpdate)
 	idem.DELETE("/printer-devices/:id", a.printerConsoleHandler.StoreDelete)
+	idem.POST("/printer-devices/:id/test-print", a.printerConsoleHandler.StoreTestPrint)
 
 	// Staff accounts (staff_accounts; own store only). List read already
 	// registered as adminHandler.StoreStaffAccounts.

@@ -44,12 +44,16 @@ func TestXpyunPrintSignsAndSucceeds(t *testing.T) {
 			Sign      string `json:"sign"`
 			SN        string `json:"sn"`
 			Content   string `json:"content"`
+			Voice     int    `json:"voice"`
 		}
 		if err := json.Unmarshal(body, &req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
 		if req.SN != "SN-001" || req.Content != "receipt-body" {
 			t.Errorf("request mapping = %+v", req)
+		}
+		if req.Voice != 2 {
+			t.Errorf("voice = %d, want 2", req.Voice)
 		}
 		if want := xpyunSign(req.User, "ukey-123", req.Timestamp); req.Sign != want {
 			t.Errorf("sign = %q, want %q", req.Sign, want)
@@ -63,6 +67,44 @@ func TestXpyunPrintSignsAndSucceeds(t *testing.T) {
 	err := p.Print(context.Background(), Job{DeviceSN: "SN-001", Template: "order", Content: "receipt-body"})
 	if err != nil {
 		t.Fatalf("Print: %v", err)
+	}
+}
+
+func TestXpyunPrintUsesSilentVoiceMode(t *testing.T) {
+	p := newTestXpyun(t, func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Voice int `json:"voice"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.Voice != 1 {
+			t.Errorf("voice = %d, want silent mode 1", req.Voice)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 0, "msg": "ok", "data": "print-order-1"})
+	})
+	if err := p.Print(context.Background(), Job{DeviceSN: "SN-001", Content: "test", Silent: true}); err != nil {
+		t.Fatalf("Print: %v", err)
+	}
+}
+
+func TestXpyunSetVoiceMapsProviderParameters(t *testing.T) {
+	p := newTestXpyun(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/setVoiceType" {
+			t.Errorf("path = %q, want /setVoiceType", r.URL.Path)
+		}
+		var req struct {
+			SN          string `json:"sn"`
+			VoiceType   int    `json:"voiceType"`
+			VolumeLevel int    `json:"volumeLevel"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.SN != "SN-001" || req.VoiceType != 4 || req.VolumeLevel != 3 {
+			t.Errorf("voice request = %+v", req)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 0, "msg": "ok", "data": true})
+	})
+	volume := 3
+	if err := p.SetVoice(context.Background(), "SN-001", 4, &volume); err != nil {
+		t.Fatalf("SetVoice: %v", err)
 	}
 }
 

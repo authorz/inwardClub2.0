@@ -25,7 +25,7 @@ type Repository interface {
 	AdminDelete(ctx context.Context, id int64, idemKey string, entry audit.Entry) error
 }
 
-const deviceColumns = `id, store_id, name, provider, device_sn, device_key, status, created_at, updated_at`
+const deviceColumns = `id, store_id, name, provider, device_sn, device_key, status, sound_enabled, created_at, updated_at`
 
 type sqlRepository struct{ db *platdb.DB }
 
@@ -35,7 +35,7 @@ func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 func scanDevice(row interface{ Scan(...any) error }) (Device, error) {
 	var d Device
 	err := row.Scan(&d.ID, &d.StoreID, &d.Name, &d.Provider, &d.DeviceSN,
-		&d.DeviceKey, &d.Status, &d.CreatedAt, &d.UpdatedAt)
+		&d.DeviceKey, &d.Status, &d.SoundEnabled, &d.CreatedAt, &d.UpdatedAt)
 	return d, err
 }
 
@@ -81,9 +81,9 @@ func (r *sqlRepository) Get(ctx context.Context, id int64) (Device, error) {
 
 func (r *sqlRepository) Create(ctx context.Context, d Device) (Device, error) {
 	const q = `INSERT INTO printer_devices
-		(store_id, name, provider, device_sn, device_key, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	res, err := r.db.ExecContext(ctx, q, d.StoreID, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status)
+		(store_id, name, provider, device_sn, device_key, status, sound_enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	res, err := r.db.ExecContext(ctx, q, d.StoreID, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status, d.SoundEnabled)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return Device{}, apperr.Invalid("device with this provider and SN already exists")
@@ -101,9 +101,9 @@ func (r *sqlRepository) Create(ctx context.Context, d Device) (Device, error) {
 // the trailing Get.
 func (r *sqlRepository) Update(ctx context.Context, d Device) (Device, error) {
 	const q = `UPDATE printer_devices SET name = ?, provider = ?, device_sn = ?,
-		device_key = ?, status = ?, updated_at = NOW()
+		device_key = ?, status = ?, sound_enabled = ?, updated_at = NOW()
 		WHERE id = ?`
-	res, err := r.db.ExecContext(ctx, q, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status, d.ID)
+	res, err := r.db.ExecContext(ctx, q, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status, d.SoundEnabled, d.ID)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return Device{}, apperr.Invalid("device with this provider and SN already exists")
@@ -145,9 +145,9 @@ func (r *sqlRepository) AdminCreate(ctx context.Context, d Device, idemKey strin
 			return apperr.Invalid("selected store does not exist")
 		}
 		const q = `INSERT INTO printer_devices
-			(store_id, name, provider, device_sn, device_key, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`
-		res, err := tx.ExecContext(ctx, q, d.StoreID, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status)
+			(store_id, name, provider, device_sn, device_key, status, sound_enabled, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+		res, err := tx.ExecContext(ctx, q, d.StoreID, d.Name, d.Provider, d.DeviceSN, d.DeviceKey, d.Status, d.SoundEnabled)
 		if err != nil {
 			return printerWriteError(err)
 		}
@@ -180,9 +180,9 @@ func (r *sqlRepository) AdminUpdate(ctx context.Context, id int64, patch DeviceP
 		updated = before
 		applyPatch(&updated, patch)
 		const q = `UPDATE printer_devices SET name = ?, provider = ?, device_sn = ?,
-			device_key = ?, status = ?, updated_at = NOW() WHERE id = ?`
+			device_key = ?, status = ?, sound_enabled = ?, updated_at = NOW() WHERE id = ?`
 		if _, err := tx.ExecContext(ctx, q, updated.Name, updated.Provider, updated.DeviceSN,
-			updated.DeviceKey, updated.Status, updated.ID); err != nil {
+			updated.DeviceKey, updated.Status, updated.SoundEnabled, updated.ID); err != nil {
 			return printerWriteError(err)
 		}
 		updated, err = getDeviceTx(ctx, tx, id, false)
@@ -244,5 +244,6 @@ func auditDevice(d Device) map[string]any {
 	return map[string]any{
 		"id": d.ID, "storeId": d.StoreID, "name": d.Name, "provider": d.Provider,
 		"deviceSn": d.DeviceSN, "deviceKeyConfigured": d.DeviceKey != "", "status": d.Status,
+		"soundEnabled": d.SoundEnabled,
 	}
 }

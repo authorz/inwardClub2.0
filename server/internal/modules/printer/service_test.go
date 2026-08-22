@@ -2,6 +2,7 @@ package printer
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/inwardclub/server/internal/platform/audit"
@@ -27,6 +28,10 @@ type cloudStub struct {
 	updatedSN   string
 	updatedName string
 	deletedSN   string
+	voiceSN     string
+	voiceType   int
+	volumeLevel int
+	voiceErr    error
 	statuses    map[string]ProviderStatus
 }
 
@@ -47,6 +52,15 @@ func (c *cloudStub) UpdatePrinterName(_ context.Context, sn, name string) error 
 func (c *cloudStub) DeletePrinter(_ context.Context, sn string) error {
 	c.deletedSN = sn
 	return nil
+}
+
+func (c *cloudStub) SetVoice(_ context.Context, sn string, voiceType int, volumeLevel *int) error {
+	c.voiceSN = sn
+	c.voiceType = voiceType
+	if volumeLevel != nil {
+		c.volumeLevel = *volumeLevel
+	}
+	return c.voiceErr
 }
 
 func (c *cloudStub) QueryStatuses(_ context.Context, sns []string) (map[string]ProviderStatus, error) {
@@ -133,6 +147,9 @@ func TestStoreCreateDefaultsAndScope(t *testing.T) {
 	}
 	if v.Status != StatusActive {
 		t.Fatalf("status = %q, want default active", v.Status)
+	}
+	if !v.SoundEnabled {
+		t.Fatal("new printer should default to sound enabled")
 	}
 	if v.Name != "前台" {
 		t.Fatalf("name = %q, want 前台", v.Name)
@@ -265,6 +282,84 @@ func TestStoreUpdateNameDoesNotPersistWhenProviderRejects(t *testing.T) {
 	}
 	if repo.devices[d.ID].Name != "前台" {
 		t.Fatalf("local name changed to %q", repo.devices[d.ID].Name)
+	}
+}
+
+func TestStoreUpdateSoundSyncsProviderAndPersists(t *testing.T) {
+	repo := newMemRepo()
+	cloud := newCloudStub()
+	svc := NewConsoleService(repo, cloud)
+	d, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	disabled := false
+	updated, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{SoundEnabled: &disabled})
+	if err != nil {
+		t.Fatalf("update sound: %v", err)
+	}
+	if updated.SoundEnabled || repo.devices[d.ID].SoundEnabled {
+		t.Fatalf("sound setting not persisted: %+v", updated)
+	}
+	if cloud.voiceSN != "SN-1" || cloud.voiceType != 4 || cloud.volumeLevel != 3 {
+		t.Fatalf("disable voice call = (%q, %d, %d)", cloud.voiceSN, cloud.voiceType, cloud.volumeLevel)
+	}
+
+	enabled := true
+	if _, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{SoundEnabled: &enabled}); err != nil {
+		t.Fatalf("enable sound: %v", err)
+	}
+	if cloud.voiceType != 0 || cloud.volumeLevel != 0 {
+		t.Fatalf("enable voice call = (%d, %d)", cloud.voiceType, cloud.volumeLevel)
+	}
+}
+
+func TestStoreUpdateSoundDoesNotPersistWhenProviderRejects(t *testing.T) {
+	repo := newMemRepo()
+	cloud := newCloudStub()
+	svc := NewConsoleService(repo, cloud)
+	d, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	cloud.voiceErr = apperr.Invalid("芯烨云拒绝设置声音")
+	disabled := false
+	if _, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{SoundEnabled: &disabled}); err == nil {
+		t.Fatal("expected provider rejection")
+	}
+	if !repo.devices[d.ID].SoundEnabled {
+		t.Fatal("local sound setting changed before provider success")
+	}
+}
+
+func TestStoreTestPrintUsesDeviceSoundAndScope(t *testing.T) {
+	repo := newMemRepo()
+	cloud := newCloudStub()
+	svc := NewConsoleService(repo, cloud)
+	d, err := svc.StoreCreate(context.Background(), 1, DeviceInput{Name: "前台", DeviceSN: "SN-1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	disabled := false
+	if _, err := svc.StoreUpdate(context.Background(), 1, d.ID, DevicePatch{SoundEnabled: &disabled}); err != nil {
+		t.Fatalf("disable sound: %v", err)
+	}
+	if err := svc.StoreTestPrint(context.Background(), 2, d.ID); !isNotFound(err) {
+		t.Fatalf("cross-store test print err = %v, want NotFound", err)
+	}
+	if err := svc.StoreTestPrint(context.Background(), 1, d.ID); err != nil {
+		t.Fatalf("test print: %v", err)
+	}
+	if cloud.Count() != 1 {
+		t.Fatalf("printed jobs = %d, want 1", cloud.Count())
+	}
+	job := cloud.Jobs[0]
+	if job.DeviceSN != "SN-1" || job.Template != "test-print" || !job.Silent {
+		t.Fatalf("test print job = %+v", job)
+	}
+	if !strings.Contains(job.Content, "测试打印") || !strings.Contains(job.Content, "打印机连接正常") {
+		t.Fatalf("test print content = %q", job.Content)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 func TestBuildReceiptJob(t *testing.T) {
 	paidAt := time.Date(2026, 7, 18, 15, 4, 5, 0, time.UTC)
 	coinBalance := int64(12345)
-	job := BuildReceiptJob("SN-42", Receipt{
+	job := BuildReceiptJob("SN-42", true, Receipt{
 		StoreID:         5,
 		PaymentOrderID:  99,
 		BusinessOrderNo: "BO-20260718-1",
@@ -51,7 +51,7 @@ func TestBuildReceiptJob(t *testing.T) {
 }
 
 func TestBuildReceiptJobOmitsEmptyRemark(t *testing.T) {
-	job := BuildReceiptJob("SN-42", Receipt{
+	job := BuildReceiptJob("SN-42", true, Receipt{
 		BusinessOrderNo: "BO-NO-REMARK-1",
 		OrderType:       "food",
 		Remark:          "   ",
@@ -62,9 +62,19 @@ func TestBuildReceiptJobOmitsEmptyRemark(t *testing.T) {
 	}
 }
 
+func TestBuildReceiptJobHonoursSoundSetting(t *testing.T) {
+	receipt := Receipt{BusinessOrderNo: "BO-SOUND-1", PaidAt: time.Now()}
+	if job := BuildReceiptJob("SN-42", true, receipt); job.Silent {
+		t.Fatal("sound-enabled receipt must not be silent")
+	}
+	if job := BuildReceiptJob("SN-42", false, receipt); !job.Silent {
+		t.Fatal("sound-disabled receipt must be silent")
+	}
+}
+
 func TestBuildReceiptJobShowsWechatPaymentAndBalance(t *testing.T) {
 	coinBalance := int64(8800)
-	job := BuildReceiptJob("SN-42", Receipt{
+	job := BuildReceiptJob("SN-42", true, Receipt{
 		BusinessOrderNo: "BO-WECHAT-1",
 		OrderType:       "food",
 		VIPLevel:        1,

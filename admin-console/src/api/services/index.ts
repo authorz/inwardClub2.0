@@ -89,6 +89,8 @@ export const printerService = {
     http.post<PrinterDevice>(API_PATHS.printers.list, payload, { idempotent: true }),
   update: (id: string, payload: PrinterDevicePatch) =>
     http.patch<PrinterDevice>(API_PATHS.printers.detail(id), payload, { idempotent: true }),
+  testPrint: (id: string) =>
+    http.post<{ id: string; printed: boolean }>(API_PATHS.printers.testPrint(id), {}, { idempotent: true }),
   remove: (id: string, reason: string) =>
     http.delete<void>(API_PATHS.printers.detail(id), { data: { reason }, idempotent: true }),
 }

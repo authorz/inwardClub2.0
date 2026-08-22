@@ -15,6 +15,7 @@ type Job struct {
 	DeviceSN string
 	Template string
 	Content  string
+	Silent   bool
 }
 
 // Printer abstracts a cloud printing provider.

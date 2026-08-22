@@ -71,7 +71,7 @@ func WriteReceipt(ctx context.Context, tx *sql.Tx, r Receipt) error {
 		}
 	}
 	for _, device := range devices {
-		job := BuildReceiptJob(device.sn, r)
+		job := BuildReceiptJob(device.sn, device.soundEnabled, r)
 		idemKey := receiptIdemKey(r.PaymentOrderID, device.id)
 		jobID, err := createPrintJob(ctx, tx, r.StoreID, device.id, r.BusinessOrderNo, idemKey, job)
 		if err != nil {
@@ -175,18 +175,19 @@ func receiptIdemKey(paymentOrderID, deviceID int64) string {
 
 // BuildReceiptJob renders r onto a printer.Job for device sn. It is pure so the
 // receipt body can be unit-tested without a database.
-func BuildReceiptJob(sn string, r Receipt) Job {
-	return Job{DeviceSN: sn, Template: ReceiptTemplate, Content: renderReceipt(r)}
+func BuildReceiptJob(sn string, soundEnabled bool, r Receipt) Job {
+	return Job{DeviceSN: sn, Template: ReceiptTemplate, Content: renderReceipt(r), Silent: !soundEnabled}
 }
 
 type activeDevice struct {
-	id int64
-	sn string
+	id           int64
+	sn           string
+	soundEnabled bool
 }
 
 // activeDevices returns all active printers bound to the order's store.
 func activeDevices(ctx context.Context, tx *sql.Tx, storeID int64) ([]activeDevice, error) {
-	const q = `SELECT id, device_sn FROM printer_devices
+	const q = `SELECT id, device_sn, sound_enabled FROM printer_devices
 		WHERE store_id = ? AND status = ? ORDER BY id ASC`
 	rows, err := tx.QueryContext(ctx, q, storeID, StatusActive)
 	if err != nil {
@@ -197,7 +198,7 @@ func activeDevices(ctx context.Context, tx *sql.Tx, storeID int64) ([]activeDevi
 	var devices []activeDevice
 	for rows.Next() {
 		var device activeDevice
-		if err := rows.Scan(&device.id, &device.sn); err != nil {
+		if err := rows.Scan(&device.id, &device.sn, &device.soundEnabled); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		devices = append(devices, device)

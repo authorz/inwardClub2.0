@@ -76,7 +76,7 @@ func (r *spineRepo) maybeReceipt(po *poRow) {
 	if !ok {
 		return
 	}
-	r.receiptJobs = append(r.receiptJobs, printer.BuildReceiptJob(sn, printer.Receipt{
+	r.receiptJobs = append(r.receiptJobs, printer.BuildReceiptJob(sn, true, printer.Receipt{
 		StoreID:         po.storeID,
 		PaymentOrderID:  po.id,
 		BusinessOrderNo: po.businessNo,
