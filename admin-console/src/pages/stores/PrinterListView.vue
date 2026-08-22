@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui'
+import { NForm, NFormItem, NInput, NSelect, NSpace, NSwitch } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
@@ -12,6 +12,7 @@ import { printerService, storeService } from '@/api/services'
 import type { PrinterDevice } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 import { runAudited } from '@/composables/useAuditedAction'
+import { usePermissionStore } from '@/stores/permission'
 
 interface PrinterForm {
   storeId: string | null
@@ -31,12 +32,9 @@ const deleteShow = ref(false)
 const deleteSubmitting = ref(false)
 const deleteTarget = ref<PrinterDevice | null>(null)
 const deleteReason = ref('')
-const soundShow = ref(false)
-const soundSubmitting = ref(false)
-const soundTarget = ref<PrinterDevice | null>(null)
-const soundEnabled = ref(true)
-const soundReason = ref('')
+const soundUpdatingId = ref<string | null>(null)
 const testingId = ref<string | null>(null)
+const permissionStore = usePermissionStore()
 const form = reactive<PrinterForm>({
   storeId: null,
   name: '',
@@ -83,12 +81,24 @@ const columns = [
   renderColumn<PrinterDevice>('设备状态', 'providerStatus', (row) =>
     providerStatusLabels[row.providerStatus] ?? '查询失败', 120),
   statusColumn<PrinterDevice>('启用状态', 'status', PRINTER_STATUS_OPTIONS, 110),
-  renderColumn<PrinterDevice>(
-    '打印声音',
-    'soundEnabled',
-    (row) => (row.soundEnabled ? '已开启' : '已静音'),
-    100,
-  ),
+  {
+    title: '打印声音',
+    key: 'soundEnabled',
+    width: 130,
+    render: (row: PrinterDevice) =>
+      h(NSpace, { size: 8, align: 'center', wrap: false }, {
+        default: () => [
+          h(NSwitch, {
+            value: row.soundEnabled,
+            loading: soundUpdatingId.value === String(row.id),
+            disabled: !permissionStore.has(PERMISSIONS.STORE_WRITE) || soundUpdatingId.value !== null,
+            'aria-label': `${row.name}打印声音`,
+            onUpdateValue: (value: boolean) => toggleSound(row, value),
+          }),
+          h('span', row.soundEnabled ? '开启' : '静音'),
+        ],
+      }),
+  },
   dateTimeColumn<PrinterDevice>('更新时间', 'updatedAt'),
   actionsColumn<PrinterDevice>(
     (row) =>
@@ -101,11 +111,6 @@ const columns = [
             onClick: () => testPrint(row),
           },
           () => (testingId.value === String(row.id) ? '测试中…' : '测试打印'),
-        ),
-        h(
-          PermissionButton,
-          { permission: PERMISSIONS.STORE_WRITE, onClick: () => openSound(row) },
-          () => (row.soundEnabled ? '关闭声音' : '开启声音'),
         ),
         h(
           PermissionButton,
@@ -122,7 +127,7 @@ const columns = [
           () => '删除',
         ),
       ]),
-    310,
+    240,
   ),
 ]
 
@@ -219,30 +224,20 @@ async function submitDelete(): Promise<void> {
   }
 }
 
-function openSound(row: PrinterDevice): void {
-  soundTarget.value = row
-  soundEnabled.value = !row.soundEnabled
-  soundReason.value = ''
-  soundShow.value = true
-}
-
-async function submitSound(): Promise<void> {
-  if (!soundTarget.value) return
-  if (!soundReason.value.trim()) return toastError('请填写操作原因')
-  soundSubmitting.value = true
+async function toggleSound(row: PrinterDevice, enabled: boolean): Promise<void> {
+  const id = String(row.id)
+  soundUpdatingId.value = id
   try {
-    await printerService.update(String(soundTarget.value.id), {
-      soundEnabled: soundEnabled.value,
-      reason: soundReason.value.trim(),
+    await printerService.update(id, {
+      soundEnabled: enabled,
+      reason: enabled ? '开启打印机声音' : '关闭打印机声音',
     })
-    toastSuccess(soundEnabled.value ? '打印声音已开启' : '打印声音已关闭')
-    soundShow.value = false
-    soundTarget.value = null
+    toastSuccess(enabled ? '打印声音已开启' : '打印声音已关闭')
     await listRef.value?.reload()
   } catch (error) {
     toastError((error as { message?: string }).message ?? '声音设置失败')
   } finally {
-    soundSubmitting.value = false
+    soundUpdatingId.value = null
   }
 }
 
@@ -392,35 +387,5 @@ onMounted(loadStores)
       </NForm>
     </FormDrawer>
 
-    <FormDrawer
-      v-model:show="soundShow"
-      :title="soundEnabled ? '开启打印声音' : '关闭打印声音'"
-      :submitting="soundSubmitting"
-      :submit-text="soundEnabled ? '确认开启' : '确认关闭'"
-      high-risk
-      cross-store
-      @submit="submitSound"
-    >
-      <NForm label-placement="top">
-        <NFormItem label="打印机">
-          <NInput
-            :value="soundTarget ? `${storeName(soundTarget.storeId)} · ${soundTarget.name}` : ''"
-            disabled
-          />
-        </NFormItem>
-        <NFormItem
-          label="操作原因"
-          required
-        >
-          <NInput
-            v-model:value="soundReason"
-            type="textarea"
-            :placeholder="soundEnabled ? '请说明开启声音的原因' : '请说明关闭声音的原因'"
-            maxlength="200"
-            show-count
-          />
-        </NFormItem>
-      </NForm>
-    </FormDrawer>
   </div>
 </template>
