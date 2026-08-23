@@ -89,7 +89,9 @@ const COUPON_TYPE_LABELS: Record<string, string> = {
   snack: '小吃券',
   alcohol: '酒水券',
   beverage: '饮料券',
+  drink: '饮品或啤酒券',
   meal: '餐食券',
+  gift: '礼品券',
 }
 const COUPON_STATUS = {
   active: { value: 'active', label: '未使用', tone: 'success' as const },

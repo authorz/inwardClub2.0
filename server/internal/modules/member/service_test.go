@@ -942,3 +942,19 @@ func TestUpdateRechargeProductClearsCouponBinding(t *testing.T) {
 		t.Fatalf("couponTemplateId = %v, want nil", view.CouponTemplateID)
 	}
 }
+
+func TestNormalizeBenefitConfigAcceptsRecurringVIPBenefits(t *testing.T) {
+	config := TierBenefitConfig{
+		Points: []TierPointBenefit{{Amount: 10000, Period: "daily", Trigger: "low_spend"}},
+		Coupons: []TierCouponBenefit{
+			{CouponType: "drink", Quantity: 1, Period: "daily", Trigger: "visit"},
+			{CouponType: "event_ticket", Quantity: 5, Period: "weekly", Trigger: "weekday_event"},
+			{CouponType: "event_ticket", Quantity: 4, Period: "monthly", Trigger: "weekly_event"},
+			{CouponType: "event_ticket", Quantity: 2, Period: "monthly", Trigger: "monthly_event"},
+			{CouponType: "gift", Quantity: 1, Period: "daily", Trigger: "period_start"},
+		},
+	}
+	if _, err := normalizeBenefitConfig(config); err != nil {
+		t.Fatalf("normalize recurring VIP benefits: %v", err)
+	}
+}

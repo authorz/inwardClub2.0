@@ -552,17 +552,17 @@ components:
             properties:
               amount: { type: integer, format: int64, minimum: 1 }
               period: { type: string, enum: [once, daily, weekly, monthly] }
-              trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, weekday_event, weekly_event, monthly_event] }
+              trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
         coupons:
           type: array
           items:
             type: object
             required: [couponType, quantity, period, trigger]
             properties:
-              couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, meal] }
+              couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
               quantity: { type: integer, minimum: 1, maximum: 99 }
               period: { type: string, enum: [once, daily, weekly, monthly] }
-              trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, weekday_event, weekly_event, monthly_event] }
+              trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
         descriptions:
           type: array
           description: Text-only physical or service benefits displayed by the mini program.
@@ -1215,7 +1215,7 @@ components:
         templateId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, meal] }
+        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         storeId: { type: integer, format: int64 }
         status: { type: string, enum: [active, used, void, expired] }
         expiresAt: { type: string, pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', example: '2026-09-12 02:46:05', description: 'Asia/Shanghai business time in Y-m-d H:i:s format.' }
@@ -1269,7 +1269,7 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, meal] }
+        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         issuedQuantity: { type: integer, format: int64 }
         status: { type: string }
         createdAt: { type: string, format: date-time }
@@ -1283,7 +1283,7 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, meal] }
+        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         issuedCount: { type: integer, format: int64 }
         issuedQuantity: { type: integer, format: int64 }
         status: { type: string }
@@ -1295,7 +1295,7 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, meal] }
+        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
     CouponApplicableItemsView:
       type: object
       properties:

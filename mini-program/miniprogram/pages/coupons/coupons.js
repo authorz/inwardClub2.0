@@ -6,7 +6,7 @@ const { COUPON_STATUS_LABEL } = require('../../constants/index');
 
 const COUPON_TYPE_LABEL = {
   event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
-  beverage: '饮料券', meal: '餐食券',
+  beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
 
 function countdown(validUntil, now) {

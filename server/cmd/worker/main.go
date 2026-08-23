@@ -2,9 +2,8 @@
 // dispatcher, which relays committed outbox_events into the asynq queue, and a
 // scheduler that enqueues the daily reporting rollup. Every task type now has a
 // concrete handler: print:receipt, report:rollup, the expiry sweeps,
-// payment:post-process, asset:pending-cleanup, and the config-gated rule
-// evaluators benefit:vip-monthly and rule:post-process — the last two safely
-// no-op until business enables their rule_definitions rows (spec §13).
+// payment:post-process, asset:pending-cleanup, the recurring VIP benefit sweep,
+// and the legacy rule:post-process compatibility evaluator.
 package main
 
 import (
@@ -29,6 +28,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/reservation"
 	"github.com/inwardclub/server/internal/modules/rule"
 	"github.com/inwardclub/server/internal/modules/systemsetting"
+	"github.com/inwardclub/server/internal/modules/vipbenefit"
 	"github.com/inwardclub/server/internal/platform/config"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	"github.com/inwardclub/server/internal/platform/logger"
@@ -47,8 +47,7 @@ const reportRollupCron = "5 0 * * *"
 
 // vipMonthlyBenefitCron enqueues the daily benefit:vip-monthly evaluation just
 // after the business midnight (following the rollup). Resolved in the business
-// zone. The evaluation is idempotent and a no-op until the rule is enabled, so a
-// missed or doubled tick is safe.
+// zone. Natural-period idempotency makes a missed or doubled tick safe.
 const vipMonthlyBenefitCron = "30 0 * * *"
 
 // Task type names mirror the scheduled jobs in the spec (§11).
@@ -160,11 +159,11 @@ func run() error {
 	// the upload window (Qiniu spec §8). Pure-DB and idempotent like the sweeps.
 	assetCleanup := asset.NewCleanupService(asset.NewRepository(database))
 
-	// benefit:vip-monthly remains config-gated. rule:post-process is retained as
-	// a no-producer compatibility handler; WeChat invitation rewards are
-	// applied synchronously by internal/modules/referral during settlement.
+	// The daily VIP sweep materialises configured daily/weekly/monthly grants.
+	// rule:post-process remains a no-producer compatibility handler; WeChat
+	// invitation rewards are applied synchronously during settlement.
 	ruleRepo := rule.NewRepository(database)
-	vipMonthly := rule.NewMonthlyBenefitService(ruleRepo, log)
+	vipMonthly := vipbenefit.NewService(database)
 	invitePostProcess := rule.NewPostProcessService(ruleRepo, log)
 
 	mux := asynq.NewServeMux()
@@ -225,6 +224,9 @@ func run() error {
 
 	if _, err := client.Enqueue(asynq.NewTask(TaskReportRollup, nil)); err != nil {
 		log.Warn("startup report:rollup enqueue skipped", "error", err)
+	}
+	if _, err := client.Enqueue(asynq.NewTask(TaskVipMonthlyBenefit, nil)); err != nil {
+		log.Warn("startup benefit:vip-monthly enqueue skipped", "error", err)
 	}
 	if _, err := client.Enqueue(asynq.NewTask(TaskSeatReservationReset, nil)); err != nil {
 		log.Warn("startup reservation:seat-reset enqueue skipped", "error", err)
@@ -287,12 +289,15 @@ func sweepHandler(log *slog.Logger, task string, sweep func(context.Context) (in
 	}
 }
 
-// vipMonthlyHandler runs the daily benefit:vip-monthly evaluation. Like the
-// sweeps it reports a grant count and returns any error so asynq retries. It
-// grants nothing until business enables the VIP monthly-benefit rule (spec §13).
-func vipMonthlyHandler(log *slog.Logger, svc *rule.MonthlyBenefitService) func(context.Context, *asynq.Task) error {
+type scheduledVIPBenefitService interface {
+	SweepScheduled(context.Context) (int64, error)
+}
+
+// vipMonthlyHandler runs the daily configured VIP benefit sweep. Natural-period
+// idempotency makes daily retries safe for daily, weekly and monthly rules.
+func vipMonthlyHandler(log *slog.Logger, svc scheduledVIPBenefitService) func(context.Context, *asynq.Task) error {
 	return func(ctx context.Context, _ *asynq.Task) error {
-		granted, err := svc.Run(ctx)
+		granted, err := svc.SweepScheduled(ctx)
 		if err != nil {
 			log.Error("benefit:vip-monthly failed", "error", err.Error())
 			return err

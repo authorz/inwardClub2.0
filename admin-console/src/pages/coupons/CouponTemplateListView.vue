@@ -28,7 +28,9 @@ const couponTypes = [
   { label: '小吃券', value: 'snack' },
   { label: '酒水券', value: 'alcohol' },
   { label: '饮料券', value: 'beverage' },
+  { label: '饮品或啤酒券', value: 'drink' },
   { label: '餐食券', value: 'meal' },
+  { label: '礼品券', value: 'gift' },
 ]
 const couponStatuses = [
   { label: '草稿', value: 'draft', tone: 'default' as const },

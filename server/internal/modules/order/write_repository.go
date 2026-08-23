@@ -13,6 +13,7 @@ import (
 
 	"github.com/inwardclub/server/internal/modules/coupon"
 	"github.com/inwardclub/server/internal/modules/printer"
+	"github.com/inwardclub/server/internal/modules/vipbenefit"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -681,6 +682,19 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 				); err != nil {
 					return err
 				}
+				lowSpendQualified, err := wallet.TimedLowSpendQualified(
+					ctx, tx, in.MemberID, storeID.Int64, in.Now,
+				)
+				if err != nil {
+					return err
+				}
+				if _, err := vipbenefit.GrantFoodPayment(ctx, tx, vipbenefit.FoodPayment{
+					PaymentOrderID: in.PaymentOrderID, BusinessOrderID: businessID,
+					MemberID: in.MemberID, StoreID: storeID.Int64,
+					PaidAt: in.Now, LowSpend: lowSpendQualified,
+				}); err != nil {
+					return err
+				}
 			}
 		}
 		// A store-bound coin settlement (food / store activity) prints a receipt on
@@ -840,7 +854,7 @@ func resolveAndReserveItem(
 
 func isProductCouponType(couponType string) bool {
 	switch couponType {
-	case "snack", "alcohol", "beverage", "meal":
+	case "snack", "alcohol", "beverage", "drink", "meal", "gift":
 		return true
 	default:
 		return false

@@ -11,6 +11,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/coupon"
 	"github.com/inwardclub/server/internal/modules/printer"
 	"github.com/inwardclub/server/internal/modules/referral"
+	"github.com/inwardclub/server/internal/modules/vipbenefit"
 	"github.com/inwardclub/server/internal/modules/wallet"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -172,6 +173,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			}
 		}
 		lowSpendQualified := false
+		vipLowSpendQualified := false
 		if orderType == "food" && memberID.Valid {
 			if _, err := wallet.GrantFoodOrderPoints(
 				ctx, tx, paymentID, businessID, memberID.Int64, now,
@@ -187,6 +189,12 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				if _, err := wallet.GrantTimedLowSpendReward(
 					ctx, tx, businessID, memberID.Int64, storeID.Int64, now,
 				); err != nil {
+					return err
+				}
+				vipLowSpendQualified, err = wallet.TimedLowSpendQualified(
+					ctx, tx, memberID.Int64, storeID.Int64, now,
+				)
+				if err != nil {
 					return err
 				}
 				lowSpendQualified, err = wallet.InvitationLowSpendQualified(
@@ -222,6 +230,15 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			}
 			if err := applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now); err != nil {
 				return err
+			}
+			if orderType == "food" && storeID.Valid {
+				if _, err := vipbenefit.GrantFoodPayment(ctx, tx, vipbenefit.FoodPayment{
+					PaymentOrderID: paymentID, BusinessOrderID: businessID,
+					MemberID: memberID.Int64, StoreID: storeID.Int64,
+					PaidAt: now, LowSpend: vipLowSpendQualified,
+				}); err != nil {
+					return err
+				}
 			}
 		}
 		// A store-bound settled order (food / store activity) prints a receipt on
@@ -654,7 +671,7 @@ func applyTierUpgrade(ctx context.Context, tx *sql.Tx, memberID, growthBalance i
 	if _, err := tx.ExecContext(ctx, upd, target.id, now, memberID); err != nil {
 		return apperr.Internal(err)
 	}
-	return grantVIPTierBenefits(ctx, tx, memberID, target.id, now)
+	return vipbenefit.GrantTierReached(ctx, tx, memberID, target.id, now)
 }
 
 // SettleOffline locks the payment order joined to its offline collection order,

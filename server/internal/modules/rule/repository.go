@@ -1,7 +1,7 @@
 // Package rule holds the worker-side evaluation of the configurable rule engine
 // (rule_definitions / benefit_grants, migration 00011). It is the read side of
-// the rule model the admin console already manages. The daily VIP monthly-benefit
-// driver resolves its rule here; rule:post-process remains a legacy no-op reader.
+// the rule model the admin console already manages. VIP benefits are executed by
+// internal/modules/vipbenefit; rule:post-process remains a legacy no-op reader.
 //
 // Scope note: the 低消奖励 half of the post-payment rewards is owned by the
 // payment package's payment:post-process handler (rule_key=low_spend_reward),
@@ -11,7 +11,6 @@
 //
 // Invitation rewards no longer grant from this package: the confirmed policy is
 // implemented by internal/modules/referral in the WeChat settlement transaction.
-// VIP monthly benefits remain disabled until that separate policy is confirmed.
 package rule
 
 import (
@@ -27,8 +26,6 @@ import (
 // Rule keys evaluated by the worker. They index rule_definitions.rule_key; the
 // admin console creates/edits/publishes rows under these keys.
 const (
-	// KeyVIPMonthlyBenefit is the daily-evaluated VIP monthly benefit (spec §13 VIP row).
-	KeyVIPMonthlyBenefit = "vip_monthly_benefit"
 	// KeyInviteReward is the post-payment 邀请奖励 (spec §13 邀请 row). The sibling
 	// 低消奖励 lives under rule_key=low_spend_reward and is evaluated by the
 	// payment package's payment:post-process handler, not here.

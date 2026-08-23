@@ -16,7 +16,9 @@ const types: EnumOption[] = [
   { label: '小吃券', value: 'snack' },
   { label: '酒水券', value: 'alcohol' },
   { label: '饮料券', value: 'beverage' },
+  { label: '饮品或啤酒券', value: 'drink' },
   { label: '餐食券', value: 'meal' },
+  { label: '礼品券', value: 'gift' },
 ]
 const typeSelectOptions = types.map(({ label, value }) => ({ label, value }))
 const typeMap = Object.fromEntries(types.map((item) => [item.value, item]))

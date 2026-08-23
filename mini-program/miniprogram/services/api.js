@@ -342,24 +342,32 @@ function levelToCode(level) {
 }
 const BENEFIT_TYPE_LABEL = {
   event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
-  beverage: '饮料券', meal: '餐食券',
+  beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
 const BENEFIT_TYPE_ICON = {
   event_ticket: '/assets/icons/ticket-qr.svg',
   snack: '/pages/benefits/assets/monthly-snack-coupon.svg',
   alcohol: '/pages/benefits/assets/exclusive-wine-glass.svg',
   beverage: '/pages/benefits/assets/exclusive-wine-glass.svg',
+  drink: '/pages/benefits/assets/exclusive-wine-glass.svg',
   meal: '/pages/benefits/assets/monthly-snack-coupon.svg',
+  gift: '/pages/benefits/assets/more-rewards.svg',
 };
 const BENEFIT_PERIOD_LABEL = { once: '达级', daily: '每日', weekly: '每周', monthly: '每月' };
 const BENEFIT_TRIGGER_LABEL = {
-  tier_achieved: '达到等级', low_spend: '低消达标', first_order: '首次下单', visit: '到店',
+  tier_achieved: '达到等级', low_spend: '低消达标', first_order: '首次下单', visit: '到店', period_start: '周期自动',
   weekday_event: '工作日赛事', weekly_event: '周赛', monthly_event: '月赛',
 };
 function benefitRuleText(item, suffix) {
   const period = BENEFIT_PERIOD_LABEL[item.period] || '';
   const trigger = BENEFIT_TRIGGER_LABEL[item.trigger] || '';
   return period + trigger + suffix;
+}
+function benefitValidityText(item) {
+  if (item.trigger === 'weekday_event') return '本周一至周五有效';
+  if (item.trigger === 'weekly_event') return '本自然周有效';
+  if (item.trigger === 'monthly_event') return '本自然月有效';
+  return '30天有效';
 }
 function benefitItems(tier) {
   const config = tier && tier.benefitConfig;
@@ -375,7 +383,7 @@ function benefitItems(tier) {
   const coupons = (config.coupons || []).map((item) => ({
     icon: BENEFIT_TYPE_ICON[item.couponType] || '/pages/benefits/assets/more-rewards.svg',
     title: (BENEFIT_TYPE_LABEL[item.couponType] || '福利券') + ' × ' + Number(item.quantity || 0),
-    desc: benefitRuleText(item, '发放') + ' · 30天有效',
+    desc: benefitRuleText(item, '发放') + ' · ' + benefitValidityText(item),
   }));
   const descriptions = (config.descriptions || []).map((title) => ({
     icon: '/pages/benefits/assets/more-rewards.svg', title, desc: '专属权益',

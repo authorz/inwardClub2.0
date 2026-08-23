@@ -60,14 +60,14 @@ const itemTypeOptions = [
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
 const couponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType))
+  .filter((template) => ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
   .map((template) => ({
     label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
     value: String(template.id),
     disabled: template.status !== 'published',
   })))
 const saleCouponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => ['event_ticket', 'snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType))
+  .filter((template) => ['event_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
   .map((template) => ({
     label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
     value: String(template.id),

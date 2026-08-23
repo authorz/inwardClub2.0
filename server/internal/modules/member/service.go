@@ -483,7 +483,7 @@ func validBenefitPeriod(value string) bool {
 
 func validBenefitTrigger(value string) bool {
 	switch value {
-	case "tier_achieved", "low_spend", "first_order", "visit", "weekday_event", "weekly_event", "monthly_event":
+	case "tier_achieved", "low_spend", "first_order", "visit", "period_start", "weekday_event", "weekly_event", "monthly_event":
 		return true
 	default:
 		return false
@@ -492,7 +492,7 @@ func validBenefitTrigger(value string) bool {
 
 func validTierCouponType(value string) bool {
 	switch value {
-	case "event_ticket", "snack", "alcohol", "beverage", "meal":
+	case "event_ticket", "snack", "alcohol", "beverage", "drink", "meal", "gift":
 		return true
 	default:
 		return false

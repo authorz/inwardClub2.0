@@ -6,7 +6,7 @@ const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 
 const COUPON_TYPE_LABEL = {
-  snack: '小吃券', alcohol: '酒水券', beverage: '饮料券', meal: '餐食券',
+  snack: '小吃券', alcohol: '酒水券', beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
 
 function formatMenuPrice(cent) {

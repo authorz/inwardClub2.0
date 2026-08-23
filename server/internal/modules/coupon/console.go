@@ -244,7 +244,7 @@ func (r *sqlConsoleRepository) GetApplicableScope(ctx context.Context, scope Con
 
 func validCouponType(t string) bool {
 	switch t {
-	case TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeMeal:
+	case TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeDrink, TypeMeal, TypeGift:
 		return true
 	default:
 		return false

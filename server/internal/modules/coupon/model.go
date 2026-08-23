@@ -23,7 +23,9 @@ const (
 	TypeSnack       = "snack"
 	TypeAlcohol     = "alcohol"
 	TypeBeverage    = "beverage"
+	TypeDrink       = "drink"
 	TypeMeal        = "meal"
+	TypeGift        = "gift"
 )
 
 // RedemptionOrder is one coupon_redemptions row joined with its entitlement,

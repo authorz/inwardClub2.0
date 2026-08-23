@@ -25,43 +25,6 @@ func (r *fakeRepo) ActiveRule(_ context.Context, ruleKey string, _ time.Time) (D
 	return d, ok, nil
 }
 
-// TestMonthlyBenefitNoRule: with no enabled VIP monthly rule (the current state,
-// spec §13) the daily driver grants nothing without error.
-func TestMonthlyBenefitNoRule(t *testing.T) {
-	svc := NewMonthlyBenefitService(&fakeRepo{active: map[string]Definition{}}, quietLogger())
-	n, err := svc.Run(context.Background())
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("granted = %d, want 0", n)
-	}
-}
-
-// TestMonthlyBenefitEnabledStillNoGrant: an enabled rule is surfaced but grants
-// nothing, since the grant application is pending business confirmation.
-func TestMonthlyBenefitEnabledStillNoGrant(t *testing.T) {
-	repo := &fakeRepo{active: map[string]Definition{
-		KeyVIPMonthlyBenefit: {RuleKey: KeyVIPMonthlyBenefit, Version: 3, ConfigJSON: []byte(`{}`)},
-	}}
-	svc := NewMonthlyBenefitService(repo, quietLogger())
-	n, err := svc.Run(context.Background())
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("granted = %d, want 0 (grant application pending)", n)
-	}
-}
-
-// TestMonthlyBenefitRepoError: a repository error propagates so asynq retries.
-func TestMonthlyBenefitRepoError(t *testing.T) {
-	svc := NewMonthlyBenefitService(&fakeRepo{err: errors.New("db down")}, quietLogger())
-	if _, err := svc.Run(context.Background()); err == nil {
-		t.Fatal("expected propagated error")
-	}
-}
-
 // TestPostProcessNoRule: with no enabled 邀请 reward rule the evaluator grants
 // nothing without error.
 func TestPostProcessNoRule(t *testing.T) {

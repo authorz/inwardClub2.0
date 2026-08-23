@@ -241,7 +241,9 @@ const couponTypeLabels: Record<string, string> = {
   snack: '小吃券',
   alcohol: '酒水券',
   beverage: '饮料券',
+  drink: '饮品或啤酒券',
   meal: '餐食券',
+  gift: '礼品券',
 }
 
 const couponColumns: TableColumnList<MemberCouponEntitlement> = [

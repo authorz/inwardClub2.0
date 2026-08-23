@@ -136,6 +136,40 @@ func GrantTimedLowSpendReward(
 	return settings.RewardPoints, nil
 }
 
+// TimedLowSpendQualified reports whether this paid food order has brought the
+// member to the store's configured low-spend threshold for the current Beijing
+// calendar day. Unlike GrantTimedLowSpendReward it does not use the ordinary
+// reward ledger as its result, so VIP benefits can still observe qualification
+// after that store reward has already been granted once today.
+func TimedLowSpendQualified(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, storeID int64,
+	paidAt time.Time,
+) (bool, error) {
+	settings, err := loadTimedLowSpendSettings(ctx, tx, storeID)
+	if err != nil || !settings.Enabled {
+		return false, err
+	}
+	window, err := buildTimedLowSpendWindow(paidAt, settings)
+	if err != nil {
+		return false, err
+	}
+	paidAt = paidAt.UTC()
+	if paidAt.Before(window.DayStart) || !paidAt.Before(window.ConsumptionCutoff) {
+		return false, nil
+	}
+	qualified, err := hasTimelyReservationOrWaitlist(ctx, tx, memberID, storeID, window)
+	if err != nil || !qualified {
+		return false, err
+	}
+	totalCent, err := cumulativeFoodSpend(ctx, tx, memberID, storeID, window)
+	if err != nil {
+		return false, err
+	}
+	return totalCent >= settings.MinimumAmountCent, nil
+}
+
 // InvitationLowSpendQualified reports whether an invited member has completed
 // the store's timed low-spend requirement with WeChat-paid food orders after
 // the invitation was bound. Refunds reduce the qualifying amount, including

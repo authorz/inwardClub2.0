@@ -20,6 +20,15 @@ type stubRuleRepo struct {
 	err    error
 }
 
+type stubVIPBenefitService struct {
+	granted int64
+	err     error
+}
+
+func (s *stubVIPBenefitService) SweepScheduled(context.Context) (int64, error) {
+	return s.granted, s.err
+}
+
 func (s *stubRuleRepo) ActiveRule(_ context.Context, key string, _ time.Time) (rule.Definition, bool, error) {
 	if s.err != nil {
 		return rule.Definition{}, false, s.err
@@ -28,10 +37,8 @@ func (s *stubRuleRepo) ActiveRule(_ context.Context, key string, _ time.Time) (r
 	return d, ok, nil
 }
 
-// TestVipMonthlyHandlerNoRule: with no enabled rule the daily handler completes
-// without error and grants nothing.
-func TestVipMonthlyHandlerNoRule(t *testing.T) {
-	svc := rule.NewMonthlyBenefitService(&stubRuleRepo{active: map[string]rule.Definition{}}, quietLogger())
+func TestVipMonthlyHandlerCompletes(t *testing.T) {
+	svc := &stubVIPBenefitService{granted: 3}
 	handler := vipMonthlyHandler(quietLogger(), svc)
 	if err := handler(context.Background(), asynq.NewTask(TaskVipMonthlyBenefit, nil)); err != nil {
 		t.Fatalf("vipMonthlyHandler: %v", err)
@@ -41,7 +48,7 @@ func TestVipMonthlyHandlerNoRule(t *testing.T) {
 // TestVipMonthlyHandlerPropagatesError: a repository error is returned so asynq
 // retries the daily evaluation.
 func TestVipMonthlyHandlerPropagatesError(t *testing.T) {
-	svc := rule.NewMonthlyBenefitService(&stubRuleRepo{err: errors.New("db down")}, quietLogger())
+	svc := &stubVIPBenefitService{err: errors.New("db down")}
 	handler := vipMonthlyHandler(quietLogger(), svc)
 	if err := handler(context.Background(), asynq.NewTask(TaskVipMonthlyBenefit, nil)); err == nil {
 		t.Fatal("expected propagated error")

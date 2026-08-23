@@ -226,7 +226,7 @@ const categoryIsCoupon = computed(() => selectedCategory.value?.categoryType ===
 const formCouponTemplateOptions = computed(() =>
   couponTemplates.value
     .filter((template) =>
-      ['snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType)
+      ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType)
       && (template.scopeType === 'global'
         || String(template.storeId ?? '') === String(form.storeId ?? '')),
     )
@@ -239,7 +239,7 @@ const formCouponTemplateOptions = computed(() =>
 const saleCouponTemplateOptions = computed(() =>
   couponTemplates.value
     .filter((template) =>
-      ['event_ticket', 'snack', 'alcohol', 'beverage', 'meal'].includes(template.couponType)
+      ['event_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType)
       && (template.scopeType === 'global'
         || String(template.storeId ?? '') === String(form.storeId ?? '')),
     )

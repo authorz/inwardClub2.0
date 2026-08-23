@@ -20,7 +20,9 @@ const couponTypes = [
   { label: '小吃券', value: 'snack' },
   { label: '酒水券', value: 'alcohol' },
   { label: '饮料券', value: 'beverage' },
+  { label: '饮品或啤酒券', value: 'drink' },
   { label: '餐食券', value: 'meal' },
+  { label: '礼品券', value: 'gift' },
 ]
 const periods = [
   { label: '达级时', value: 'once' },
@@ -33,6 +35,7 @@ const triggers = [
   { label: '低消达标', value: 'low_spend' },
   { label: '首次下单', value: 'first_order' },
   { label: '到店', value: 'visit' },
+  { label: '周期自动发放', value: 'period_start' },
   { label: '工作日赛事', value: 'weekday_event' },
   { label: '周赛', value: 'weekly_event' },
   { label: '月赛', value: 'monthly_event' },
@@ -286,7 +289,7 @@ const toolbarActions = [{
         </NFormItem>
       </NForm>
       <p class="form-note">
-        自动发放的积分流水说明统一为“VIP等级福利”；券自发放起 30 天有效。周期与触发场景同时用于小程序展示。
+        自动发放的积分流水说明统一为“VIP等级福利”；餐饮和礼品券自发放起 30 天有效，工作日赛事券、周赛券和月赛券分别按自然周工作日、自然周和自然月失效。
       </p>
     </FormDrawer>
   </div>
