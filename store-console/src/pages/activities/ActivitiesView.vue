@@ -54,9 +54,12 @@ const ticketStatusOptions = [
   { label: '启用', value: 'active' },
   { label: '停用', value: 'inactive' },
 ]
-const payChannelOptions = [
+const ticketPayChannelOptions = [
   { label: '微信', value: 'wechat' },
   { label: '金币', value: 'coin' },
+]
+const activityPayChannelOptions = [
+  ...ticketPayChannelOptions,
   { label: '券兑换', value: 'coupon' },
 ]
 let ticketKeySeed = 0
@@ -76,6 +79,7 @@ function newTicketType(name = '单人票'): TicketTypeForm {
 }
 
 function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
+  const payChannels = (ticket.payChannels ?? []).filter((channel) => channel !== 'coupon')
   return {
     key: ++ticketKeySeed,
     id: ticket.id,
@@ -86,7 +90,7 @@ function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
       ticket.saleStartAt && ticket.saleEndAt
         ? [new Date(ticket.saleStartAt).getTime(), new Date(ticket.saleEndAt).getTime()]
         : null,
-    payChannels: ticket.payChannels?.length ? [...ticket.payChannels] : ['wechat'],
+    payChannels: payChannels.length ? payChannels : ['wechat'],
     maxTicketsPerOrder: ticket.maxTicketsPerOrder ?? 0,
     status: ticket.status || 'active',
   }
@@ -460,12 +464,12 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
         </NFormItem>
 
         <NFormItem
-          label="活动默认支付方式"
+          label="活动支付方式"
           required
         >
           <NSelect
             v-model:value="form.payChannels"
-            :options="payChannelOptions"
+            :options="activityPayChannelOptions"
             multiple
             placeholder="请选择支付方式"
           />
@@ -475,7 +479,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
           <div class="ticket-types__header">
             <div>
               <h3>票档设置</h3>
-              <p>票档支付方式会覆盖活动默认值；需要用券的票档请勾选“券兑换”。库存为 0 表示不限量。</p>
+              <p>活动勾选“券兑换”后，所有票档均可使用赛事门票券；票档单独设置微信或金币支付。库存为 0 表示不限量。</p>
             </div>
             <NButton
               secondary
@@ -570,7 +574,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
               >
                 <NSelect
                   v-model:value="ticket.payChannels"
-                  :options="payChannelOptions"
+                  :options="ticketPayChannelOptions"
                   multiple
                 />
               </NFormItem>

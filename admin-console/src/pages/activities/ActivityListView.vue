@@ -226,6 +226,7 @@ function newTicketType(name = '单人票'): TicketTypeForm {
 }
 
 function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
+  const payChannels = (ticket.payChannels ?? []).filter((channel) => channel !== 'coupon')
   return {
     key: ++ticketKeySeed,
     id: String(ticket.id),
@@ -236,7 +237,7 @@ function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
       ticket.saleStartAt && ticket.saleEndAt
         ? [new Date(ticket.saleStartAt).getTime(), new Date(ticket.saleEndAt).getTime()]
         : null,
-    payChannels: ticket.payChannels?.length ? [...ticket.payChannels] : ['wechat'],
+    payChannels: payChannels.length ? payChannels : ['wechat'],
     maxTicketsPerOrder: ticket.maxTicketsPerOrder ?? 0,
     status: ticket.status || 'active',
   }
@@ -518,7 +519,7 @@ onMounted(loadStores)
         </NFormItem>
 
         <NFormItem
-          label="活动默认支付方式"
+          label="活动支付方式"
           required
         >
           <NSelect
@@ -533,7 +534,7 @@ onMounted(loadStores)
           <div class="ticket-types__header">
             <div>
               <h3>票档设置</h3>
-              <p>票档支付方式会覆盖活动默认值；需要用券的票档请勾选“券兑换”。库存为 0 表示不限量。</p>
+              <p>活动勾选“券兑换”后，所有票档均可使用赛事门票券；票档单独设置微信或金币支付。库存为 0 表示不限量。</p>
             </div>
             <NButton
               secondary
@@ -630,7 +631,7 @@ onMounted(loadStores)
                 <NSelect
                   v-model:value="ticket.payChannels"
                   multiple
-                  :options="onlinePayChannelOptions.map(({ label, value }) => ({ label, value }))"
+                  :options="PAY_CHANNEL_OPTIONS.map(({ label, value }) => ({ label, value }))"
                 />
               </NFormItem>
             </div>

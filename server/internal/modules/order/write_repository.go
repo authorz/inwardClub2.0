@@ -375,7 +375,7 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			return apperr.Internal(err)
 		}
 		if !allowed {
-			return apperr.Conflict("该票档未开启当前支付方式")
+			return apperr.Conflict("当前活动或票档未开启该支付方式")
 		}
 		// Reserve stock: unlimited when stock_quantity is 0, otherwise guarded.
 		const reserve = `UPDATE activity_ticket_types
@@ -879,30 +879,38 @@ func isProductCouponType(couponType string) bool {
 	}
 }
 
-// activityPayMethodAllowed mirrors the public activity purchase UI: a ticket
-// type's non-empty channel list overrides the activity list; legacy empty ticket
-// lists inherit from the activity. The repository enforces the result so a
-// client cannot bypass a disabled payment method with a crafted request.
+// activityPayMethodAllowed mirrors the public activity purchase UI. Coupon
+// redemption is an activity-wide switch, while WeChat and coin keep the legacy
+// ticket override/activity fallback rule. The repository enforces the result so
+// a client cannot bypass a disabled payment method with a crafted request.
 func activityPayMethodAllowed(ticketRaw, activityRaw []byte, payMethod string) (bool, error) {
+	activityChannels, err := decodeActivityPayChannels(activityRaw)
+	if err != nil {
+		return false, err
+	}
+	if payMethod == PayMethodCoupon {
+		return activityPayChannelsContain(activityChannels, payMethod), nil
+	}
 	channels, err := decodeActivityPayChannels(ticketRaw)
 	if err != nil {
 		return false, err
 	}
 	if len(channels) == 0 {
-		channels, err = decodeActivityPayChannels(activityRaw)
-		if err != nil {
-			return false, err
-		}
+		channels = activityChannels
 	}
+	return activityPayChannelsContain(channels, payMethod), nil
+}
+
+func activityPayChannelsContain(channels []string, payMethod string) bool {
 	for _, channel := range channels {
 		if channel == "balance" {
 			channel = PayMethodCoin
 		}
 		if channel == payMethod {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 func decodeActivityPayChannels(raw []byte) ([]string, error) {

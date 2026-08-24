@@ -1,10 +1,11 @@
-// 活动列表 — 深色自定义导航 + tower-swiper 塔式堆叠轮播；仅展示报名中活动
+// 活动列表 — 深色自定义导航 + tower-swiper 塔式堆叠轮播；展示当前可报名活动
 // Reference: design-demo 深色黑灰渐变风格
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
 
 const REVIEW_PAGE_SIZE = 10;
 const REVIEW_FALLBACK_LOGO = 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png';
+const CURRENT_ACTIVITY_STATUSES = new Set(['enrolling', 'upcoming']);
 
 function reviewItem(a) {
   return {
@@ -39,13 +40,13 @@ Page({
 
   onLoad() {
     this.measureNav();
-    // 该页只展示"报名中"的活动
+    // 已发布且尚未开始的活动同样可以开放报名，不能因活动日期在未来而隐藏。
     api
-      .getActivities({ status: 'enrolling' })
+      .getActivities()
       .catch(() => ({ data: [] }))
       .then((listRes) => {
         const activities = (listRes.data || [])
-          .filter((a) => a.status === 'enrolling')
+          .filter((a) => CURRENT_ACTIVITY_STATUSES.has(a.status))
           .map((a) => ({
             id: a.id,
             title: a.title,

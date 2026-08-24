@@ -8,6 +8,13 @@ const silentLogin = require('../../utils/silent-login');
 const { PAY_METHOD } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
+function configuredPayMethods(ticketMethods, activityMethods) {
+  const ticketList = ticketMethods && ticketMethods.length ? ticketMethods : activityMethods || [];
+  const methods = ticketList.filter((method) => method !== PAY_METHOD.COUPON);
+  if ((activityMethods || []).indexOf(PAY_METHOD.COUPON) >= 0) methods.push(PAY_METHOD.COUPON);
+  return Array.from(new Set(methods));
+}
+
 Page({
   data: {
     loading: true,
@@ -81,7 +88,7 @@ Page({
             priceText: fmt.centToYuan(t.priceCent),
             stockText,
             payChannels: this.availablePayMethods(
-              t.payChannels && t.payChannels.length ? t.payChannels : activityPayChannels,
+              configuredPayMethods(t.payChannels, activityPayChannels),
               ticketCoupons
             ),
             maxQuantity: limits.length ? Math.min.apply(null, limits) : 99,

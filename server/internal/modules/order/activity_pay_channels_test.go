@@ -10,10 +10,10 @@ func TestActivityPayMethodAllowedRequiresConfiguredCoupon(t *testing.T) {
 		payMethod   string
 		wantAllowed bool
 	}{
-		{name: "ticket does not enable coupon", ticket: `["wechat"]`, activity: `["wechat","coupon"]`, payMethod: PayMethodCoupon},
-		{name: "ticket enables coupon", ticket: `["wechat","coupon"]`, activity: `["wechat"]`, payMethod: PayMethodCoupon, wantAllowed: true},
+		{name: "activity enables coupon for ticket", ticket: `["wechat"]`, activity: `["wechat","coupon"]`, payMethod: PayMethodCoupon, wantAllowed: true},
+		{name: "ticket cannot enable coupon without activity", ticket: `["wechat","coupon"]`, activity: `["wechat"]`, payMethod: PayMethodCoupon},
 		{name: "empty ticket inherits activity coupon", ticket: `[]`, activity: `["wechat","coupon"]`, payMethod: PayMethodCoupon, wantAllowed: true},
-		{name: "empty ticket inherits activity without coupon", ticket: `[]`, activity: `["wechat"]`, payMethod: PayMethodCoupon},
+		{name: "activity without coupon rejects coupon", ticket: `[]`, activity: `["wechat"]`, payMethod: PayMethodCoupon},
 		{name: "legacy balance allows coin", ticket: `["balance"]`, activity: `[]`, payMethod: PayMethodCoin, wantAllowed: true},
 	}
 	for _, tt := range tests {
@@ -30,7 +30,10 @@ func TestActivityPayMethodAllowedRequiresConfiguredCoupon(t *testing.T) {
 }
 
 func TestActivityPayMethodAllowedRejectsInvalidStoredJSON(t *testing.T) {
-	if _, err := activityPayMethodAllowed([]byte(`{"bad":true}`), []byte(`[]`), PayMethodCoupon); err == nil {
+	if _, err := activityPayMethodAllowed([]byte(`[]`), []byte(`{"bad":true}`), PayMethodCoupon); err == nil {
+		t.Fatal("invalid activity pay channels should fail")
+	}
+	if _, err := activityPayMethodAllowed([]byte(`{"bad":true}`), []byte(`[]`), PayMethodWeChat); err == nil {
 		t.Fatal("invalid ticket pay channels should fail")
 	}
 }
