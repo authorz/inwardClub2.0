@@ -179,6 +179,10 @@ Page({
   },
 
   onQty(e) {
+    if (this.data.payMethod === PAY_METHOD.COUPON) {
+      this.setData({ qty: 1, totalText: '0.00' });
+      return;
+    }
     const qty = e.detail.value;
     const ticket = this.data.ticket;
     this.setData({
@@ -262,12 +266,14 @@ Page({
       ui.toast('请选择赛事门票券');
       return;
     }
-    let quantity;
-    try {
-      quantity = validation.integer(this.data.qty, { label: '购票数量', min: 1, max: Math.min(ticket.maxQuantity || 99, 99) });
-    } catch (err) {
-      ui.toast(err.message);
-      return;
+    let quantity = 1;
+    if (payMethod !== PAY_METHOD.COUPON) {
+      try {
+        quantity = validation.integer(this.data.qty, { label: '购票数量', min: 1, max: Math.min(ticket.maxQuantity || 99, 99) });
+      } catch (err) {
+        ui.toast(err.message);
+        return;
+      }
     }
     const amountCent = ticket.priceCent * quantity;
     this.setData({ submitting: true });

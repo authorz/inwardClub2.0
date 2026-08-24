@@ -37,6 +37,10 @@
           <text class="ap__qty-label">购买数量</text>
           <ic-stepper value="{{qty}}" min="{{1}}" max="{{ticket.maxQuantity}}" size="sm" theme="dark" bind:change="onQty" />
         </view>
+        <view wx:elif="{{ticketId === item.id}}" class="ap__qty" catchtap="noop">
+          <text class="ap__qty-label">兑换数量</text>
+          <text class="ap__qty-fixed">1 张</text>
+        </view>
       </view>
     </view>
     <view wx:else class="ap__no-ticket">暂无可售门票</view>

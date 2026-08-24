@@ -109,6 +109,7 @@
   box-sizing: border-box;
 }
 .ap__qty-label { font-size: 24rpx; color: #fff; }
+.ap__qty-fixed { font-size: 25rpx; font-weight: 650; color: rgba(255, 255, 255, 0.92); }
 .ap__no-ticket { padding: 30rpx 0 12rpx; font-size: 24rpx; color: rgba(255, 255, 255, 0.62); }
 
 .ap__amount { display: flex; align-items: center; justify-content: space-between; }
