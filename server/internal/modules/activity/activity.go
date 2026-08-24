@@ -239,7 +239,7 @@ func normalizePayChannels(channels []string) ([]string, error) {
 		if channel == "balance" {
 			channel = "coin"
 		}
-		if channel != "wechat" && channel != "coin" {
+		if channel != "wechat" && channel != "coin" && channel != "coupon" {
 			if invalid == "" {
 				invalid = channel
 			}

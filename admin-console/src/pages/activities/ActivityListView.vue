@@ -49,7 +49,10 @@ const activityStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
     value as typeof RESOURCE_STATUS.DRAFT | typeof RESOURCE_STATUS.PUBLISHED,
   ),
 )
-const onlinePayChannelOptions = PAY_CHANNEL_OPTIONS
+const onlinePayChannelOptions = [
+  ...PAY_CHANNEL_OPTIONS,
+  { label: '券兑换', value: 'coupon', tone: 'info' as const },
+]
 
 const fields = computed<FilterField[]>(() => [
   {
@@ -515,7 +518,7 @@ onMounted(loadStores)
         </NFormItem>
 
         <NFormItem
-          label="支付方式"
+          label="活动默认支付方式"
           required
         >
           <NSelect
@@ -530,7 +533,7 @@ onMounted(loadStores)
           <div class="ticket-types__header">
             <div>
               <h3>票档设置</h3>
-              <p>每个票档独立设置价格、库存和售卖时间；库存为 0 表示不限量。</p>
+              <p>票档支付方式会覆盖活动默认值；需要用券的票档请勾选“券兑换”。库存为 0 表示不限量。</p>
             </div>
             <NButton
               secondary
@@ -621,7 +624,7 @@ onMounted(loadStores)
                 />
               </NFormItem>
               <NFormItem
-                label="支付方式"
+                label="票档支付方式"
                 required
               >
                 <NSelect

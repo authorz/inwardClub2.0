@@ -345,17 +345,22 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		}
 		// Resolve the ticket type: price, session, owning activity and store.
 		var (
-			price      int64
-			sessionID  sql.NullInt64
-			storeID    sql.NullInt64
-			ttActivity int64
+			price               int64
+			sessionID           sql.NullInt64
+			storeID             sql.NullInt64
+			ttActivity          int64
+			ticketPayChannels   []byte
+			activityPayChannels []byte
 		)
-		const selTT = `SELECT price_cent, session_id, store_id, activity_id
-			FROM activity_ticket_types
-			WHERE id = ? AND status = 'active'
-			  AND (sale_start_at IS NULL OR sale_start_at <= ?)
-			  AND (sale_end_at IS NULL OR sale_end_at >= ?)`
-		err := tx.QueryRowContext(ctx, selTT, in.TicketTypeID, in.Now, in.Now).Scan(&price, &sessionID, &storeID, &ttActivity)
+		const selTT = `SELECT tt.price_cent, tt.session_id, tt.store_id, tt.activity_id,
+			       tt.pay_channels, a.pay_channels
+			FROM activity_ticket_types tt JOIN activities a ON a.id = tt.activity_id
+			WHERE tt.id = ? AND tt.status = 'active'
+			  AND (tt.sale_start_at IS NULL OR tt.sale_start_at <= ?)
+			  AND (tt.sale_end_at IS NULL OR tt.sale_end_at >= ?)`
+		err := tx.QueryRowContext(ctx, selTT, in.TicketTypeID, in.Now, in.Now).Scan(
+			&price, &sessionID, &storeID, &ttActivity, &ticketPayChannels, &activityPayChannels,
+		)
 		if errors.Is(err, sql.ErrNoRows) {
 			return apperr.Conflict("该票档当前不在售卖时间内")
 		}
@@ -364,6 +369,13 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		}
 		if ttActivity != in.ActivityID {
 			return apperr.Invalid("ticket type does not belong to the activity")
+		}
+		allowed, err := activityPayMethodAllowed(ticketPayChannels, activityPayChannels, in.PayMethod)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if !allowed {
+			return apperr.Conflict("该票档未开启当前支付方式")
 		}
 		// Reserve stock: unlimited when stock_quantity is 0, otherwise guarded.
 		const reserve = `UPDATE activity_ticket_types
@@ -865,6 +877,40 @@ func isProductCouponType(couponType string) bool {
 	default:
 		return false
 	}
+}
+
+// activityPayMethodAllowed mirrors the public activity purchase UI: a ticket
+// type's non-empty channel list overrides the activity list; legacy empty ticket
+// lists inherit from the activity. The repository enforces the result so a
+// client cannot bypass a disabled payment method with a crafted request.
+func activityPayMethodAllowed(ticketRaw, activityRaw []byte, payMethod string) (bool, error) {
+	channels, err := decodeActivityPayChannels(ticketRaw)
+	if err != nil {
+		return false, err
+	}
+	if len(channels) == 0 {
+		channels, err = decodeActivityPayChannels(activityRaw)
+		if err != nil {
+			return false, err
+		}
+	}
+	for _, channel := range channels {
+		if channel == "balance" {
+			channel = PayMethodCoin
+		}
+		if channel == payMethod {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func decodeActivityPayChannels(raw []byte) ([]string, error) {
+	var channels []string
+	if err := json.Unmarshal(raw, &channels); err != nil {
+		return nil, err
+	}
+	return channels, nil
 }
 
 func insertBusinessOrder(ctx context.Context, tx *sql.Tx, no, orderType string, storeID *int64, memberID, total int64, now time.Time) (int64, error) {

@@ -186,11 +186,11 @@ func TestEncodeChannels(t *testing.T) {
 }
 
 func TestNormalizePayChannels(t *testing.T) {
-	got, err := normalizePayChannels([]string{"wechat", "balance", "coin"})
+	got, err := normalizePayChannels([]string{"wechat", "balance", "coin", "coupon"})
 	if err != nil {
 		t.Fatalf("normalize legacy balance: %v", err)
 	}
-	if len(got) != 2 || got[0] != "wechat" || got[1] != "coin" {
+	if len(got) != 3 || got[0] != "wechat" || got[1] != "coin" || got[2] != "coupon" {
 		t.Fatalf("unexpected normalized channels: %#v", got)
 	}
 	if _, err := normalizePayChannels([]string{"wechat", "alipay"}); err == nil {

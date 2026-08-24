@@ -57,6 +57,7 @@ const ticketStatusOptions = [
 const payChannelOptions = [
   { label: '微信', value: 'wechat' },
   { label: '金币', value: 'coin' },
+  { label: '券兑换', value: 'coupon' },
 ]
 let ticketKeySeed = 0
 
@@ -459,7 +460,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
         </NFormItem>
 
         <NFormItem
-          label="支付方式"
+          label="活动默认支付方式"
           required
         >
           <NSelect
@@ -474,7 +475,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
           <div class="ticket-types__header">
             <div>
               <h3>票档设置</h3>
-              <p>每个票档独立设置价格、库存和售卖时间；库存为 0 表示不限量。</p>
+              <p>票档支付方式会覆盖活动默认值；需要用券的票档请勾选“券兑换”。库存为 0 表示不限量。</p>
             </div>
             <NButton
               secondary
@@ -564,7 +565,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
                 />
               </NFormItem>
               <NFormItem
-                label="支付方式"
+                label="票档支付方式"
                 required
               >
                 <NSelect

@@ -160,7 +160,7 @@ export interface StoreActivity extends AuditFields {
   description?: string
   content?: string
   assetId?: number | string
-  payChannels?: PayChannel[]
+  payChannels?: Array<PayChannel | 'coupon'>
   purchaseLimitPerMember?: number
 }
 
@@ -173,7 +173,7 @@ export interface ActivityTicketType extends AuditFields {
   soldQuantity?: number
   saleStartAt?: string
   saleEndAt?: string
-  payChannels: PayChannel[]
+  payChannels: Array<PayChannel | 'coupon'>
   maxTicketsPerOrder: number
   status: string
 }

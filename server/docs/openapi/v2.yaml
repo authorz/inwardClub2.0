@@ -241,7 +241,7 @@ components:
         imageUrl: { type: string }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         purchaseLimit: { type: integer, description: 'Per-member purchase limit; 0 means unlimited' }
         status: { type: string }
         ticketTypes: { type: array, items: { $ref: '#/components/schemas/PublicTicketTypeView' } }
@@ -267,7 +267,7 @@ components:
           minimum: 0
           description: Remaining finite quantity; null when unlimitedStock is true.
         saleEndAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         maxTicketsPerOrder: { type: integer }
     WalletAccount:
       type: object
@@ -1116,7 +1116,7 @@ components:
         imageUrl: { type: string, format: uri }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         purchaseLimitPerMember: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
@@ -1151,7 +1151,7 @@ components:
         assetId: { type: integer, format: int64 }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         purchaseLimitPerMember: { type: integer }
         status: { type: string, description: 'Defaults to "draft" when omitted' }
     ActivitySessionView:
@@ -1187,7 +1187,7 @@ components:
         soldQuantity: { type: integer, format: int64 }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         maxTicketsPerOrder: { type: integer }
         status: { type: string }
         createdAt: { type: string, format: date-time }
@@ -1202,7 +1202,7 @@ components:
         stockQuantity: { type: integer, format: int64, description: 'Configured capacity; 0 means unlimited.' }
         saleStartAt: { type: string, format: date-time }
         saleEndAt: { type: string, format: date-time }
-        payChannels: { type: array, items: { type: string, enum: [wechat, coin] } }
+        payChannels: { type: array, items: { type: string, enum: [wechat, coin, coupon] } }
         maxTicketsPerOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     # ---- mini coupon views ----

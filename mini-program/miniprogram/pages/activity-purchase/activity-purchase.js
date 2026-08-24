@@ -119,7 +119,9 @@ Page({
   availablePayMethods(methods, ticketCoupons) {
     const list = methods || [];
     if (!auth.isLoggedIn()) return list.filter((method) => method === PAY_METHOD.WECHAT);
-    return ticketCoupons && ticketCoupons.length ? Array.from(new Set(list.concat(PAY_METHOD.COUPON))) : list;
+    return ticketCoupons && ticketCoupons.length
+      ? list
+      : list.filter((method) => method !== PAY_METHOD.COUPON);
   },
 
   onPickTicket(e) {
