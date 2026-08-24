@@ -227,6 +227,9 @@ func (r *sqlRepository) CreateFoodOrder(ctx context.Context, in FoodOrderCreate)
 		paymentStatusText := "unpaid"
 		fulfillmentStatus := "pending"
 		if in.PayMethod == PayMethodCoupon {
+			if err := coupon.ClaimVIPDailyUsage(ctx, tx, in.MemberID, *in.CouponEntitlementID, in.Now); err != nil {
+				return err
+			}
 			const consumeCoupon = `UPDATE coupon_entitlements SET status = 'used', updated_at = ?
 				WHERE id = ? AND member_id = ? AND status = 'active'`
 			res, err := tx.ExecContext(ctx, consumeCoupon, in.Now, *in.CouponEntitlementID, in.MemberID)
@@ -476,6 +479,9 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		paymentStatus := PaymentStatusPending
 		orderStatus := "created"
 		if in.PayMethod == PayMethodCoupon {
+			if err := coupon.ClaimVIPDailyUsage(ctx, tx, in.MemberID, *in.CouponEntitlementID, in.Now); err != nil {
+				return err
+			}
 			const consumeCoupon = `UPDATE coupon_entitlements SET status = 'used', updated_at = ?
 				WHERE id = ? AND member_id = ? AND status = 'active'`
 			res, err := tx.ExecContext(ctx, consumeCoupon, in.Now, *in.CouponEntitlementID, in.MemberID)

@@ -135,6 +135,9 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 		if expiresAt.Valid && !expiresAt.Time.After(in.Now) {
 			return apperr.Conflict("coupon has expired")
 		}
+		if err := ClaimVIPDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
+			return err
+		}
 		for _, item := range in.Items {
 			const reserve = `UPDATE catalog_items
 				SET stock_quantity = CASE WHEN stock_quantity = 0 THEN 0 ELSE stock_quantity - ? END,

@@ -843,6 +843,9 @@ func (r *sqlConsoleRepository) Verify(ctx context.Context, scope ConsoleScope, r
 		if expiresAt.Valid && !expiresAt.Time.After(now) {
 			return apperr.Conflict("coupon entitlement has expired")
 		}
+		if err := ClaimVIPDailyUsage(ctx, tx, memberID, id, now); err != nil {
+			return err
+		}
 		redNo := fmt.Sprintf("R%d-%d", id, now.UnixNano())
 		const ins = `INSERT INTO coupon_redemptions
 			(redemption_no, entitlement_id, coupon_template_id, member_id, store_id, verified_by_type, created_at)
