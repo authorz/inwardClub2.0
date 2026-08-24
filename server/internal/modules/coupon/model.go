@@ -45,18 +45,19 @@ type RedemptionOrder struct {
 
 // MemberCoupon is one entitlement joined with its template display fields.
 type MemberCoupon struct {
-	RedemptionID  int64
-	EntitlementID int64
-	EntitlementNo string
-	TemplateID    int64
-	Name          string
-	Description   string
-	CouponType    string
-	ValueCent     int64
-	StoreID       *int64
-	Status        string
-	ExpiresAt     *time.Time
-	CreatedAt     time.Time
+	RedemptionID   int64
+	EntitlementID  int64
+	EntitlementNo  string
+	TemplateID     int64
+	Name           string
+	Description    string
+	CouponType     string
+	AdmissionCount int
+	ValueCent      int64
+	StoreID        *int64
+	Status         string
+	ExpiresAt      *time.Time
+	CreatedAt      time.Time
 }
 
 // RedemptionItemSnapshot is the server-priced product selection persisted on

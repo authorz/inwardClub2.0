@@ -48,25 +48,15 @@
   </view>
 
   <view wx:if="{{ticket && payMethod === 'coupon'}}" class="ap__section ic-glass-recessed">
-    <view class="ap__coupon-head">
-      <text class="ap__section-title">选择赛事门票券</text>
-      <text class="ap__coupon-order">按到期时间排序</text>
-    </view>
-    <view class="ap__coupon-list">
-      <view
-        class="ap__coupon {{couponEntitlementId === item.id ? 'is-active' : ''}}"
-        wx:for="{{ticketCoupons}}"
-        wx:key="id"
-        data-id="{{item.id}}"
-        bindtap="onPickCoupon"
-      >
-        <view class="ap__radio"><view wx:if="{{couponEntitlementId === item.id}}" class="ap__radio-on"></view></view>
-        <view class="ap__coupon-copy">
-          <text class="ap__coupon-name">{{item.name}}</text>
-          <text class="ap__coupon-expiry">有效期至 {{item.expiryText}}</text>
-        </view>
-        <text wx:if="{{index === 0}}" class="ap__coupon-first">优先使用</text>
+    <text class="ap__section-title">使用赛事门票券</text>
+    <view class="ap__coupon-selected" bindtap="openCouponPicker">
+      <image class="ap__coupon-icon" src="{{couponIconUrl}}" mode="aspectFit" />
+      <view class="ap__coupon-copy">
+        <text class="ap__coupon-name">{{selectedCoupon.name}}</text>
+        <text class="ap__coupon-expiry">{{selectedCoupon.admissionCount}} 人票券 · 有效期至 {{selectedCoupon.expiryText}}</text>
       </view>
+      <text class="ap__coupon-change">更换</text>
+      <text class="ap__coupon-chevron">›</text>
     </view>
   </view>
 
@@ -86,5 +76,34 @@
       loading="{{submitting}}"
       bindtap="confirmPurchase"
     >{{payMethod === 'coupon' ? '确认兑换' : '确认支付'}}</button>
+  </view>
+
+  <view wx:if="{{couponPickerVisible}}" class="ap__picker-mask" bindtap="closeCouponPicker">
+    <view class="ap__picker" catchtap="noop">
+      <view class="ap__picker-handle"></view>
+      <view class="ap__picker-head">
+        <view>
+          <text class="ap__picker-title">选择赛事门票券</text>
+          <text class="ap__picker-subtitle">按到期时间排序，优先展示即将到期的券</text>
+        </view>
+        <text class="ap__picker-close" bindtap="closeCouponPicker">关闭</text>
+      </view>
+      <scroll-view class="ap__picker-list" scroll-y enhanced show-scrollbar="{{false}}">
+        <view
+          class="ap__coupon ap__picker-item {{couponEntitlementId === item.id ? 'is-active' : ''}}"
+          wx:for="{{ticketCoupons}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="onPickCoupon"
+        >
+          <image class="ap__coupon-icon" src="{{couponIconUrl}}" mode="aspectFit" />
+          <view class="ap__coupon-copy">
+            <text class="ap__coupon-name">{{item.name}}</text>
+            <text class="ap__coupon-expiry">{{item.admissionCount}} 人票券 · 有效期至 {{item.expiryText}}</text>
+          </view>
+          <view class="ap__radio"><view wx:if="{{couponEntitlementId === item.id}}" class="ap__radio-on"></view></view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
 </view>

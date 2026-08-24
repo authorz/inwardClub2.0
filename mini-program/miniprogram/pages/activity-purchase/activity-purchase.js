@@ -8,6 +8,13 @@ const silentLogin = require('../../utils/silent-login');
 const { PAY_METHOD } = require('../../constants/index');
 const validation = require('../../utils/validation');
 
+const COUPON_ICON_URL = 'https://assets.inwardclub.com/public/images/coupon-gpt.png';
+
+function admissionCountOf(value) {
+  const count = Number(value);
+  return Number.isInteger(count) && count > 0 ? count : 1;
+}
+
 function configuredPayMethods(ticketMethods, activityMethods) {
   const ticketList = ticketMethods && ticketMethods.length ? ticketMethods : activityMethods || [];
   const methods = ticketList.filter((method) => method !== PAY_METHOD.COUPON);
@@ -28,6 +35,9 @@ Page({
     payMethods: [],
     ticketCoupons: [],
     couponEntitlementId: '',
+    selectedCoupon: null,
+    couponPickerVisible: false,
+    couponIconUrl: COUPON_ICON_URL,
     totalText: '0.00',
     submitting: false,
   },
@@ -45,7 +55,7 @@ Page({
       .then(([res, couponRes]) => {
         const a = res.data || {};
         const now = Date.now();
-        const ticketCoupons = (couponRes.data || [])
+        const allTicketCoupons = (couponRes.data || [])
           .filter((coupon) => coupon.type === 'event_ticket' && coupon.status === 'unused')
           .filter((coupon) => coupon.storeId == null
             || (a.storeId != null && String(coupon.storeId) === String(a.storeId)))
@@ -58,6 +68,7 @@ Page({
           .map((coupon) => ({
             id: coupon.id,
             name: coupon.name || '赛事门票券',
+            admissionCount: admissionCountOf(coupon.admissionCount),
             expiresAt: coupon.validUntil || '',
             expiryText: coupon.validUntil ? fmt.dateTime(coupon.validUntil, { relative: false }) : '长期有效',
           }));
@@ -87,18 +98,28 @@ Page({
             priceCent: t.priceCent,
             priceText: fmt.centToYuan(t.priceCent),
             stockText,
-            payChannels: this.availablePayMethods(
-              configuredPayMethods(t.payChannels, activityPayChannels),
-              ticketCoupons
-            ),
+            admissionCount: admissionCountOf(t.admissionCount),
+            configuredPayChannels: configuredPayMethods(t.payChannels, activityPayChannels),
             maxQuantity: limits.length ? Math.min.apply(null, limits) : 99,
             limitText,
-            disabled: Boolean(disabledReason),
-            disabledReason,
-            metaText: disabledReason || `${stockText} · ${limitText}`,
+            baseDisabled: Boolean(disabledReason),
+            baseDisabledReason: disabledReason,
+            baseMetaText: `${admissionCountOf(t.admissionCount)} 人入场 · ${stockText} · ${limitText}`,
           };
         });
-        const ticket = tickets.find((item) => !item.disabled) || null;
+        const ticketCoupons = allTicketCoupons.filter((coupon) => tickets.some((ticketItem) =>
+          !ticketItem.baseDisabled
+          && ticketItem.admissionCount === coupon.admissionCount
+          && ticketItem.configuredPayChannels.indexOf(PAY_METHOD.COUPON) >= 0
+        ));
+        const visibleTickets = tickets.map((ticketItem) => ({
+          ...ticketItem,
+          payChannels: this.availablePayMethods(ticketItem.configuredPayChannels, ticketCoupons),
+          disabled: ticketItem.baseDisabled,
+          disabledReason: ticketItem.baseDisabledReason,
+          metaText: ticketItem.baseDisabledReason || ticketItem.baseMetaText,
+        }));
+        const ticket = visibleTickets.find((item) => !item.disabled) || null;
         const payMethods = ticket ? ticket.payChannels : [];
         const payMethod = payMethods.indexOf(PAY_METHOD.WECHAT) >= 0 ? PAY_METHOD.WECHAT : payMethods[0] || '';
         this.setData({
@@ -110,13 +131,14 @@ Page({
             dateText: fmt.dateRange(a.startAt, a.endAt),
             storeName: a.storeName || '',
           },
-          tickets,
+          tickets: visibleTickets,
           ticketId: ticket ? ticket.id : '',
           ticket,
           payMethods,
           payMethod,
           ticketCoupons,
           couponEntitlementId: ticketCoupons.length ? ticketCoupons[0].id : '',
+          selectedCoupon: ticketCoupons[0] || null,
           totalText: ticket ? ticket.priceText : '0.00',
         });
       })
@@ -165,15 +187,62 @@ Page({
 
   onPay(e) {
     const payMethod = e.detail.value;
-    this.setData({
-      payMethod,
-      qty: payMethod === PAY_METHOD.COUPON ? 1 : this.data.qty,
-      totalText: payMethod === PAY_METHOD.COUPON ? '0.00' : fmt.centToYuan(this.data.ticket.priceCent * this.data.qty),
-    });
+    this.applyPurchaseMode(payMethod, this.data.selectedCoupon, this.data.ticketId);
+  },
+
+  openCouponPicker() {
+    this.setData({ couponPickerVisible: true });
+  },
+
+  closeCouponPicker() {
+    this.setData({ couponPickerVisible: false });
   },
 
   onPickCoupon(e) {
-    this.setData({ couponEntitlementId: Number(e.currentTarget.dataset.id) });
+    const id = e.currentTarget.dataset.id;
+    const coupon = this.data.ticketCoupons.find((item) => String(item.id) === String(id));
+    if (!coupon) return;
+    this.applyPurchaseMode(PAY_METHOD.COUPON, coupon, this.data.ticketId, true);
+  },
+
+  applyPurchaseMode(payMethod, selectedCoupon, preferredTicketId, closePicker) {
+    const couponMode = payMethod === PAY_METHOD.COUPON;
+    const tickets = this.data.tickets.map((item) => {
+      const admissionMismatch = couponMode && selectedCoupon
+        && item.admissionCount !== selectedCoupon.admissionCount;
+      const disabled = item.baseDisabled || admissionMismatch;
+      const disabledReason = item.baseDisabledReason
+        || (admissionMismatch ? `当前选择的是 ${selectedCoupon.admissionCount} 人票券` : '');
+      return {
+        ...item,
+        disabled,
+        disabledReason,
+        metaText: disabledReason || item.baseMetaText,
+      };
+    });
+    const preferredTicket = tickets.find((item) =>
+      String(item.id) === String(preferredTicketId) && !item.disabled
+    );
+    const ticket = preferredTicket || tickets.find((item) => !item.disabled) || null;
+    const payMethods = ticket ? ticket.payChannels : [];
+    const effectivePayMethod = ticket && payMethods.indexOf(payMethod) >= 0
+      ? payMethod
+      : payMethods[0] || '';
+    const qty = effectivePayMethod === PAY_METHOD.COUPON ? 1 : this.data.qty;
+    this.setData({
+      tickets,
+      ticketId: ticket ? ticket.id : '',
+      ticket,
+      payMethods,
+      payMethod: effectivePayMethod,
+      qty,
+      selectedCoupon,
+      couponEntitlementId: selectedCoupon ? selectedCoupon.id : '',
+      couponPickerVisible: closePicker ? false : this.data.couponPickerVisible,
+      totalText: !ticket || effectivePayMethod === PAY_METHOD.COUPON
+        ? '0.00'
+        : fmt.centToYuan(ticket.priceCent * qty),
+    });
   },
 
   noop() {},

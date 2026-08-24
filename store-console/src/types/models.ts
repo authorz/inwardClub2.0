@@ -168,6 +168,7 @@ export interface ActivityTicketType extends AuditFields {
   id: number | string
   activityId: number | string
   name: string
+  admissionCount: number
   priceCent: number
   stockQuantity: number
   soldQuantity?: number
@@ -287,6 +288,7 @@ export interface CouponTemplate extends AuditFields {
   name: string
   description?: string
   couponType: string
+  admissionCount: number
   status: string
 }
 

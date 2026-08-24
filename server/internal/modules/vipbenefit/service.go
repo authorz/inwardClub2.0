@@ -301,10 +301,14 @@ func grantPoints(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefi
 }
 
 func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefit couponBenefit, key string, now time.Time) (int64, error) {
-	var templateID int64
-	err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_templates
+	var (
+		templateID     int64
+		admissionCount int
+	)
+	err := tx.QueryRowContext(ctx, `SELECT id, admission_count FROM coupon_templates
 		WHERE scope_type = 'global' AND coupon_type = ? AND status = 'published'
-		ORDER BY id ASC LIMIT 1`, benefit.CouponType).Scan(&templateID)
+		  AND (coupon_type <> 'event_ticket' OR admission_count = 1)
+		ORDER BY id ASC LIMIT 1`, benefit.CouponType).Scan(&templateID, &admissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
@@ -317,10 +321,10 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		idemKey := benefitKey("c", memberID, tierID, benefit.Period, benefit.Trigger+":"+benefit.CouponType, key, sequence)
 		entitlementNo := compactEntitlementNo(memberID, idemKey)
 		_, err := tx.ExecContext(ctx, `INSERT INTO coupon_entitlements
-			(entitlement_no, coupon_template_id, member_id, store_id, status, rule_version,
+			(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, rule_version,
 			 granted_reason, granted_by_type, expires_at, idem_key, created_at, updated_at)
-			VALUES (?, ?, ?, NULL, 'active', 1, ?, 'system', ?, ?, ?, ?)`,
-			entitlementNo, templateID, memberID, grantReason, expiresAt, idemKey, now, now)
+			VALUES (?, ?, ?, ?, NULL, 'active', 1, ?, 'system', ?, ?, ?, ?)`,
+			entitlementNo, templateID, admissionCount, memberID, grantReason, expiresAt, idemKey, now, now)
 		if err != nil {
 			if platdb.IsDuplicate(err) {
 				continue

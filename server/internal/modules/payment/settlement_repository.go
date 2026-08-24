@@ -364,10 +364,13 @@ func grantRechargeCoupon(ctx context.Context, tx *sql.Tx, paymentID, memberID, t
 		return apperr.Internal(err)
 	}
 
-	var storeID sql.NullInt64
+	var (
+		storeID        sql.NullInt64
+		admissionCount int
+	)
 	if err := tx.QueryRowContext(ctx,
-		`SELECT store_id FROM coupon_templates WHERE id = ? FOR UPDATE`, templateID,
-	).Scan(&storeID); err != nil {
+		`SELECT store_id, admission_count FROM coupon_templates WHERE id = ? FOR UPDATE`, templateID,
+	).Scan(&storeID, &admissionCount); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return apperr.Conflict("充值档位绑定的优惠券不存在")
 		}
@@ -377,10 +380,10 @@ func grantRechargeCoupon(ctx context.Context, tx *sql.Tx, paymentID, memberID, t
 	entitlementNo := fmt.Sprintf("RC%d-%d", paymentID, templateID)
 	expiresAt := now.AddDate(0, 0, 30)
 	const insertEntitlement = `INSERT INTO coupon_entitlements
-		(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
+		(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, granted_reason,
 		 granted_by_type, expires_at, idem_key, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'active', '充值赠券', 'recharge', ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, templateID, memberID, storeID, expiresAt, idemKey, now, now); err != nil {
+		VALUES (?, ?, ?, ?, ?, 'active', '充值赠券', 'recharge', ?, ?, ?, ?)`
+	if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, templateID, admissionCount, memberID, storeID, expiresAt, idemKey, now, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			return nil
 		}

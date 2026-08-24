@@ -49,15 +49,16 @@ type RedemptionOrderView struct {
 
 // MemberCouponView is the mini-program coupon representation.
 type MemberCouponView struct {
-	ID            int64     `json:"id,omitempty"`
-	EntitlementID int64     `json:"entitlementId"`
-	EntitlementNo string    `json:"entitlementNo"`
-	TemplateID    int64     `json:"templateId"`
-	Name          string    `json:"name"`
-	Description   string    `json:"description,omitempty"`
-	CouponType    string    `json:"couponType"`
-	StoreID       *int64    `json:"storeId,omitempty"`
-	Status        string    `json:"status"`
-	ExpiresAt     string    `json:"expiresAt,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID             int64     `json:"id,omitempty"`
+	EntitlementID  int64     `json:"entitlementId"`
+	EntitlementNo  string    `json:"entitlementNo"`
+	TemplateID     int64     `json:"templateId"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description,omitempty"`
+	CouponType     string    `json:"couponType"`
+	AdmissionCount int       `json:"admissionCount"`
+	StoreID        *int64    `json:"storeId,omitempty"`
+	Status         string    `json:"status"`
+	ExpiresAt      string    `json:"expiresAt,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
 }

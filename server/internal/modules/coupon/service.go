@@ -201,17 +201,18 @@ func redemptionView(o RedemptionOrder) RedemptionOrderView {
 
 func couponView(c MemberCoupon) MemberCouponView {
 	return MemberCouponView{
-		ID:            c.RedemptionID,
-		EntitlementID: c.EntitlementID,
-		EntitlementNo: c.EntitlementNo,
-		TemplateID:    c.TemplateID,
-		Name:          c.Name,
-		Description:   c.Description,
-		CouponType:    c.CouponType,
-		StoreID:       c.StoreID,
-		Status:        c.Status,
-		ExpiresAt:     formatCouponDateTime(c.ExpiresAt),
-		CreatedAt:     c.CreatedAt,
+		ID:             c.RedemptionID,
+		EntitlementID:  c.EntitlementID,
+		EntitlementNo:  c.EntitlementNo,
+		TemplateID:     c.TemplateID,
+		Name:           c.Name,
+		Description:    c.Description,
+		CouponType:     c.CouponType,
+		AdmissionCount: c.AdmissionCount,
+		StoreID:        c.StoreID,
+		Status:         c.Status,
+		ExpiresAt:      formatCouponDateTime(c.ExpiresAt),
+		CreatedAt:      c.CreatedAt,
 	}
 }
 

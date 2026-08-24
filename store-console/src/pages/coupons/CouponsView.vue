@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref } from 'vue'
-import { NButton, NForm, NFormItemGi, NGrid, NInput, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
+import { NButton, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
 import { couponService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import { confirm } from '@/composables/useConfirm'
@@ -33,7 +33,7 @@ const keyword = ref('')
 const show = ref(false)
 const saving = ref(false)
 const form = reactive({
-  id: null as string | number | null, name: '', description: '', couponType: 'alcohol',
+  id: null as string | number | null, name: '', description: '', couponType: 'alcohol', admissionCount: 1,
 })
 
 async function open(row?: CouponTemplate): Promise<void> {
@@ -44,17 +44,21 @@ async function open(row?: CouponTemplate): Promise<void> {
   }
   Object.assign(form, target ? {
     id: target.id, name: target.name, description: target.description ?? '',
-    couponType: target.couponType,
-  } : { id: null, name: '', description: '', couponType: 'alcohol' })
+    couponType: target.couponType, admissionCount: target.admissionCount || 1,
+  } : { id: null, name: '', description: '', couponType: 'alcohol', admissionCount: 1 })
   show.value = true
 }
 
 async function save(): Promise<void> {
   if (!form.name.trim()) return void feedback.message.error('请填写优惠券名称')
+  if (form.couponType === 'event_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
+    return void feedback.message.error('请填写正确的可兑人数')
+  }
   saving.value = true
   try {
     const body = {
       name: form.name.trim(), description: form.description.trim(), couponType: form.couponType,
+      admissionCount: form.couponType === 'event_ticket' ? form.admissionCount : 1,
     }
     if (form.id == null) await couponService.create(body)
     else await couponService.update(form.id, body)
@@ -112,7 +116,7 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
   <div>
     <PageHeader
       title="本店优惠券"
-      description="维护本店券类型；一张券只能兑换一种商品或一张活动门票"
+      description="维护本店券类型；赛事门票券按可兑人数匹配活动票档"
     />
     <StatusFilterBar
       v-model:status="status"
@@ -168,6 +172,19 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
             <NSelect
               v-model:value="form.couponType"
               :options="typeSelectOptions"
+            />
+          </NFormItemGi>
+          <NFormItemGi
+            v-if="form.couponType === 'event_ticket'"
+            label="可兑人数"
+            required
+          >
+            <NInputNumber
+              v-model:value="form.admissionCount"
+              :min="1"
+              :max="99"
+              :precision="0"
+              style="width: 100%"
             />
           </NFormItemGi>
           <NFormItemGi

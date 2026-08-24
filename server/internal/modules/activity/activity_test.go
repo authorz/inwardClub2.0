@@ -85,7 +85,7 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 		StoreLatitude: &lat, StoreLongitude: &lng, Title: "Show", Status: "published",
 	}}
 	repo.ticketTypes[5] = []TicketType{
-		{ID: 20, ActivityID: 5, Name: "VIP", PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, SaleStartAt: &saleStart, PayChannels: []string{"wechat"}, MaxTicketsPerOrder: 4},
+		{ID: 20, ActivityID: 5, Name: "VIP", AdmissionCount: 2, PriceCent: 9900, StockQuantity: 100, SoldQuantity: 40, SaleStartAt: &saleStart, PayChannels: []string{"wechat"}, MaxTicketsPerOrder: 4},
 		{ID: 21, ActivityID: 5, Name: "Free", PriceCent: 0, StockQuantity: 0, SoldQuantity: 3, PayChannels: []string{}},
 	}
 
@@ -97,7 +97,7 @@ func TestGetAttachesSellableTicketTypes(t *testing.T) {
 		t.Fatalf("expected 2 ticket types, got %d", len(view.TicketTypes))
 	}
 	// Limited tier: remaining = stock - sold.
-	if got := view.TicketTypes[0]; got.ID != 20 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 || got.SaleStartAt == nil || !got.SaleStartAt.Equal(saleStart) {
+	if got := view.TicketTypes[0]; got.ID != 20 || got.AdmissionCount != 2 || got.Stock != 60 || got.PriceCent != 9900 || got.MaxTicketsPerOrder != 4 || got.SaleStartAt == nil || !got.SaleStartAt.Equal(saleStart) {
 		t.Fatalf("unexpected limited ticket view: %+v", got)
 	}
 	if got := view.TicketTypes[0]; got.UnlimitedStock || got.RemainingStock == nil || *got.RemainingStock != 60 {

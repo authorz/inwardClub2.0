@@ -34,6 +34,7 @@ interface TicketTypeForm {
   key: number
   id: string | number | null
   name: string
+  admissionCount: number
   priceYuan: number | null
   stockQuantity: number
   saleRange: [number, number] | null
@@ -69,6 +70,7 @@ function newTicketType(name = '单人票'): TicketTypeForm {
     key: ++ticketKeySeed,
     id: null,
     name,
+    admissionCount: 1,
     priceYuan: null,
     stockQuantity: 0,
     saleRange: null,
@@ -84,6 +86,7 @@ function mapTicketType(ticket: ActivityTicketType): TicketTypeForm {
     key: ++ticketKeySeed,
     id: ticket.id,
     name: ticket.name,
+    admissionCount: ticket.admissionCount || 1,
     priceYuan: ticket.priceCent / 100,
     stockQuantity: ticket.stockQuantity,
     saleRange:
@@ -187,6 +190,10 @@ function validateForm(): boolean {
       feedback.message.error('请填写票档名称')
       return false
     }
+    if (!Number.isInteger(ticket.admissionCount) || ticket.admissionCount < 1 || ticket.admissionCount > 99) {
+      feedback.message.error(`请填写“${ticket.name}”的正确入场人数`)
+      return false
+    }
     if (ticket.priceYuan == null || ticket.priceYuan <= 0) {
       feedback.message.error(`请填写“${ticket.name}”的正确价格`)
       return false
@@ -234,6 +241,7 @@ async function saveEdit(): Promise<void> {
       for (const ticket of form.ticketTypes) {
         const ticketPayload = {
           name: ticket.name.trim(),
+          admissionCount: ticket.admissionCount,
           priceCent: Math.round((ticket.priceYuan ?? 0) * 100),
           stockQuantity: ticket.stockQuantity,
           saleStartAt: ticket.saleRange
@@ -517,6 +525,18 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
                 />
               </NFormItem>
               <NFormItem
+                label="入场人数"
+                required
+              >
+                <NInputNumber
+                  v-model:value="ticket.admissionCount"
+                  :min="1"
+                  :max="99"
+                  :precision="0"
+                  style="width: 100%"
+                />
+              </NFormItem>
+              <NFormItem
                 label="价格"
                 required
               >
@@ -720,7 +740,7 @@ const columns = computed<DataTableColumns<StoreActivity>>(() => [
 }
 
 .ticket-type-grid--primary {
-  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(120px, 1fr));
+  grid-template-columns: minmax(150px, 1.3fr) minmax(100px, 0.7fr) repeat(3, minmax(110px, 1fr));
 }
 
 .ticket-type-grid--rules {

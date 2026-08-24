@@ -30,20 +30,21 @@ type ConsoleScope struct {
 
 // Template is a coupon template row as stored in coupon_templates.
 type Template struct {
-	ID           int64
-	ScopeType    string
-	StoreID      *int64
-	Name         string
-	Description  string
-	CouponType   string
-	ValueCent    int64
-	PointsPrice  int64
-	StockQty     int64
-	IssuedQty    int64
-	PerMemberLim int64
-	Status       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             int64
+	ScopeType      string
+	StoreID        *int64
+	Name           string
+	Description    string
+	CouponType     string
+	AdmissionCount int
+	ValueCent      int64
+	PointsPrice    int64
+	StockQty       int64
+	IssuedQty      int64
+	PerMemberLim   int64
+	Status         string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // ApplicableScope is the best-effort decoded shape of coupon_templates.applicable_scope.
@@ -54,9 +55,10 @@ type ApplicableScope struct {
 
 // TemplateInput is the create/update body for a coupon template.
 type TemplateInput struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
-	CouponType  string `json:"couponType" binding:"required"`
+	Name           string `json:"name" binding:"required"`
+	Description    string `json:"description"`
+	CouponType     string `json:"couponType" binding:"required"`
+	AdmissionCount int    `json:"admissionCount"`
 }
 
 // GrantRequest grants an entitlement to a member from a template.
@@ -84,15 +86,16 @@ type VerifyRequest struct {
 
 // ConsoleTemplateView is the console representation of a coupon template.
 type ConsoleTemplateView struct {
-	ID          int64     `json:"id"`
-	ScopeType   string    `json:"scopeType"`
-	StoreID     *int64    `json:"storeId,omitempty"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	CouponType  string    `json:"couponType"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID             int64     `json:"id"`
+	ScopeType      string    `json:"scopeType"`
+	StoreID        *int64    `json:"storeId,omitempty"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description,omitempty"`
+	CouponType     string    `json:"couponType"`
+	AdmissionCount int       `json:"admissionCount"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // ApplicableItemsView is the console representation of a template's
@@ -165,7 +168,7 @@ type sqlConsoleRepository struct{ db *platdb.DB }
 func NewConsoleRepository(db *platdb.DB) ConsoleRepository { return &sqlConsoleRepository{db: db} }
 
 const templateSelect = `SELECT id, scope_type, store_id, name, COALESCE(description,''),
-	coupon_type, value_cent, points_price, stock_quantity, issued_quantity,
+	coupon_type, admission_count, value_cent, points_price, stock_quantity, issued_quantity,
 	per_member_limit, status, created_at, updated_at
 	FROM coupon_templates`
 
@@ -251,12 +254,26 @@ func validCouponType(t string) bool {
 	}
 }
 
+func normalizedAdmissionCount(couponType string, admissionCount int) (int, error) {
+	if couponType != TypeEventTicket {
+		return 1, nil
+	}
+	if admissionCount < 1 || admissionCount > 99 {
+		return 0, apperr.Invalid("赛事门票券可兑人数必须在 1 到 99 之间")
+	}
+	return admissionCount, nil
+}
+
 func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope ConsoleScope, in TemplateInput) (Template, error) {
 	if !validCouponType(in.CouponType) {
 		return Template{}, apperr.Invalid("优惠券类型不正确")
 	}
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
+	}
+	admissionCount, err := normalizedAdmissionCount(in.CouponType, in.AdmissionCount)
+	if err != nil {
+		return Template{}, err
 	}
 	now := time.Now().UTC()
 	// A store console pins scope_type='store' + its own store id; the admin
@@ -269,12 +286,12 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 	}
 	// All issued coupons have a fixed 30-day validity period.
 	const q = `INSERT INTO coupon_templates
-		(scope_type, store_id, name, description, coupon_type, value_cent, points_price,
+		(scope_type, store_id, name, description, coupon_type, admission_count, value_cent, points_price,
 		 stock_quantity, issued_quantity, validity_rule, applicable_scope, per_member_limit,
 		 status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, JSON_OBJECT('days', 30), '{}', ?, 'draft', ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, JSON_OBJECT('days', 30), '{}', ?, 'draft', ?, ?)`
 	res, err := r.db.ExecContext(ctx, q, scopeType, storeID, in.Name, in.Description, in.CouponType,
-		0, 0, 0, 0, now, now)
+		admissionCount, 0, 0, 0, 0, now, now)
 	if err != nil {
 		return Template{}, apperr.Internal(err)
 	}
@@ -292,13 +309,17 @@ func (r *sqlConsoleRepository) UpdateTemplate(ctx context.Context, scope Console
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
 	}
+	admissionCount, err := normalizedAdmissionCount(in.CouponType, in.AdmissionCount)
+	if err != nil {
+		return Template{}, err
+	}
 	if _, err := r.GetTemplate(ctx, scope, id); err != nil {
 		return Template{}, err
 	}
 	now := time.Now().UTC()
-	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, value_cent=0,
+	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, admission_count=?, value_cent=0,
 		points_price=0, stock_quantity=0, per_member_limit=0, updated_at=? WHERE id=?`
-	args := []any{in.Name, in.Description, in.CouponType, now, id}
+	args := []any{in.Name, in.Description, in.CouponType, admissionCount, now, id}
 	if scope.StoreID != nil {
 		q += ` AND scope_type='store' AND store_id=?`
 		args = append(args, *scope.StoreID)
@@ -560,10 +581,10 @@ func (r *sqlConsoleRepository) grantEntitlement(
 			}
 		}
 		const ins = `INSERT INTO coupon_entitlements
-			(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
+			(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, granted_reason,
 			 granted_by_type, expires_at, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
-		res, err := tx.ExecContext(ctx, ins, entNo, req.TemplateID, req.MemberID, entitlementStoreID,
+			VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
+		res, err := tx.ExecContext(ctx, ins, entNo, req.TemplateID, tmpl.AdmissionCount, req.MemberID, entitlementStoreID,
 			req.Reason, grantedBy, expiresAt, now, now)
 		if err != nil {
 			return apperr.Internal(err)
@@ -877,7 +898,7 @@ func (r *sqlConsoleRepository) Verify(ctx context.Context, scope ConsoleScope, r
 func scanTemplate(s scanner) (Template, error) {
 	var t Template
 	err := s.Scan(&t.ID, &t.ScopeType, &t.StoreID, &t.Name, &t.Description,
-		&t.CouponType, &t.ValueCent, &t.PointsPrice, &t.StockQty, &t.IssuedQty,
+		&t.CouponType, &t.AdmissionCount, &t.ValueCent, &t.PointsPrice, &t.StockQty, &t.IssuedQty,
 		&t.PerMemberLim, &t.Status, &t.CreatedAt, &t.UpdatedAt)
 	return t, err
 }
@@ -1051,7 +1072,7 @@ func (s *ConsoleService) Verify(ctx context.Context, scope ConsoleScope, req Ver
 func templateView(t Template) ConsoleTemplateView {
 	return ConsoleTemplateView{
 		ID: t.ID, ScopeType: t.ScopeType, StoreID: t.StoreID,
-		Name: t.Name, Description: t.Description, CouponType: t.CouponType,
+		Name: t.Name, Description: t.Description, CouponType: t.CouponType, AdmissionCount: t.AdmissionCount,
 		Status: t.Status, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }

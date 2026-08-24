@@ -185,7 +185,7 @@ func (r *statefulConsoleRepo) GetTicketType(_ context.Context, activityID, ticke
 func (r *statefulConsoleRepo) CreateTicketType(_ context.Context, activityID int64, in TicketTypeInput) (TicketType, error) {
 	t := TicketType{
 		ID: r.nextID(), ActivityID: activityID, SessionID: in.SessionID, Name: in.Name,
-		PriceCent: in.PriceCent, StockQuantity: in.StockQuantity, SaleStartAt: in.SaleStartAt,
+		AdmissionCount: in.AdmissionCount, PriceCent: in.PriceCent, StockQuantity: in.StockQuantity, SaleStartAt: in.SaleStartAt,
 		SaleEndAt: in.SaleEndAt, PayChannels: in.PayChannels, MaxTicketsPerOrder: in.MaxTicketsPerOrder,
 		Status: in.Status,
 	}
@@ -202,6 +202,7 @@ func (r *statefulConsoleRepo) UpdateTicketType(_ context.Context, activityID, ti
 		return TicketType{}, apperr.NotFound("ticket type not found")
 	}
 	t.Name = in.Name
+	t.AdmissionCount = in.AdmissionCount
 	t.PriceCent = in.PriceCent
 	t.Status = in.Status
 	r.ticketTypes[ticketTypeID] = t
@@ -351,11 +352,11 @@ func TestConsoleActivityWriteLifecycle(t *testing.T) {
 		t.Fatalf("unexpected session: %+v", sess)
 	}
 
-	tt, err := svc.CreateTicketType(ctx, scope, act.ID, TicketTypeInput{Name: "VIP", PriceCent: 5000, StockQuantity: 100, Status: "active"})
+	tt, err := svc.CreateTicketType(ctx, scope, act.ID, TicketTypeInput{Name: "VIP", AdmissionCount: 2, PriceCent: 5000, StockQuantity: 100, Status: "active"})
 	if err != nil {
 		t.Fatalf("create ticket type: %v", err)
 	}
-	if tt.ActivityID != act.ID || tt.PriceCent != 5000 {
+	if tt.ActivityID != act.ID || tt.AdmissionCount != 2 || tt.PriceCent != 5000 {
 		t.Fatalf("unexpected ticket type: %+v", tt)
 	}
 	if tts, err := svc.ListTicketTypes(ctx, scope, act.ID, nil); err != nil || len(tts) != 1 {

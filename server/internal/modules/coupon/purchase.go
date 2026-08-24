@@ -53,10 +53,13 @@ func GrantPurchasedCoupons(
 	granted := 0
 	expiresAt := now.AddDate(0, 0, 30)
 	for _, line := range lines {
-		var storeID sql.NullInt64
+		var (
+			storeID        sql.NullInt64
+			admissionCount int
+		)
 		if err := tx.QueryRowContext(ctx,
-			`SELECT store_id FROM coupon_templates WHERE id = ? FOR UPDATE`, line.templateID,
-		).Scan(&storeID); err != nil {
+			`SELECT store_id, admission_count FROM coupon_templates WHERE id = ? FOR UPDATE`, line.templateID,
+		).Scan(&storeID, &admissionCount); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return 0, apperr.Conflict("购买的券类型已失效")
 			}
@@ -66,11 +69,11 @@ func GrantPurchasedCoupons(
 			idemKey := fmt.Sprintf("food_coupon:%d:%d:%d", paymentOrderID, line.lineID, sequence)
 			entitlementNo := fmt.Sprintf("FC%d-%d-%d", paymentOrderID, line.lineID, sequence)
 			const insertEntitlement = `INSERT INTO coupon_entitlements
-				(entitlement_no, coupon_template_id, member_id, store_id, status, granted_reason,
+				(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, granted_reason,
 				 granted_by_type, expires_at, idem_key, created_at, updated_at)
-				VALUES (?, ?, ?, ?, 'active', '购买券商品', 'purchase', ?, ?, ?, ?)`
+				VALUES (?, ?, ?, ?, ?, 'active', '购买券商品', 'purchase', ?, ?, ?, ?)`
 			if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, line.templateID,
-				memberID, storeID, expiresAt, idemKey, now, now); err != nil {
+				admissionCount, memberID, storeID, expiresAt, idemKey, now, now); err != nil {
 				if platdb.IsDuplicate(err) {
 					continue
 				}

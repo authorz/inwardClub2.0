@@ -45,6 +45,7 @@ type TicketType struct {
 	SessionID          *int64
 	StoreID            *int64
 	Name               string
+	AdmissionCount     int
 	PriceCent          int64
 	StockQuantity      int64
 	SoldQuantity       int64
@@ -98,6 +99,7 @@ type TicketTypeView struct {
 	SessionID          *int64     `json:"sessionId,omitempty"`
 	StoreID            *int64     `json:"storeId,omitempty"`
 	Name               string     `json:"name"`
+	AdmissionCount     int        `json:"admissionCount"`
 	PriceCent          int64      `json:"priceCent"`
 	StockQuantity      int64      `json:"stockQuantity"`
 	SoldQuantity       int64      `json:"soldQuantity"`
@@ -136,6 +138,7 @@ type SessionInput struct {
 type TicketTypeInput struct {
 	SessionID          *int64     `json:"sessionId"`
 	Name               string     `json:"name" binding:"required"`
+	AdmissionCount     int        `json:"admissionCount"`
 	PriceCent          int64      `json:"priceCent" binding:"required,min=0"`
 	StockQuantity      int64      `json:"stockQuantity"`
 	SaleStartAt        *time.Time `json:"saleStartAt"`
@@ -455,13 +458,13 @@ func (r *sqlConsoleRepository) DeleteSession(ctx context.Context, activityID, se
 	return nil
 }
 
-const ticketTypeColumns = `id, activity_id, session_id, store_id, name, price_cent, stock_quantity,
+const ticketTypeColumns = `id, activity_id, session_id, store_id, name, admission_count, price_cent, stock_quantity,
 	sold_quantity, sale_start_at, sale_end_at, pay_channels, max_tickets_per_order, status, created_at, updated_at`
 
 func scanTicketType(row interface{ Scan(...any) error }) (TicketType, error) {
 	var t TicketType
 	var payChannels []byte
-	err := row.Scan(&t.ID, &t.ActivityID, &t.SessionID, &t.StoreID, &t.Name, &t.PriceCent, &t.StockQuantity,
+	err := row.Scan(&t.ID, &t.ActivityID, &t.SessionID, &t.StoreID, &t.Name, &t.AdmissionCount, &t.PriceCent, &t.StockQuantity,
 		&t.SoldQuantity, &t.SaleStartAt, &t.SaleEndAt, &payChannels, &t.MaxTicketsPerOrder, &t.Status, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return TicketType{}, err
@@ -520,10 +523,10 @@ func (r *sqlConsoleRepository) CreateTicketType(ctx context.Context, activityID 
 		status = "active"
 	}
 	const q = `INSERT INTO activity_ticket_types
-		(activity_id, session_id, store_id, name, price_cent, stock_quantity, sold_quantity,
+		(activity_id, session_id, store_id, name, admission_count, price_cent, stock_quantity, sold_quantity,
 		 sale_start_at, sale_end_at, pay_channels, max_tickets_per_order, status, created_at, updated_at)
-		VALUES (?, ?, (SELECT store_id FROM activities WHERE id = ?), ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := r.db.ExecContext(ctx, q, activityID, in.SessionID, activityID, in.Name, in.PriceCent,
+		VALUES (?, ?, (SELECT store_id FROM activities WHERE id = ?), ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+	res, err := r.db.ExecContext(ctx, q, activityID, in.SessionID, activityID, in.Name, in.AdmissionCount, in.PriceCent,
 		in.StockQuantity, in.SaleStartAt, in.SaleEndAt, encodeChannels(in.PayChannels),
 		in.MaxTicketsPerOrder, status, now, now)
 	if err != nil {
@@ -547,10 +550,10 @@ func (r *sqlConsoleRepository) UpdateTicketType(ctx context.Context, activityID,
 	if status == "" {
 		status = "active"
 	}
-	const q = `UPDATE activity_ticket_types SET session_id=?, name=?, price_cent=?, stock_quantity=?,
+	const q = `UPDATE activity_ticket_types SET session_id=?, name=?, admission_count=?, price_cent=?, stock_quantity=?,
 		sale_start_at=?, sale_end_at=?, pay_channels=?, max_tickets_per_order=?, status=?, updated_at=?
 		WHERE id=? AND activity_id=?`
-	if _, err := r.db.ExecContext(ctx, q, in.SessionID, in.Name, in.PriceCent, in.StockQuantity,
+	if _, err := r.db.ExecContext(ctx, q, in.SessionID, in.Name, in.AdmissionCount, in.PriceCent, in.StockQuantity,
 		in.SaleStartAt, in.SaleEndAt, encodeChannels(in.PayChannels), in.MaxTicketsPerOrder, status, now,
 		ticketTypeID, activityID); err != nil {
 		return TicketType{}, apperr.Internal(err)
@@ -609,7 +612,7 @@ func sessionView(s Session) SessionView {
 func ticketTypeView(t TicketType) TicketTypeView {
 	return TicketTypeView{
 		ID: t.ID, ActivityID: t.ActivityID, SessionID: t.SessionID, StoreID: t.StoreID, Name: t.Name,
-		PriceCent: t.PriceCent, StockQuantity: t.StockQuantity, SoldQuantity: t.SoldQuantity,
+		AdmissionCount: t.AdmissionCount, PriceCent: t.PriceCent, StockQuantity: t.StockQuantity, SoldQuantity: t.SoldQuantity,
 		SaleStartAt: t.SaleStartAt, SaleEndAt: t.SaleEndAt, PayChannels: t.PayChannels,
 		MaxTicketsPerOrder: t.MaxTicketsPerOrder, Status: t.Status, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
@@ -857,6 +860,9 @@ func validateTicketTypeInput(in TicketTypeInput) error {
 	}
 	if in.PriceCent <= 0 {
 		return apperr.Invalid("票档价格必须大于 0")
+	}
+	if in.AdmissionCount < 1 || in.AdmissionCount > 99 {
+		return apperr.Invalid("票档人数必须在 1 到 99 之间")
 	}
 	if in.StockQuantity < 0 {
 		return apperr.Invalid("票档库存不能小于 0")

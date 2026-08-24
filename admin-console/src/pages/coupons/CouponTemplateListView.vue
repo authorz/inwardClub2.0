@@ -5,6 +5,7 @@ import {
   NFormItemGi,
   NGrid,
   NInput,
+  NInputNumber,
   NSelect,
   NSpace,
 } from 'naive-ui'
@@ -65,11 +66,12 @@ const form = reactive({
   name: '',
   description: '',
   couponType: 'alcohol',
+  admissionCount: 1,
 })
 
 function resetForm(): void {
   Object.assign(form, {
-    name: '', description: '', couponType: 'alcohol',
+    name: '', description: '', couponType: 'alcohol', admissionCount: 1,
   })
 }
 function openCreate(): void {
@@ -85,6 +87,7 @@ async function openEdit(row: CouponTemplate): Promise<void> {
       name: detail.name,
       description: detail.description ?? '',
       couponType: detail.couponType,
+      admissionCount: detail.admissionCount || 1,
     })
     show.value = true
   } catch (error) {
@@ -93,10 +96,14 @@ async function openEdit(row: CouponTemplate): Promise<void> {
 }
 async function save(): Promise<void> {
   if (!form.name.trim()) return toastError('请填写券名称')
+  if (form.couponType === 'event_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
+    return toastError('请填写正确的可兑人数')
+  }
   saving.value = true
   try {
     const payload = {
       name: form.name.trim(), description: form.description.trim(), couponType: form.couponType,
+      admissionCount: form.couponType === 'event_ticket' ? form.admissionCount : 1,
     }
     if (editingId.value) await couponTemplateService.update(editingId.value, payload)
     else await couponTemplateService.create(payload)
@@ -146,7 +153,7 @@ const toolbarActions = [{
     <ResourceListView
       ref="listRef"
       title="券管理"
-      description="维护平台券类型；一张券只能兑换一种商品或一张活动门票"
+      description="维护平台券类型；赛事门票券按可兑人数匹配活动票档"
       :breadcrumb="['权益规则', '券管理']"
       :fields="fields"
       :columns="columns"
@@ -182,6 +189,19 @@ const toolbarActions = [{
             <NSelect
               v-model:value="form.couponType"
               :options="couponTypes"
+            />
+          </NFormItemGi>
+          <NFormItemGi
+            v-if="form.couponType === 'event_ticket'"
+            label="可兑人数"
+            required
+          >
+            <NInputNumber
+              v-model:value="form.admissionCount"
+              :min="1"
+              :max="99"
+              :precision="0"
+              style="width: 100%"
             />
           </NFormItemGi>
           <NFormItemGi

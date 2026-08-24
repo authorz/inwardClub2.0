@@ -36,14 +36,15 @@ func TestGrantPurchasedCouponsIntegration(t *testing.T) {
 	defer tx.Rollback()
 
 	var memberID, storeID, templateID int64
+	var templateAdmissionCount int
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM members ORDER BY id LIMIT 1`).Scan(&memberID); err != nil {
 		t.Fatalf("select member: %v", err)
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM stores ORDER BY id LIMIT 1`).Scan(&storeID); err != nil {
 		t.Fatalf("select store: %v", err)
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_templates
-		WHERE status = 'published' ORDER BY id LIMIT 1`).Scan(&templateID); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id, admission_count FROM coupon_templates
+		WHERE status = 'published' ORDER BY id LIMIT 1`).Scan(&templateID, &templateAdmissionCount); err != nil {
 		t.Fatalf("select coupon template: %v", err)
 	}
 
@@ -88,13 +89,14 @@ func TestGrantPurchasedCouponsIntegration(t *testing.T) {
 	}
 
 	var count int
+	var admissionCount int
 	var earliestExpiry sql.NullTime
 	prefix := fmt.Sprintf("food_coupon:%d:%d:%%", paymentOrderID, lineID)
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*), MIN(expires_at)
-		FROM coupon_entitlements WHERE idem_key LIKE ?`, prefix).Scan(&count, &earliestExpiry); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*), MIN(expires_at), MIN(admission_count)
+		FROM coupon_entitlements WHERE idem_key LIKE ?`, prefix).Scan(&count, &earliestExpiry, &admissionCount); err != nil {
 		t.Fatalf("read entitlements: %v", err)
 	}
-	if count != 2 || !earliestExpiry.Valid || !earliestExpiry.Time.Equal(now.AddDate(0, 0, 30)) {
-		t.Fatalf("unexpected entitlements: count=%d expiry=%v", count, earliestExpiry)
+	if count != 2 || admissionCount != templateAdmissionCount || !earliestExpiry.Valid || !earliestExpiry.Time.Equal(now.AddDate(0, 0, 30)) {
+		t.Fatalf("unexpected entitlements: count=%d admission=%d expiry=%v", count, admissionCount, earliestExpiry)
 	}
 }

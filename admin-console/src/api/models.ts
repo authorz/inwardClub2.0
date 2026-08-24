@@ -142,6 +142,7 @@ export interface ActivityTicketType {
   id: string | number
   activityId: string | number
   name: string
+  admissionCount: number
   priceCent: number
   stockQuantity: number
   soldQuantity?: number
@@ -156,6 +157,7 @@ export interface CouponTemplate extends AuditableEntity {
   name: string
   description?: string
   couponType: string
+  admissionCount: number
   scopeType?: string
   storeId?: string | number | null
 }

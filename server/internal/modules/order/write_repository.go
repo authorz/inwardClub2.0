@@ -346,20 +346,21 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		// Resolve the ticket type: price, session, owning activity and store.
 		var (
 			price               int64
+			ticketAdmission     int
 			sessionID           sql.NullInt64
 			storeID             sql.NullInt64
 			ttActivity          int64
 			ticketPayChannels   []byte
 			activityPayChannels []byte
 		)
-		const selTT = `SELECT tt.price_cent, tt.session_id, tt.store_id, tt.activity_id,
+		const selTT = `SELECT tt.price_cent, tt.admission_count, tt.session_id, tt.store_id, tt.activity_id,
 			       tt.pay_channels, a.pay_channels
 			FROM activity_ticket_types tt JOIN activities a ON a.id = tt.activity_id
 			WHERE tt.id = ? AND tt.status = 'active'
 			  AND (tt.sale_start_at IS NULL OR tt.sale_start_at <= ?)
 			  AND (tt.sale_end_at IS NULL OR tt.sale_end_at >= ?)`
 		err := tx.QueryRowContext(ctx, selTT, in.TicketTypeID, in.Now, in.Now).Scan(
-			&price, &sessionID, &storeID, &ttActivity, &ticketPayChannels, &activityPayChannels,
+			&price, &ticketAdmission, &sessionID, &storeID, &ttActivity, &ticketPayChannels, &activityPayChannels,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
 			return apperr.Conflict("该票档当前不在售卖时间内")
@@ -402,21 +403,25 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		chargedTotal := total
 		if in.PayMethod == PayMethodCoupon {
 			chargedTotal = 0
+			if in.Quantity != 1 {
+				return apperr.Invalid("一张赛事门票券只能兑换一个对应票档")
+			}
 			if in.CouponEntitlementID == nil {
 				return apperr.Invalid("请选择赛事门票券")
 			}
 			var (
-				couponStatus string
-				couponMember int64
-				couponStore  sql.NullInt64
-				couponExpiry sql.NullTime
-				couponType   string
+				couponStatus    string
+				couponMember    int64
+				couponStore     sql.NullInt64
+				couponExpiry    sql.NullTime
+				couponType      string
+				couponAdmission int
 			)
-			const selectCoupon = `SELECT e.status, e.member_id, e.store_id, e.expires_at, ct.coupon_type
+			const selectCoupon = `SELECT e.status, e.member_id, e.store_id, e.expires_at, ct.coupon_type, e.admission_count
 				FROM coupon_entitlements e JOIN coupon_templates ct ON ct.id = e.coupon_template_id
 				WHERE e.id = ? FOR UPDATE`
 			err := tx.QueryRowContext(ctx, selectCoupon, *in.CouponEntitlementID).Scan(
-				&couponStatus, &couponMember, &couponStore, &couponExpiry, &couponType,
+				&couponStatus, &couponMember, &couponStore, &couponExpiry, &couponType, &couponAdmission,
 			)
 			if errors.Is(err, sql.ErrNoRows) {
 				return apperr.NotFound("赛事门票券不存在")
@@ -433,6 +438,9 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 			}
 			if couponStore.Valid && (!storeID.Valid || couponStore.Int64 != storeID.Int64) {
 				return apperr.Invalid("赛事门票券不适用于当前门店")
+			}
+			if couponAdmission != ticketAdmission {
+				return apperr.Invalid("赛事门票券人数与所选票档人数不匹配")
 			}
 		}
 		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeActivity, storePtr, in.MemberID, chargedTotal, in.Now)

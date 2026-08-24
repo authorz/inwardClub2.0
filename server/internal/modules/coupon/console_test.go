@@ -752,6 +752,18 @@ func TestValidCouponType(t *testing.T) {
 	}
 }
 
+func TestNormalizedAdmissionCount(t *testing.T) {
+	if got, err := normalizedAdmissionCount(TypeEventTicket, 3); err != nil || got != 3 {
+		t.Fatalf("expected three-person event coupon, got count=%d err=%v", got, err)
+	}
+	if _, err := normalizedAdmissionCount(TypeEventTicket, 0); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid zero admission count, got %v", err)
+	}
+	if got, err := normalizedAdmissionCount(TypeAlcohol, 8); err != nil || got != 1 {
+		t.Fatalf("non-event coupons must normalize to one, got count=%d err=%v", got, err)
+	}
+}
+
 // Verify rejects a request that identifies no entitlement before touching the DB.
 func TestSQLConsoleRepositoryVerifyRequiresIdentifier(t *testing.T) {
 	repo := &sqlConsoleRepository{}
