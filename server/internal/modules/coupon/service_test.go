@@ -13,8 +13,10 @@ import (
 
 type memRepo struct {
 	byMember    map[int64][]MemberCoupon
+	byActivity  map[int64][]MemberCoupon
 	redemptions map[int64][]RedemptionOrder
 	lastRedeem  *RedeemInput
+	activityID  int64
 }
 
 type fakeRedeemableCatalog struct {
@@ -32,6 +34,12 @@ func (r *memRepo) ListMemberCoupons(_ context.Context, memberID int64, status st
 			out = append(out, c)
 		}
 	}
+	return out, int64(len(out)), nil
+}
+
+func (r *memRepo) ListActivityUsableCoupons(_ context.Context, _ int64, activityID int64, _ time.Time, _ string, _, _ int) ([]MemberCoupon, int64, error) {
+	r.activityID = activityID
+	out := r.byActivity[activityID]
 	return out, int64(len(out)), nil
 }
 
@@ -105,6 +113,24 @@ func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 	}
 	if active[0].ExpiresAt != "2026-09-12 02:46:05" {
 		t.Fatalf("unexpected expiresAt format: %q", active[0].ExpiresAt)
+	}
+}
+
+func TestListActivityUsableCouponsUsesActivityFilter(t *testing.T) {
+	repo := &memRepo{byActivity: map[int64][]MemberCoupon{
+		8: {{EntitlementID: 3, Name: "当前活动单人票券", CouponType: TypeEventTicket, AdmissionCount: 1, Status: StatusActive}},
+	}}
+	svc := NewService(repo)
+
+	views, total, err := svc.ListActivityUsableCoupons(context.Background(), 10, 8, httpx.Page{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("list activity coupons: %v", err)
+	}
+	if repo.activityID != 8 || total != 1 || len(views) != 1 || views[0].EntitlementID != 3 {
+		t.Fatalf("unexpected activity coupon result: activity=%d total=%d views=%+v", repo.activityID, total, views)
+	}
+	if _, _, err := svc.ListActivityUsableCoupons(context.Background(), 10, 0, httpx.Page{Page: 1, PageSize: 20}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("invalid activity id error = %v", err)
 	}
 }
 

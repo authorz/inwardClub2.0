@@ -24,7 +24,20 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) List(c *gin.Context) {
 	memberID := authn.MustFromContext(c).SubjectID()
 	page := httpx.ParsePage(c)
-	views, total, err := h.svc.ListCoupons(c.Request.Context(), memberID, c.Query("status"), page)
+	var (
+		views []MemberCouponView
+		total int64
+		err   error
+	)
+	if c.Query("activityId") != "" {
+		var activityID int64
+		activityID, err = positiveQueryID(c, "activityId")
+		if err == nil {
+			views, total, err = h.svc.ListActivityUsableCoupons(c.Request.Context(), memberID, activityID, page)
+		}
+	} else {
+		views, total, err = h.svc.ListCoupons(c.Request.Context(), memberID, c.Query("status"), page)
+	}
 	if err != nil {
 		httpx.Fail(c, err)
 		return

@@ -5667,10 +5667,11 @@ paths:
     get:
       tags: [mini]
       summary: List the member's coupons (entitlements)
-      description: Returns the authenticated member's coupon entitlements, newest first. Optional `status` filter (`active`/`used`/`void`/`expired`).
+      description: Returns the authenticated member's coupon entitlements. When `activityId` is provided, only currently usable event-ticket coupons for that activity are returned; this excludes expired/store- or admission-mismatched coupons, sold-out ticket matches, and VIP benefit coupons after today's VIP coupon allowance has been used.
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: query, name: status, required: false, schema: { type: string, enum: [active, used, void, expired] } }
+        - { in: query, name: activityId, required: false, schema: { type: integer, format: int64, minimum: 1 }, description: 'Activity-specific usable-coupon filter; when present, status is ignored and only active event-ticket coupons are considered.' }
         - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
         - { in: query, name: pageSize, required: false, schema: { type: integer, default: 20, maximum: 100 } }
       responses:

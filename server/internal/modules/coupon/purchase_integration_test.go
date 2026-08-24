@@ -100,3 +100,102 @@ func TestGrantPurchasedCouponsIntegration(t *testing.T) {
 		t.Fatalf("unexpected entitlements: count=%d admission=%d expiry=%v", count, admissionCount, earliestExpiry)
 	}
 }
+
+func TestListActivityUsableCouponsIntegration(t *testing.T) {
+	if os.Getenv("RUN_MYSQL_INTEGRATION") != "1" {
+		t.Skip("set RUN_MYSQL_INTEGRATION=1 to run")
+	}
+	ctx := context.Background()
+	_, sourceFile, _, _ := runtime.Caller(0)
+	env, err := godotenv.Read(filepath.Join(filepath.Dir(sourceFile), "../../../.env"))
+	if err != nil {
+		t.Fatalf("load .env: %v", err)
+	}
+	db, err := platdb.Open(ctx, env["MYSQL_DSN"])
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer db.Close()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	res, err := tx.ExecContext(ctx, `INSERT INTO members
+		(nickname, profile_completed, status, created_at, updated_at)
+		VALUES ('activity-coupon-list-integration', 1, 'active', ?, ?)`, now, now)
+	if err != nil {
+		t.Fatalf("insert member: %v", err)
+	}
+	memberID, _ := res.LastInsertId()
+	res, err = tx.ExecContext(ctx, `INSERT INTO activities
+		(scope_type, title, pay_channels, status, created_at, updated_at)
+		VALUES ('global', 'activity coupon list integration', JSON_ARRAY('wechat', 'coupon'), 'published', ?, ?)`, now, now)
+	if err != nil {
+		t.Fatalf("insert activity: %v", err)
+	}
+	activityID, _ := res.LastInsertId()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO activity_ticket_types
+		(activity_id, name, admission_count, price_cent, stock_quantity, sold_quantity, pay_channels, status, created_at, updated_at)
+		VALUES (?, 'single', 1, 100, 0, 0, JSON_ARRAY('wechat'), 'active', ?, ?)`, activityID, now, now); err != nil {
+		t.Fatalf("insert ticket type: %v", err)
+	}
+	res, err = tx.ExecContext(ctx, `INSERT INTO coupon_templates
+		(scope_type, name, coupon_type, admission_count, validity_rule, applicable_scope, status, created_at, updated_at)
+		VALUES ('global', 'activity coupon list integration', 'event_ticket', 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`, now, now)
+	if err != nil {
+		t.Fatalf("insert template: %v", err)
+	}
+	templateID, _ := res.LastInsertId()
+
+	purchasedID := insertActivityListEntitlement(t, tx, memberID, templateID, 1, "购买券商品", "purchase", now.Add(time.Hour), 1)
+	vipID := insertActivityListEntitlement(t, tx, memberID, templateID, 1, vipBenefitGrantedReason, "system", now.Add(time.Hour), 2)
+	insertActivityListEntitlement(t, tx, memberID, templateID, 2, "购买券商品", "purchase", now.Add(time.Hour), 3)
+	insertActivityListEntitlement(t, tx, memberID, templateID, 1, "购买券商品", "purchase", now.Add(-time.Hour), 4)
+	usageDate := now.In(vipUsageLocation).Format("2006-01-02")
+
+	coupons, total, err := listActivityUsableCoupons(ctx, tx, memberID, activityID, now, usageDate, 20, 0)
+	if err != nil {
+		t.Fatalf("list before VIP use: %v", err)
+	}
+	if total != 2 || len(coupons) != 2 {
+		t.Fatalf("before VIP use got total=%d coupons=%+v", total, coupons)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO vip_coupon_daily_usages
+		(member_id, usage_date, entitlement_id, created_at) VALUES (?, ?, ?, ?)`, memberID, usageDate, vipID, now); err != nil {
+		t.Fatalf("insert VIP daily usage: %v", err)
+	}
+	coupons, total, err = listActivityUsableCoupons(ctx, tx, memberID, activityID, now, usageDate, 20, 0)
+	if err != nil {
+		t.Fatalf("list after VIP use: %v", err)
+	}
+	if total != 1 || len(coupons) != 1 || coupons[0].EntitlementID != purchasedID {
+		t.Fatalf("after VIP use got total=%d coupons=%+v", total, coupons)
+	}
+}
+
+func insertActivityListEntitlement(
+	t *testing.T,
+	tx *sql.Tx,
+	memberID, templateID int64,
+	admissionCount int,
+	reason, grantedBy string,
+	expiresAt time.Time,
+	sequence int,
+) int64 {
+	t.Helper()
+	now := time.Now().UTC()
+	no := fmt.Sprintf("ACTIVITY-LIST-%d-%d", memberID, sequence)
+	res, err := tx.Exec(`INSERT INTO coupon_entitlements
+		(entitlement_no, coupon_template_id, admission_count, member_id, status, granted_reason,
+		 granted_by_type, expires_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+		no, templateID, admissionCount, memberID, reason, grantedBy, expiresAt, now, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}

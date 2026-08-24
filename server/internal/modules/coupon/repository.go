@@ -17,6 +17,7 @@ import (
 // in the same transaction that consumes the entitlement.
 type Repository interface {
 	ListMemberCoupons(ctx context.Context, memberID int64, status string, limit, offset int) ([]MemberCoupon, int64, error)
+	ListActivityUsableCoupons(ctx context.Context, memberID, activityID int64, now time.Time, usageDate string, limit, offset int) ([]MemberCoupon, int64, error)
 	GetEntitlement(ctx context.Context, memberID, entitlementID int64) (MemberCoupon, error)
 	// Redeem records a redemption and flips the entitlement to used in one
 	// transaction, guarded by the idempotency key and the unique redemption index.
@@ -83,6 +84,83 @@ func (r *sqlRepository) ListMemberCoupons(ctx context.Context, memberID int64, s
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, c)
+	}
+	return out, total, rows.Err()
+}
+
+// ListActivityUsableCoupons returns only entitlements that can currently buy
+// at least one sellable ticket tier of the selected activity. VIP-benefit
+// coupons are omitted after the member has used any VIP coupon that business
+// day; purchased and manually granted coupons do not share that daily limit.
+func (r *sqlRepository) ListActivityUsableCoupons(
+	ctx context.Context,
+	memberID, activityID int64,
+	now time.Time,
+	usageDate string,
+	limit, offset int,
+) ([]MemberCoupon, int64, error) {
+	return listActivityUsableCoupons(ctx, r.db, memberID, activityID, now, usageDate, limit, offset)
+}
+
+type couponQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func listActivityUsableCoupons(
+	ctx context.Context,
+	queryer couponQueryer,
+	memberID, activityID int64,
+	now time.Time,
+	usageDate string,
+	limit, offset int,
+) ([]MemberCoupon, int64, error) {
+	const joins = ` JOIN activities a ON a.id = ?`
+	const where = `e.member_id = ?
+		AND e.status = 'active'
+		AND t.coupon_type = 'event_ticket'
+		AND (e.expires_at IS NULL OR e.expires_at > ?)
+		AND a.status = 'published'
+		AND JSON_CONTAINS(COALESCE(a.pay_channels, JSON_ARRAY()), JSON_QUOTE('coupon'))
+		AND (e.store_id IS NULL OR e.store_id = a.store_id)
+		AND EXISTS (
+			SELECT 1 FROM activity_ticket_types tt
+			WHERE tt.activity_id = a.id
+			  AND tt.status = 'active'
+			  AND tt.admission_count = e.admission_count
+			  AND (tt.sale_start_at IS NULL OR tt.sale_start_at <= ?)
+			  AND (tt.sale_end_at IS NULL OR tt.sale_end_at >= ?)
+			  AND (tt.stock_quantity = 0 OR tt.sold_quantity < tt.stock_quantity)
+		)
+		AND NOT (
+			e.granted_reason = ? AND e.granted_by_type = 'system'
+			AND EXISTS (
+				SELECT 1 FROM vip_coupon_daily_usages u
+				WHERE u.member_id = e.member_id AND u.usage_date = ?
+			)
+		)`
+	args := []any{activityID, memberID, now, now, now, vipBenefitGrantedReason, usageDate}
+	var total int64
+	if err := queryer.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id = e.coupon_template_id`+joins+` WHERE `+where,
+		args...,
+	).Scan(&total); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	q := couponSelect + joins + ` WHERE ` + where + ` ORDER BY e.expires_at IS NULL, e.expires_at, e.id LIMIT ? OFFSET ?`
+	queryArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := queryer.QueryContext(ctx, q, queryArgs...)
+	if err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	defer rows.Close()
+	out := make([]MemberCoupon, 0, min(limit, int(total)))
+	for rows.Next() {
+		coupon, err := scanCoupon(rows)
+		if err != nil {
+			return nil, 0, apperr.Internal(err)
+		}
+		out = append(out, coupon)
 	}
 	return out, total, rows.Err()
 }

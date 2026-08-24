@@ -48,6 +48,28 @@ func (s *Service) ListCoupons(ctx context.Context, memberID int64, status string
 	return views, total, nil
 }
 
+// ListActivityUsableCoupons returns the member's currently redeemable event
+// ticket coupons for one activity. The repository applies all transactional
+// eligibility constraints that can be known before a ticket tier is selected.
+func (s *Service) ListActivityUsableCoupons(ctx context.Context, memberID, activityID int64, page httpx.Page) ([]MemberCouponView, int64, error) {
+	if activityID <= 0 {
+		return nil, 0, apperr.Invalid("活动信息不正确")
+	}
+	now := time.Now().UTC()
+	usageDate := now.In(couponBusinessLocation).Format("2006-01-02")
+	coupons, total, err := s.repo.ListActivityUsableCoupons(
+		ctx, memberID, activityID, now, usageDate, page.Limit(), page.Offset(),
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	views := make([]MemberCouponView, 0, len(coupons))
+	for _, coupon := range coupons {
+		views = append(views, couponView(coupon))
+	}
+	return views, total, nil
+}
+
 // ListEligibleItems returns the authenticated coupon plus the products that
 // the selected store has explicitly enabled for that concrete coupon template.
 func (s *Service) ListEligibleItems(ctx context.Context, memberID, entitlementID, storeID int64) (EligibleItemsView, error) {

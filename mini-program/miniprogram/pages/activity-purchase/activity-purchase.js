@@ -49,7 +49,9 @@ Page({
       return;
     }
     const couponsPromise = silentLogin.ensure().catch(() => null).then(() =>
-      auth.isLoggedIn() ? api.getCoupons().catch(() => ({ data: [] })) : { data: [] }
+      auth.isLoggedIn()
+        ? api.getCoupons({ activityId: id, pageSize: 100 }).catch(() => ({ data: [] }))
+        : { data: [] }
     );
     Promise.all([api.getActivity(id), couponsPromise])
       .then(([res, couponRes]) => {
