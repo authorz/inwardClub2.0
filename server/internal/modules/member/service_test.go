@@ -423,8 +423,16 @@ func TestRankingPeriodValidation(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, fakeAssets{}, nil)
 
+	for _, period := range []string{RankingMonth, RankingAll, RankingWater} {
+		if _, err := svc.ListRankings(context.Background(), period); err != nil {
+			t.Fatalf("period %q should be valid: %v", period, err)
+		}
+	}
 	if _, err := svc.ListRankings(context.Background(), "yearly"); codeOf(err) != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+	}
+	if _, err := svc.ListRankings(context.Background(), "week"); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("legacy week period should be invalid, got %v", err)
 	}
 }
 
@@ -432,7 +440,7 @@ func TestListRankingsMapsView(t *testing.T) {
 	repo := newFakeRepo()
 	avatar := int64(7)
 	repo.rankings = []RankingEntry{
-		{Rank: 1, MemberID: 42, Nickname: "top", AvatarAssetID: &avatar, Gender: "female", Score: 500},
+		{Rank: 1, MemberID: 42, Nickname: "top", AvatarAssetID: &avatar, Gender: "female", Score: 500, GrowthValue: 1200},
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
@@ -444,7 +452,7 @@ func TestListRankingsMapsView(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(views))
 	}
 	got := views[0]
-	if got.Rank != 1 || got.MemberID != 42 || got.Nickname != "top" || got.Gender != "female" || got.Score != 500 || got.AvatarURL == "" {
+	if got.Rank != 1 || got.MemberID != 42 || got.Nickname != "top" || got.Gender != "female" || got.Score != 500 || got.GrowthValue != 1200 || got.AvatarURL == "" {
 		t.Fatalf("unexpected ranking view: %+v", got)
 	}
 }
@@ -477,7 +485,7 @@ func TestCatalogueNotImplementedWhenTablesMissing(t *testing.T) {
 	if _, err := svc.ListRechargeProducts(ctx); codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("products: expected NOT_IMPLEMENTED, got %v", err)
 	}
-	if _, err := svc.ListRankings(ctx, "week"); codeOf(err) != apperr.CodeNotImplemented {
+	if _, err := svc.ListRankings(ctx, RankingWater); codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("rankings: expected NOT_IMPLEMENTED, got %v", err)
 	}
 }

@@ -625,7 +625,8 @@ components:
         memberId: { type: integer, format: int64 }
         nickname: { type: string }
         avatarUrl: { type: string }
-        score: { type: integer, format: int64, description: 'Sum of approved point_savings.points in the window' }
+        score: { type: integer, format: int64, description: 'Approved deposited points for month/all; approved awarded profit points for water' }
+        growthValue: { type: integer, format: int64, description: 'Current growth_value wallet balance; display-only and not used for ranking' }
     SignInResult:
       type: object
       description: >
@@ -1973,8 +1974,8 @@ paths:
       parameters:
         - name: period
           in: query
-          description: 'Window: week, month or all (default all)'
-          schema: { type: string, enum: [week, month, all] }
+          description: 'Board: month (current natural-month deposits), all (all-time deposits), or water (current natural-month profit points); default all'
+          schema: { type: string, enum: [month, all, water] }
       responses:
         '200':
           description: ranking snapshot (top scorers, descending by score)

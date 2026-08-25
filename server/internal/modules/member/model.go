@@ -1,7 +1,7 @@
 // Package member owns the mini-program member self-service surface: profile,
 // phone binding, invitations, plus the read-only membership tier / recharge
-// product / ranking catalogues. Rankings are derived from settled recharge
-// orders across all stores.
+// product / ranking catalogues. Rankings are derived from approved point-saving
+// requests across all stores.
 package member
 
 import (
@@ -145,6 +145,7 @@ type RankingEntry struct {
 	AvatarURL     string
 	Gender        string
 	Score         int64
+	GrowthValue   int64
 }
 
 // Member status values.
@@ -155,7 +156,7 @@ const (
 
 // Ranking periods.
 const (
-	RankingWeek  = "week"
 	RankingMonth = "month"
 	RankingAll   = "all"
+	RankingWater = "water"
 )

@@ -14,12 +14,12 @@
     <view class="rk__arena ic-glass-recessed">
       <view class="rk__arena-head">
         <view>
-          <text class="rk__arena-title">{{board.scopeLabel}}巅峰榜</text>
-          <text class="rk__arena-sub">微信支付越多，排名越高</text>
+          <text class="rk__arena-title">{{board.title}}</text>
+          <text class="rk__arena-sub">{{board.summaryText}}</text>
         </view>
         <view class="rk__arena-meta">
-          <text class="rk__arena-label">冠军成长值</text>
-          <text class="rk__arena-value">{{board.championGrowthText}}</text>
+          <text class="rk__arena-label">冠军{{board.metricLabel}}</text>
+          <text class="rk__arena-value">{{board.championScoreText}}</text>
         </view>
       </view>
 
@@ -34,8 +34,9 @@
               <text class="rk__medal">{{item.rank}}</text>
             </view>
             <text class="rk__podium-name ic-ellipsis">{{item.name}}</text>
-            <text class="rk__podium-score">{{item.growthText}}</text>
-            <text class="rk__podium-unit">成长值</text>
+            <text class="rk__podium-score">{{item.scoreText}}</text>
+            <text class="rk__podium-unit">{{board.metricLabel}}</text>
+            <text class="rk__podium-growth">成长值 {{item.growthText}}</text>
           </view>
           <view class="rk__stage">
             <text class="rk__stage-rank">{{item.rank}}</text>
@@ -55,7 +56,10 @@
           <text class="rk__chase-kicker">我的冲榜进度</text>
           <view class="rk__chase-rank-line">
             <text class="rk__chase-rank">第 {{board.myRank}} 名</text>
-            <text class="rk__chase-score">{{board.myGrowthText}} 成长值</text>
+            <view class="rk__chase-assets">
+              <text class="rk__chase-score">{{board.myScoreText}} {{board.metricLabel}}</text>
+              <text class="rk__chase-growth">成长值 {{board.myGrowthText}}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -76,7 +80,7 @@
 
     <view wx:elif="{{loggedIn}}" class="rk__chase rk__chase--outside ic-glass-recessed">
       <text class="rk__outside-title">暂未进入前 50 名</text>
-      <text class="rk__outside-sub">使用微信完成充值或消费即可获得成长值</text>
+      <text class="rk__outside-sub">{{board.summaryText}}</text>
     </view>
 
     <view wx:else class="rk__login-note ic-glass-recessed">
@@ -86,7 +90,7 @@
     <view class="rk__list-head">
       <view>
         <text class="rk__list-title">全榜排名</text>
-        <text class="rk__list-sub">成长值按微信支付金额 1:1 累计</text>
+        <text class="rk__list-sub">{{board.periodLabel}} · {{board.metricLabel}}排序</text>
       </view>
       <text class="rk__count-tag">当前上榜 {{board.total}} 人</text>
     </view>
@@ -109,18 +113,20 @@
           </view>
         </view>
         <view class="rk__score-wrap">
-          <text class="rk__score">{{item.growthText}}</text>
+          <text class="rk__score">{{item.scoreText}}</text>
+          <text class="rk__score-label">{{board.metricLabel}}</text>
+          <text class="rk__growth">成长值 {{item.growthText}}</text>
           <text class="rk__gap">{{item.gapText}}</text>
         </view>
       </view>
     </view>
 
-    <text class="rk__foot">榜单根据微信支付成功金额实时统计</text>
+    <text class="rk__foot">{{board.footText}}</text>
     </block>
 
     <view wx:else class="rk__empty">
-      <text class="rk__empty-title">本期暂无成长值排名</text>
-      <text class="rk__empty-sub">使用微信完成充值或消费后即可进入排行榜</text>
+      <text class="rk__empty-title">{{board.emptyTitle}}</text>
+      <text class="rk__empty-sub">{{board.emptySub}}</text>
     </view>
   </block>
 </view>

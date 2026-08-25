@@ -400,12 +400,13 @@ func (s *Service) ListRankings(ctx context.Context, period string) ([]RankingEnt
 			avatarURL = s.assetURL(ctx, e.AvatarAssetID)
 		}
 		views = append(views, RankingEntryView{
-			Rank:      e.Rank,
-			MemberID:  e.MemberID,
-			Nickname:  e.Nickname,
-			AvatarURL: avatarURL,
-			Gender:    e.Gender,
-			Score:     e.Score,
+			Rank:        e.Rank,
+			MemberID:    e.MemberID,
+			Nickname:    e.Nickname,
+			AvatarURL:   avatarURL,
+			Gender:      e.Gender,
+			Score:       e.Score,
+			GrowthValue: e.GrowthValue,
 		})
 	}
 	return views, nil
@@ -568,7 +569,7 @@ func normalizeRankingPeriod(period string) (string, error) {
 	switch period {
 	case "":
 		return RankingAll, nil
-	case RankingWeek, RankingMonth, RankingAll:
+	case RankingMonth, RankingAll, RankingWater:
 		return period, nil
 	default:
 		return "", apperr.Invalid("invalid ranking period")

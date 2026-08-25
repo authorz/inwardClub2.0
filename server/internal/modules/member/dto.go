@@ -118,10 +118,11 @@ type RechargeProductUpdateRequest struct {
 
 // RankingEntryView is one leaderboard row.
 type RankingEntryView struct {
-	Rank      int    `json:"rank"`
-	MemberID  int64  `json:"memberId"`
-	Nickname  string `json:"nickname"`
-	AvatarURL string `json:"avatarUrl,omitempty"`
-	Gender    string `json:"gender,omitempty"`
-	Score     int64  `json:"score"`
+	Rank        int    `json:"rank"`
+	MemberID    int64  `json:"memberId"`
+	Nickname    string `json:"nickname"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
+	Gender      string `json:"gender,omitempty"`
+	Score       int64  `json:"score"`
+	GrowthValue int64  `json:"growthValue"`
 }

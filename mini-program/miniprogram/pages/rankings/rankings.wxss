@@ -228,6 +228,14 @@
   font-size: 18rpx;
 }
 
+.rk__podium-growth {
+  margin-top: 8rpx;
+  color: #a8a8a8;
+  font-size: 18rpx;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
 .rk__stage {
   display: flex;
   align-items: center;
@@ -362,6 +370,20 @@
   font-weight: 600;
 }
 
+.rk__chase-assets {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  padding-left: 18rpx;
+}
+
+.rk__chase-growth {
+  margin-top: 4rpx;
+  color: var(--ic-text-3);
+  font-size: 18rpx;
+  font-variant-numeric: tabular-nums;
+}
+
 .rk__progress {
   height: 10rpx;
   margin-top: 22rpx;
@@ -447,7 +469,7 @@
 .rk__row {
   display: flex;
   align-items: center;
-  min-height: 116rpx;
+  min-height: 140rpx;
   border-bottom: 1rpx solid var(--ic-line);
 }
 
@@ -544,6 +566,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+.rk__score-label,
+.rk__growth {
+  margin-top: 4rpx;
+  color: var(--ic-text-3);
+  font-size: 18rpx;
+  line-height: 1.2;
+}
+
+.rk__growth {
+  margin-top: 8rpx;
+  font-variant-numeric: tabular-nums;
+}
+
 .rk__gap {
   margin-top: 6rpx;
   color: var(--ic-text-3);
@@ -626,13 +661,17 @@
 .rk__arena-sub,
 .rk__arena-label,
 .rk__podium-unit,
+.rk__podium-growth,
 .rk__outside-sub,
 .rk__login-note,
 .rk__chase-kicker,
 .rk__chase-score,
+.rk__chase-growth,
 .rk__goal-label,
 .rk__list-sub,
 .rk__rank,
+.rk__score-label,
+.rk__growth,
 .rk__gap,
 .rk__foot,
 .rk__empty-sub {

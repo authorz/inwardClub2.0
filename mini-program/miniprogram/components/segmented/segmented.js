@@ -1,6 +1,6 @@
 // Segmented control — one component, three visual variants used everywhere:
 //   variant="block" : rounded track, black active fill (wallet ledger 金币/积分/券)
-//   variant="pill"  : pill track, black active pill (rankings 周/月/总)
+//   variant="pill"  : pill track, black active pill (rankings 月/总/水上)
 //   variant="line"  : underline tabs (order center 点餐/活动..., filters 全部/待支付)
 Component({
   properties: {

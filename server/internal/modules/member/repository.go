@@ -13,8 +13,8 @@ import (
 )
 
 // Repository is the member persistence port. Profile/phone/invitation reads and
-// writes hit the members table directly; rankings aggregate settled recharge
-// business orders across all stores.
+// writes hit the members table directly; rankings aggregate approved point
+// savings across all stores.
 type Repository interface {
 	// Member self-service (backed by the members table).
 	GetMember(ctx context.Context, id int64) (Member, error)
@@ -53,8 +53,8 @@ type Repository interface {
 
 // Clock is the source of the business "now" used to compute the leaderboard
 // windows. It is injected from the configured business clock (see
-// platform/config) so the weekly/monthly windows are bucketed in the business
-// zone and never drift with the host clock. Now already returns the time in the
+// platform/config) so natural-month windows are bucketed in the business zone
+// and never drift with the host clock. Now already returns the time in the
 // business zone.
 type Clock interface{ Now() time.Time }
 
@@ -523,49 +523,30 @@ func (r *sqlRepository) ValidateRechargeCouponTemplate(ctx context.Context, id i
 	return nil
 }
 
-// ListRankings sums settled WeChat business-order amounts per member within the
-// requested period. ¥1 of successful WeChat payment equals 1 growth value. The
-// business-order amount is authoritative so the payment-debug amount never
-// changes member entitlements or ranking growth. Successful refunds reduce the
-// counted amount. Rank is 1-based by descending growth value.
+// ListRankings sums approved point-saving requests per member. Month and all
+// rank by deposited points; water ranks by the awarded (profit) points in the
+// current natural month. GrowthValue is the member's current wallet balance and
+// is returned for display only. Rank is 1-based by descending score.
 func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit int) ([]RankingEntry, error) {
-	since, hasSince := rankingWindowStart(period, r.clock.Now())
-
-	sourceQuery := `SELECT ro.member_id,
-			FLOOR(GREATEST(ro.total_amount_cent - COALESCE(rf.refunded_cent, 0), 0) / 100) AS score
-		FROM business_orders ro
-		JOIN (
-			SELECT business_order_id, MIN(paid_at) AS paid_at
-			FROM payment_orders
-			WHERE pay_method = 'wechat' AND paid_at IS NOT NULL
-				AND status IN ('paid', 'partially_refunded', 'refunded')
-			GROUP BY business_order_id
-		) paid ON paid.business_order_id = ro.id
-		LEFT JOIN (
-			SELECT business_order_id, SUM(amount_cent) AS refunded_cent
-			FROM refund_orders
-			WHERE status = 'succeeded'
-			GROUP BY business_order_id
-		) rf ON rf.business_order_id = ro.id
-		WHERE ro.payment_status IN ('paid', 'partially_refunded')`
-	args := make([]any, 0, 2)
-	if hasSince {
-		sourceQuery += ` AND paid.paid_at >= ?`
-		args = append(args, since)
+	metric := "ps.points"
+	if period == RankingWater {
+		metric = "ps.awarded_points"
 	}
-	if period == RankingAll {
-		sourceQuery += ` UNION ALL
-			SELECT m.id AS member_id, legacy.growth_value AS score
-			FROM legacy_recharge_growth_totals legacy
-			JOIN members m ON m.legacy_user_id = legacy.legacy_user_id`
-	}
-
+	start, end, hasWindow := rankingWindow(period, r.clock.Now())
 	q := `SELECT m.id, m.nickname, m.avatar_asset_id, COALESCE(m.avatar_url, ''),
-			COALESCE(m.gender, ''), COALESCE(SUM(src.score), 0) AS score
-		FROM (` + sourceQuery + `) src
-		JOIN members m ON m.id = src.member_id
-		WHERE m.status = 'active'
-		GROUP BY m.id, m.nickname, m.avatar_asset_id, m.avatar_url, m.gender
+			COALESCE(m.gender, ''), COALESCE(SUM(` + metric + `), 0) AS score,
+			COALESCE(growth.available_amount, 0) AS growth_value
+		FROM point_savings ps
+		JOIN members m ON m.id = ps.member_id
+		LEFT JOIN wallet_accounts growth
+			ON growth.member_id = m.id AND growth.asset_type = 'growth_value'
+		WHERE ps.status = 'approved' AND m.status = 'active'`
+	args := make([]any, 0, 3)
+	if hasWindow {
+		q += ` AND ps.reviewed_at >= ? AND ps.reviewed_at < ?`
+		args = append(args, start, end)
+	}
+	q += ` GROUP BY m.id, m.nickname, m.avatar_asset_id, m.avatar_url, m.gender, growth.available_amount
 		HAVING score > 0
 		ORDER BY score DESC, m.id ASC LIMIT ?`
 	args = append(args, limit)
@@ -580,7 +561,10 @@ func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit i
 	for rows.Next() {
 		rank++
 		e := RankingEntry{Rank: rank}
-		if err := rows.Scan(&e.MemberID, &e.Nickname, &e.AvatarAssetID, &e.AvatarURL, &e.Gender, &e.Score); err != nil {
+		if err := rows.Scan(
+			&e.MemberID, &e.Nickname, &e.AvatarAssetID, &e.AvatarURL,
+			&e.Gender, &e.Score, &e.GrowthValue,
+		); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, e)
@@ -591,21 +575,16 @@ func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit i
 	return out, nil
 }
 
-// rankingWindowStart returns the inclusive lower bound for the given leaderboard
-// period, plus whether a bound applies. RankingAll has no bound. now is the
-// business "now" (in the business zone); the window edges are anchored to that
-// zone's calendar and returned as UTC instants for comparison against paid_at.
-func rankingWindowStart(period string, now time.Time) (time.Time, bool) {
+// rankingWindow returns the half-open natural-month window for month and water
+// rankings. RankingAll has no bound. The edges are anchored to the business
+// timezone and returned as UTC instants for comparison against reviewed_at.
+func rankingWindow(period string, now time.Time) (time.Time, time.Time, bool) {
 	loc := now.Location()
 	switch period {
-	case RankingWeek:
-		// Start of the current ISO week (Monday 00:00 in the business zone).
-		weekday := (int(now.Weekday()) + 6) % 7 // Monday=0 ... Sunday=6
-		day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-		return day.AddDate(0, 0, -weekday).UTC(), true
-	case RankingMonth:
-		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc).UTC(), true
+	case RankingMonth, RankingWater:
+		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+		return start.UTC(), start.AddDate(0, 1, 0).UTC(), true
 	default: // RankingAll
-		return time.Time{}, false
+		return time.Time{}, time.Time{}, false
 	}
 }

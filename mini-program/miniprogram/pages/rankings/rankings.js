@@ -1,7 +1,38 @@
-// 微信支付成长值排行榜：¥1 微信实付业务金额 = 1 成长值，展示周榜、月榜和总榜前 50 名。
+// 积分排行榜：月榜/总榜按已审核存入积分排名，水上榜按本月盈利积分排名。
+// 每一行同时展示会员当前成长值，但成长值不参与排序。
 const api = require('../../services/api');
 const auth = require('../../utils/auth');
 const ui = require('../../utils/ui');
+
+const BOARD_CONFIG = {
+  month: {
+    title: '月榜',
+    periodLabel: '本自然月',
+    metricLabel: '存入积分',
+    summaryText: '按本自然月审核通过的存入积分排名',
+    footText: '月榜按本自然月审核通过的存入积分实时统计',
+    emptyTitle: '本月暂无存入积分记录',
+    emptySub: '完成积分存入并审核通过后即可进入月榜',
+  },
+  all: {
+    title: '总榜',
+    periodLabel: '历史累计',
+    metricLabel: '存入积分',
+    summaryText: '按历史累计审核通过的存入积分排名',
+    footText: '总榜按历史所有审核通过的存入积分实时统计',
+    emptyTitle: '暂无存入积分记录',
+    emptySub: '完成积分存入并审核通过后即可进入总榜',
+  },
+  water: {
+    title: '水上榜',
+    periodLabel: '本自然月',
+    metricLabel: '盈利积分',
+    summaryText: '按本自然月实际获得的盈利积分排名',
+    footText: '水上榜按本自然月审核后实际获得的盈利积分实时统计',
+    emptyTitle: '本月暂无盈利积分记录',
+    emptySub: '本月获得盈利积分后即可进入水上榜',
+  },
+};
 
 function formatNumber(value) {
   return String(value || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -18,19 +49,21 @@ function genderIcon(gender) {
 }
 
 function buildBoard(scope, sourceRows, me) {
-  const scopeLabel = scope === 'week' ? '本周' : scope === 'all' ? '总' : '本月';
+  const config = BOARD_CONFIG[scope] || BOARD_CONFIG.month;
   const memberID = me && Number(me.id || 0);
   const rows = (sourceRows || []).slice(0, 50).map((row, index) => {
     const rank = Number(row.rank || index + 1);
     const name = String(row.nickname || row.name || `会员${row.memberId || ''}`);
+    const score = Number(row.score || 0);
     return {
       rank,
       rankText: rank < 10 ? `0${rank}` : String(rank),
       memberId: Number(row.memberId || 0),
       name,
       genderIcon: genderIcon(row.gender),
-      growth: Number(row.score || 0),
-      growthText: formatNumber(row.score),
+      score,
+      scoreText: formatNumber(score),
+      growthText: formatNumber(row.growthValue),
       avatarUrl: row.avatarUrl || '',
       initial: name.slice(0, 1),
       avatarTone: `tone-${(index % 5) + 1}`,
@@ -41,7 +74,7 @@ function buildBoard(scope, sourceRows, me) {
   rows.forEach((item, index) => {
     item.gapText = index === 0
       ? '暂居榜首'
-      : `距上一名 ${formatNumber(rows[index - 1].growth - item.growth + 1)}`;
+      : `距上一名 ${formatNumber(rows[index - 1].score - item.score + 1)}`;
   });
 
   let podium = [];
@@ -58,25 +91,26 @@ function buildBoard(scope, sourceRows, me) {
   const myRow = myIndex >= 0 ? rows[myIndex] : null;
   const previousRow = myIndex > 0 ? rows[myIndex - 1] : null;
   const topTenRow = rows.length >= 10 ? rows[9] : null;
-  const gapToPrevious = myRow && previousRow ? previousRow.growth - myRow.growth + 1 : 0;
-  const gapToTopTen = myRow && myRow.rank > 10 && topTenRow ? topTenRow.growth - myRow.growth + 1 : 0;
+  const gapToPrevious = myRow && previousRow ? previousRow.score - myRow.score + 1 : 0;
+  const gapToTopTen = myRow && myRow.rank > 10 && topTenRow ? topTenRow.score - myRow.score + 1 : 0;
 
   return {
-    scopeLabel,
+    ...config,
     hasEntries: rows.length > 0,
     podium,
     podiumClass: `count-${podium.length}`,
     list: rows.slice(3),
     total: rows.length,
-    championGrowthText: rows.length ? rows[0].growthText : '0',
+    championScoreText: rows.length ? rows[0].scoreText : '0',
     myRank: myRow ? myRow.rank : 0,
+    myScoreText: myRow ? myRow.scoreText : '0',
     myGrowthText: myRow ? myRow.growthText : '0',
     myAvatarUrl: myRow ? myRow.avatarUrl : (me && me.avatarUrl) || '',
     myInitial: myRow ? myRow.initial : String((me && me.nickname) || '我').slice(0, 1),
     gapToPreviousText: formatNumber(gapToPrevious),
     gapToTopTenText: gapToTopTen > 0 ? formatNumber(gapToTopTen) : '已进入',
     chaseProgress: myRow && previousRow
-      ? Math.max(8, Math.min(96, Math.round((myRow.growth / previousRow.growth) * 100)))
+      ? Math.max(8, Math.min(96, Math.round((myRow.score / previousRow.score) * 100)))
       : 100,
   };
 }
@@ -86,9 +120,9 @@ Page({
     loading: true,
     loggedIn: false,
     scopeOptions: [
-      { label: '周榜', value: 'week' },
       { label: '月榜', value: 'month' },
       { label: '总榜', value: 'all' },
+      { label: '水上榜', value: 'water' },
     ],
     scope: 'month',
     board: null,

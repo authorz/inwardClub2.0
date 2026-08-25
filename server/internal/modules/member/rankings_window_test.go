@@ -5,38 +5,32 @@ import (
 	"time"
 )
 
-// TestRankingWindowStartBusinessZone verifies the monthly/weekly windows are
-// anchored to the business zone's calendar (not the host/UTC calendar) and
-// returned as UTC instants. With the business "now" pinned to 2026-07-17 in
-// Asia/Shanghai (UTC+8), the month window starts at 2026-07-01 00:00 +08, i.e.
-// 2026-06-30 16:00 UTC.
-func TestRankingWindowStartBusinessZone(t *testing.T) {
+// TestRankingWindowBusinessZone verifies the natural-month windows are anchored
+// to the business zone's calendar (not the host/UTC calendar) and returned as
+// UTC instants.
+func TestRankingWindowBusinessZone(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		loc = time.FixedZone("CST", 8*3600)
 	}
-	now := time.Date(2026, 7, 17, 12, 0, 0, 0, loc) // Friday
+	now := time.Date(2026, 7, 17, 12, 0, 0, 0, loc)
 
-	since, ok := rankingWindowStart(RankingMonth, now)
+	start, end, ok := rankingWindow(RankingMonth, now)
 	if !ok {
-		t.Fatal("month window should have a lower bound")
+		t.Fatal("month ranking should have a natural-month window")
 	}
-	want := time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)
-	if !since.Equal(want) {
-		t.Fatalf("month start: got %s, want %s", since.UTC(), want)
-	}
-
-	// Week: Monday 2026-07-13 00:00 +08 = 2026-07-12 16:00 UTC.
-	since, ok = rankingWindowStart(RankingWeek, now)
-	if !ok {
-		t.Fatal("week window should have a lower bound")
-	}
-	want = time.Date(2026, 7, 12, 16, 0, 0, 0, time.UTC)
-	if !since.Equal(want) {
-		t.Fatalf("week start: got %s, want %s", since.UTC(), want)
+	wantStart := time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)
+	wantEnd := time.Date(2026, 7, 31, 16, 0, 0, 0, time.UTC)
+	if !start.Equal(wantStart) || !end.Equal(wantEnd) {
+		t.Fatalf("month window: got [%s, %s), want [%s, %s)", start, end, wantStart, wantEnd)
 	}
 
-	if _, ok := rankingWindowStart(RankingAll, now); ok {
-		t.Fatal("all-time window should have no lower bound")
+	waterStart, waterEnd, ok := rankingWindow(RankingWater, now)
+	if !ok || !waterStart.Equal(start) || !waterEnd.Equal(end) {
+		t.Fatalf("water ranking should share the natural-month window, got [%s, %s)", waterStart, waterEnd)
+	}
+
+	if _, _, ok := rankingWindow(RankingAll, now); ok {
+		t.Fatal("all-time ranking should have no time window")
 	}
 }
