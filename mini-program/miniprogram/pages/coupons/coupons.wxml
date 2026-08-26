@@ -55,3 +55,9 @@
   </view>
   </scroll-view>
 </view>
+
+<view wx:if="{{submittingId !== ''}}" class="cp__loading-mask">
+  <view class="cp__loading-content">
+    <ic-loading fullscreen="{{false}}" text="赛事券使用中" />
+  </view>
+</view>

@@ -75,3 +75,15 @@
 }
 .cp__action--hover { opacity: 0.82; }
 .cp__records { display: flex; align-items: center; justify-content: center; gap: 10rpx; padding: 34rpx 0 48rpx; font-size: 24rpx; color: rgba(255, 255, 255, 0.72); }
+.cp__loading-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 7, 11, 0.38);
+  -webkit-backdrop-filter: blur(32rpx) saturate(140%);
+  backdrop-filter: blur(32rpx) saturate(140%);
+}
+.cp__loading-content { width: 100%; }

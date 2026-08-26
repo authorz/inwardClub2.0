@@ -201,22 +201,20 @@ Page({
   },
 
   submitEventCouponUse(coupon, store) {
-    this.setData({ submittingId: coupon.id });
-    ui.showLoading('使用中');
-    api.useEventCoupon({ entitlementId: coupon.id, storeId: store.id }, http.uuid())
-      .then((res) => {
-        const redemptionId = res.data && res.data.id;
-        if (!redemptionId) throw new Error('赛事券订单创建失败');
-        ui.hideLoading();
-        wx.redirectTo({
-          url: `/pages/pay-result/pay-result?type=coupon&status=success&id=${redemptionId}`,
+    this.setData({ submittingId: coupon.id }, () => {
+      api.useEventCoupon({ entitlementId: coupon.id, storeId: store.id }, http.uuid())
+        .then((res) => {
+          const redemptionId = res.data && res.data.id;
+          if (!redemptionId) throw new Error('赛事券订单创建失败');
+          wx.redirectTo({
+            url: `/pages/pay-result/pay-result?type=coupon&status=success&id=${redemptionId}`,
+          });
+        })
+        .catch((err) => {
+          this.setData({ submittingId: '' });
+          ui.error((err && err.message) || '赛事券使用失败');
         });
-      })
-      .catch((err) => {
-        ui.hideLoading();
-        this.setData({ submittingId: '' });
-        ui.error((err && err.message) || '赛事券使用失败');
-      });
+    });
   },
 
   goRecords() {
