@@ -20,6 +20,11 @@ type Handler struct {
 // NewHandler builds the coupon handler.
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
+// ListTypes handles GET /mini/coupon-types.
+func (h *Handler) ListTypes(c *gin.Context) {
+	httpx.OK(c, h.svc.ListCouponTypes())
+}
+
 // List handles GET /mini/coupons.
 func (h *Handler) List(c *gin.Context) {
 	memberID := authn.MustFromContext(c).SubjectID()

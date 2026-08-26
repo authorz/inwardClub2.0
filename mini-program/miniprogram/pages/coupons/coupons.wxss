@@ -1,5 +1,5 @@
 .cp { min-height: 0; padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.cp__seg { padding: 0 18rpx; }
+.cp__seg { padding: 0 18rpx; box-sizing: border-box; white-space: nowrap; }
 .cp__count { display: block; padding: 26rpx 8rpx 4rpx; font-size: 22rpx; font-weight: 600; color: rgba(255, 255, 255, 0.62); }
 .cp__list { padding: 14rpx 0 8rpx; }
 .cp__card {

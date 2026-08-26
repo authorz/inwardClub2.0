@@ -2,6 +2,12 @@ package coupon
 
 import "time"
 
+// CouponTypeView is one authoritative coupon business type exposed to clients.
+type CouponTypeView struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
 // RedeemRequest is the body for POST /mini/coupon-redemptions. The member
 // redeems one held entitlement, optionally at a specific store.
 type RedeemRequest struct {

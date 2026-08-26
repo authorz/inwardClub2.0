@@ -1211,6 +1211,12 @@ components:
         maxTicketsPerOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     # ---- mini coupon views ----
+    CouponTypeView:
+      type: object
+      required: [value, label]
+      properties:
+        value: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
+        label: { type: string }
     MemberCouponView:
       type: object
       properties:
@@ -5664,6 +5670,23 @@ paths:
         '204': { description: ticket type deleted }
         '404': { $ref: '#/components/responses/Error' }
   # ------------------------------------------------------------------ mini: coupons
+  /api/v2/mini/coupon-types:
+    get:
+      tags: [mini]
+      summary: List the authoritative coupon business types
+      description: Returns the server-owned coupon type dictionary in display order. Clients must not infer categories or labels from the member's current entitlements.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Coupon type dictionary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/CouponTypeView' } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/v2/mini/coupons:
     get:
       tags: [mini]

@@ -35,6 +35,20 @@ func NewService(repo Repository, catalogs ...RedeemableCatalog) *Service {
 	return &Service{repo: repo, catalog: catalogSvc}
 }
 
+// ListCouponTypes returns the server-owned coupon business dictionary in its
+// display order. Clients must not infer this dictionary from held coupons.
+func (s *Service) ListCouponTypes() []CouponTypeView {
+	return []CouponTypeView{
+		{Value: TypeEventTicket, Label: "赛事门票券"},
+		{Value: TypeSnack, Label: "小吃券"},
+		{Value: TypeAlcohol, Label: "酒水券"},
+		{Value: TypeBeverage, Label: "饮料券"},
+		{Value: TypeDrink, Label: "饮品或啤酒券"},
+		{Value: TypeMeal, Label: "餐食券"},
+		{Value: TypeGift, Label: "礼品券"},
+	}
+}
+
 // ListCoupons returns the member's coupons, optionally filtered by status.
 func (s *Service) ListCoupons(ctx context.Context, memberID int64, status string, page httpx.Page) ([]MemberCouponView, int64, error) {
 	coupons, total, err := s.repo.ListMemberCoupons(ctx, memberID, status, page.Limit(), page.Offset())

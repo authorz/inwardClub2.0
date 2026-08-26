@@ -3,9 +3,9 @@
   <ic-page-nav title="我的券" />
   <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="cp">
-    <view class="cp__seg ic-glass-recessed">
-      <ic-segmented options="{{typeOptions}}" value="{{selectedType}}" variant="line" theme="dark" bind:change="onTypeChange" />
-    </view>
+    <scroll-view class="cp__seg ic-glass-recessed" scroll-x enhanced show-scrollbar="{{false}}">
+      <ic-segmented style="width: {{categoryBarWidth}}rpx;" options="{{typeOptions}}" value="{{selectedType}}" variant="line" theme="dark" bind:change="onTypeChange" />
+    </scroll-view>
 
     <ic-loading wx:if="{{loading}}" />
     <ic-empty wx:elif="{{!list.length}}" text="暂无可用券" />

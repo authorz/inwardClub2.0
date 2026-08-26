@@ -3,6 +3,7 @@ package coupon
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -85,6 +86,22 @@ func codeOf(t *testing.T, err error) apperr.Code {
 		t.Fatal("expected error, got nil")
 	}
 	return apperr.From(err).Code
+}
+
+func TestListCouponTypesReturnsAuthoritativeBusinessDictionary(t *testing.T) {
+	types := NewService(nil).ListCouponTypes()
+	want := []CouponTypeView{
+		{Value: TypeEventTicket, Label: "赛事门票券"},
+		{Value: TypeSnack, Label: "小吃券"},
+		{Value: TypeAlcohol, Label: "酒水券"},
+		{Value: TypeBeverage, Label: "饮料券"},
+		{Value: TypeDrink, Label: "饮品或啤酒券"},
+		{Value: TypeMeal, Label: "餐食券"},
+		{Value: TypeGift, Label: "礼品券"},
+	}
+	if !reflect.DeepEqual(types, want) {
+		t.Fatalf("coupon types = %+v, want %+v", types, want)
+	}
 }
 
 func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {

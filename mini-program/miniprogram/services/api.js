@@ -461,6 +461,7 @@ const api = {
     http.get(m('/wallet/ledger') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeLedgerEntry), meta: res.meta })),
   getSignInStatus: () => http.get(m('/sign-ins/status')),
   signIn: () => http.post(m('/sign-ins'), {}, { idempotent: true }),
+  getCouponTypes: () => http.get(m('/coupon-types')),
   getCoupons: (params) =>
     http.get(m('/coupons') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeCoupon), meta: res.meta })),
   getTickets: (params) => http.get(m('/tickets') + qs(params)),

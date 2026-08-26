@@ -3,22 +3,6 @@
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
 
-const COUPON_TYPE_LABEL = {
-  event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
-  beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
-};
-
-function typeOptionsOf(coupons) {
-  const availableTypes = new Set(coupons.map((coupon) => coupon.type));
-  const options = [{ label: '全部', value: 'all' }];
-  Object.keys(COUPON_TYPE_LABEL).forEach((type) => {
-    if (availableTypes.has(type)) {
-      options.push({ label: COUPON_TYPE_LABEL[type], value: type });
-    }
-  });
-  return options;
-}
-
 function countdown(validUntil, now) {
   const end = fmt.timestamp(validUntil);
   if (!Number.isFinite(end)) return '';
@@ -36,30 +20,44 @@ Page({
     loading: true,
     typeOptions: [{ label: '全部', value: 'all' }],
     selectedType: 'all',
+    categoryBarWidth: 654,
     all: [],
     list: [],
     couponCount: 0,
   },
 
   onLoad() {
-    api
-      .getCoupons({ status: 'active', pageSize: 100 })
-      .then((res) => {
-        const all = (res.data || []).filter((c) => c.status === 'unused').map((c) => ({
+    Promise.all([
+      api.getCouponTypes(),
+      api.getCoupons({ status: 'active', pageSize: 100 }),
+    ])
+      .then(([typesRes, couponsRes]) => {
+        const categories = (typesRes.data || []).filter((item) => item.value && item.label);
+        const typeLabels = categories.reduce((labels, item) => {
+          labels[item.value] = item.label;
+          return labels;
+        }, {});
+        const all = (couponsRes.data || []).filter((c) => c.status === 'unused').map((c) => ({
           id: c.id,
           templateId: c.templateId,
           storeId: c.storeId,
           name: c.name,
           desc: c.desc,
           type: c.type,
-          typeLabel: COUPON_TYPE_LABEL[c.type] || '福利券',
+          typeLabel: typeLabels[c.type] || '福利券',
           validUntil: c.validUntil,
           status: c.status,
           action: c.action || 'none',
           actionText: '去使用',
           dateText: c.validUntil || '-',
         }));
-        this.setData({ all, typeOptions: typeOptionsOf(all), loading: false });
+        const typeOptions = [{ label: '全部', value: 'all' }].concat(categories);
+        this.setData({
+          all,
+          typeOptions,
+          categoryBarWidth: Math.max(654, typeOptions.length * 200),
+          loading: false,
+        });
         this.refreshCountdowns();
         this.startCountdown();
         this.applyFilter();
