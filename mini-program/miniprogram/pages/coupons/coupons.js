@@ -1,13 +1,23 @@
-// 我的券 — 可用/已使用/已过期 分段 + 带券进入点餐
+// 我的券 — 仅展示可用券，按券分类筛选 + 带券进入点餐
 // Reference: design/mini-program/final/member-subpages/08-my-coupons-v23.png
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
-const { COUPON_STATUS_LABEL } = require('../../constants/index');
 
 const COUPON_TYPE_LABEL = {
   event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
   beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
+
+function typeOptionsOf(coupons) {
+  const availableTypes = new Set(coupons.map((coupon) => coupon.type));
+  const options = [{ label: '全部', value: 'all' }];
+  Object.keys(COUPON_TYPE_LABEL).forEach((type) => {
+    if (availableTypes.has(type)) {
+      options.push({ label: COUPON_TYPE_LABEL[type], value: type });
+    }
+  });
+  return options;
+}
 
 function countdown(validUntil, now) {
   const end = fmt.timestamp(validUntil);
@@ -24,23 +34,18 @@ function countdown(validUntil, now) {
 Page({
   data: {
     loading: true,
-    statusOptions: [
-      { label: '可用', value: 'unused' },
-      { label: '已使用', value: 'used' },
-      { label: '已过期', value: 'expired' },
-    ],
-    status: 'unused',
+    typeOptions: [{ label: '全部', value: 'all' }],
+    selectedType: 'all',
     all: [],
     list: [],
-    statusCount: 0,
-    statusCountLabel: '可用',
+    couponCount: 0,
   },
 
   onLoad() {
     api
-      .getCoupons()
+      .getCoupons({ status: 'active', pageSize: 100 })
       .then((res) => {
-        const all = (res.data || []).map((c) => ({
+        const all = (res.data || []).filter((c) => c.status === 'unused').map((c) => ({
           id: c.id,
           templateId: c.templateId,
           storeId: c.storeId,
@@ -49,15 +54,12 @@ Page({
           type: c.type,
           typeLabel: COUPON_TYPE_LABEL[c.type] || '福利券',
           validUntil: c.validUntil,
-          usedAt: c.usedAt,
           status: c.status,
-          statusLabel: COUPON_STATUS_LABEL[c.status] || c.status,
           action: c.action || 'none',
           actionText: '去使用',
-          dateLabel: c.status === 'used' ? '使用时间' : '有效期至',
-          dateText: c.status === 'used' ? c.usedAt || '-' : c.validUntil || '-',
+          dateText: c.validUntil || '-',
         }));
-        this.setData({ all, loading: false });
+        this.setData({ all, typeOptions: typeOptionsOf(all), loading: false });
         this.refreshCountdowns();
         this.startCountdown();
         this.applyFilter();
@@ -90,21 +92,22 @@ Page({
   refreshCountdowns() {
     const now = Date.now();
     const all = this.data.all.map((item) => Object.assign({}, item, {
-      countdownText: item.status === 'unused' ? countdown(item.validUntil, now) : '',
+      countdownText: countdown(item.validUntil, now),
     }));
     this.setData({ all });
     this.applyFilter();
   },
 
-  onStatusChange(e) {
-    this.setData({ status: e.detail.value });
+  onTypeChange(e) {
+    this.setData({ selectedType: e.detail.value });
     this.applyFilter();
   },
 
   applyFilter() {
-    const list = this.data.all.filter((c) => c.status === this.data.status);
-    const active = this.data.statusOptions.find((x) => x.value === this.data.status);
-    this.setData({ list, statusCount: list.length, statusCountLabel: active ? active.label : '可用' });
+    const list = this.data.selectedType === 'all'
+      ? this.data.all
+      : this.data.all.filter((coupon) => coupon.type === this.data.selectedType);
+    this.setData({ list, couponCount: list.length });
   },
 
   onAction(e) {

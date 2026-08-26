@@ -20,9 +20,13 @@ export interface TokenPair {
 export const authService = {
   // 登录响应为 { token, profile } 包裹结构（refresh 直接返回扁平 token），此处解包 token。
   login: async (payload: LoginPayload) =>
-    (await http.post<{ token: TokenPair; profile?: AdminUser }>(API_PATHS.auth.login, payload)).token,
+    (
+      await http.post<{ token: TokenPair; profile?: AdminUser }>(API_PATHS.auth.login, payload, {
+        skipAuthRefresh: true,
+      })
+    ).token,
   refresh: (refreshToken: string) =>
-    http.post<TokenPair>(API_PATHS.auth.refresh, { refreshToken }),
+    http.post<TokenPair>(API_PATHS.auth.refresh, { refreshToken }, { skipAuthRefresh: true }),
   me: () => http.get<AdminUser>(API_PATHS.auth.me),
   logout: () => http.post<void>(API_PATHS.auth.logout),
 }

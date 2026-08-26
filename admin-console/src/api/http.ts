@@ -39,7 +39,11 @@ export interface RequestOptions extends AxiosRequestConfig {
   idempotent?: boolean
   /** 关闭默认错误提示，由调用方自行处理 */
   silent?: boolean
+  /** 跳过 401 自动刷新，供登录和 refresh 请求自身使用，避免刷新请求递归等待。 */
+  skipAuthRefresh?: boolean
 }
+
+type InternalAdminConfig = InternalAxiosRequestConfig & RequestOptions & { _retried?: boolean }
 
 function assertPathAllowed(url: string): void {
   // 去掉可能的绝对地址，仅看 path 部分
@@ -122,10 +126,16 @@ let refreshing: Promise<boolean> | null = null
 instance.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiError>) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined
+    const original = error.config as InternalAdminConfig | undefined
     const status = error.response?.status
 
-    if (status === 401 && original && !original._retried && authProvider) {
+    if (
+      status === 401 &&
+      original &&
+      !original.skipAuthRefresh &&
+      !original._retried &&
+      authProvider
+    ) {
       original._retried = true
       if (!refreshing) {
         refreshing = authProvider.refresh().finally(() => {

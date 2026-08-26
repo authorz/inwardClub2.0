@@ -4,16 +4,16 @@
   <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="cp">
     <view class="cp__seg ic-glass-recessed">
-      <ic-segmented options="{{statusOptions}}" value="{{status}}" variant="line" theme="dark" bind:change="onStatusChange" />
+      <ic-segmented options="{{typeOptions}}" value="{{selectedType}}" variant="line" theme="dark" bind:change="onTypeChange" />
     </view>
 
     <ic-loading wx:if="{{loading}}" />
-    <ic-empty wx:elif="{{!list.length}}" text="暂无数据" />
+    <ic-empty wx:elif="{{!list.length}}" text="暂无可用券" />
 
     <block wx:else>
-      <text class="cp__count">{{statusCountLabel}} {{statusCount}} 张</text>
+      <text class="cp__count">共 {{couponCount}} 张</text>
       <view class="cp__list">
-      <view class="cp__card ic-glass-recessed {{item.status !== 'unused' ? 'is-dim' : ''}}" wx:for="{{list}}" wx:key="id">
+      <view class="cp__card ic-glass-recessed" wx:for="{{list}}" wx:key="id">
         <view class="cp__left">
           <image class="cp__icon" src="https://assets.inwardclub.com/public/images/coupon-gpt.png" mode="aspectFit" />
         </view>
@@ -21,21 +21,19 @@
           <text class="cp__name">{{item.name}}</text>
           <text class="cp__type">{{item.typeLabel}} · 一券兑一份</text>
           <text class="cp__desc">{{item.desc}}</text>
-          <text class="cp__valid">{{item.dateLabel}} {{item.dateText}}</text>
+          <text class="cp__valid">有效期至 {{item.dateText}}</text>
         </view>
         <view class="cp__right">
           <text
-            wx:if="{{item.status === 'unused' && item.countdownText}}"
+            wx:if="{{item.countdownText}}"
             class="cp__countdown"
           >{{item.countdownText}}</text>
           <view
-            wx:if="{{item.status === 'unused'}}"
             class="cp__action ic-glass-recessed"
             data-id="{{item.id}}"
             bindtap="onAction"
             hover-class="cp__action--hover"
           >{{item.actionText}}</view>
-          <view wx:else class="cp__stamp cp__stamp--{{item.status}}">{{item.statusLabel}}</view>
         </view>
       </view>
       </view>
