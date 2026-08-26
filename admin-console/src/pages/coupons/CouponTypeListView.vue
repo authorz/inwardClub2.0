@@ -20,7 +20,7 @@ const usageOptions = [
   { label: '小吃兑换', value: 'snack' },
   { label: '酒水兑换', value: 'alcohol' },
   { label: '饮料兑换', value: 'beverage' },
-  { label: '饮品或啤酒兑换', value: 'drink' },
+  { label: '饮品兑换', value: 'drink' },
   { label: '餐食兑换', value: 'meal' },
   { label: '礼品兑换', value: 'gift' },
 ]
