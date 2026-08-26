@@ -15,12 +15,36 @@ function countdown(validUntil, now) {
   return `${days}天 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function isUsableCoupon(coupon, now) {
+  if (coupon.status !== 'unused') return false;
+  if (!coupon.validUntil) return true;
+  const end = fmt.timestamp(coupon.validUntil);
+  return Number.isFinite(end) && end > now;
+}
+
+function typeOptionsOf(categories, coupons) {
+  const categoryLabels = coupons.reduce((labels, coupon) => {
+    if (coupon.categoryId) labels[coupon.categoryId] = coupon.categoryLabel;
+    return labels;
+  }, {});
+  const options = [{ label: '全部', value: 'all' }];
+  categories.forEach((category) => {
+    if (!categoryLabels[category.value]) return;
+    options.push(category);
+    delete categoryLabels[category.value];
+  });
+  Object.keys(categoryLabels).forEach((value) => {
+    options.push({ label: categoryLabels[value], value });
+  });
+  return options;
+}
+
 Page({
   data: {
     loading: true,
     typeOptions: [{ label: '全部', value: 'all' }],
     selectedType: 'all',
-    categoryBarWidth: 654,
+    categories: [],
     all: [],
     list: [],
     couponCount: 0,
@@ -39,7 +63,8 @@ Page({
           labels[item.value] = item.label;
           return labels;
         }, {});
-        const all = (couponsRes.data || []).filter((c) => c.status === 'unused').map((c) => ({
+        const now = Date.now();
+        const all = (couponsRes.data || []).map((c) => ({
           id: c.id,
           templateId: c.templateId,
           storeId: c.storeId,
@@ -47,23 +72,18 @@ Page({
           desc: c.desc,
           type: c.type,
           categoryId: String(c.categoryId || ''),
+          categoryLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
           typeLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
           validUntil: c.validUntil,
           status: c.status,
           action: c.action || 'none',
           actionText: '去使用',
           dateText: c.validUntil || '-',
-        }));
-        const typeOptions = [{ label: '全部', value: 'all' }].concat(categories);
-        this.setData({
-          all,
-          typeOptions,
-          categoryBarWidth: Math.max(654, typeOptions.length * 200),
-          loading: false,
-        });
+        })).filter((coupon) => isUsableCoupon(coupon, now));
+        this.setData({ categories, loading: false });
+        this.setCouponState(all, categories, 'all');
         this.refreshCountdowns();
-        this.startCountdown();
-        this.applyFilter();
+        if (all.length) this.startCountdown();
       })
       .catch(() => this.setData({ loading: false }));
   },
@@ -92,23 +112,33 @@ Page({
 
   refreshCountdowns() {
     const now = Date.now();
-    const all = this.data.all.map((item) => Object.assign({}, item, {
-      countdownText: countdown(item.validUntil, now),
-    }));
-    this.setData({ all });
-    this.applyFilter();
+    const all = this.data.all
+      .filter((item) => isUsableCoupon(item, now))
+      .map((item) => Object.assign({}, item, {
+        countdownText: countdown(item.validUntil, now),
+      }));
+    this.setCouponState(all, this.data.categories, this.data.selectedType);
+    if (!all.length) this.stopCountdown();
   },
 
   onTypeChange(e) {
-    this.setData({ selectedType: e.detail.value });
-    this.applyFilter();
+    this.applyFilter(e.currentTarget.dataset.value);
   },
 
-  applyFilter() {
-    const list = this.data.selectedType === 'all'
+  setCouponState(all, categories, selectedType) {
+    const typeOptions = typeOptionsOf(categories, all);
+    const nextType = typeOptions.some((option) => option.value === selectedType) ? selectedType : 'all';
+    const list = nextType === 'all'
+      ? all
+      : all.filter((coupon) => coupon.categoryId === nextType);
+    this.setData({ all, typeOptions, selectedType: nextType, list, couponCount: list.length });
+  },
+
+  applyFilter(selectedType) {
+    const list = selectedType === 'all'
       ? this.data.all
-      : this.data.all.filter((coupon) => coupon.categoryId === this.data.selectedType);
-    this.setData({ list, couponCount: list.length });
+      : this.data.all.filter((coupon) => coupon.categoryId === selectedType);
+    this.setData({ selectedType, list, couponCount: list.length });
   },
 
   onAction(e) {

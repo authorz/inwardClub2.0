@@ -2,8 +2,7 @@
   "usingComponents": {
     "ic-empty": "/components/empty/empty",
     "ic-loading": "/components/loading/loading",
-    "ic-page-nav": "/components/page-nav/page-nav",
-    "ic-segmented": "/components/segmented/segmented"
+    "ic-page-nav": "/components/page-nav/page-nav"
   },
   "navigationStyle": "custom",
   "disableScroll": true,

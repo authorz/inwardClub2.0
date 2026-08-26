@@ -3,8 +3,17 @@
   <ic-page-nav title="我的券" />
   <scroll-view class="ic-scroll-view" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
   <view class="cp">
-    <scroll-view class="cp__seg ic-glass-recessed" scroll-x enhanced show-scrollbar="{{false}}">
-      <ic-segmented style="width: {{categoryBarWidth}}rpx;" options="{{typeOptions}}" value="{{selectedType}}" variant="line" theme="dark" bind:change="onTypeChange" />
+    <scroll-view wx:if="{{!loading && all.length}}" class="cp__seg ic-glass-recessed" scroll-x enhanced show-scrollbar="{{false}}" enable-flex>
+      <view class="cp__seg-inner">
+        <view
+          wx:for="{{typeOptions}}"
+          wx:key="value"
+          class="cp__seg-item {{selectedType === item.value ? 'is-active' : ''}}"
+          data-value="{{item.value}}"
+          bindtap="onTypeChange"
+          hover-class="cp__seg-item--hover"
+        >{{item.label}}</view>
+      </view>
     </scroll-view>
 
     <ic-loading wx:if="{{loading}}" />

@@ -1,5 +1,29 @@
 .cp { min-height: 0; padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.cp__seg { padding: 0 18rpx; box-sizing: border-box; white-space: nowrap; }
+.cp__seg { width: 100%; padding: 8rpx; box-sizing: border-box; white-space: nowrap; }
+.cp__seg-inner { display: inline-flex; align-items: center; min-width: 100%; gap: 8rpx; }
+.cp__seg-item {
+  flex: 1 0 auto;
+  min-width: 140rpx;
+  height: 72rpx;
+  padding: 0 28rpx;
+  box-sizing: border-box;
+  border: 1rpx solid transparent;
+  border-radius: 999rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 24rpx;
+  white-space: nowrap;
+}
+.cp__seg-item.is-active {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.96);
+  font-weight: 700;
+}
+.cp__seg-item--hover { opacity: 0.82; }
 .cp__count { display: block; padding: 26rpx 8rpx 4rpx; font-size: 22rpx; font-weight: 600; color: rgba(255, 255, 255, 0.62); }
 .cp__list { padding: 14rpx 0 8rpx; }
 .cp__card {
