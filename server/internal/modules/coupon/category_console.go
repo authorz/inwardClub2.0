@@ -151,7 +151,7 @@ func (r *sqlConsoleRepository) UpdateCategory(ctx context.Context, id int64, in 
 			return CouponCategory{}, apperr.Internal(err)
 		}
 		if used > 0 {
-			return CouponCategory{}, apperr.Conflict("该券类型已有券模板，不能修改兑换场景")
+			return CouponCategory{}, apperr.Conflict("该券类型已被使用，不能修改使用方式")
 		}
 	}
 	_, err = r.db.ExecContext(ctx, `UPDATE coupon_categories
@@ -175,7 +175,7 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, id int64) err
 		return apperr.Internal(err)
 	}
 	if used > 0 {
-		return apperr.Conflict("该券类型已有券模板，只能停用")
+		return apperr.Conflict("该券类型已被使用，只能停用")
 	}
 	_, err := r.db.ExecContext(ctx, `DELETE FROM coupon_categories WHERE id = ?`, id)
 	if err != nil {
