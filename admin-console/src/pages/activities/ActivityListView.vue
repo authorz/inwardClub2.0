@@ -541,7 +541,7 @@ onMounted(loadStores)
           <div class="ticket-types__header">
             <div>
               <h3>票档设置</h3>
-              <p>活动勾选“券兑换”后，所有票档均可使用赛事门票券；票档单独设置微信或金币支付。库存为 0 表示不限量。</p>
+              <p>活动勾选“券兑换”后，所有票档均可使用门票券；票档单独设置微信或金币支付。库存为 0 表示不限量。</p>
             </div>
             <NButton
               secondary

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/printer"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -23,6 +24,9 @@ type Repository interface {
 	// Redeem records a redemption and flips the entitlement to used in one
 	// transaction, guarded by the idempotency key and the unique redemption index.
 	Redeem(ctx context.Context, in RedeemInput) (MemberCoupon, error)
+	// UseEventCoupon consumes an event coupon at a store and queues its receipt in
+	// the same transaction.
+	UseEventCoupon(ctx context.Context, in UseEventCouponInput) (MemberCoupon, error)
 	// ListRedemptions returns the member's redemption orders, newest first.
 	ListRedemptions(ctx context.Context, memberID int64, limit, offset int) ([]RedemptionOrder, int64, error)
 	// GetRedemption returns one redemption order owned by the member.
@@ -47,6 +51,16 @@ type RedeemInput struct {
 	ItemSnapshotJSON []byte
 	MatchedRuleJSON  []byte
 	Items            []RedemptionItemSnapshot
+}
+
+type UseEventCouponInput struct {
+	MemberID      int64
+	EntitlementID int64
+	StoreID       int64
+	RedemptionNo  string
+	IdemKey       string
+	Now           time.Time
+	RuleJSON      []byte
 }
 
 type sqlRepository struct{ db *platdb.DB }
@@ -140,7 +154,7 @@ func listActivityUsableCoupons(
 	const joins = ` JOIN activities a ON a.id = ?`
 	const where = `e.member_id = ?
 		AND e.status = 'active'
-		AND t.coupon_type = 'event_ticket'
+		AND t.coupon_type = 'admission_ticket'
 		AND (e.expires_at IS NULL OR e.expires_at > ?)
 		AND a.status = 'published'
 		AND JSON_CONTAINS(COALESCE(a.pay_channels, JSON_ARRAY()), JSON_QUOTE('coupon'))
@@ -296,10 +310,109 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 	return out, nil
 }
 
+// UseEventCoupon records a member-confirmed event-coupon use, marks the
+// entitlement used, and queues the store receipt atomically.
+func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInput) (MemberCoupon, error) {
+	var out MemberCoupon
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if in.IdemKey != "" {
+			if err := idempotency.Claim(ctx, tx, "mini/event-coupon-redemptions", in.IdemKey, "coupon_entitlement", in.EntitlementID); err != nil {
+				return err
+			}
+		}
+		var (
+			status      string
+			memberID    int64
+			templateID  int64
+			couponType  string
+			couponName  string
+			couponStore sql.NullInt64
+			expiresAt   sql.NullTime
+		)
+		const selectCoupon = `SELECT e.status, e.member_id, e.coupon_template_id,
+			t.coupon_type, t.name, e.store_id, e.expires_at
+			FROM coupon_entitlements e
+			JOIN coupon_templates t ON t.id = e.coupon_template_id
+			WHERE e.id = ? FOR UPDATE`
+		err := tx.QueryRowContext(ctx, selectCoupon, in.EntitlementID).Scan(
+			&status, &memberID, &templateID, &couponType, &couponName, &couponStore, &expiresAt,
+		)
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("赛事券不存在")
+		}
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if memberID != in.MemberID {
+			return apperr.NotFound("赛事券不存在")
+		}
+		if status != StatusActive || couponType != TypeEventTicket || (expiresAt.Valid && !expiresAt.Time.After(in.Now)) {
+			return apperr.Conflict("赛事券不可用或已过期")
+		}
+		if couponStore.Valid && couponStore.Int64 != in.StoreID {
+			return apperr.Invalid("赛事券不适用于当前门店")
+		}
+		var storeExists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM stores WHERE id = ? AND status = 'active'`, in.StoreID).Scan(&storeExists); err != nil {
+			return apperr.Internal(err)
+		}
+		if storeExists == 0 {
+			return apperr.NotFound("门店不存在或已停用")
+		}
+		if err := ClaimVIPDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
+			return err
+		}
+		const insertRedemption = `INSERT INTO coupon_redemptions
+			(redemption_no, entitlement_id, coupon_template_id, member_id, store_id,
+			 matched_rule_json, item_snapshot_json, verified_by_type, idem_key, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, JSON_ARRAY(), 'member', ?, ?)`
+		var idem any
+		if in.IdemKey != "" {
+			idem = in.IdemKey
+		}
+		res, err := tx.ExecContext(ctx, insertRedemption, in.RedemptionNo, in.EntitlementID,
+			templateID, in.MemberID, in.StoreID, in.RuleJSON, idem, in.Now)
+		if err != nil {
+			if platdb.IsDuplicate(err) {
+				return apperr.Conflict("赛事券已被使用")
+			}
+			return apperr.Internal(err)
+		}
+		redemptionID, err := res.LastInsertId()
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		res, err = tx.ExecContext(ctx, `UPDATE coupon_entitlements SET status = ?, updated_at = ?
+			WHERE id = ? AND member_id = ? AND status = ?`, StatusUsed, in.Now, in.EntitlementID, in.MemberID, StatusActive)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if affected, _ := res.RowsAffected(); affected != 1 {
+			return apperr.Conflict("赛事券已被使用")
+		}
+		if err := printer.WriteEventCouponReceipt(ctx, tx, redemptionID, printer.Receipt{
+			StoreID: in.StoreID, BusinessOrderNo: in.RedemptionNo, OrderType: "event_coupon",
+			CouponName: couponName, PaidAt: in.Now,
+		}); err != nil {
+			return err
+		}
+		out, err = scanCoupon(tx.QueryRowContext(ctx, couponSelect+` WHERE e.id = ? AND e.member_id = ?`, in.EntitlementID, in.MemberID))
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		out.RedemptionID = redemptionID
+		return nil
+	})
+	if err != nil {
+		return MemberCoupon{}, err
+	}
+	return out, nil
+}
+
 // redemptionSelect joins a redemption with its entitlement (status/expiry),
 // template (display name) and store (name). The redemption_no doubles as the
 // member-facing 兑换码.
-const redemptionSelect = `SELECT r.id, r.redemption_no, e.status, t.name, e.expires_at,
+const redemptionSelect = `SELECT r.id, r.redemption_no, e.status, t.name, t.coupon_type, e.expires_at,
 	COALESCE(s.name,''), r.item_snapshot_json, r.created_at
 	FROM coupon_redemptions r
 	JOIN coupon_entitlements e ON e.id = r.entitlement_id
@@ -363,7 +476,7 @@ func scanRedemption(s scanner) (RedemptionOrder, error) {
 	var o RedemptionOrder
 	var name string
 	var snapshotJSON []byte
-	if err := s.Scan(&o.ID, &o.RedemptionNo, &o.Status, &name, &o.ValidUntil, &o.StoreName, &snapshotJSON, &o.CreatedAt); err != nil {
+	if err := s.Scan(&o.ID, &o.RedemptionNo, &o.Status, &name, &o.CouponType, &o.ValidUntil, &o.StoreName, &snapshotJSON, &o.CreatedAt); err != nil {
 		return RedemptionOrder{}, err
 	}
 	o.Title = name

@@ -12,12 +12,13 @@ import (
 )
 
 type memRepo struct {
-	byMember    map[int64][]MemberCoupon
-	byActivity  map[int64][]MemberCoupon
-	redemptions map[int64][]RedemptionOrder
-	categories  []CouponCategory
-	lastRedeem  *RedeemInput
-	activityID  int64
+	byMember     map[int64][]MemberCoupon
+	byActivity   map[int64][]MemberCoupon
+	redemptions  map[int64][]RedemptionOrder
+	categories   []CouponCategory
+	lastRedeem   *RedeemInput
+	lastEventUse *UseEventCouponInput
+	activityID   int64
 }
 
 func (r *memRepo) ListActiveCategories(_ context.Context) ([]CouponCategory, error) {
@@ -64,6 +65,18 @@ func (r *memRepo) Redeem(_ context.Context, in RedeemInput) (MemberCoupon, error
 	for i, c := range r.byMember[in.MemberID] {
 		if c.EntitlementID == in.EntitlementID {
 			r.byMember[in.MemberID][i].Status = StatusUsed
+			return r.byMember[in.MemberID][i], nil
+		}
+	}
+	return MemberCoupon{}, apperr.NotFound("coupon not found")
+}
+
+func (r *memRepo) UseEventCoupon(_ context.Context, in UseEventCouponInput) (MemberCoupon, error) {
+	r.lastEventUse = &in
+	for i, c := range r.byMember[in.MemberID] {
+		if c.EntitlementID == in.EntitlementID {
+			r.byMember[in.MemberID][i].Status = StatusUsed
+			r.byMember[in.MemberID][i].RedemptionID = 88
 			return r.byMember[in.MemberID][i], nil
 		}
 	}
@@ -136,7 +149,7 @@ func TestListCouponsFiltersByMemberAndStatus(t *testing.T) {
 
 func TestListActivityUsableCouponsUsesActivityFilter(t *testing.T) {
 	repo := &memRepo{byActivity: map[int64][]MemberCoupon{
-		8: {{EntitlementID: 3, Name: "当前活动单人票券", CouponType: TypeEventTicket, AdmissionCount: 1, Status: StatusActive}},
+		8: {{EntitlementID: 3, Name: "当前活动单人票券", CouponType: TypeAdmissionTicket, AdmissionCount: 1, Status: StatusActive}},
 	}}
 	svc := NewService(repo)
 
@@ -176,6 +189,34 @@ func TestRedeemActiveMarksUsed(t *testing.T) {
 	}
 	if rule.RedeemedAmountCent != 5000 {
 		t.Fatalf("unexpected redemption snapshot: %+v", rule)
+	}
+}
+
+func TestUseEventCouponCreatesUsedRedemption(t *testing.T) {
+	repo := &memRepo{byMember: map[int64][]MemberCoupon{
+		10: {{EntitlementID: 7, CouponType: TypeEventTicket, Status: StatusActive}},
+	}}
+	view, err := NewService(repo).UseEventCoupon(context.Background(), 10, "idem-event", UseEventCouponRequest{
+		EntitlementID: 7, StoreID: 5,
+	})
+	if err != nil {
+		t.Fatalf("use event coupon: %v", err)
+	}
+	if view.ID != 88 || view.Status != StatusUsed {
+		t.Fatalf("unexpected event coupon result: %+v", view)
+	}
+	if repo.lastEventUse == nil || repo.lastEventUse.StoreID != 5 || repo.lastEventUse.IdemKey != "idem-event" {
+		t.Fatalf("unexpected event coupon input: %+v", repo.lastEventUse)
+	}
+	var rule RedemptionRuleSnapshot
+	if err := json.Unmarshal(repo.lastEventUse.RuleJSON, &rule); err != nil || rule.CouponType != TypeEventTicket {
+		t.Fatalf("unexpected event coupon rule: %+v err=%v", rule, err)
+	}
+}
+
+func TestUseEventCouponRejectsInvalidIdentifiers(t *testing.T) {
+	if _, err := NewService(&memRepo{}).UseEventCoupon(context.Background(), 10, "idem-event", UseEventCouponRequest{}); codeOf(t, err) != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid event coupon request, got %v", err)
 	}
 }
 

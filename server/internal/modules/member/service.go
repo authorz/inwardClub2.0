@@ -493,7 +493,7 @@ func validBenefitTrigger(value string) bool {
 
 func validTierCouponType(value string) bool {
 	switch value {
-	case "event_ticket", "snack", "alcohol", "beverage", "drink", "meal", "gift":
+	case "event_ticket", "admission_ticket", "snack", "alcohol", "beverage", "drink", "meal", "gift":
 		return true
 	default:
 		return false

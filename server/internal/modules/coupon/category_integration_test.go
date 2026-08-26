@@ -36,8 +36,8 @@ func TestCouponCategoriesMigrationAndReadPathsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list active categories: %v", err)
 	}
-	if len(categories) != 7 {
-		t.Fatalf("active category count = %d, want 7", len(categories))
+	if len(categories) != 8 {
+		t.Fatalf("active category count = %d, want 8", len(categories))
 	}
 
 	consoleRepo := NewConsoleRepository(database)

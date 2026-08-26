@@ -282,7 +282,7 @@ func (r *sqlConsoleRepository) CouponTemplateAvailableForSale(ctx context.Contex
 	var count int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates
 		WHERE id = ? AND status = 'published'
-			  AND coupon_type IN ('event_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift')
+			  AND coupon_type IN ('event_ticket', 'admission_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift')
 		  AND (scope_type = 'global' OR (scope_type = 'store' AND store_id = ?))`,
 		templateID, storeID).Scan(&count)
 	if err != nil {

@@ -52,7 +52,7 @@
   </view>
 
   <view wx:if="{{ticket && payMethod === 'coupon'}}" class="ap__section ic-glass-recessed">
-    <text class="ap__section-title">使用赛事门票券</text>
+    <text class="ap__section-title">使用门票券</text>
     <view class="ap__coupon-selected" bindtap="openCouponPicker">
       <image class="ap__coupon-icon" src="{{couponIconUrl}}" mode="aspectFit" />
       <view class="ap__coupon-copy">
@@ -87,7 +87,7 @@
       <view class="ap__picker-handle"></view>
       <view class="ap__picker-head">
         <view>
-          <text class="ap__picker-title">选择赛事门票券</text>
+          <text class="ap__picker-title">选择门票券</text>
           <text class="ap__picker-subtitle">按到期时间排序，优先展示即将到期的券</text>
         </view>
         <text class="ap__picker-close" bindtap="closeCouponPicker">关闭</text>

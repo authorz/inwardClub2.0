@@ -760,7 +760,7 @@ func TestConsoleVerifyScopeAndIdentifier(t *testing.T) {
 
 // validCouponType guards the template writes against unknown coupon types.
 func TestValidCouponType(t *testing.T) {
-	for _, ok := range []string{TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeMeal} {
+	for _, ok := range []string{TypeEventTicket, TypeAdmissionTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeMeal} {
 		if !validCouponType(ok) {
 			t.Fatalf("expected %q to be valid", ok)
 		}
@@ -771,11 +771,14 @@ func TestValidCouponType(t *testing.T) {
 }
 
 func TestNormalizedAdmissionCount(t *testing.T) {
-	if got, err := normalizedAdmissionCount(TypeEventTicket, 3); err != nil || got != 3 {
-		t.Fatalf("expected three-person event coupon, got count=%d err=%v", got, err)
+	if got, err := normalizedAdmissionCount(TypeAdmissionTicket, 3); err != nil || got != 3 {
+		t.Fatalf("expected three-person admission coupon, got count=%d err=%v", got, err)
 	}
-	if _, err := normalizedAdmissionCount(TypeEventTicket, 0); apperr.From(err).Code != apperr.CodeInvalidArgument {
+	if _, err := normalizedAdmissionCount(TypeAdmissionTicket, 0); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected invalid zero admission count, got %v", err)
+	}
+	if got, err := normalizedAdmissionCount(TypeEventTicket, 8); err != nil || got != 1 {
+		t.Fatalf("event coupons must normalize to one, got count=%d err=%v", got, err)
 	}
 	if got, err := normalizedAdmissionCount(TypeAlcohol, 8); err != nil || got != 1 {
 		t.Fatalf("non-event coupons must normalize to one, got count=%d err=%v", got, err)

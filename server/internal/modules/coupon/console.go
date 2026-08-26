@@ -252,7 +252,7 @@ func (r *sqlConsoleRepository) GetApplicableScope(ctx context.Context, scope Con
 
 func validCouponType(t string) bool {
 	switch t {
-	case TypeEventTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeDrink, TypeMeal, TypeGift:
+	case TypeEventTicket, TypeAdmissionTicket, TypeSnack, TypeAlcohol, TypeBeverage, TypeDrink, TypeMeal, TypeGift:
 		return true
 	default:
 		return false
@@ -286,11 +286,11 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 }
 
 func normalizedAdmissionCount(couponType string, admissionCount int) (int, error) {
-	if couponType != TypeEventTicket {
+	if couponType != TypeAdmissionTicket {
 		return 1, nil
 	}
 	if admissionCount < 1 || admissionCount > 99 {
-		return 0, apperr.Invalid("赛事门票券可兑人数必须在 1 到 99 之间")
+		return 0, apperr.Invalid("门票券可兑人数必须在 1 到 99 之间")
 	}
 	return admissionCount, nil
 }

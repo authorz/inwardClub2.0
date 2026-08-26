@@ -200,6 +200,28 @@ func (s *Service) Redeem(ctx context.Context, memberID int64, idemKey string, re
 	return couponView(redeemed), nil
 }
 
+// UseEventCoupon consumes an event coupon directly at a store. The repository
+// owns the locked type/status checks and receipt outbox write.
+func (s *Service) UseEventCoupon(ctx context.Context, memberID int64, idemKey string, req UseEventCouponRequest) (MemberCouponView, error) {
+	if req.EntitlementID <= 0 || req.StoreID <= 0 {
+		return MemberCouponView{}, apperr.Invalid("赛事券和门店信息不正确")
+	}
+	ruleJSON, err := marshalSnapshot(RedemptionRuleSnapshot{CouponType: TypeEventTicket})
+	if err != nil {
+		return MemberCouponView{}, apperr.Internal(err)
+	}
+	now := time.Now().UTC()
+	used, err := s.repo.UseEventCoupon(ctx, UseEventCouponInput{
+		MemberID: memberID, EntitlementID: req.EntitlementID, StoreID: req.StoreID,
+		RedemptionNo: fmt.Sprintf("ER%d-%d", req.EntitlementID, now.UnixNano()),
+		IdemKey:      idemKey, Now: now, RuleJSON: ruleJSON,
+	})
+	if err != nil {
+		return MemberCouponView{}, err
+	}
+	return couponView(used), nil
+}
+
 // ListRedemptions returns the member's redemption orders (兑换订单), newest first.
 func (s *Service) ListRedemptions(ctx context.Context, memberID int64, page httpx.Page) ([]RedemptionOrderView, int64, error) {
 	orders, total, err := s.repo.ListRedemptions(ctx, memberID, page.Limit(), page.Offset())
@@ -229,6 +251,7 @@ func redemptionView(o RedemptionOrder) RedemptionOrderView {
 		Status:     o.Status,
 		Title:      o.Title,
 		CouponName: o.CouponName,
+		CouponType: o.CouponType,
 		Qty:        o.Qty,
 		ValidUntil: o.ValidUntil,
 		Code:       o.Code,

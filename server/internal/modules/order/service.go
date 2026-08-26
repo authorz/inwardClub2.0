@@ -279,7 +279,7 @@ func (s *Service) CreateActivityOrder(ctx context.Context, memberID int64, idemK
 	}
 	if req.PayMethod == PayMethodCoupon {
 		if req.Quantity != 1 || req.CouponEntitlementID == nil || *req.CouponEntitlementID <= 0 {
-			return ActivityOrderView{}, apperr.Invalid("一张赛事门票券只能兑换一张门票")
+			return ActivityOrderView{}, apperr.Invalid("一张门票券只能兑换一张门票")
 		}
 	} else if req.CouponEntitlementID != nil {
 		return ActivityOrderView{}, apperr.Invalid("当前支付方式不能使用门票券")

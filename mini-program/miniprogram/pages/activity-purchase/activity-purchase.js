@@ -58,7 +58,7 @@ Page({
         const a = res.data || {};
         const now = Date.now();
         const allTicketCoupons = (couponRes.data || [])
-          .filter((coupon) => coupon.type === 'event_ticket' && coupon.status === 'unused')
+          .filter((coupon) => coupon.type === 'admission_ticket' && coupon.status === 'unused')
           .filter((coupon) => coupon.storeId == null
             || (a.storeId != null && String(coupon.storeId) === String(a.storeId)))
           .filter((coupon) => !coupon.validUntil || fmt.timestamp(coupon.validUntil) > now)
@@ -69,7 +69,7 @@ Page({
           })
           .map((coupon) => ({
             id: coupon.id,
-            name: coupon.name || '赛事门票券',
+            name: coupon.name || '门票券',
             admissionCount: admissionCountOf(coupon.admissionCount),
             expiresAt: coupon.validUntil || '',
             expiryText: coupon.validUntil ? fmt.dateTime(coupon.validUntil, { relative: false }) : '长期有效',
@@ -263,7 +263,7 @@ Page({
       return;
     }
     if (payMethod === PAY_METHOD.COUPON && !this.data.couponEntitlementId) {
-      ui.toast('请选择赛事门票券');
+      ui.toast('请选择门票券');
       return;
     }
     let quantity = 1;

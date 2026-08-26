@@ -1,6 +1,9 @@
 // 我的券 — 仅展示可用券，按券分类筛选 + 带券进入点餐
 // Reference: design/mini-program/final/member-subpages/08-my-coupons-v23.png
 const api = require('../../services/api');
+const http = require('../../utils/request');
+const storeCtx = require('../../utils/store-context');
+const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 
 function countdown(validUntil, now) {
@@ -48,6 +51,7 @@ Page({
     all: [],
     list: [],
     couponCount: 0,
+    submittingId: '',
   },
 
   onLoad() {
@@ -74,6 +78,9 @@ Page({
           categoryId: String(c.categoryId || ''),
           categoryLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
           typeLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
+          ruleText: c.type === 'event_ticket'
+            ? '确认后直接使用'
+            : (c.type === 'admission_ticket' ? '一券兑一张门票' : '一券兑一份'),
           validUntil: c.validUntil,
           status: c.status,
           action: c.action || 'none',
@@ -143,8 +150,12 @@ Page({
 
   onAction(e) {
     const c = this.data.all.find((x) => x.id === e.currentTarget.dataset.id);
-    if (!c || c.status !== 'unused') return;
+    if (!c || c.status !== 'unused' || this.data.submittingId) return;
     if (c.type === 'event_ticket') {
+      this.confirmEventCouponUse(c);
+      return;
+    }
+    if (c.type === 'admission_ticket') {
       wx.navigateTo({ url: '/pages/activity-list/activity-list' });
       return;
     }
@@ -157,6 +168,55 @@ Page({
       `validUntil=${encodeURIComponent(c.validUntil || '')}`,
     ].join('&');
     wx.navigateTo({ url: `/pages/coupon-redeem/coupon-redeem?${params}` });
+  },
+
+  resolveEventCouponStore(coupon) {
+    if (!coupon.storeId) return storeCtx.ensureStore();
+    return storeCtx.listNearby().then((stores) =>
+      stores.find((store) => String(store.id) === String(coupon.storeId)) || null
+    );
+  },
+
+  confirmEventCouponUse(coupon) {
+    if (this._confirmingCouponId) return;
+    this._confirmingCouponId = coupon.id;
+    this.resolveEventCouponStore(coupon)
+      .then((store) => {
+        if (!store) throw new Error('当前没有可使用赛事券的门店');
+        return ui.confirm({
+          title: '确认使用赛事券',
+          content: `将在“${store.name}”使用“${coupon.name}”。确认后将立即核销并打印小票，无法撤销。`,
+          confirmText: '确认使用',
+        }).then((confirmed) => ({ confirmed, store }));
+      })
+      .then(({ confirmed, store }) => {
+        this._confirmingCouponId = null;
+        if (!confirmed) return;
+        this.submitEventCouponUse(coupon, store);
+      })
+      .catch((err) => {
+        this._confirmingCouponId = null;
+        ui.error((err && err.message) || '赛事券使用失败');
+      });
+  },
+
+  submitEventCouponUse(coupon, store) {
+    this.setData({ submittingId: coupon.id });
+    ui.showLoading('使用中');
+    api.useEventCoupon({ entitlementId: coupon.id, storeId: store.id }, http.uuid())
+      .then((res) => {
+        const redemptionId = res.data && res.data.id;
+        if (!redemptionId) throw new Error('赛事券订单创建失败');
+        ui.hideLoading();
+        wx.redirectTo({
+          url: `/pages/pay-result/pay-result?type=coupon&status=success&id=${redemptionId}`,
+        });
+      })
+      .catch((err) => {
+        ui.hideLoading();
+        this.setData({ submittingId: '' });
+        ui.error((err && err.message) || '赛事券使用失败');
+      });
   },
 
   goRecords() {

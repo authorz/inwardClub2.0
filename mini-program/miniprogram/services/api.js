@@ -343,11 +343,12 @@ function levelToCode(level) {
   return LEVEL_CODE[Math.max(0, Math.min(LEVEL_CODE.length - 1, (level || 1) - 1))];
 }
 const BENEFIT_TYPE_LABEL = {
-  event_ticket: '赛事门票券', snack: '小吃券', alcohol: '酒水券',
+  event_ticket: '赛事券', admission_ticket: '门票券', snack: '小吃券', alcohol: '酒水券',
   beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
 const BENEFIT_TYPE_ICON = {
   event_ticket: '/assets/icons/ticket-qr.svg',
+  admission_ticket: '/assets/icons/ticket-qr.svg',
   snack: '/pages/benefits/assets/monthly-snack-coupon.svg',
   alcohol: '/pages/benefits/assets/exclusive-wine-glass.svg',
   beverage: '/pages/benefits/assets/exclusive-wine-glass.svg',
@@ -542,6 +543,8 @@ const api = {
     http.get(m('/coupon-redemptions/eligible-items') + qs(params)),
   createCouponRedemption: (data, key) =>
     http.post(m('/coupon-redemptions'), couponRedemptionBody(data), { idempotent: true, idempotencyKey: key }),
+  useEventCoupon: (data, key) =>
+    http.post(m('/event-coupon-redemptions'), data, { idempotent: true, idempotencyKey: key }),
   getRedemptionOrders: (params) => http.get(m('/coupon-redemptions') + qs(params)),
   getRedemptionOrder: (id) => http.get(m(`/coupon-redemptions/${id}`)),
 

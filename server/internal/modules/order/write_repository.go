@@ -404,10 +404,10 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 		if in.PayMethod == PayMethodCoupon {
 			chargedTotal = 0
 			if in.Quantity != 1 {
-				return apperr.Invalid("一张赛事门票券只能兑换一个对应票档")
+				return apperr.Invalid("一张门票券只能兑换一个对应票档")
 			}
 			if in.CouponEntitlementID == nil {
-				return apperr.Invalid("请选择赛事门票券")
+				return apperr.Invalid("请选择门票券")
 			}
 			var (
 				couponStatus    string
@@ -424,23 +424,23 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 				&couponStatus, &couponMember, &couponStore, &couponExpiry, &couponType, &couponAdmission,
 			)
 			if errors.Is(err, sql.ErrNoRows) {
-				return apperr.NotFound("赛事门票券不存在")
+				return apperr.NotFound("门票券不存在")
 			}
 			if err != nil {
 				return apperr.Internal(err)
 			}
 			if couponMember != in.MemberID {
-				return apperr.NotFound("赛事门票券不存在")
+				return apperr.NotFound("门票券不存在")
 			}
-			if couponStatus != "active" || couponType != "event_ticket" ||
+			if couponStatus != "active" || couponType != "admission_ticket" ||
 				(couponExpiry.Valid && !couponExpiry.Time.After(in.Now)) {
-				return apperr.Conflict("赛事门票券不可用或已过期")
+				return apperr.Conflict("门票券不可用或已过期")
 			}
 			if couponStore.Valid && (!storeID.Valid || couponStore.Int64 != storeID.Int64) {
-				return apperr.Invalid("赛事门票券不适用于当前门店")
+				return apperr.Invalid("门票券不适用于当前门店")
 			}
 			if couponAdmission != ticketAdmission {
-				return apperr.Invalid("赛事门票券人数与所选票档人数不匹配")
+				return apperr.Invalid("门票券人数与所选票档人数不匹配")
 			}
 		}
 		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeActivity, storePtr, in.MemberID, chargedTotal, in.Now)
@@ -509,7 +509,7 @@ func (r *sqlRepository) CreateActivityOrder(ctx context.Context, in ActivityOrde
 				return apperr.Internal(err)
 			}
 			if affected, _ := res.RowsAffected(); affected != 1 {
-				return apperr.Conflict("赛事门票券已被使用")
+				return apperr.Conflict("门票券已被使用")
 			}
 			const insTxn = `INSERT INTO payment_transactions
 				(payment_order_id, provider, channel, out_trade_no, amount_cent, status, created_at)

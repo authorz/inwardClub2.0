@@ -100,6 +100,22 @@ func (h *Handler) Redeem(c *gin.Context) {
 	httpx.Created(c, view)
 }
 
+// UseEventCoupon handles POST /mini/event-coupon-redemptions.
+func (h *Handler) UseEventCoupon(c *gin.Context) {
+	memberID := authn.MustFromContext(c).SubjectID()
+	var req UseEventCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid(err.Error()))
+		return
+	}
+	view, err := h.svc.UseEventCoupon(c.Request.Context(), memberID, idempotency.Key(c), req)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, view)
+}
+
 // ListRedemptions handles GET /mini/coupon-redemptions.
 func (h *Handler) ListRedemptions(c *gin.Context) {
 	memberID := authn.MustFromContext(c).SubjectID()

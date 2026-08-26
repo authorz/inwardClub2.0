@@ -142,9 +142,13 @@ func TestListActivityUsableCouponsIntegration(t *testing.T) {
 		VALUES (?, 'single', 1, 100, 0, 0, JSON_ARRAY('wechat'), 'active', ?, ?)`, activityID, now, now); err != nil {
 		t.Fatalf("insert ticket type: %v", err)
 	}
+	var categoryID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_categories WHERE business_type = 'admission_ticket' LIMIT 1`).Scan(&categoryID); err != nil {
+		t.Fatalf("select admission coupon category: %v", err)
+	}
 	res, err = tx.ExecContext(ctx, `INSERT INTO coupon_templates
-		(scope_type, name, coupon_type, admission_count, validity_rule, applicable_scope, status, created_at, updated_at)
-		VALUES ('global', 'activity coupon list integration', 'event_ticket', 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`, now, now)
+		(scope_type, name, coupon_type, category_id, admission_count, validity_rule, applicable_scope, status, created_at, updated_at)
+		VALUES ('global', 'activity coupon list integration', 'admission_ticket', ?, 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`, categoryID, now, now)
 	if err != nil {
 		t.Fatalf("insert template: %v", err)
 	}

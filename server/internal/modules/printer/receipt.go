@@ -41,6 +41,7 @@ type Receipt struct {
 	PayMethod  string
 	Points     int64
 	Remark     string
+	CouponName string
 	// CoinBalance is the member's available coin balance after this payment.
 	CoinBalance *int64
 	Items       []ReceiptItem
@@ -70,9 +71,28 @@ func WriteReceipt(ctx context.Context, tx *sql.Tx, r Receipt) error {
 			return err
 		}
 	}
+	return writeReceiptJobs(ctx, tx, r, devices, func(deviceID int64) string {
+		return receiptIdemKey(r.PaymentOrderID, deviceID)
+	})
+}
+
+// WriteEventCouponReceipt queues one receipt per active store printer for a
+// direct event-coupon use. Redemption-based keys keep it independent from the
+// payment-order receipt namespace.
+func WriteEventCouponReceipt(ctx context.Context, tx *sql.Tx, redemptionID int64, r Receipt) error {
+	devices, err := activeDevices(ctx, tx, r.StoreID)
+	if err != nil || len(devices) == 0 {
+		return err
+	}
+	return writeReceiptJobs(ctx, tx, r, devices, func(deviceID int64) string {
+		return fmt.Sprintf("coupon-redemption:%d:printer:%d:print-receipt", redemptionID, deviceID)
+	})
+}
+
+func writeReceiptJobs(ctx context.Context, tx *sql.Tx, r Receipt, devices []activeDevice, idemKeyFor func(int64) string) error {
 	for _, device := range devices {
 		job := BuildReceiptJob(device.sn, device.soundEnabled, r)
-		idemKey := receiptIdemKey(r.PaymentOrderID, device.id)
+		idemKey := idemKeyFor(device.id)
 		jobID, err := createPrintJob(ctx, tx, r.StoreID, device.id, r.BusinessOrderNo, idemKey, job)
 		if err != nil {
 			return err
@@ -250,6 +270,9 @@ func renderReceipt(r Receipt) string {
 			fmt.Fprintf(&b, "%s\n", item.Name)
 			fmt.Fprintf(&b, "                  %d      %s\n", item.Quantity, yuan(item.SubtotalCent))
 		}
+	} else if r.OrderType == "event_coupon" && strings.TrimSpace(r.CouponName) != "" {
+		fmt.Fprintf(&b, "券名称                   %s\n", strings.TrimSpace(r.CouponName))
+		b.WriteString("使用数量                 1 张\n")
 	}
 	b.WriteString(rule)
 	fmt.Fprintf(&b, "合计  %s\n", yuan(r.AmountCent))
@@ -281,6 +304,8 @@ func orderTypeLabel(orderType string) string {
 		return "餐饮订单"
 	case "activity":
 		return "活动订单"
+	case "event_coupon":
+		return "赛事券使用"
 	case "recharge":
 		return "充值订单"
 	case "offline_collection":

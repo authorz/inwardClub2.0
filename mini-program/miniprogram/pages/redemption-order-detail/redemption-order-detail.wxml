@@ -3,7 +3,7 @@
 
 <view wx:elif="{{order}}" class="od">
   <view class="od-head">
-    <view class="od-head__icon"><view class="ic-ic ic-ic-clock ic-ic--sm"></view></view>
+    <view class="od-head__icon"><view class="ic-ic {{directUsed ? 'ic-ic-check' : 'ic-ic-clock'}} ic-ic--sm"></view></view>
     <text class="od-head__status">{{order.statusText}}</text>
     <text class="od-head__no">#{{order.orderNo}}</text>
   </view>
@@ -12,12 +12,12 @@
     <view class="rod__glass"><view class="ic-ic ic-ic-coupon"></view></view>
     <view class="rod__item-main">
       <text class="rod__item-title">{{order.title}}</text>
-      <text class="rod__item-sub">{{order.couponName}} · x{{order.qty}}</text>
+      <text class="rod__item-sub">{{directUsed ? '赛事券' : order.couponName}} · x{{order.qty}}</text>
     </view>
-    <text class="rod__valid">有效期至 {{order.validUntil}}</text>
+    <text wx:if="{{!directUsed}}" class="rod__valid">有效期至 {{order.validUntil}}</text>
   </view>
 
-  <view class="od-card od-card--pad rod__code">
+  <view wx:if="{{!directUsed}}" class="od-card od-card--pad rod__code">
     <view class="ic-qr">
       <view class="ic-qr__row" wx:for="{{qr}}" wx:for-item="row" wx:key="id">
         <view class="ic-qr__cell {{cell.on ? 'ic-qr__cell--on' : ''}}" wx:for="{{row.cells}}" wx:for-item="cell" wx:key="id"></view>
@@ -30,11 +30,11 @@
 
   <view class="od-card">
     <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{order.storeName}}</text></view>
-    <view class="od-row"><text class="od-row__label">兑换时间</text><text class="od-row__value">{{order.createdText}}</text></view>
+    <view class="od-row"><text class="od-row__label">{{directUsed ? '使用时间' : '兑换时间'}}</text><text class="od-row__value">{{order.createdText}}</text></view>
     <view class="od-row"><text class="od-row__label">状态</text><text class="od-row__value">{{order.statusHint || order.statusText}}</text></view>
   </view>
 
-  <view class="od-bar">
+  <view wx:if="{{!directUsed}}" class="od-bar">
     <button class="ic-btn ic-btn-ghost" bindtap="cancel">取消兑换</button>
     <button class="ic-btn ic-btn-primary" bindtap="copyCode">出示兑换码</button>
   </view>

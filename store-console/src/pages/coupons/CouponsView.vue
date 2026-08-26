@@ -66,14 +66,14 @@ async function open(row?: CouponTemplate): Promise<void> {
 async function save(): Promise<void> {
   if (!form.name.trim()) return void feedback.message.error('请填写优惠券名称')
   if (!form.categoryId) return void feedback.message.error('请选择券类型')
-  if (selectedBusinessType.value === 'event_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
+  if (selectedBusinessType.value === 'admission_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
     return void feedback.message.error('请填写正确的可兑人数')
   }
   saving.value = true
   try {
     const body = {
       name: form.name.trim(), description: form.description.trim(), categoryId: form.categoryId,
-      admissionCount: selectedBusinessType.value === 'event_ticket' ? form.admissionCount : 1,
+      admissionCount: selectedBusinessType.value === 'admission_ticket' ? form.admissionCount : 1,
     }
     if (form.id == null) await couponService.create(body)
     else await couponService.update(form.id, body)
@@ -192,7 +192,7 @@ onMounted(loadCategories)
             />
           </NFormItemGi>
           <NFormItemGi
-            v-if="selectedBusinessType === 'event_ticket'"
+            v-if="selectedBusinessType === 'admission_ticket'"
             label="可兑人数"
             required
           >

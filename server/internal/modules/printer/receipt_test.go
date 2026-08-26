@@ -89,6 +89,20 @@ func TestBuildReceiptJobShowsWechatPaymentAndBalance(t *testing.T) {
 	}
 }
 
+func TestBuildEventCouponReceipt(t *testing.T) {
+	job := BuildReceiptJob("SN-EVENT", true, Receipt{
+		BusinessOrderNo: "ER202608270001",
+		OrderType:       "event_coupon",
+		CouponName:      "周赛赛事券",
+		PaidAt:          time.Date(2026, 8, 27, 4, 0, 0, 0, time.UTC),
+	})
+	for _, want := range []string{"赛事券使用", "周赛赛事券", "使用数量                 1 张", "合计  ¥0.00"} {
+		if !strings.Contains(job.Content, want) {
+			t.Fatalf("event coupon receipt missing %q:\n%s", want, job.Content)
+		}
+	}
+}
+
 func TestPaymentMethodLabel(t *testing.T) {
 	cases := map[string]string{
 		"wechat":  "微信",

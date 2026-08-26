@@ -16,7 +16,8 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 const listRef = ref<ResourceListInstance | null>(null)
 
 const usageOptions = [
-  { label: '赛事门票', value: 'event_ticket' },
+  { label: '赛事使用', value: 'event_ticket' },
+  { label: '活动门票兑换', value: 'admission_ticket' },
   { label: '小吃兑换', value: 'snack' },
   { label: '酒水兑换', value: 'alcohol' },
   { label: '饮料兑换', value: 'beverage' },
@@ -136,7 +137,7 @@ const toolbarActions = [{
       <NForm label-placement="top">
         <NGrid :cols="2" :x-gap="16">
           <NFormItemGi label="券类型名称" required>
-            <NInput v-model:value="form.name" placeholder="例如：周赛门票券" />
+            <NInput v-model:value="form.name" placeholder="例如：周赛赛事券" />
           </NFormItemGi>
           <NFormItemGi label="使用方式" required>
             <NSelect

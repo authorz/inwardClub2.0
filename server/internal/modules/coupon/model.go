@@ -17,15 +17,17 @@ const (
 	StatusExpired = "expired"
 )
 
-// Coupon types. One entitlement always exchanges one product or one ticket.
+// Coupon types. Event coupons are consumed directly at a store; admission
+// coupons exchange for an activity ticket. Product coupons exchange one item.
 const (
-	TypeEventTicket = "event_ticket"
-	TypeSnack       = "snack"
-	TypeAlcohol     = "alcohol"
-	TypeBeverage    = "beverage"
-	TypeDrink       = "drink"
-	TypeMeal        = "meal"
-	TypeGift        = "gift"
+	TypeEventTicket     = "event_ticket"
+	TypeAdmissionTicket = "admission_ticket"
+	TypeSnack           = "snack"
+	TypeAlcohol         = "alcohol"
+	TypeBeverage        = "beverage"
+	TypeDrink           = "drink"
+	TypeMeal            = "meal"
+	TypeGift            = "gift"
 )
 
 const (
@@ -54,6 +56,7 @@ type RedemptionOrder struct {
 	Status       string // entitlement status (used/void/expired/active)
 	Title        string
 	CouponName   string
+	CouponType   string
 	Qty          int
 	ValidUntil   *time.Time
 	Code         string

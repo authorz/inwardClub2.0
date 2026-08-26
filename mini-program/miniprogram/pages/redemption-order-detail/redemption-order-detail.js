@@ -7,20 +7,22 @@ const codeart = require('../../utils/codeart');
 const { ORDER_STATUS_LABEL } = require('../../constants/index');
 
 Page({
-  data: { loading: true, order: null, qr: [] },
+  data: { loading: true, order: null, qr: [], directUsed: false },
 
   onLoad(options) {
     api
       .getRedemptionOrder(options.id)
       .then((res) => {
         const d = res.data || {};
+        const directUsed = d.couponType === 'event_ticket';
         this.setData({
           loading: false,
-          qr: codeart.grid(d.code || d.orderNo),
+          directUsed,
+          qr: directUsed ? [] : codeart.grid(d.code || d.orderNo),
           order: {
             id: d.id,
             orderNo: d.orderNo,
-            statusText: d.status === 'pending_verify' ? '待取用' : ORDER_STATUS_LABEL[d.status] || d.status,
+            statusText: directUsed ? '已使用' : (d.status === 'pending_verify' ? '待取用' : ORDER_STATUS_LABEL[d.status] || d.status),
             title: d.title,
             couponName: d.couponName,
             qty: d.qty || 1,
@@ -28,7 +30,7 @@ Page({
             code: fmt.codeGroups(d.code),
             storeName: d.storeName,
             createdText: fmt.dateTime(d.createdAt),
-            statusHint: d.status === 'pending_verify' ? '待工作人员确认' : '',
+            statusHint: directUsed ? '赛事券已核销' : (d.status === 'pending_verify' ? '待工作人员确认' : ''),
           },
         });
       })

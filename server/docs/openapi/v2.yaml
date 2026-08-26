@@ -1218,7 +1218,7 @@ components:
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
-        businessType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
+        businessType: { type: string, enum: [event_ticket, admission_ticket, snack, alcohol, beverage, drink, meal, gift] }
         sortOrder: { type: integer, minimum: 0 }
         status: { type: string, enum: [active, disabled] }
         createdAt: { type: string, format: date-time }
@@ -1228,7 +1228,7 @@ components:
       required: [name, businessType]
       properties:
         name: { type: string }
-        businessType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift], description: Fixed fulfillment behavior bound to this managed category. }
+        businessType: { type: string, enum: [event_ticket, admission_ticket, snack, alcohol, beverage, drink, meal, gift], description: Fixed fulfillment behavior bound to this managed category. }
         sortOrder: { type: integer, minimum: 0 }
         status: { type: string, enum: [active, disabled] }
     MemberCouponView:
@@ -1242,8 +1242,8 @@ components:
         description: { type: string }
         categoryId: { type: integer, format: int64 }
         categoryName: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
-        admissionCount: { type: integer, minimum: 1, maximum: 99, description: 'Snapshot of attendees this entitlement can redeem; event-ticket coupons use it for ticket-tier matching.' }
+        couponType: { type: string, enum: [event_ticket, admission_ticket, snack, alcohol, beverage, drink, meal, gift] }
+        admissionCount: { type: integer, minimum: 1, maximum: 99, description: 'Snapshot of attendees this entitlement can redeem; admission-ticket coupons use it for ticket-tier matching.' }
         storeId: { type: integer, format: int64 }
         status: { type: string, enum: [active, used, void, expired] }
         expiresAt: { type: string, pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', example: '2026-09-12 02:46:05', description: 'Asia/Shanghai business time in Y-m-d H:i:s format.' }
@@ -1257,6 +1257,7 @@ components:
         status: { type: string, description: entitlement status (used/void/expired/active) }
         title: { type: string }
         couponName: { type: string }
+        couponType: { type: string, enum: [event_ticket, admission_ticket, snack, alcohol, beverage, drink, meal, gift] }
         qty: { type: integer }
         validUntil: { type: string, format: date-time }
         code: { type: string, description: member-facing 兑换码 (redemption_no) }
@@ -1277,6 +1278,12 @@ components:
             properties:
               itemId: { type: integer, format: int64 }
               quantity: { type: integer, minimum: 1 }
+    EventCouponUseRequest:
+      type: object
+      required: [entitlementId, storeId]
+      properties:
+        entitlementId: { type: integer, format: int64 }
+        storeId: { type: integer, format: int64 }
     CouponEligibleItemView:
       type: object
       properties:
@@ -5812,6 +5819,30 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/RedemptionOrderView' }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/v2/mini/event-coupon-redemptions:
+    post:
+      tags: [mini]
+      summary: Confirm and consume an event coupon at a store
+      description: Atomically records a redemption order, marks the authenticated member's event coupon used, and queues a receipt for each active printer at the selected store.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCouponUseRequest' }
+      responses:
+        '201':
+          description: Used event coupon and redemption id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MemberCouponView' }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # -------------------------------------------------- mini: availability / reservations / waitlist

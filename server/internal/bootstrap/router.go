@@ -119,6 +119,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/recharge-orders", a.orderHandler.CreateRechargeOrder)
 	idem.POST("/waitlist-entries", a.reservationHandler.CreateWaitlistEntry)
 	idem.POST("/coupon-redemptions", a.couponHandler.Redeem)
+	idem.POST("/event-coupon-redemptions", a.couponHandler.UseEventCoupon)
 	idem.POST("/payment-orders/:paymentOrderID/pay-by-coin", a.orderHandler.PayByCoin)
 
 	// Order reads.

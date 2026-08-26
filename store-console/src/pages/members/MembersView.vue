@@ -85,7 +85,8 @@ const couponForm = reactive<{ templateId: number | null; expiresAt: number | nul
   reason: '',
 })
 const COUPON_TYPE_LABELS: Record<string, string> = {
-  event_ticket: '赛事门票券',
+  event_ticket: '赛事券',
+  admission_ticket: '门票券',
   snack: '小吃券',
   alcohol: '酒水券',
   beverage: '饮料券',

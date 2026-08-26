@@ -28,7 +28,7 @@
         </view>
         <view class="cp__mid">
           <text class="cp__name">{{item.name}}</text>
-          <text class="cp__type">{{item.typeLabel}} · 一券兑一份</text>
+          <text class="cp__type">{{item.typeLabel}} · {{item.ruleText}}</text>
           <text class="cp__desc">{{item.desc}}</text>
           <text class="cp__valid">有效期至 {{item.dateText}}</text>
         </view>
@@ -42,7 +42,7 @@
             data-id="{{item.id}}"
             bindtap="onAction"
             hover-class="cp__action--hover"
-          >{{item.actionText}}</view>
+          >{{submittingId === item.id ? '使用中' : item.actionText}}</view>
         </view>
       </view>
       </view>

@@ -318,7 +318,7 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		query += ` AND coupon_type = ?`
 		args = append(args, benefit.CouponType)
 	}
-	query += ` AND (coupon_type <> 'event_ticket' OR admission_count = 1) ORDER BY id ASC LIMIT 1`
+	query += ` AND (coupon_type <> 'admission_ticket' OR admission_count = 1) ORDER BY id ASC LIMIT 1`
 	err := tx.QueryRowContext(ctx, query, args...).Scan(&templateID, &admissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil

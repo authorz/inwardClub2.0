@@ -18,6 +18,13 @@ type RedeemRequest struct {
 	Items         []RedeemItemRequest `json:"items" binding:"required"`
 }
 
+// UseEventCouponRequest consumes one event coupon at the member's current
+// store. No product or activity ticket is created.
+type UseEventCouponRequest struct {
+	EntitlementID int64 `json:"entitlementId" binding:"required"`
+	StoreID       int64 `json:"storeId" binding:"required"`
+}
+
 type RedeemItemRequest struct {
 	ItemID   int64 `json:"itemId" binding:"required"`
 	Quantity int   `json:"quantity" binding:"required"`
@@ -48,6 +55,7 @@ type RedemptionOrderView struct {
 	Status     string     `json:"status"`
 	Title      string     `json:"title"`
 	CouponName string     `json:"couponName"`
+	CouponType string     `json:"couponType"`
 	Qty        int        `json:"qty"`
 	ValidUntil *time.Time `json:"validUntil,omitempty"`
 	Code       string     `json:"code"`

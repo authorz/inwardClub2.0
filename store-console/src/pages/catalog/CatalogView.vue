@@ -67,7 +67,7 @@ const couponTemplateOptions = computed(() => couponTemplates.value
     disabled: template.status !== 'published',
   })))
 const saleCouponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => ['event_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
+  .filter((template) => ['event_ticket', 'admission_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
   .map((template) => ({
     label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
     value: String(template.id),
