@@ -558,9 +558,10 @@ components:
           type: array
           items:
             type: object
-            required: [couponType, quantity, period, trigger]
+            required: [categoryId, quantity, period, trigger]
             properties:
-              couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
+              categoryId: { type: integer, format: int64, description: Exact admin-managed coupon category to grant. }
+              couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift], deprecated: true, description: Legacy fallback for benefit configurations saved before category management. }
               quantity: { type: integer, minimum: 1, maximum: 99 }
               period: { type: string, enum: [once, daily, weekly, monthly] }
               trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
@@ -1211,12 +1212,25 @@ components:
         maxTicketsPerOrder: { type: integer }
         status: { type: string, description: 'Defaults to "active" when omitted' }
     # ---- mini coupon views ----
-    CouponTypeView:
+    CouponCategoryView:
       type: object
-      required: [value, label]
+      required: [id, name, businessType, sortOrder]
       properties:
-        value: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
-        label: { type: string }
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        businessType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
+        sortOrder: { type: integer, minimum: 0 }
+        status: { type: string, enum: [active, disabled] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CouponCategoryInput:
+      type: object
+      required: [name, businessType]
+      properties:
+        name: { type: string }
+        businessType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift], description: Fixed fulfillment behavior bound to this managed category. }
+        sortOrder: { type: integer, minimum: 0 }
+        status: { type: string, enum: [active, disabled] }
     MemberCouponView:
       type: object
       properties:
@@ -1226,6 +1240,8 @@ components:
         templateId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
+        categoryId: { type: integer, format: int64 }
+        categoryName: { type: string }
         couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         admissionCount: { type: integer, minimum: 1, maximum: 99, description: 'Snapshot of attendees this entitlement can redeem; event-ticket coupons use it for ticket-tier matching.' }
         storeId: { type: integer, format: int64 }
@@ -1281,6 +1297,8 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
+        categoryId: { type: integer, format: int64 }
+        categoryName: { type: string }
         couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         admissionCount: { type: integer, minimum: 1, maximum: 99 }
         issuedQuantity: { type: integer, format: int64 }
@@ -1296,6 +1314,8 @@ components:
         storeId: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
+        categoryId: { type: integer, format: int64 }
+        categoryName: { type: string }
         couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
         issuedCount: { type: integer, format: int64 }
         issuedQuantity: { type: integer, format: int64 }
@@ -1304,12 +1324,12 @@ components:
         updatedAt: { type: string, format: date-time }
     CouponTemplateInput:
       type: object
-      required: [name, couponType]
+      required: [name, categoryId]
       properties:
         name: { type: string }
         description: { type: string }
-        couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift] }
-        admissionCount: { type: integer, minimum: 1, maximum: 99, description: 'Required for event_ticket; ignored as 1 for other coupon types.' }
+        categoryId: { type: integer, format: int64, description: 'Admin-managed coupon category. The server derives couponType from its bound businessType.' }
+        admissionCount: { type: integer, minimum: 1, maximum: 99, description: 'Required when the selected category is bound to event_ticket; ignored as 1 for other business types.' }
     CouponApplicableItemsView:
       type: object
       properties:
@@ -5670,21 +5690,21 @@ paths:
         '204': { description: ticket type deleted }
         '404': { $ref: '#/components/responses/Error' }
   # ------------------------------------------------------------------ mini: coupons
-  /api/v2/mini/coupon-types:
+  /api/v2/mini/coupon-categories:
     get:
       tags: [mini]
-      summary: List the authoritative coupon business types
-      description: Returns the server-owned coupon type dictionary in display order. Clients must not infer categories or labels from the member's current entitlements.
+      summary: List enabled admin-managed coupon categories
+      description: Returns enabled categories in admin-configured display order. Clients must not infer categories or labels from the member's current entitlements.
       security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: Coupon type dictionary
+          description: Coupon category list
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { $ref: '#/components/schemas/CouponTypeView' } }
+                  data: { type: array, items: { $ref: '#/components/schemas/CouponCategoryView' } }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/v2/mini/coupons:
@@ -5935,6 +5955,73 @@ paths:
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ------------------------------------------------ admin console: coupon templates + entitlements
+  /api/v2/admin/coupon-categories:
+    get:
+      tags: [admin]
+      summary: List managed coupon categories
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: status, required: false, schema: { type: string, enum: [active, disabled] } }
+        - { in: query, name: keyword, required: false, schema: { type: string } }
+        - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
+        - { in: query, name: pageSize, required: false, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: Managed category list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/CouponCategoryView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [admin]
+      summary: Create a managed coupon category
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CouponCategoryInput' } } }
+      responses:
+        '201':
+          description: Created category
+          content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/CouponCategoryView' } } } } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/v2/admin/coupon-categories/{categoryID}:
+    parameters:
+      - { in: path, name: categoryID, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [admin]
+      summary: Get a managed coupon category
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Coupon category
+          content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/CouponCategoryView' } } } } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    put:
+      tags: [admin]
+      summary: Update a managed coupon category
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CouponCategoryInput' } } }
+      responses:
+        '200':
+          description: Updated category
+          content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/CouponCategoryView' } } } } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [admin]
+      summary: Delete an unused coupon category
+      description: Categories referenced by any coupon template cannot be deleted and must be disabled instead.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Category deleted }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/v2/admin/coupon-templates:
     get:
       tags: [admin]
@@ -6122,6 +6209,27 @@ paths:
   # Store scope is taken from the JWT (storescope), never a client storeId. Every
   # store-console write is mounted in the idempotency group, so template writes
   # require an Idempotency-Key (unlike the admin console).
+  /api/v2/store/coupon-categories:
+    get:
+      tags: [store]
+      summary: List enabled HQ-managed coupon categories
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: keyword, required: false, schema: { type: string } }
+        - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
+        - { in: query, name: pageSize, required: false, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: Enabled category list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/CouponCategoryView' } }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/v2/store/coupon-templates:
     get:
       tags: [store]

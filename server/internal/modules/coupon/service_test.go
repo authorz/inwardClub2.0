@@ -3,7 +3,6 @@ package coupon
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"testing"
 	"time"
 
@@ -16,8 +15,13 @@ type memRepo struct {
 	byMember    map[int64][]MemberCoupon
 	byActivity  map[int64][]MemberCoupon
 	redemptions map[int64][]RedemptionOrder
+	categories  []CouponCategory
 	lastRedeem  *RedeemInput
 	activityID  int64
+}
+
+func (r *memRepo) ListActiveCategories(_ context.Context) ([]CouponCategory, error) {
+	return r.categories, nil
 }
 
 type fakeRedeemableCatalog struct {
@@ -88,19 +92,16 @@ func codeOf(t *testing.T, err error) apperr.Code {
 	return apperr.From(err).Code
 }
 
-func TestListCouponTypesReturnsAuthoritativeBusinessDictionary(t *testing.T) {
-	types := NewService(nil).ListCouponTypes()
-	want := []CouponTypeView{
-		{Value: TypeEventTicket, Label: "赛事门票券"},
-		{Value: TypeSnack, Label: "小吃券"},
-		{Value: TypeAlcohol, Label: "酒水券"},
-		{Value: TypeBeverage, Label: "饮料券"},
-		{Value: TypeDrink, Label: "饮品或啤酒券"},
-		{Value: TypeMeal, Label: "餐食券"},
-		{Value: TypeGift, Label: "礼品券"},
+func TestListCouponCategoriesReturnsOnlyRepositoryManagedCategories(t *testing.T) {
+	repo := &memRepo{categories: []CouponCategory{
+		{ID: 8, Name: "餐饮福利", BusinessType: TypeMeal, SortOrder: 10, Status: CategoryStatusActive},
+	}}
+	views, err := NewService(repo).ListCouponCategories(context.Background())
+	if err != nil {
+		t.Fatalf("list coupon categories: %v", err)
 	}
-	if !reflect.DeepEqual(types, want) {
-		t.Fatalf("coupon types = %+v, want %+v", types, want)
+	if len(views) != 1 || views[0].ID != 8 || views[0].Name != "餐饮福利" || views[0].BusinessType != TypeMeal {
+		t.Fatalf("unexpected coupon categories: %+v", views)
 	}
 }
 

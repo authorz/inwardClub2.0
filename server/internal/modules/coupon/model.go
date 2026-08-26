@@ -28,6 +28,24 @@ const (
 	TypeGift        = "gift"
 )
 
+const (
+	CategoryStatusActive   = "active"
+	CategoryStatusDisabled = "disabled"
+)
+
+// CouponCategory is an admin-managed display category bound to one fixed
+// business behavior. Templates reference the category; redemption code uses
+// BusinessType so display changes never alter fulfillment semantics.
+type CouponCategory struct {
+	ID           int64
+	Name         string
+	BusinessType string
+	SortOrder    int
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 // RedemptionOrder is one coupon_redemptions row joined with its entitlement,
 // template and store for the mini-program "兑换订单" read path.
 type RedemptionOrder struct {
@@ -51,6 +69,8 @@ type MemberCoupon struct {
 	TemplateID     int64
 	Name           string
 	Description    string
+	CategoryID     int64
+	CategoryName   string
 	CouponType     string
 	AdmissionCount int
 	ValueCent      int64

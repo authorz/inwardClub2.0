@@ -40,6 +40,8 @@ type CouponTemplateView struct {
 	StoreID        *int64    `json:"storeId,omitempty"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description,omitempty"`
+	CategoryID     int64     `json:"categoryId"`
+	CategoryName   string    `json:"categoryName"`
 	CouponType     string    `json:"couponType"`
 	IssuedCount    int64     `json:"issuedCount"`
 	IssuedQuantity int64     `json:"issuedQuantity"`

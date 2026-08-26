@@ -16,6 +16,7 @@ import (
 // member; redemption writes reserve finite product stock and persist snapshots
 // in the same transaction that consumes the entitlement.
 type Repository interface {
+	ListActiveCategories(ctx context.Context) ([]CouponCategory, error)
 	ListMemberCoupons(ctx context.Context, memberID int64, status string, limit, offset int) ([]MemberCoupon, int64, error)
 	ListActivityUsableCoupons(ctx context.Context, memberID, activityID int64, now time.Time, usageDate string, limit, offset int) ([]MemberCoupon, int64, error)
 	GetEntitlement(ctx context.Context, memberID, entitlementID int64) (MemberCoupon, error)
@@ -54,9 +55,30 @@ type sqlRepository struct{ db *platdb.DB }
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.name,
-	COALESCE(t.description,''), t.coupon_type, e.admission_count, t.value_cent, e.store_id, e.status, e.expires_at, e.created_at
+	COALESCE(t.description,''), t.category_id, COALESCE(cc.name, ''), t.coupon_type,
+	e.admission_count, t.value_cent, e.store_id, e.status, e.expires_at, e.created_at
 	FROM coupon_entitlements e
-	JOIN coupon_templates t ON t.id = e.coupon_template_id`
+	JOIN coupon_templates t ON t.id = e.coupon_template_id
+	JOIN coupon_categories cc ON cc.id = t.category_id`
+
+func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCategory, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+		FROM coupon_categories WHERE status = 'active' ORDER BY sort_order ASC, id ASC`)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	out := make([]CouponCategory, 0)
+	for rows.Next() {
+		var category CouponCategory
+		if err := rows.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
+			&category.Status, &category.CreatedAt, &category.UpdatedAt); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		out = append(out, category)
+	}
+	return out, rows.Err()
+}
 
 func (r *sqlRepository) ListMemberCoupons(ctx context.Context, memberID int64, status string, limit, offset int) ([]MemberCoupon, int64, error) {
 	where := `e.member_id = ?`
@@ -369,6 +391,7 @@ type scanner interface {
 func scanCoupon(s scanner) (MemberCoupon, error) {
 	var c MemberCoupon
 	err := s.Scan(&c.EntitlementID, &c.EntitlementNo, &c.TemplateID, &c.Name, &c.Description,
-		&c.CouponType, &c.AdmissionCount, &c.ValueCent, &c.StoreID, &c.Status, &c.ExpiresAt, &c.CreatedAt)
+		&c.CategoryID, &c.CategoryName, &c.CouponType, &c.AdmissionCount, &c.ValueCent,
+		&c.StoreID, &c.Status, &c.ExpiresAt, &c.CreatedAt)
 	return c, err
 }

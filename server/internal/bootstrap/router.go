@@ -83,7 +83,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/sign-ins/status", a.walletHandler.SignInStatus)
 	p.GET("/invitations", a.memberHandler.ListInvitations)
 	p.GET("/invitation-reward-config", a.referralHandler.Config)
-	p.GET("/coupon-types", a.couponHandler.ListTypes)
+	p.GET("/coupon-categories", a.couponHandler.ListCategories)
 	p.GET("/coupons", a.couponHandler.List)
 	p.GET("/coupon-redemptions/eligible-items", a.couponHandler.EligibleItems)
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)
@@ -307,6 +307,11 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.GET("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.TicketTypeDetail)
 
 	// Coupon templates (list read already registered as adminHandler.CouponTemplates).
+	p.GET("/coupon-categories", a.couponConsoleHandler.Categories)
+	p.GET("/coupon-categories/:categoryID", a.couponConsoleHandler.GetCategory)
+	p.POST("/coupon-categories", a.couponConsoleHandler.CreateCategory)
+	p.PUT("/coupon-categories/:categoryID", a.couponConsoleHandler.UpdateCategory)
+	p.DELETE("/coupon-categories/:categoryID", a.couponConsoleHandler.DeleteCategory)
 	p.GET("/coupon-templates/:id", a.couponConsoleHandler.Get)
 	p.POST("/coupon-templates", a.couponConsoleHandler.Create)
 	p.PUT("/coupon-templates/:id", a.couponConsoleHandler.Update)
@@ -490,6 +495,7 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.DELETE("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreDeleteTicketType)
 
 	// Coupon templates (list read already registered as adminHandler.StoreCouponTemplates).
+	p.GET("/coupon-categories", a.couponConsoleHandler.StoreCategories)
 	p.GET("/coupon-templates/:id", a.couponConsoleHandler.StoreGet)
 	p.GET("/coupon-templates/:id/applicable-items", a.couponConsoleHandler.StoreApplicableItems)
 	idem.POST("/coupon-templates", a.couponConsoleHandler.StoreCreate)

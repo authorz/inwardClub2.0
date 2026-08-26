@@ -287,8 +287,18 @@ export interface CouponTemplate extends AuditFields {
   scopeType: 'store'
   name: string
   description?: string
+  categoryId: number | string
+  categoryName: string
   couponType: string
   admissionCount: number
+  status: string
+}
+
+export interface CouponCategory extends AuditFields {
+  id: number | string
+  name: string
+  businessType: string
+  sortOrder: number
   status: string
 }
 

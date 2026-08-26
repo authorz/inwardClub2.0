@@ -45,6 +45,8 @@ type CouponTemplate struct {
 	StoreID        *int64
 	Name           string
 	Description    string
+	CategoryID     int64
+	CategoryName   string
 	CouponType     string
 	ValueCent      int64
 	PointsPrice    int64

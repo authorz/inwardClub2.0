@@ -20,9 +20,14 @@ type Handler struct {
 // NewHandler builds the coupon handler.
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
-// ListTypes handles GET /mini/coupon-types.
-func (h *Handler) ListTypes(c *gin.Context) {
-	httpx.OK(c, h.svc.ListCouponTypes())
+// ListCategories handles GET /mini/coupon-categories.
+func (h *Handler) ListCategories(c *gin.Context) {
+	views, err := h.svc.ListCouponCategories(c.Request.Context())
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
 }
 
 // List handles GET /mini/coupons.

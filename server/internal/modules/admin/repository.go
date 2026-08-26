@@ -220,7 +220,8 @@ func (r *sqlRepository) ListCouponTemplates(ctx context.Context, f ListFilter) (
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_templates WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT id, scope_type, store_id, name, COALESCE(description, ''), coupon_type, value_cent,
+	q := `SELECT id, scope_type, store_id, name, COALESCE(description, ''),
+		category_id, COALESCE((SELECT name FROM coupon_categories WHERE id = coupon_templates.category_id), ''), coupon_type, value_cent,
 		points_price, stock_quantity, issued_quantity, per_member_limit, status, created_at, updated_at
 		FROM coupon_templates WHERE ` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
@@ -232,7 +233,8 @@ func (r *sqlRepository) ListCouponTemplates(ctx context.Context, f ListFilter) (
 	out := make([]CouponTemplate, 0)
 	for rows.Next() {
 		var ct CouponTemplate
-		if err := rows.Scan(&ct.ID, &ct.ScopeType, &ct.StoreID, &ct.Name, &ct.Description, &ct.CouponType,
+		if err := rows.Scan(&ct.ID, &ct.ScopeType, &ct.StoreID, &ct.Name, &ct.Description,
+			&ct.CategoryID, &ct.CategoryName, &ct.CouponType,
 			&ct.ValueCent, &ct.PointsPrice, &ct.TotalStock, &ct.IssuedCount, &ct.PerMemberLimit,
 			&ct.Status, &ct.CreatedAt, &ct.UpdatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)

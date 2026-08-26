@@ -114,6 +114,7 @@ export const API_PATHS = {
   },
 
   coupons: {
+    categories: '/admin/coupon-categories',
     templates: '/admin/coupon-templates',
     templateDetail: (id: string) => `/admin/coupon-templates/${id}`,
     templateAssignStores: (id: string) => `/admin/coupon-templates/${id}/assign-stores`,

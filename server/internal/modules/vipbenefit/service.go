@@ -28,6 +28,7 @@ type pointBenefit struct {
 }
 
 type couponBenefit struct {
+	CategoryID int64  `json:"categoryId"`
 	CouponType string `json:"couponType"`
 	Quantity   int    `json:"quantity"`
 	Period     string `json:"period"`
@@ -305,10 +306,20 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		templateID     int64
 		admissionCount int
 	)
-	err := tx.QueryRowContext(ctx, `SELECT id, admission_count FROM coupon_templates
-		WHERE scope_type = 'global' AND coupon_type = ? AND status = 'published'
-		  AND (coupon_type <> 'event_ticket' OR admission_count = 1)
-		ORDER BY id ASC LIMIT 1`, benefit.CouponType).Scan(&templateID, &admissionCount)
+	query := `SELECT id, admission_count FROM coupon_templates
+		WHERE scope_type = 'global' AND status = 'published'`
+	args := make([]any, 0, 1)
+	benefitIdentity := benefit.CouponType
+	if benefit.CategoryID > 0 {
+		query += ` AND category_id = ?`
+		args = append(args, benefit.CategoryID)
+		benefitIdentity = fmt.Sprintf("category:%d", benefit.CategoryID)
+	} else {
+		query += ` AND coupon_type = ?`
+		args = append(args, benefit.CouponType)
+	}
+	query += ` AND (coupon_type <> 'event_ticket' OR admission_count = 1) ORDER BY id ASC LIMIT 1`
+	err := tx.QueryRowContext(ctx, query, args...).Scan(&templateID, &admissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
@@ -318,7 +329,7 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 	expiresAt := couponExpiry(benefit.Trigger, now)
 	var granted int64
 	for sequence := 0; sequence < benefit.Quantity; sequence++ {
-		idemKey := benefitKey("c", memberID, tierID, benefit.Period, benefit.Trigger+":"+benefit.CouponType, key, sequence)
+		idemKey := benefitKey("c", memberID, tierID, benefit.Period, benefit.Trigger+":"+benefitIdentity, key, sequence)
 		entitlementNo := compactEntitlementNo(memberID, idemKey)
 		_, err := tx.ExecContext(ctx, `INSERT INTO coupon_entitlements
 			(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, rule_version,

@@ -35,6 +35,8 @@ type Template struct {
 	StoreID        *int64
 	Name           string
 	Description    string
+	CategoryID     int64
+	CategoryName   string
 	CouponType     string
 	AdmissionCount int
 	ValueCent      int64
@@ -57,7 +59,7 @@ type ApplicableScope struct {
 type TemplateInput struct {
 	Name           string `json:"name" binding:"required"`
 	Description    string `json:"description"`
-	CouponType     string `json:"couponType" binding:"required"`
+	CategoryID     int64  `json:"categoryId" binding:"required"`
 	AdmissionCount int    `json:"admissionCount"`
 }
 
@@ -91,6 +93,8 @@ type ConsoleTemplateView struct {
 	StoreID        *int64    `json:"storeId,omitempty"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description,omitempty"`
+	CategoryID     int64     `json:"categoryId"`
+	CategoryName   string    `json:"categoryName"`
 	CouponType     string    `json:"couponType"`
 	AdmissionCount int       `json:"admissionCount"`
 	Status         string    `json:"status"`
@@ -168,6 +172,7 @@ type sqlConsoleRepository struct{ db *platdb.DB }
 func NewConsoleRepository(db *platdb.DB) ConsoleRepository { return &sqlConsoleRepository{db: db} }
 
 const templateSelect = `SELECT id, scope_type, store_id, name, COALESCE(description,''),
+	category_id, COALESCE((SELECT name FROM coupon_categories WHERE id = coupon_templates.category_id), ''),
 	coupon_type, admission_count, value_cent, points_price, stock_quantity, issued_quantity,
 	per_member_limit, status, created_at, updated_at
 	FROM coupon_templates`
@@ -254,6 +259,32 @@ func validCouponType(t string) bool {
 	}
 }
 
+func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID int64, includeDisabled bool) (CouponCategory, error) {
+	if categoryID <= 0 {
+		return CouponCategory{}, apperr.Invalid("请选择券类型")
+	}
+	q := `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+		FROM coupon_categories WHERE id = ?`
+	if !includeDisabled {
+		q += ` AND status = 'active'`
+	}
+	var category CouponCategory
+	err := r.db.QueryRowContext(ctx, q, categoryID).Scan(
+		&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
+		&category.Status, &category.CreatedAt, &category.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CouponCategory{}, apperr.Invalid("所选券类型不存在或已停用")
+	}
+	if err != nil {
+		return CouponCategory{}, apperr.Internal(err)
+	}
+	if !validCouponType(category.BusinessType) {
+		return CouponCategory{}, apperr.Invalid("券类型绑定的兑换场景不正确")
+	}
+	return category, nil
+}
+
 func normalizedAdmissionCount(couponType string, admissionCount int) (int, error) {
 	if couponType != TypeEventTicket {
 		return 1, nil
@@ -265,13 +296,14 @@ func normalizedAdmissionCount(couponType string, admissionCount int) (int, error
 }
 
 func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope ConsoleScope, in TemplateInput) (Template, error) {
-	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("优惠券类型不正确")
-	}
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
 	}
-	admissionCount, err := normalizedAdmissionCount(in.CouponType, in.AdmissionCount)
+	category, err := r.templateCategory(ctx, in.CategoryID, false)
+	if err != nil {
+		return Template{}, err
+	}
+	admissionCount, err := normalizedAdmissionCount(category.BusinessType, in.AdmissionCount)
 	if err != nil {
 		return Template{}, err
 	}
@@ -286,11 +318,11 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 	}
 	// All issued coupons have a fixed 30-day validity period.
 	const q = `INSERT INTO coupon_templates
-		(scope_type, store_id, name, description, coupon_type, admission_count, value_cent, points_price,
+		(scope_type, store_id, name, description, coupon_type, category_id, admission_count, value_cent, points_price,
 		 stock_quantity, issued_quantity, validity_rule, applicable_scope, per_member_limit,
 		 status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, JSON_OBJECT('days', 30), '{}', ?, 'draft', ?, ?)`
-	res, err := r.db.ExecContext(ctx, q, scopeType, storeID, in.Name, in.Description, in.CouponType,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, JSON_OBJECT('days', 30), '{}', ?, 'draft', ?, ?)`
+	res, err := r.db.ExecContext(ctx, q, scopeType, storeID, in.Name, in.Description, category.BusinessType, category.ID,
 		admissionCount, 0, 0, 0, 0, now, now)
 	if err != nil {
 		return Template{}, apperr.Internal(err)
@@ -303,23 +335,25 @@ func (r *sqlConsoleRepository) CreateTemplate(ctx context.Context, scope Console
 }
 
 func (r *sqlConsoleRepository) UpdateTemplate(ctx context.Context, scope ConsoleScope, id int64, in TemplateInput) (Template, error) {
-	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("优惠券类型不正确")
-	}
 	if in.Name == "" {
 		return Template{}, apperr.Invalid("请填写优惠券名称")
 	}
-	admissionCount, err := normalizedAdmissionCount(in.CouponType, in.AdmissionCount)
+	existing, err := r.GetTemplate(ctx, scope, id)
 	if err != nil {
 		return Template{}, err
 	}
-	if _, err := r.GetTemplate(ctx, scope, id); err != nil {
+	category, err := r.templateCategory(ctx, in.CategoryID, in.CategoryID == existing.CategoryID)
+	if err != nil {
+		return Template{}, err
+	}
+	admissionCount, err := normalizedAdmissionCount(category.BusinessType, in.AdmissionCount)
+	if err != nil {
 		return Template{}, err
 	}
 	now := time.Now().UTC()
-	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, admission_count=?, value_cent=0,
+	q := `UPDATE coupon_templates SET name=?, description=?, coupon_type=?, category_id=?, admission_count=?, value_cent=0,
 		points_price=0, stock_quantity=0, per_member_limit=0, updated_at=? WHERE id=?`
-	args := []any{in.Name, in.Description, in.CouponType, admissionCount, now, id}
+	args := []any{in.Name, in.Description, category.BusinessType, category.ID, admissionCount, now, id}
 	if scope.StoreID != nil {
 		q += ` AND scope_type='store' AND store_id=?`
 		args = append(args, *scope.StoreID)
@@ -898,7 +932,8 @@ func (r *sqlConsoleRepository) Verify(ctx context.Context, scope ConsoleScope, r
 func scanTemplate(s scanner) (Template, error) {
 	var t Template
 	err := s.Scan(&t.ID, &t.ScopeType, &t.StoreID, &t.Name, &t.Description,
-		&t.CouponType, &t.AdmissionCount, &t.ValueCent, &t.PointsPrice, &t.StockQty, &t.IssuedQty,
+		&t.CategoryID, &t.CategoryName, &t.CouponType, &t.AdmissionCount,
+		&t.ValueCent, &t.PointsPrice, &t.StockQty, &t.IssuedQty,
 		&t.PerMemberLim, &t.Status, &t.CreatedAt, &t.UpdatedAt)
 	return t, err
 }
@@ -1072,7 +1107,8 @@ func (s *ConsoleService) Verify(ctx context.Context, scope ConsoleScope, req Ver
 func templateView(t Template) ConsoleTemplateView {
 	return ConsoleTemplateView{
 		ID: t.ID, ScopeType: t.ScopeType, StoreID: t.StoreID,
-		Name: t.Name, Description: t.Description, CouponType: t.CouponType, AdmissionCount: t.AdmissionCount,
+		Name: t.Name, Description: t.Description, CategoryID: t.CategoryID, CategoryName: t.CategoryName,
+		CouponType: t.CouponType, AdmissionCount: t.AdmissionCount,
 		Status: t.Status, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }

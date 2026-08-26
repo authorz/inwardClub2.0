@@ -102,6 +102,8 @@ function normalizeCoupon(c) {
     id: c.id != null ? c.id : c.entitlementId,
     desc: c.desc != null ? c.desc : c.description,
     type: c.type != null ? c.type : c.couponType,
+    categoryId: c.categoryId,
+    categoryName: c.categoryName,
     validUntil: c.validUntil != null ? c.validUntil : c.expiresAt,
     status: COUPON_STATUS_MAP[c.status] || c.status,
   });
@@ -461,7 +463,7 @@ const api = {
     http.get(m('/wallet/ledger') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeLedgerEntry), meta: res.meta })),
   getSignInStatus: () => http.get(m('/sign-ins/status')),
   signIn: () => http.post(m('/sign-ins'), {}, { idempotent: true }),
-  getCouponTypes: () => http.get(m('/coupon-types')),
+  getCouponCategories: () => http.get(m('/coupon-categories')),
   getCoupons: (params) =>
     http.get(m('/coupons') + qs(params)).then((res) => ({ data: (res.data || []).map(normalizeCoupon), meta: res.meta })),
   getTickets: (params) => http.get(m('/tickets') + qs(params)),

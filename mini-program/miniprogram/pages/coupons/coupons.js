@@ -28,11 +28,13 @@ Page({
 
   onLoad() {
     Promise.all([
-      api.getCouponTypes(),
+      api.getCouponCategories(),
       api.getCoupons({ status: 'active', pageSize: 100 }),
     ])
       .then(([typesRes, couponsRes]) => {
-        const categories = (typesRes.data || []).filter((item) => item.value && item.label);
+        const categories = (typesRes.data || [])
+          .filter((item) => item.id && item.name)
+          .map((item) => ({ label: item.name, value: String(item.id) }));
         const typeLabels = categories.reduce((labels, item) => {
           labels[item.value] = item.label;
           return labels;
@@ -44,7 +46,8 @@ Page({
           name: c.name,
           desc: c.desc,
           type: c.type,
-          typeLabel: typeLabels[c.type] || '福利券',
+          categoryId: String(c.categoryId || ''),
+          typeLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
           validUntil: c.validUntil,
           status: c.status,
           action: c.action || 'none',
@@ -104,7 +107,7 @@ Page({
   applyFilter() {
     const list = this.data.selectedType === 'all'
       ? this.data.all
-      : this.data.all.filter((coupon) => coupon.type === this.data.selectedType);
+      : this.data.all.filter((coupon) => coupon.categoryId === this.data.selectedType);
     this.setData({ list, couponCount: list.length });
   },
 

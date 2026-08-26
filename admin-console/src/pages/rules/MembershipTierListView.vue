@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace } from 'naive-ui'
 import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
@@ -9,21 +9,13 @@ import { actionsColumn, renderColumn, statusColumn, textColumn } from '@/utils/c
 import { RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
-import { membershipTierService } from '@/api/services'
+import { couponCategoryService, membershipTierService } from '@/api/services'
 import { API_PATHS } from '@/constants/api-paths'
 import type { MembershipTier, TierBenefitConfig } from '@/api/models'
 import type { FilterField } from '@/components/ui-types'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
-const couponTypes = [
-  { label: '赛事门票券', value: 'event_ticket' },
-  { label: '小吃券', value: 'snack' },
-  { label: '酒水券', value: 'alcohol' },
-  { label: '饮料券', value: 'beverage' },
-  { label: '饮品或啤酒券', value: 'drink' },
-  { label: '餐食券', value: 'meal' },
-  { label: '礼品券', value: 'gift' },
-]
+const couponTypes = ref<{ label: string; value: string | number; businessType: string }[]>([])
 const periods = [
   { label: '达级时', value: 'once' },
   { label: '每日', value: 'daily' },
@@ -40,7 +32,16 @@ const triggers = [
   { label: '周赛', value: 'weekly_event' },
   { label: '月赛', value: 'monthly_event' },
 ]
-const couponTypeLabel = Object.fromEntries(couponTypes.map((item) => [item.value, item.label]))
+const couponTypeLabel = computed(() => Object.fromEntries(couponTypes.value.map((item) => [String(item.value), item.label])))
+
+async function loadCouponTypes(): Promise<void> {
+  try {
+    const result = await couponCategoryService.list({ status: 'active', page: 1, pageSize: 100 })
+    couponTypes.value = result.items.map((item) => ({ label: item.name, value: item.id, businessType: item.businessType }))
+  } catch (error) {
+    toastError((error as { message?: string }).message ?? '读取券类型失败')
+  }
+}
 
 const listRef = ref<ResourceListInstance | null>(null)
 const fields: FilterField[] = [{ key: 'keyword', label: '等级名称', type: 'input' }]
@@ -81,16 +82,23 @@ function emptyBenefits(): TierBenefitConfig {
   return { points: [], coupons: [], descriptions: [] }
 }
 
-function openCreate(): void {
+async function openCreate(): Promise<void> {
+  await loadCouponTypes()
   editingId.value = null
   Object.assign(form, { name: '', level: 1, threshold: 0, benefitConfig: emptyBenefits() })
   descriptionsText.value = ''
   drawerShow.value = true
 }
 
-function openEdit(row: MembershipTier): void {
+async function openEdit(row: MembershipTier): Promise<void> {
+  await loadCouponTypes()
   editingId.value = String(row.id)
   const benefitConfig = JSON.parse(JSON.stringify(row.benefitConfig || emptyBenefits())) as TierBenefitConfig
+  benefitConfig.coupons = (benefitConfig.coupons || []).map((benefit) => {
+    if (benefit.categoryId) return benefit
+    const category = couponTypes.value.find((item) => item.businessType === benefit.couponType)
+    return { ...benefit, categoryId: category?.value }
+  })
   Object.assign(form, { name: row.name, level: row.level, threshold: row.threshold ?? 0, benefitConfig })
   descriptionsText.value = (benefitConfig.descriptions || []).join('\n')
   drawerShow.value = true
@@ -101,19 +109,26 @@ function addPointBenefit(): void {
 }
 
 function addCouponBenefit(): void {
-  form.benefitConfig.coupons.push({ couponType: 'alcohol', quantity: 1, period: 'once', trigger: 'tier_achieved' })
+	if (!couponTypes.value.length) return toastError('请先启用券类型')
+	form.benefitConfig.coupons.push({ categoryId: couponTypes.value[0].value, quantity: 1, period: 'once', trigger: 'tier_achieved' })
 }
 
 function summaryText(config: TierBenefitConfig): string {
   const pointText = config.points.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${item.amount}积分`)
-  const couponText = config.coupons.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${couponTypeLabel[item.couponType] || '券'}${item.quantity}张`)
+  const couponText = config.coupons.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${couponTypeLabel.value[String(item.categoryId)] || '券'}${item.quantity}张`)
   return [...pointText, ...couponText, ...config.descriptions].join('；')
 }
+
+onMounted(loadCouponTypes)
 
 async function submit(): Promise<void> {
   if (!form.name.trim()) return toastError('请填写等级名称')
   const descriptions = descriptionsText.value.split('\n').map((item) => item.trim()).filter(Boolean)
-  const benefitConfig = { ...form.benefitConfig, descriptions }
+  const coupons = form.benefitConfig.coupons.map((item) => {
+    const category = couponTypes.value.find((option) => String(option.value) === String(item.categoryId))
+    return { ...item, couponType: category?.businessType }
+  })
+  const benefitConfig = { ...form.benefitConfig, coupons, descriptions }
   const payload = { ...form, name: form.name.trim(), benefitConfig, benefits: summaryText(benefitConfig) }
   submitting.value = true
   try {
@@ -230,7 +245,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>赠送券</h3><p>选择固定券类型，可添加多种；一张券兑换一件商品或一张门票。</p></div><NButton
+            <div><h3>赠送券</h3><p>选择总后台已启用的券类型；一张券兑换一件商品或一张门票。</p></div><NButton
               size="small"
               @click="addCouponBenefit"
             >
@@ -243,7 +258,7 @@ const toolbarActions = [{
             class="benefit-row benefit-row--coupon"
           >
             <NSelect
-              v-model:value="item.couponType"
+              v-model:value="item.categoryId"
               :options="couponTypes"
             />
             <NInputNumber

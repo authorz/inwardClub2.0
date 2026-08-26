@@ -35,18 +35,20 @@ func NewService(repo Repository, catalogs ...RedeemableCatalog) *Service {
 	return &Service{repo: repo, catalog: catalogSvc}
 }
 
-// ListCouponTypes returns the server-owned coupon business dictionary in its
-// display order. Clients must not infer this dictionary from held coupons.
-func (s *Service) ListCouponTypes() []CouponTypeView {
-	return []CouponTypeView{
-		{Value: TypeEventTicket, Label: "赛事门票券"},
-		{Value: TypeSnack, Label: "小吃券"},
-		{Value: TypeAlcohol, Label: "酒水券"},
-		{Value: TypeBeverage, Label: "饮料券"},
-		{Value: TypeDrink, Label: "饮品或啤酒券"},
-		{Value: TypeMeal, Label: "餐食券"},
-		{Value: TypeGift, Label: "礼品券"},
+// ListCouponCategories returns the enabled categories configured by the admin
+// console. Clients must not infer categories from a member's held coupons.
+func (s *Service) ListCouponCategories(ctx context.Context) ([]CouponCategoryView, error) {
+	categories, err := s.repo.ListActiveCategories(ctx)
+	if err != nil {
+		return nil, err
 	}
+	views := make([]CouponCategoryView, 0, len(categories))
+	for _, category := range categories {
+		views = append(views, CouponCategoryView{
+			ID: category.ID, Name: category.Name, BusinessType: category.BusinessType, SortOrder: category.SortOrder,
+		})
+	}
+	return views, nil
 }
 
 // ListCoupons returns the member's coupons, optionally filtered by status.
@@ -243,6 +245,8 @@ func couponView(c MemberCoupon) MemberCouponView {
 		TemplateID:     c.TemplateID,
 		Name:           c.Name,
 		Description:    c.Description,
+		CategoryID:     c.CategoryID,
+		CategoryName:   c.CategoryName,
 		CouponType:     c.CouponType,
 		AdmissionCount: c.AdmissionCount,
 		StoreID:        c.StoreID,

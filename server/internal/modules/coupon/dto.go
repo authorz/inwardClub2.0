@@ -2,10 +2,12 @@ package coupon
 
 import "time"
 
-// CouponTypeView is one authoritative coupon business type exposed to clients.
-type CouponTypeView struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
+// CouponCategoryView is one enabled, admin-managed coupon category.
+type CouponCategoryView struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	BusinessType string `json:"businessType"`
+	SortOrder    int    `json:"sortOrder"`
 }
 
 // RedeemRequest is the body for POST /mini/coupon-redemptions. The member
@@ -61,6 +63,8 @@ type MemberCouponView struct {
 	TemplateID     int64     `json:"templateId"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description,omitempty"`
+	CategoryID     int64     `json:"categoryId"`
+	CategoryName   string    `json:"categoryName"`
 	CouponType     string    `json:"couponType"`
 	AdmissionCount int       `json:"admissionCount"`
 	StoreID        *int64    `json:"storeId,omitempty"`

@@ -23,6 +23,7 @@ import type {
   CatalogItem,
   CatalogItemReportRow,
   CouponReportRow,
+  CouponCategory,
   CouponTemplate,
   ErrorEvent,
   FranchiseInquiry,
@@ -172,6 +173,10 @@ export const activityService = {
 export const couponTemplateService = createResource<CouponTemplate>({
   base: API_PATHS.coupons.templates,
   idempotentWrites: true,
+  updateMethod: 'put',
+})
+export const couponCategoryService = createResource<CouponCategory>({
+  base: API_PATHS.coupons.categories,
   updateMethod: 'put',
 })
 

@@ -955,6 +955,7 @@ func TestNormalizeBenefitConfigAcceptsRecurringVIPBenefits(t *testing.T) {
 	config := TierBenefitConfig{
 		Points: []TierPointBenefit{{Amount: 10000, Period: "daily", Trigger: "low_spend"}},
 		Coupons: []TierCouponBenefit{
+			{CategoryID: 12, Quantity: 2, Period: "once", Trigger: "tier_achieved"},
 			{CouponType: "drink", Quantity: 1, Period: "daily", Trigger: "visit"},
 			{CouponType: "event_ticket", Quantity: 5, Period: "weekly", Trigger: "weekday_event"},
 			{CouponType: "event_ticket", Quantity: 4, Period: "monthly", Trigger: "weekly_event"},

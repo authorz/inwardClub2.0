@@ -20,13 +20,23 @@ import (
 // semantics so the service contract for the write actions is exercised
 // without a database.
 type fakeConsoleRepo struct {
-	templates []Template
-	scopes    []ConsoleScope
-	applic    ApplicableScope
+	templates  []Template
+	categories []CouponCategory
+	scopes     []ConsoleScope
+	applic     ApplicableScope
 
 	nextTmplID int64
 	ents       []*fakeEnt
 	nextEntID  int64
+}
+
+func (r *fakeConsoleRepo) category(id int64) (CouponCategory, bool) {
+	for _, category := range r.categories {
+		if category.ID == id {
+			return category, true
+		}
+	}
+	return CouponCategory{}, false
 }
 
 type fakeEnt struct {
@@ -93,12 +103,14 @@ func (r *fakeConsoleRepo) GetTemplate(_ context.Context, scope ConsoleScope, id 
 }
 
 func (r *fakeConsoleRepo) CreateTemplate(_ context.Context, scope ConsoleScope, in TemplateInput) (Template, error) {
-	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("invalid couponType")
+	category, ok := r.category(in.CategoryID)
+	if !ok || category.Status != CategoryStatusActive {
+		return Template{}, apperr.Invalid("invalid categoryId")
 	}
 	t := Template{
 		ID: r.allocTmplID(), ScopeType: "global", Name: in.Name,
-		Description: in.Description, CouponType: in.CouponType, Status: "draft",
+		Description: in.Description, CategoryID: category.ID, CategoryName: category.Name,
+		CouponType: category.BusinessType, Status: "draft",
 	}
 	if scope.StoreID != nil {
 		t.ScopeType = "store"
@@ -110,8 +122,9 @@ func (r *fakeConsoleRepo) CreateTemplate(_ context.Context, scope ConsoleScope, 
 }
 
 func (r *fakeConsoleRepo) UpdateTemplate(_ context.Context, scope ConsoleScope, id int64, in TemplateInput) (Template, error) {
-	if !validCouponType(in.CouponType) {
-		return Template{}, apperr.Invalid("invalid couponType")
+	category, ok := r.category(in.CategoryID)
+	if !ok {
+		return Template{}, apperr.Invalid("invalid categoryId")
 	}
 	i := r.templateIndex(scope, id)
 	if i < 0 {
@@ -120,7 +133,9 @@ func (r *fakeConsoleRepo) UpdateTemplate(_ context.Context, scope ConsoleScope, 
 	t := &r.templates[i]
 	t.Name = in.Name
 	t.Description = in.Description
-	t.CouponType = in.CouponType
+	t.CategoryID = category.ID
+	t.CategoryName = category.Name
+	t.CouponType = category.BusinessType
 	return *t, nil
 }
 
@@ -389,12 +404,15 @@ func TestConsoleApplicableItemsMapping(t *testing.T) {
 // Create/update/delete round-trips within scope, and cross-scope writes are
 // invisible (NOT_FOUND).
 func TestConsoleTemplateCRUD(t *testing.T) {
-	repo := &fakeConsoleRepo{}
+	repo := &fakeConsoleRepo{categories: []CouponCategory{
+		{ID: 1, Name: "酒水券", BusinessType: TypeAlcohol, Status: CategoryStatusActive},
+		{ID: 2, Name: "饮料券", BusinessType: TypeBeverage, Status: CategoryStatusActive},
+	}}
 	svc := NewConsoleService(repo)
 	ctx := context.Background()
 
 	// Admin creates a global template.
-	created, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "G", CouponType: TypeAlcohol})
+	created, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "G", CategoryID: 1})
 	if err != nil {
 		t.Fatalf("admin create: %v", err)
 	}
@@ -404,7 +422,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 
 	// Store creates a store-scoped template.
 	store5 := ConsoleScope{StoreID: storeIDPtr(5)}
-	sc, err := svc.CreateTemplate(ctx, store5, TemplateInput{Name: "S", CouponType: TypeBeverage})
+	sc, err := svc.CreateTemplate(ctx, store5, TemplateInput{Name: "S", CategoryID: 2})
 	if err != nil {
 		t.Fatalf("store create: %v", err)
 	}
@@ -413,7 +431,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 	}
 
 	// Update within scope.
-	up, err := svc.UpdateTemplate(ctx, store5, sc.ID, TemplateInput{Name: "S2", CouponType: TypeAlcohol})
+	up, err := svc.UpdateTemplate(ctx, store5, sc.ID, TemplateInput{Name: "S2", CategoryID: 1})
 	if err != nil {
 		t.Fatalf("store update: %v", err)
 	}
@@ -422,7 +440,7 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 	}
 
 	// A foreign store cannot update or delete the store template.
-	if _, err := svc.UpdateTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID, TemplateInput{Name: "x", CouponType: TypeAlcohol}); apperr.From(err).Code != apperr.CodeNotFound {
+	if _, err := svc.UpdateTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID, TemplateInput{Name: "x", CategoryID: 1}); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected foreign update NOT_FOUND, got %v", err)
 	}
 	if err := svc.DeleteTemplate(ctx, ConsoleScope{StoreID: storeIDPtr(6)}, sc.ID); apperr.From(err).Code != apperr.CodeNotFound {
@@ -438,8 +456,8 @@ func TestConsoleTemplateCRUD(t *testing.T) {
 	}
 
 	// Invalid coupon type is rejected.
-	if _, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "bad", CouponType: "bogus"}); apperr.From(err).Code != apperr.CodeInvalidArgument {
-		t.Fatalf("expected invalid couponType INVALID_ARGUMENT, got %v", err)
+	if _, err := svc.CreateTemplate(ctx, ConsoleScope{}, TemplateInput{Name: "bad", CategoryID: 99}); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected invalid categoryId INVALID_ARGUMENT, got %v", err)
 	}
 }
 

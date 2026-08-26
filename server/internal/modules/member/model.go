@@ -68,7 +68,8 @@ type TierPointBenefit struct {
 }
 
 type TierCouponBenefit struct {
-	CouponType string `json:"couponType"`
+	CategoryID int64  `json:"categoryId,omitempty"`
+	CouponType string `json:"couponType,omitempty"`
 	Quantity   int    `json:"quantity"`
 	Period     string `json:"period"`
 	Trigger    string `json:"trigger"`

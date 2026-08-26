@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NModal, NSelect, NSpace, type DataTableColumns } from 'naive-ui'
 import { couponService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
@@ -9,19 +9,10 @@ import { PERM } from '@/constants/permissions'
 import type { EnumOption } from '@/constants/enums'
 import { DataTable, PageHeader, PermissionButton, StatusFilterBar } from '@/components/common'
 import { dateColumn, statusColumn, textColumn } from '@/utils/columns'
-import type { CouponTemplate } from '@/types/models'
+import type { CouponCategory, CouponTemplate } from '@/types/models'
 
-const types: EnumOption[] = [
-  { label: '赛事门票券', value: 'event_ticket' },
-  { label: '小吃券', value: 'snack' },
-  { label: '酒水券', value: 'alcohol' },
-  { label: '饮料券', value: 'beverage' },
-  { label: '饮品或啤酒券', value: 'drink' },
-  { label: '餐食券', value: 'meal' },
-  { label: '礼品券', value: 'gift' },
-]
-const typeSelectOptions = types.map(({ label, value }) => ({ label, value }))
-const typeMap = Object.fromEntries(types.map((item) => [item.value, item]))
+const categories = ref<CouponCategory[]>([])
+const categoryOptions = computed(() => categories.value.map((item) => ({ label: item.name, value: item.id })))
 const statusMap: Record<string, EnumOption> = {
   draft: { label: '草稿', value: 'draft', tone: 'default' },
   published: { label: '已发布', value: 'published', tone: 'success' },
@@ -33,32 +24,56 @@ const keyword = ref('')
 const show = ref(false)
 const saving = ref(false)
 const form = reactive({
-  id: null as string | number | null, name: '', description: '', couponType: 'alcohol', admissionCount: 1,
+  id: null as string | number | null, name: '', description: '', categoryId: null as string | number | null, admissionCount: 1,
 })
+const selectedBusinessType = computed(() =>
+  categories.value.find((item) => String(item.id) === String(form.categoryId))?.businessType ?? '',
+)
+
+async function loadCategories(): Promise<void> {
+  try {
+    const result = await couponService.categories({ page: 1, pageSize: 100 })
+    categories.value = result.rows
+  } catch (error) {
+    feedback.message.error((error as { message?: string }).message ?? '券类型加载失败')
+  }
+}
 
 async function open(row?: CouponTemplate): Promise<void> {
+  await loadCategories()
   let target = row
   if (row) {
     try { target = await couponService.detail(row.id) }
     catch (error) { return void feedback.message.error((error as { message?: string }).message ?? '详情加载失败') }
   }
+  if (target && !categories.value.some((item) => String(item.id) === String(target?.categoryId))) {
+    categories.value.push({
+      id: target.categoryId,
+      name: target.categoryName,
+      businessType: target.couponType,
+      sortOrder: 0,
+      status: 'disabled',
+    })
+  }
   Object.assign(form, target ? {
     id: target.id, name: target.name, description: target.description ?? '',
-    couponType: target.couponType, admissionCount: target.admissionCount || 1,
-  } : { id: null, name: '', description: '', couponType: 'alcohol', admissionCount: 1 })
+    categoryId: target.categoryId, admissionCount: target.admissionCount || 1,
+  } : { id: null, name: '', description: '', categoryId: categoryOptions.value[0]?.value ?? null, admissionCount: 1 })
+  if (!form.categoryId) return void feedback.message.error('请联系总后台先启用券类型')
   show.value = true
 }
 
 async function save(): Promise<void> {
   if (!form.name.trim()) return void feedback.message.error('请填写优惠券名称')
-  if (form.couponType === 'event_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
+  if (!form.categoryId) return void feedback.message.error('请选择券类型')
+  if (selectedBusinessType.value === 'event_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
     return void feedback.message.error('请填写正确的可兑人数')
   }
   saving.value = true
   try {
     const body = {
-      name: form.name.trim(), description: form.description.trim(), couponType: form.couponType,
-      admissionCount: form.couponType === 'event_ticket' ? form.admissionCount : 1,
+      name: form.name.trim(), description: form.description.trim(), categoryId: form.categoryId,
+      admissionCount: selectedBusinessType.value === 'event_ticket' ? form.admissionCount : 1,
     }
     if (form.id == null) await couponService.create(body)
     else await couponService.update(form.id, body)
@@ -99,7 +114,7 @@ function resetFilters(): void {
 
 const columns = computed<DataTableColumns<CouponTemplate>>(() => [
   textColumn<CouponTemplate>('券名称', (row) => row.name),
-  statusColumn<CouponTemplate>('券类型', typeMap, (row) => row.couponType, { width: 100 }),
+  textColumn<CouponTemplate>('券类型', (row) => row.categoryName, { width: 130 }),
   statusColumn<CouponTemplate>('状态', statusMap, (row) => row.status, { width: 100 }),
   dateColumn<CouponTemplate>('更新时间', (row) => row.updatedAt, { width: 150 }),
   { title: '操作', key: 'actions', width: 220, render: (row) => h(NSpace, { size: 4, wrap: false }, () => [
@@ -110,13 +125,15 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
     h(PermissionButton, { permissions: [PERM.couponWrite], text: true, type: 'error', onClick: () => remove(row) }, () => '删除'),
   ]) },
 ])
+
+onMounted(loadCategories)
 </script>
 
 <template>
   <div>
     <PageHeader
       title="本店优惠券"
-      description="维护本店券类型；赛事门票券按可兑人数匹配活动票档"
+      description="创建本店券模板；券类型由总后台统一管理"
     />
     <StatusFilterBar
       v-model:status="status"
@@ -170,12 +187,12 @@ const columns = computed<DataTableColumns<CouponTemplate>>(() => [
             required
           >
             <NSelect
-              v-model:value="form.couponType"
-              :options="typeSelectOptions"
+              v-model:value="form.categoryId"
+              :options="categoryOptions"
             />
           </NFormItemGi>
           <NFormItemGi
-            v-if="form.couponType === 'event_ticket'"
+            v-if="selectedBusinessType === 'event_ticket'"
             label="可兑人数"
             required
           >

@@ -91,6 +91,7 @@ export const API_PATHS = {
   },
 
   coupons: {
+    categories: '/store/coupon-categories',
     templates: '/store/coupon-templates',
     template: (id: string | number) => `/store/coupon-templates/${id}`,
     publishTemplate: (id: string | number) => `/store/coupon-templates/${id}/publish`,

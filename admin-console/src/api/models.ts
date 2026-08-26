@@ -156,10 +156,18 @@ export interface ActivityTicketType {
 export interface CouponTemplate extends AuditableEntity {
   name: string
   description?: string
+  categoryId: string | number
+  categoryName: string
   couponType: string
   admissionCount: number
   scopeType?: string
   storeId?: string | number | null
+}
+
+export interface CouponCategory extends AuditableEntity {
+  name: string
+  businessType: string
+  sortOrder: number
 }
 
 export interface RechargeProduct extends AuditableEntity {
@@ -190,7 +198,8 @@ export interface TierPointBenefit {
 }
 
 export interface TierCouponBenefit {
-  couponType: string
+  categoryId?: string | number
+  couponType?: string
   quantity: number
   period: string
   trigger: string
