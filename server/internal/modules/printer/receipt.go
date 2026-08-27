@@ -31,6 +31,7 @@ const (
 	receiptItemNameWidth     = 18
 	receiptItemQuantityWidth = 4
 	receiptItemAmountWidth   = 10
+	receiptRule              = "--------------------------------\n"
 )
 
 // Receipt is the settled-order snapshot rendered for a store. Member contains
@@ -73,6 +74,7 @@ type PointWithdrawalReceipt struct {
 	WithdrawalID int64
 	StoreName    string
 	Member       string
+	VIPLevel     int
 	Points       int64
 	BalanceAfter int64
 	WithdrawnAt  time.Time
@@ -300,24 +302,16 @@ func activeDevices(ctx context.Context, tx *sql.Tx, storeID int64) ([]activeDevi
 // print API takes pre-rendered content). PaidAt is stored in UTC and rendered in
 // the store's operating timezone (Asia/Shanghai).
 func renderReceipt(r Receipt) string {
-	const rule = "--------------------------------\n"
 	var b strings.Builder
-	b.WriteString("<IMG></IMG>\n")
-	b.WriteString("<CB>InwardClub</CB>\n")
-	if r.StoreName != "" {
-		fmt.Fprintf(&b, "<CB>%s</CB>\n", r.StoreName)
-	} else {
-		b.WriteString(orderTypeLabel(r.OrderType))
-		b.WriteByte('\n')
-	}
+	writeReceiptHeader(&b, r.StoreName, orderTypeLabel(r.OrderType))
 	writeReceiptField(&b, "订单号：", r.BusinessOrderNo)
 	fmt.Fprintf(&b, "%s\n", r.PaidAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
-	b.WriteString(rule)
+	b.WriteString(receiptRule)
 	if r.Member != "" {
 		writeReceiptField(&b, "手机号", r.Member)
 	}
 	if r.OrderType == "food" {
-		b.WriteString(rule)
+		b.WriteString(receiptRule)
 		if r.VIPLevel > 0 {
 			fmt.Fprintf(&b, "会员等级                 VIP%d\n", r.VIPLevel)
 		}
@@ -331,7 +325,7 @@ func renderReceipt(r Receipt) string {
 		if remark := strings.TrimSpace(r.Remark); remark != "" {
 			fmt.Fprintf(&b, "订单备注：%s\n", remark)
 		}
-		b.WriteString(rule)
+		b.WriteString(receiptRule)
 		b.WriteString(padReceiptRight("商品名称", receiptItemNameWidth))
 		b.WriteString(padReceiptLeft("数量", receiptItemQuantityWidth))
 		b.WriteString(padReceiptLeft("金额", receiptItemAmountWidth))
@@ -346,7 +340,7 @@ func renderReceipt(r Receipt) string {
 		writeReceiptField(&b, "券名称", strings.TrimSpace(r.CouponTypeName))
 		writeReceiptField(&b, "使用数量", "1张")
 	}
-	b.WriteString(rule)
+	b.WriteString(receiptRule)
 	if r.OrderType != "event_coupon" {
 		writeReceiptField(&b, "合计", yuan(r.AmountCent))
 	}
@@ -356,26 +350,36 @@ func renderReceipt(r Receipt) string {
 }
 
 func renderPointWithdrawalReceipt(r PointWithdrawalReceipt) string {
-	const rule = "--------------------------------\n"
 	var b strings.Builder
-	b.WriteString("<IMG></IMG>\n")
-	b.WriteString("<CB>InwardClub</CB>\n")
-	if strings.TrimSpace(r.StoreName) != "" {
-		fmt.Fprintf(&b, "<CB>%s</CB>\n", strings.TrimSpace(r.StoreName))
-	}
-	b.WriteByte('\n')
-	fmt.Fprintf(&b, "<CB>%s</CB>\n", r.WithdrawnAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
-	b.WriteString(rule)
+	writeReceiptHeader(&b, r.StoreName, "积分提取")
+	fmt.Fprintf(&b, "%s\n", r.WithdrawnAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
+	b.WriteString(receiptRule)
 	writeReceiptField(&b, "手机尾号", r.Member)
-	b.WriteString(rule)
+	if r.VIPLevel > 0 {
+		writeReceiptField(&b, "会员等级", fmt.Sprintf("VIP%d", r.VIPLevel))
+	}
+	b.WriteString(receiptRule)
 	writeReceiptField(&b, "提取积分", strconv.FormatInt(r.Points, 10))
-	b.WriteString(rule)
+	b.WriteString(receiptRule)
 	writeReceiptField(&b, "剩余积分", strconv.FormatInt(r.BalanceAfter, 10))
-	b.WriteString(rule)
+	b.WriteString(receiptRule)
 	writeReceiptField(&b, "合计", strconv.FormatInt(r.Points, 10))
-	b.WriteString("<CB>请工作人员仔细检查核验！</CB>\n")
+	b.WriteString("请工作人员仔细检查核验！\n")
 	b.WriteString("<CUT>")
 	return b.String()
+}
+
+func writeReceiptHeader(b *strings.Builder, storeName, fallbackTitle string) {
+	b.WriteString("<IMG></IMG>\n")
+	b.WriteString("<CB>InwardClub</CB>\n")
+	if storeName = strings.TrimSpace(storeName); storeName != "" {
+		fmt.Fprintf(b, "<CB>%s</CB>\n", storeName)
+		return
+	}
+	if fallbackTitle = strings.TrimSpace(fallbackTitle); fallbackTitle != "" {
+		b.WriteString(fallbackTitle)
+		b.WriteByte('\n')
+	}
 }
 
 func writeReceiptField(b *strings.Builder, label, value string) {

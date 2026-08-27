@@ -240,8 +240,16 @@ func (r *sqlPointsRepository) WithdrawPoints(ctx context.Context, memberID, stor
 		}
 
 		var phone, nickname string
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(phone, ''), COALESCE(nickname, '')
-			FROM members WHERE id = ?`, memberID).Scan(&phone, &nickname); errors.Is(err, sql.ErrNoRows) {
+		var vipLevel int
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(m.phone, ''), COALESCE(m.nickname, ''),
+			COALESCE(mt.level, (
+				SELECT base.level FROM membership_tiers base
+				WHERE base.status = 'active'
+				ORDER BY base.level ASC, base.id ASC LIMIT 1
+			), 0)
+			FROM members m
+			LEFT JOIN membership_tiers mt ON mt.id = m.current_tier_id
+			WHERE m.id = ?`, memberID).Scan(&phone, &nickname, &vipLevel); errors.Is(err, sql.ErrNoRows) {
 			return apperr.NotFound("member not found")
 		} else if err != nil {
 			return apperr.Internal(err)
@@ -283,7 +291,7 @@ func (r *sqlPointsRepository) WithdrawPoints(ctx context.Context, memberID, stor
 
 		if err := printer.WritePointWithdrawalReceipt(ctx, tx, printer.PointWithdrawalReceipt{
 			StoreID: storeID, WithdrawalID: withdrawalID, StoreName: storeName,
-			Member: printer.MaskedMember(phone, nickname), Points: amount,
+			Member: printer.MaskedMember(phone, nickname), VIPLevel: vipLevel, Points: amount,
 			BalanceAfter: balanceAfter, WithdrawnAt: now,
 		}); err != nil {
 			return err

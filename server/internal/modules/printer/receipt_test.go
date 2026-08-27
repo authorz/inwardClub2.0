@@ -118,6 +118,7 @@ func TestBuildPointWithdrawalReceipt(t *testing.T) {
 		WithdrawalID: 88,
 		StoreName:    "新壹街店",
 		Member:       "177****3915",
+		VIPLevel:     8,
 		Points:       3000,
 		BalanceAfter: 7200,
 		WithdrawnAt:  time.Date(2026, 8, 27, 15, 20, 30, 0, time.UTC),
@@ -127,16 +128,27 @@ func TestBuildPointWithdrawalReceipt(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<IMG></IMG>", "<CB>InwardClub</CB>", "<CB>新壹街店</CB>",
-		"2026-08-27 23:20:30", "手机尾号  177****3915", "提取积分  3000",
-		"剩余积分  7200", "合计  3000", "<CB>请工作人员仔细检查核验！</CB>", "<CUT>",
+		"2026-08-27 23:20:30\n", "手机尾号  177****3915", "会员等级  VIP8", "提取积分  3000",
+		"剩余积分  7200", "合计  3000", "请工作人员仔细检查核验！\n", "<CUT>",
 	} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("point-withdrawal receipt missing %q:\n%s", want, job.Content)
 		}
 	}
-	for _, unwanted := range []string{"订单号", "谢谢惠顾", "¥", "?"} {
+	for _, unwanted := range []string{
+		"订单号", "谢谢惠顾", "¥", "?", "<CB>2026-08-27 23:20:30</CB>",
+		"<CB>请工作人员仔细检查核验！</CB>",
+	} {
 		if strings.Contains(job.Content, unwanted) {
 			t.Fatalf("point-withdrawal receipt contains %q:\n%s", unwanted, job.Content)
+		}
+	}
+	for _, line := range []string{"2026-08-27 23:20:30", "请工作人员仔细检查核验！"} {
+		if count := strings.Count(job.Content, line+"\n"); count != 1 {
+			t.Fatalf("point-withdrawal receipt line %q count = %d, want 1:\n%s", line, count, job.Content)
+		}
+		if width := receiptTextWidth(line); width > receiptLineWidth {
+			t.Fatalf("point-withdrawal receipt line %q width = %d, want <= %d", line, width, receiptLineWidth)
 		}
 	}
 }

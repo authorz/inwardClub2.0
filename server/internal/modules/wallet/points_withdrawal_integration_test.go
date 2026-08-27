@@ -42,10 +42,17 @@ func TestWithdrawPointsIntegration(t *testing.T) {
 		t.Fatalf("insert store: %v", err)
 	}
 	storeID, _ := storeResult.LastInsertId()
+	var tierID int64
+	var vipLevel int
+	if err := database.QueryRowContext(ctx, `SELECT id, level FROM membership_tiers
+		WHERE status = 'active' ORDER BY level DESC, id DESC LIMIT 1`).Scan(&tierID, &vipLevel); err != nil {
+		database.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, storeID)
+		t.Fatalf("select membership tier: %v", err)
+	}
 	phone := fmt.Sprintf("176%08d", suffix%100000000)
 	memberResult, err := database.ExecContext(ctx, `INSERT INTO members
-		(nickname, phone, profile_completed, status, created_at, updated_at)
-		VALUES ('积分提取会员', ?, 1, 'active', ?, ?)`, phone, now, now)
+		(nickname, phone, current_tier_id, profile_completed, status, created_at, updated_at)
+		VALUES ('积分提取会员', ?, ?, 1, 'active', ?, ?)`, phone, tierID, now, now)
 	if err != nil {
 		database.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, storeID)
 		t.Fatalf("insert member: %v", err)
@@ -128,7 +135,8 @@ func TestWithdrawPointsIntegration(t *testing.T) {
 		t.Fatalf("receipt template = %q, want %q", template, printer.PointWithdrawalReceiptTemplate)
 	}
 	for _, want := range []string{
-		"手机尾号  " + maskedPhone, "提取积分  300", "剩余积分  700", "合计  300",
+		"手机尾号  " + maskedPhone, fmt.Sprintf("会员等级  VIP%d", vipLevel),
+		"提取积分  300", "剩余积分  700", "合计  300",
 		"请工作人员仔细检查核验！",
 	} {
 		if !strings.Contains(receiptContent, want) {
