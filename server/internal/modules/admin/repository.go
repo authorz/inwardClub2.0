@@ -663,7 +663,8 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			wle.balance_after, 'completed' AS status, wle.reason,
 			wle.source_type, wle.source_id,
 			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
-				food_bo.store_id, low_spend_bo.store_id, point_saving.store_id) AS store_id,
+				food_bo.store_id, low_spend_bo.store_id, point_saving.store_id,
+				point_withdrawal.store_id) AS store_id,
 			COALESCE(payment_bo.business_order_no, recharge_bo.business_order_no,
 				refund_bo.business_order_no, food_bo.business_order_no,
 				low_spend_bo.business_order_no, '') AS related_order_no,
@@ -684,7 +685,9 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 		LEFT JOIN business_orders low_spend_bo
 			ON wle.source_type = 'low_spend_reward' AND low_spend_bo.id = wle.source_id
 		LEFT JOIN point_savings point_saving
-			ON wle.source_type = 'point_saving' AND point_saving.id = wle.source_id`
+			ON wle.source_type = 'point_saving' AND point_saving.id = wle.source_id
+		LEFT JOIN point_withdrawals point_withdrawal
+			ON wle.source_type = 'point_withdrawal' AND point_withdrawal.id = wle.source_id`
 	const pointRequestEntries = `
 		UNION ALL SELECT ps.id, CONCAT('point_saving:', ps.id), ps.member_id, 'points',
 			'credit', ps.points, NULL, ps.status,
@@ -695,7 +698,11 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			'debit', pw.points, NULL, pw.status,
 			CASE WHEN pw.remark = '' THEN 'point_withdrawal' ELSE pw.remark END,
 			'point_withdrawal', pw.id, pw.store_id, '', pw.created_at
-		FROM point_withdrawals pw`
+		FROM point_withdrawals pw
+		WHERE NOT EXISTS (
+			SELECT 1 FROM wallet_ledger_entries wle
+			WHERE wle.source_type = 'point_withdrawal' AND wle.source_id = pw.id
+		)`
 	entries := "(" + settledEntries
 	if f.IncludePointRequests {
 		entries += pointRequestEntries

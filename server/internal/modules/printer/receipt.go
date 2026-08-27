@@ -17,10 +17,12 @@ import (
 // receipt handler consumes. It must stay in sync with cmd/worker.TaskPrint.
 const ReceiptTopic = "print:receipt"
 
-// ReceiptTemplate tags a settled-order receipt Job. The Xpyun print API ignores
-// the template (Content is already rendered), but the worker logs it and future
-// providers may branch on it.
-const ReceiptTemplate = "order-receipt"
+// Receipt templates tag print jobs for logs and future provider-specific
+// handling. Xpyun receives the already-rendered Content.
+const (
+	ReceiptTemplate                = "order-receipt"
+	PointWithdrawalReceiptTemplate = "point-withdrawal-receipt"
+)
 
 var receiptLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
@@ -62,6 +64,18 @@ type ReceiptItem struct {
 	SubtotalCent int64
 }
 
+// PointWithdrawalReceipt is the committed points-debit snapshot printed by the
+// selected store. Member contains a masked phone number or nickname.
+type PointWithdrawalReceipt struct {
+	StoreID      int64
+	WithdrawalID int64
+	StoreName    string
+	Member       string
+	Points       int64
+	BalanceAfter int64
+	WithdrawnAt  time.Time
+}
+
 // WriteReceipt resolves every active printer bound to the order's store and,
 // when at least one exists, appends one print:receipt outbox event per device in
 // the caller's transaction — so the receipt commits atomically with the
@@ -98,10 +112,40 @@ func WriteEventCouponReceipt(ctx context.Context, tx *sql.Tx, redemptionID int64
 }
 
 func writeReceiptJobs(ctx context.Context, tx *sql.Tx, r Receipt, devices []activeDevice, idemKeyFor func(int64) string) error {
+	return writePrintJobs(ctx, tx, r.StoreID, r.BusinessOrderNo, devices, idemKeyFor, func(device activeDevice) Job {
+		return BuildReceiptJob(device.sn, device.soundEnabled, r)
+	})
+}
+
+// WritePointWithdrawalReceipt queues the points-withdrawal slip for every
+// active printer bound to the selected store. The caller owns the transaction,
+// so the debit, ledger, withdrawal record and print event commit atomically.
+func WritePointWithdrawalReceipt(ctx context.Context, tx *sql.Tx, r PointWithdrawalReceipt) error {
+	devices, err := activeDevices(ctx, tx, r.StoreID)
+	if err != nil || len(devices) == 0 {
+		return err
+	}
+	businessOrderNo := fmt.Sprintf("PW%d", r.WithdrawalID)
+	return writePrintJobs(ctx, tx, r.StoreID, businessOrderNo, devices, func(deviceID int64) string {
+		return fmt.Sprintf("point-withdrawal:%d:printer:%d:print-receipt", r.WithdrawalID, deviceID)
+	}, func(device activeDevice) Job {
+		return BuildPointWithdrawalReceiptJob(device.sn, device.soundEnabled, r)
+	})
+}
+
+func writePrintJobs(
+	ctx context.Context,
+	tx *sql.Tx,
+	storeID int64,
+	businessOrderNo string,
+	devices []activeDevice,
+	idemKeyFor func(int64) string,
+	jobFor func(activeDevice) Job,
+) error {
 	for _, device := range devices {
-		job := BuildReceiptJob(device.sn, device.soundEnabled, r)
+		job := jobFor(device)
 		idemKey := idemKeyFor(device.id)
-		jobID, err := createPrintJob(ctx, tx, r.StoreID, device.id, r.BusinessOrderNo, idemKey, job)
+		jobID, err := createPrintJob(ctx, tx, storeID, device.id, businessOrderNo, idemKey, job)
 		if err != nil {
 			return err
 		}
@@ -209,6 +253,17 @@ func BuildReceiptJob(sn string, soundEnabled bool, r Receipt) Job {
 	return Job{DeviceSN: sn, Template: ReceiptTemplate, Content: renderReceipt(r), Silent: !soundEnabled}
 }
 
+// BuildPointWithdrawalReceiptJob renders a points-withdrawal slip without
+// touching the database, keeping the paper contract directly testable.
+func BuildPointWithdrawalReceiptJob(sn string, soundEnabled bool, r PointWithdrawalReceipt) Job {
+	return Job{
+		DeviceSN: sn,
+		Template: PointWithdrawalReceiptTemplate,
+		Content:  renderPointWithdrawalReceipt(r),
+		Silent:   !soundEnabled,
+	}
+}
+
 type activeDevice struct {
 	id           int64
 	sn           string
@@ -294,6 +349,29 @@ func renderReceipt(r Receipt) string {
 		writeReceiptField(&b, "合计", yuan(r.AmountCent))
 	}
 	b.WriteString("谢谢惠顾！\n")
+	b.WriteString("<CUT>")
+	return b.String()
+}
+
+func renderPointWithdrawalReceipt(r PointWithdrawalReceipt) string {
+	const rule = "--------------------------------\n"
+	var b strings.Builder
+	b.WriteString("<IMG></IMG>\n")
+	b.WriteString("<CB>InwardClub</CB>\n")
+	if strings.TrimSpace(r.StoreName) != "" {
+		fmt.Fprintf(&b, "<CB>%s</CB>\n", strings.TrimSpace(r.StoreName))
+	}
+	b.WriteByte('\n')
+	fmt.Fprintf(&b, "<CB>%s</CB>\n", r.WithdrawnAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
+	b.WriteString(rule)
+	writeReceiptField(&b, "手机尾号", r.Member)
+	b.WriteString(rule)
+	writeReceiptField(&b, "提取积分", strconv.FormatInt(r.Points, 10))
+	b.WriteString(rule)
+	writeReceiptField(&b, "剩余积分", strconv.FormatInt(r.BalanceAfter, 10))
+	b.WriteString(rule)
+	writeReceiptField(&b, "合计", strconv.FormatInt(r.Points, 10))
+	b.WriteString("<CB>请工作人员仔细检查核验！</CB>\n")
 	b.WriteString("<CUT>")
 	return b.String()
 }

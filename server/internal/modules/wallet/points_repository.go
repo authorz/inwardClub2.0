@@ -6,15 +6,15 @@ import (
 	"errors"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/printer"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
-// sqlPointsRepository is the MySQL points write repository. Point savings are
-// reviewed by the store console; point withdrawals are recorded as approved
-// immediately so they can be used as the later saving-review base. Both claim
-// the idempotency key via the row's unique key, so a retried create returns the
-// existing request instead of duplicating it.
+// sqlPointsRepository is the MySQL points write repository. Point savings wait
+// for store review. Point withdrawals immediately debit the points wallet,
+// append the ledger, record the approved withdrawal and queue the store receipt
+// in one transaction. Both paths claim the idempotency key on their request row.
 //
 // The daily sign-in flow (RecordSignIn) awards points immediately: it writes a
 // sign_in_records row and the matching wallet ledger credit in one transaction.
@@ -208,9 +208,112 @@ func (r *sqlPointsRepository) SavePoints(ctx context.Context, memberID, storeID,
 }
 
 func (r *sqlPointsRepository) WithdrawPoints(ctx context.Context, memberID, storeID, amount int64, idemKey string) (PointsTxnResult, error) {
-	// 1.0 records withdrawals as approved immediately. These approved rows are
-	// the review base for later point-saving requests in the same business window.
-	return r.createRequest(ctx, "point_withdrawals", memberID, storeID, amount, "approved", idemKey)
+	now := time.Now().UTC()
+	var out PointsTxnResult
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var storeName string
+		if err := tx.QueryRowContext(ctx, `SELECT name FROM stores WHERE id = ? AND status = 'active'`, storeID).
+			Scan(&storeName); errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("store not found")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+
+		const insertWithdrawal = `INSERT INTO point_withdrawals
+			(store_id, member_id, points, status, remark, idem_key, reviewed_at, created_at, updated_at)
+			VALUES (?, ?, ?, 'approved', '用户提取积分', ?, ?, ?, ?)`
+		res, err := tx.ExecContext(ctx, insertWithdrawal, storeID, memberID, amount, idemKey, now, now, now)
+		if err != nil {
+			if platdb.IsDuplicate(err) {
+				existing, existingErr := existingPointWithdrawal(ctx, tx, idemKey)
+				if existingErr != nil {
+					return existingErr
+				}
+				out = existing
+				return nil
+			}
+			return apperr.Internal(err)
+		}
+		withdrawalID, err := res.LastInsertId()
+		if err != nil {
+			return apperr.Internal(err)
+		}
+
+		var phone, nickname string
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(phone, ''), COALESCE(nickname, '')
+			FROM members WHERE id = ?`, memberID).Scan(&phone, &nickname); errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("member not found")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+
+		var accountID, available int64
+		const lockAccount = `SELECT id, available_amount FROM wallet_accounts
+			WHERE member_id = ? AND asset_type = ? FOR UPDATE`
+		if err := tx.QueryRowContext(ctx, lockAccount, memberID, AssetPoints).
+			Scan(&accountID, &available); errors.Is(err, sql.ErrNoRows) {
+			return apperr.New(apperr.CodeInsufficientBalance, "积分余额不足")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+		if available < amount {
+			return apperr.New(apperr.CodeInsufficientBalance, "积分余额不足")
+		}
+		balanceAfter := available - amount
+		if _, err := tx.ExecContext(ctx, `UPDATE wallet_accounts
+			SET available_amount = ?, version = version + 1, updated_at = ? WHERE id = ?`,
+			balanceAfter, now, accountID,
+		); err != nil {
+			return apperr.Internal(err)
+		}
+
+		const insertLedger = `INSERT INTO wallet_ledger_entries
+			(account_id, member_id, asset_type, direction, amount, balance_after,
+			 reason, source_type, source_id, idem_key, created_at)
+			VALUES (?, ?, ?, 'debit', ?, ?, 'point_withdrawal', 'point_withdrawal', ?, ?, ?)`
+		if _, err := tx.ExecContext(
+			ctx, insertLedger, accountID, memberID, AssetPoints, amount, balanceAfter,
+			withdrawalID, idemKey, now,
+		); err != nil {
+			if platdb.IsDuplicate(err) {
+				return apperr.Conflict("points withdrawal already recorded")
+			}
+			return apperr.Internal(err)
+		}
+
+		if err := printer.WritePointWithdrawalReceipt(ctx, tx, printer.PointWithdrawalReceipt{
+			StoreID: storeID, WithdrawalID: withdrawalID, StoreName: storeName,
+			Member: printer.MaskedMember(phone, nickname), Points: amount,
+			BalanceAfter: balanceAfter, WithdrawnAt: now,
+		}); err != nil {
+			return err
+		}
+		out = PointsTxnResult{
+			AssetType: AssetPoints, Amount: amount, BalanceAfter: balanceAfter,
+			RequestID: withdrawalID, Status: "approved",
+		}
+		return nil
+	})
+	if err != nil {
+		return PointsTxnResult{}, err
+	}
+	return out, nil
+}
+
+func existingPointWithdrawal(ctx context.Context, tx *sql.Tx, idemKey string) (PointsTxnResult, error) {
+	var out PointsTxnResult
+	const q = `SELECT pw.id, pw.points, pw.status, COALESCE(wle.balance_after, 0)
+		FROM point_withdrawals pw
+		LEFT JOIN wallet_ledger_entries wle
+			ON wle.source_type = 'point_withdrawal' AND wle.source_id = pw.id
+		WHERE pw.idem_key = ? FOR UPDATE`
+	if err := tx.QueryRowContext(ctx, q, idemKey).Scan(
+		&out.RequestID, &out.Amount, &out.Status, &out.BalanceAfter,
+	); err != nil {
+		return PointsTxnResult{}, apperr.Internal(err)
+	}
+	out.AssetType = AssetPoints
+	return out, nil
 }
 
 // createRequest inserts a points request. table and status are trusted internal

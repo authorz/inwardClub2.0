@@ -301,7 +301,7 @@ Page({
       });
   },
 
-  /* ---------- point saving sheet (fixed store, staff review) ---------- */
+  /* ---------- point saving / immediate withdrawal sheet ---------- */
   openPoint(dir) {
     const isWithdraw = dir === POINT_SAVING.WITHDRAW;
     this.setData({
@@ -309,7 +309,7 @@ Page({
       pointAmount: '',
       pointDir: isWithdraw ? POINT_SAVING.WITHDRAW : POINT_SAVING.DEPOSIT,
       pointSheetTitle: isWithdraw ? '取积分' : '存积分',
-      pointSubmitText: isWithdraw ? '提交取积分申请' : '提交存积分申请',
+      pointSubmitText: isWithdraw ? '确认取积分' : '提交存积分申请',
       pointStoreName: (storeCtx.get() || {}).name || '当前门店',
     });
     // Ensure a store is resolved (nearest by default) so confirmPoint has a storeId
@@ -329,13 +329,13 @@ Page({
     wx.navigateTo({ url: '/pages/wallet-ledger/wallet-ledger?asset=points' });
   },
   confirmPoint() {
-	let points;
-	try {
-	  points = validation.integer(this.data.pointAmount, { label: '积分数量', min: 1, max: 1000000000 });
-	} catch (err) {
-	  ui.toast(err.message);
-	  return;
-	}
+    let points;
+    try {
+      points = validation.integer(this.data.pointAmount, { label: '积分数量', min: 1, max: 1000000000 });
+    } catch (err) {
+      ui.toast(err.message);
+      return;
+    }
     if (this.data.submitting) return;
     const store = storeCtx.get();
     this.setData({ submitting: true });
@@ -345,10 +345,16 @@ Page({
         { storeId: store && store.id, direction: this.data.pointDir, points, note: '' },
         http.uuid()
       )
-      .then(() => {
+      .then((res) => {
         ui.hideLoading();
-        this.setData({ submitting: false, showPoint: false });
-        ui.success(this.data.pointDir === 'withdraw' ? '取积分记录已提交' : '已提交，待工作人员审核');
+        const isWithdraw = this.data.pointDir === POINT_SAVING.WITHDRAW;
+        const nextData = { submitting: false, showPoint: false };
+        if (isWithdraw && res && res.data) {
+          nextData['wallet.points'] = res.data.balanceAfter;
+          nextData.pointsText = amount(res.data.balanceAfter);
+        }
+        this.setData(nextData);
+        ui.success(isWithdraw ? '提取积分成功，请前去前台领取' : '已提交，待工作人员审核');
       })
       .catch((err) => {
         ui.hideLoading();

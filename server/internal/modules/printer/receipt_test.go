@@ -112,6 +112,35 @@ func TestBuildEventCouponReceipt(t *testing.T) {
 	}
 }
 
+func TestBuildPointWithdrawalReceipt(t *testing.T) {
+	job := BuildPointWithdrawalReceiptJob("SN-POINTS", true, PointWithdrawalReceipt{
+		StoreID:      7,
+		WithdrawalID: 88,
+		StoreName:    "新壹街店",
+		Member:       "177****3915",
+		Points:       3000,
+		BalanceAfter: 7200,
+		WithdrawnAt:  time.Date(2026, 8, 27, 15, 20, 30, 0, time.UTC),
+	})
+	if job.DeviceSN != "SN-POINTS" || job.Template != PointWithdrawalReceiptTemplate || job.Silent {
+		t.Fatalf("unexpected point-withdrawal job: %+v", job)
+	}
+	for _, want := range []string{
+		"<IMG></IMG>", "<CB>InwardClub</CB>", "<CB>新壹街店</CB>",
+		"2026-08-27 23:20:30", "手机尾号  177****3915", "提取积分  3000",
+		"剩余积分  7200", "合计  3000", "<CB>请工作人员仔细检查核验！</CB>", "<CUT>",
+	} {
+		if !strings.Contains(job.Content, want) {
+			t.Fatalf("point-withdrawal receipt missing %q:\n%s", want, job.Content)
+		}
+	}
+	for _, unwanted := range []string{"订单号", "谢谢惠顾", "¥", "?"} {
+		if strings.Contains(job.Content, unwanted) {
+			t.Fatalf("point-withdrawal receipt contains %q:\n%s", unwanted, job.Content)
+		}
+	}
+}
+
 func TestBuildFoodReceiptKeepsQuantityAndAmountOnItemLine(t *testing.T) {
 	job := BuildReceiptJob("SN-FOOD", true, Receipt{
 		BusinessOrderNo: "BO-FOOD-1",

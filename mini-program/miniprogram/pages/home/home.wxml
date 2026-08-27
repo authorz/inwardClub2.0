@@ -141,7 +141,7 @@
   </view>
 </ic-bottom-sheet>
 
-<!-- 存取积分弹层（固定当前门店，工作人员审核） -->
+<!-- 存取积分弹层：存入待审核，取出立即扣减并打印 -->
 <ic-bottom-sheet show="{{showPoint}}" title="{{pointSheetTitle}}" height="auto" max-height="58vh" scroll-body="{{false}}" bind:close="closePoint">
   <view class="sheet-row sheet-row--bordered ps__store ps__row">
     <text class="sheet-row__label ps__store-label">门店</text>
@@ -156,7 +156,7 @@
     <input class="ps__input" type="number" maxlength="10" value="{{pointAmount}}" placeholder="请输入积分数量" placeholder-class="ps__ph" bindinput="onPointAmount" />
     <text class="ps__unit">积分</text>
   </view>
-  <view class="ps__hint"><text class="ps__hint-ico">!</text>提交后由工作人员审核</view>
+  <view class="ps__hint"><text class="ps__hint-ico">!</text>{{pointDir === 'withdraw' ? '确认后立即扣减积分，请前往前台领取' : '提交后由工作人员审核'}}</view>
   <view class="ps__ledger" bindtap="goLedger"><text>查看积分流水</text><view class="ic-arrow"></view></view>
   <view slot="footer" class="ps__footer">
     <button class="ic-btn ic-btn-primary ic-btn-block ps__submit" loading="{{submitting}}" bindtap="confirmPoint">{{pointSubmitText}}</button>

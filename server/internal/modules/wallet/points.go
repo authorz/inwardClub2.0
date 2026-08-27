@@ -4,11 +4,10 @@ package wallet
 // They all mutate the member's points balance in the append-only ledger.
 //
 // Daily sign-in awards points immediately against sign_in_records + the wallet
-// ledger (see points_repository.go). Points savings and withdrawals insert a
-// 'pending' request row (point_savings / point_withdrawals), claimed on the
-// idempotency key, for store-console review; no balance moves until approval.
-// Request validation, member ownership (the id comes from the token, never the
-// body) and idempotency-key presence are enforced here so the handlers stay thin.
+// ledger (see points_repository.go). Point savings wait for store review. Point
+// withdrawals immediately debit the wallet and queue the selected store's
+// receipt. Request validation, member ownership (the id comes from the token,
+// never the body) and idempotency-key presence are enforced here.
 
 import (
 	"context"
@@ -47,8 +46,8 @@ type SignInStatus struct {
 }
 
 // PointsTxnResult is returned after a points save or withdrawal record is
-// created. Amount echoes the requested points, BalanceAfter is 0, and RequestID
-// is the id of the created point_savings / point_withdrawals row.
+// created. A pending saving returns zero BalanceAfter; an approved withdrawal
+// returns the committed remaining points balance.
 type PointsTxnResult struct {
 	AssetType    string `json:"assetType"`
 	Amount       int64  `json:"amount"`
@@ -59,7 +58,7 @@ type PointsTxnResult struct {
 
 // PointsAmountRequest is the body for point-savings and point-withdrawals. The
 // amount is a positive count of points; required rejects a zero/missing value.
-// StoreID is required and pins the request to the staff review scope.
+// StoreID is required and selects the review/receipt store.
 type PointsAmountRequest struct {
 	Amount  int64 `json:"amount" binding:"required"`
 	StoreID int64 `json:"storeId,omitempty"`
@@ -114,9 +113,8 @@ func (s *PointsService) SavePoints(ctx context.Context, memberID int64, req Poin
 	return s.repo.SavePoints(ctx, memberID, req.StoreID, req.Amount, idemKey)
 }
 
-// WithdrawPoints creates a pending points-withdrawal request for store-console
-// review. Like SavePoints, no balance moves on creation; the request row is
-// recorded against point_withdrawals and settled when the store approves it.
+// WithdrawPoints immediately debits the member's points, records an approved
+// withdrawal and queues the selected store's receipt. No staff review follows.
 func (s *PointsService) WithdrawPoints(ctx context.Context, memberID int64, req PointsAmountRequest, idemKey string) (PointsTxnResult, error) {
 	if err := requireIdemKey(idemKey); err != nil {
 		return PointsTxnResult{}, err
