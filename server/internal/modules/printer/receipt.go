@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,13 @@ const ReceiptTopic = "print:receipt"
 const ReceiptTemplate = "order-receipt"
 
 var receiptLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+const (
+	receiptLineWidth         = 32
+	receiptItemNameWidth     = 18
+	receiptItemQuantityWidth = 4
+	receiptItemAmountWidth   = 10
+)
 
 // Receipt is the settled-order snapshot rendered for a store. Member contains
 // only the masked phone number or nickname used on the paper slip.
@@ -152,7 +160,7 @@ func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, er
 	if err != nil {
 		return Receipt{}, apperr.Internal(err)
 	}
-	r.Member = maskedMember(phone, nickname)
+	r.Member = MaskedMember(phone, nickname)
 	r.CoinBalance = &coinBalance
 
 	const lines = `SELECT name_snapshot, quantity, subtotal_cent
@@ -177,7 +185,9 @@ func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, er
 	return r, nil
 }
 
-func maskedMember(phone, nickname string) string {
+// MaskedMember returns the receipt-safe member identifier shared by payment
+// and coupon receipt producers.
+func MaskedMember(phone, nickname string) string {
 	if len(phone) >= 7 {
 		return phone[:3] + "****" + phone[len(phone)-4:]
 	}
@@ -243,11 +253,11 @@ func renderReceipt(r Receipt) string {
 		b.WriteString(orderTypeLabel(r.OrderType))
 		b.WriteByte('\n')
 	}
-	fmt.Fprintf(&b, "订单号：%s\n", r.BusinessOrderNo)
+	writeReceiptField(&b, "订单号：", r.BusinessOrderNo)
 	fmt.Fprintf(&b, "%s\n", r.PaidAt.In(receiptLocation).Format("2006-01-02 15:04:05"))
 	b.WriteString(rule)
 	if r.Member != "" {
-		fmt.Fprintf(&b, "手机号  %s\n", r.Member)
+		writeReceiptField(&b, "手机号", r.Member)
 	}
 	if r.OrderType == "food" {
 		b.WriteString(rule)
@@ -265,20 +275,114 @@ func renderReceipt(r Receipt) string {
 			fmt.Fprintf(&b, "订单备注：%s\n", remark)
 		}
 		b.WriteString(rule)
-		b.WriteString("商品名称          数量    金额\n")
+		b.WriteString(padReceiptRight("商品名称", receiptItemNameWidth))
+		b.WriteString(padReceiptLeft("数量", receiptItemQuantityWidth))
+		b.WriteString(padReceiptLeft("金额", receiptItemAmountWidth))
+		b.WriteByte('\n')
 		for _, item := range r.Items {
-			fmt.Fprintf(&b, "%s\n", item.Name)
-			fmt.Fprintf(&b, "                  %d      %s\n", item.Quantity, yuan(item.SubtotalCent))
+			writeReceiptItem(&b, item)
 		}
 	} else if r.OrderType == "event_coupon" && strings.TrimSpace(r.CouponName) != "" {
-		fmt.Fprintf(&b, "券名称                   %s\n", strings.TrimSpace(r.CouponName))
-		b.WriteString("使用数量                 1 张\n")
+		if r.VIPLevel > 0 {
+			writeReceiptField(&b, "会员等级", fmt.Sprintf("VIP%d", r.VIPLevel))
+		}
+		writeReceiptField(&b, "券名称", strings.TrimSpace(r.CouponName))
+		writeReceiptField(&b, "使用数量", "1张")
 	}
 	b.WriteString(rule)
-	fmt.Fprintf(&b, "合计  %s\n", yuan(r.AmountCent))
+	if r.OrderType != "event_coupon" {
+		writeReceiptField(&b, "合计", yuan(r.AmountCent))
+	}
 	b.WriteString("谢谢惠顾！\n")
 	b.WriteString("<CUT>")
 	return b.String()
+}
+
+func writeReceiptField(b *strings.Builder, label, value string) {
+	value = strings.TrimSpace(value)
+	separator := "  "
+	if strings.HasSuffix(label, "：") {
+		separator = ""
+	}
+	line := label + separator + value
+	if receiptTextWidth(line) <= receiptLineWidth {
+		b.WriteString(line)
+		b.WriteByte('\n')
+		return
+	}
+	b.WriteString(label)
+	b.WriteByte('\n')
+	for _, part := range splitReceiptText(value, receiptLineWidth) {
+		b.WriteString(part)
+		b.WriteByte('\n')
+	}
+}
+
+func writeReceiptItem(b *strings.Builder, item ReceiptItem) {
+	parts := splitReceiptText(strings.TrimSpace(item.Name), receiptItemNameWidth)
+	if len(parts) == 0 {
+		parts = []string{""}
+	}
+	for _, part := range parts[:len(parts)-1] {
+		b.WriteString(part)
+		b.WriteByte('\n')
+	}
+	b.WriteString(padReceiptRight(parts[len(parts)-1], receiptItemNameWidth))
+	b.WriteString(padReceiptLeft(strconv.Itoa(item.Quantity), receiptItemQuantityWidth))
+	b.WriteString(padReceiptLeft(yuan(item.SubtotalCent), receiptItemAmountWidth))
+	b.WriteByte('\n')
+}
+
+func splitReceiptText(value string, width int) []string {
+	if value == "" || width <= 0 {
+		return nil
+	}
+	parts := make([]string, 0, 1)
+	var part strings.Builder
+	partWidth := 0
+	for _, r := range value {
+		runeWidth := receiptRuneWidth(r)
+		if partWidth > 0 && partWidth+runeWidth > width {
+			parts = append(parts, part.String())
+			part.Reset()
+			partWidth = 0
+		}
+		part.WriteRune(r)
+		partWidth += runeWidth
+	}
+	if part.Len() > 0 {
+		parts = append(parts, part.String())
+	}
+	return parts
+}
+
+func padReceiptLeft(value string, width int) string {
+	if padding := width - receiptTextWidth(value); padding > 0 {
+		return strings.Repeat(" ", padding) + value
+	}
+	return value
+}
+
+func padReceiptRight(value string, width int) string {
+	if padding := width - receiptTextWidth(value); padding > 0 {
+		return value + strings.Repeat(" ", padding)
+	}
+	return value
+}
+
+func receiptTextWidth(value string) int {
+	width := 0
+	for _, r := range value {
+		width += receiptRuneWidth(r)
+	}
+	return width
+}
+
+func receiptRuneWidth(r rune) int {
+	if r <= 0x7f {
+		return 1
+	}
+	return 2
 }
 
 // paymentMethodLabel maps persisted payment channels to administrator-facing
@@ -315,11 +419,12 @@ func orderTypeLabel(orderType string) string {
 	}
 }
 
-// yuan renders integer cents as a ¥X.XX amount.
+// yuan renders integer cents with a printer-safe RMB unit. The target thermal
+// printer replaces the half-width yen sign with a question mark.
 func yuan(cent int64) string {
 	sign := ""
 	if cent < 0 {
 		sign, cent = "-", -cent
 	}
-	return fmt.Sprintf("¥%s%d.%02d", sign, cent/100, cent%100)
+	return fmt.Sprintf("%s%d.%02d元", sign, cent/100, cent%100)
 }

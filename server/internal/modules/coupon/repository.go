@@ -326,16 +326,27 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 			templateID  int64
 			couponType  string
 			couponName  string
+			phone       string
+			nickname    string
+			vipLevel    int
 			couponStore sql.NullInt64
 			expiresAt   sql.NullTime
 		)
 		const selectCoupon = `SELECT e.status, e.member_id, e.coupon_template_id,
-			t.coupon_type, t.name, e.store_id, e.expires_at
+			t.coupon_type, t.name, COALESCE(m.phone, ''), COALESCE(m.nickname, ''),
+			COALESCE(mt.level, (
+				SELECT base.level FROM membership_tiers base
+				WHERE base.status = 'active'
+				ORDER BY base.level ASC, base.id ASC LIMIT 1
+			), 0), e.store_id, e.expires_at
 			FROM coupon_entitlements e
 			JOIN coupon_templates t ON t.id = e.coupon_template_id
+			JOIN members m ON m.id = e.member_id
+			LEFT JOIN membership_tiers mt ON mt.id = m.current_tier_id
 			WHERE e.id = ? FOR UPDATE`
 		err := tx.QueryRowContext(ctx, selectCoupon, in.EntitlementID).Scan(
-			&status, &memberID, &templateID, &couponType, &couponName, &couponStore, &expiresAt,
+			&status, &memberID, &templateID, &couponType, &couponName, &phone, &nickname,
+			&vipLevel, &couponStore, &expiresAt,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
 			return apperr.NotFound("赛事券不存在")
@@ -392,6 +403,7 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 		}
 		if err := printer.WriteEventCouponReceipt(ctx, tx, redemptionID, printer.Receipt{
 			StoreID: in.StoreID, BusinessOrderNo: in.RedemptionNo, OrderType: "event_coupon",
+			Member: printer.MaskedMember(phone, nickname), VIPLevel: vipLevel,
 			CouponName: couponName, PaidAt: in.Now,
 		}); err != nil {
 			return err

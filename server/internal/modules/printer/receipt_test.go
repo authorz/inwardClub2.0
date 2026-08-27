@@ -37,7 +37,7 @@ func TestBuildReceiptJob(t *testing.T) {
 		"<IMG></IMG>", "<CB>InwardClub</CB>", "南滨公园店", "订单号：BO-20260718-1",
 		"手机号  138****5678", "会员等级                 VIP3", "消费方式", "金币",
 		"赠送积分", "20", "金币余额", "12345", "订单备注：少冰，不要柠檬", "商品名称", "数量", "金额",
-		"苏打水", "2", "¥15.00", "合计", "谢谢惠顾！", "<CUT>", "2026-07-18 23:04:05",
+		"苏打水", "2", "15.00元", "合计", "谢谢惠顾！", "<CUT>", "2026-07-18 23:04:05",
 	} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("content missing %q:\n%s", want, job.Content)
@@ -93,12 +93,56 @@ func TestBuildEventCouponReceipt(t *testing.T) {
 	job := BuildReceiptJob("SN-EVENT", true, Receipt{
 		BusinessOrderNo: "ER202608270001",
 		OrderType:       "event_coupon",
-		CouponName:      "周赛赛事券",
+		Member:          "177****3915",
+		VIPLevel:        8,
+		CouponName:      "赛事券",
 		PaidAt:          time.Date(2026, 8, 27, 4, 0, 0, 0, time.UTC),
 	})
-	for _, want := range []string{"赛事券使用", "周赛赛事券", "使用数量                 1 张", "合计  ¥0.00"} {
+	for _, want := range []string{
+		"赛事券使用", "手机号  177****3915", "会员等级  VIP8", "券名称  赛事券", "使用数量  1张",
+	} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("event coupon receipt missing %q:\n%s", want, job.Content)
+		}
+	}
+	for _, unwanted := range []string{"赛事门票券", "合计", "¥", "?0.00"} {
+		if strings.Contains(job.Content, unwanted) {
+			t.Fatalf("event coupon receipt contains %q:\n%s", unwanted, job.Content)
+		}
+	}
+}
+
+func TestBuildFoodReceiptKeepsQuantityAndAmountOnItemLine(t *testing.T) {
+	job := BuildReceiptJob("SN-FOOD", true, Receipt{
+		BusinessOrderNo: "BO-FOOD-1",
+		OrderType:       "food",
+		Items: []ReceiptItem{{
+			Name: "88酒券套餐", Quantity: 1, SubtotalCent: 8800,
+		}},
+	})
+	want := "88酒券套餐" + strings.Repeat(" ", 11) + "1" + strings.Repeat(" ", 3) + "88.00元"
+	if !strings.Contains(job.Content, want+"\n") {
+		t.Fatalf("food item columns are not on one line; want %q:\n%s", want, job.Content)
+	}
+	if strings.Contains(job.Content, "¥") {
+		t.Fatalf("receipt contains unsupported yen sign:\n%s", job.Content)
+	}
+}
+
+func TestReceiptPlainTextLinesFitPrinterWidth(t *testing.T) {
+	job := BuildReceiptJob("SN-EVENT", true, Receipt{
+		BusinessOrderNo: "ER322-1787843105234256898",
+		OrderType:       "event_coupon",
+		Member:          "177****3915",
+		VIPLevel:        8,
+		CouponName:      "这是一个很长但不能产生孤立字符的赛事券名称",
+	})
+	for _, line := range strings.Split(job.Content, "\n") {
+		if strings.HasPrefix(line, "<") {
+			continue
+		}
+		if width := receiptTextWidth(line); width > receiptLineWidth {
+			t.Fatalf("receipt line width = %d, want <= %d: %q\n%s", width, receiptLineWidth, line, job.Content)
 		}
 	}
 }
@@ -119,10 +163,10 @@ func TestPaymentMethodLabel(t *testing.T) {
 }
 
 func TestMaskedMember(t *testing.T) {
-	if got := maskedMember("13812345678", "昵称"); got != "138****5678" {
+	if got := MaskedMember("13812345678", "昵称"); got != "138****5678" {
 		t.Fatalf("masked phone = %q", got)
 	}
-	if got := maskedMember("", "昵称"); got != "昵称" {
+	if got := MaskedMember("", "昵称"); got != "昵称" {
 		t.Fatalf("nickname fallback = %q", got)
 	}
 }
@@ -144,10 +188,10 @@ func TestOrderTypeLabel(t *testing.T) {
 
 func TestYuan(t *testing.T) {
 	cases := map[int64]string{
-		0:    "¥0.00",
-		5:    "¥0.05",
-		1500: "¥15.00",
-		1234: "¥12.34",
+		0:    "0.00元",
+		5:    "0.05元",
+		1500: "15.00元",
+		1234: "12.34元",
 	}
 	for cent, want := range cases {
 		if got := yuan(cent); got != want {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,17 +40,30 @@ func TestUseEventCouponIntegration(t *testing.T) {
 		t.Fatalf("insert store: %v", err)
 	}
 	storeID, _ := storeResult.LastInsertId()
+	var tierID int64
+	var vipLevel int
+	if err := database.QueryRowContext(ctx, `SELECT id, level FROM membership_tiers
+		WHERE status = 'active' ORDER BY level DESC, id DESC LIMIT 1`).Scan(&tierID, &vipLevel); err != nil {
+		database.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, storeID)
+		t.Fatalf("select membership tier: %v", err)
+	}
+	phone := fmt.Sprintf("177%08d", suffix%100000000)
 	memberResult, err := database.ExecContext(ctx, `INSERT INTO members
-		(nickname, profile_completed, status, created_at, updated_at)
-		VALUES (?, 1, 'active', ?, ?)`, fmt.Sprintf("event-coupon-integration-%d", suffix), now, now)
+		(nickname, phone, current_tier_id, profile_completed, status, created_at, updated_at)
+		VALUES (?, ?, ?, 1, 'active', ?, ?)`, fmt.Sprintf("event-coupon-integration-%d", suffix), phone, tierID, now, now)
 	if err != nil {
 		database.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, storeID)
 		t.Fatalf("insert member: %v", err)
 	}
 	memberID, _ := memberResult.LastInsertId()
-	var templateID, entitlementID, redemptionID int64
+	var templateID, entitlementID, redemptionID, printerID int64
 	idemKey := fmt.Sprintf("event-use-integration-%d", suffix)
 	defer func() {
+		if redemptionID > 0 && printerID > 0 {
+			printIdemKey := fmt.Sprintf("coupon-redemption:%d:printer:%d:print-receipt", redemptionID, printerID)
+			database.ExecContext(ctx, `DELETE FROM outbox_events WHERE idem_key = ?`, printIdemKey)
+			database.ExecContext(ctx, `DELETE FROM print_jobs WHERE idem_key = ?`, printIdemKey)
+		}
 		if redemptionID > 0 {
 			database.ExecContext(ctx, `DELETE FROM coupon_redemptions WHERE id = ?`, redemptionID)
 		}
@@ -60,9 +74,20 @@ func TestUseEventCouponIntegration(t *testing.T) {
 		if templateID > 0 {
 			database.ExecContext(ctx, `DELETE FROM coupon_templates WHERE id = ?`, templateID)
 		}
+		if printerID > 0 {
+			database.ExecContext(ctx, `DELETE FROM printer_devices WHERE id = ?`, printerID)
+		}
 		database.ExecContext(ctx, `DELETE FROM members WHERE id = ?`, memberID)
 		database.ExecContext(ctx, `DELETE FROM stores WHERE id = ?`, storeID)
 	}()
+	printerResult, err := database.ExecContext(ctx, `INSERT INTO printer_devices
+		(store_id, name, provider, device_sn, device_key, status, created_at, updated_at)
+		VALUES (?, '赛事券集成测试打印机', 'xpyun', ?, '', 'active', ?, ?)`,
+		storeID, fmt.Sprintf("EVENT-USE-%d", suffix), now, now)
+	if err != nil {
+		t.Fatalf("insert printer: %v", err)
+	}
+	printerID, _ = printerResult.LastInsertId()
 
 	var categoryID int64
 	if err := database.QueryRowContext(ctx, `SELECT id FROM coupon_categories WHERE business_type = 'event_ticket' LIMIT 1`).Scan(&categoryID); err != nil {
@@ -72,7 +97,7 @@ func TestUseEventCouponIntegration(t *testing.T) {
 		(scope_type, name, coupon_type, category_id, admission_count, validity_rule,
 		 applicable_scope, status, created_at, updated_at)
 		VALUES ('global', ?, 'event_ticket', ?, 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`,
-		fmt.Sprintf("event-coupon-integration-%d", suffix), categoryID, now, now)
+		"赛事券", categoryID, now, now)
 	if err != nil {
 		t.Fatalf("insert template: %v", err)
 	}
@@ -105,5 +130,22 @@ func TestUseEventCouponIntegration(t *testing.T) {
 	}
 	if detail.CouponType != TypeEventTicket || detail.StoreName == "" || detail.Status != StatusUsed {
 		t.Fatalf("unexpected redemption detail: %+v", detail)
+	}
+	printIdemKey := fmt.Sprintf("coupon-redemption:%d:printer:%d:print-receipt", redemptionID, printerID)
+	var receiptContent string
+	if err := database.QueryRowContext(ctx, `SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.Content'))
+		FROM print_jobs WHERE idem_key = ?`, printIdemKey).Scan(&receiptContent); err != nil {
+		t.Fatalf("select event coupon receipt: %v", err)
+	}
+	maskedPhone := phone[:3] + "****" + phone[len(phone)-4:]
+	for _, want := range []string{
+		"手机号  " + maskedPhone,
+		fmt.Sprintf("会员等级  VIP%d", vipLevel),
+		"券名称  " + used.Name,
+		"使用数量  1张",
+	} {
+		if !strings.Contains(receiptContent, want) {
+			t.Fatalf("event coupon receipt missing %q:\n%s", want, receiptContent)
+		}
 	}
 }

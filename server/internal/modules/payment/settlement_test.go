@@ -407,7 +407,7 @@ func TestSettleWeChatStoreBoundReceipt(t *testing.T) {
 	if job.DeviceSN != "SN-5" || job.Template != printer.ReceiptTemplate {
 		t.Fatalf("unexpected receipt job: %+v", job)
 	}
-	for _, want := range []string{"餐饮订单", "BO-R", "¥15.00"} {
+	for _, want := range []string{"餐饮订单", "BO-R", "15.00元"} {
 		if !strings.Contains(job.Content, want) {
 			t.Fatalf("receipt content missing %q:\n%s", want, job.Content)
 		}
