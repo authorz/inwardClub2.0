@@ -321,19 +321,19 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 			}
 		}
 		var (
-			status      string
-			memberID    int64
-			templateID  int64
-			couponType  string
-			couponName  string
-			phone       string
-			nickname    string
-			vipLevel    int
-			couponStore sql.NullInt64
-			expiresAt   sql.NullTime
+			status         string
+			memberID       int64
+			templateID     int64
+			couponType     string
+			couponTypeName string
+			phone          string
+			nickname       string
+			vipLevel       int
+			couponStore    sql.NullInt64
+			expiresAt      sql.NullTime
 		)
 		const selectCoupon = `SELECT e.status, e.member_id, e.coupon_template_id,
-			t.coupon_type, t.name, COALESCE(m.phone, ''), COALESCE(m.nickname, ''),
+			t.coupon_type, cc.name, COALESCE(m.phone, ''), COALESCE(m.nickname, ''),
 			COALESCE(mt.level, (
 				SELECT base.level FROM membership_tiers base
 				WHERE base.status = 'active'
@@ -341,11 +341,12 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 			), 0), e.store_id, e.expires_at
 			FROM coupon_entitlements e
 			JOIN coupon_templates t ON t.id = e.coupon_template_id
+			JOIN coupon_categories cc ON cc.id = t.category_id AND cc.business_type = t.coupon_type
 			JOIN members m ON m.id = e.member_id
 			LEFT JOIN membership_tiers mt ON mt.id = m.current_tier_id
 			WHERE e.id = ? FOR UPDATE`
 		err := tx.QueryRowContext(ctx, selectCoupon, in.EntitlementID).Scan(
-			&status, &memberID, &templateID, &couponType, &couponName, &phone, &nickname,
+			&status, &memberID, &templateID, &couponType, &couponTypeName, &phone, &nickname,
 			&vipLevel, &couponStore, &expiresAt,
 		)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -404,7 +405,7 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 		if err := printer.WriteEventCouponReceipt(ctx, tx, redemptionID, printer.Receipt{
 			StoreID: in.StoreID, BusinessOrderNo: in.RedemptionNo, OrderType: "event_coupon",
 			Member: printer.MaskedMember(phone, nickname), VIPLevel: vipLevel,
-			CouponName: couponName, PaidAt: in.Now,
+			CouponTypeName: couponTypeName, PaidAt: in.Now,
 		}); err != nil {
 			return err
 		}

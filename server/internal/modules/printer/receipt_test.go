@@ -95,7 +95,7 @@ func TestBuildEventCouponReceipt(t *testing.T) {
 		OrderType:       "event_coupon",
 		Member:          "177****3915",
 		VIPLevel:        8,
-		CouponName:      "赛事券",
+		CouponTypeName:  "赛事券",
 		PaidAt:          time.Date(2026, 8, 27, 4, 0, 0, 0, time.UTC),
 	})
 	for _, want := range []string{
@@ -105,7 +105,7 @@ func TestBuildEventCouponReceipt(t *testing.T) {
 			t.Fatalf("event coupon receipt missing %q:\n%s", want, job.Content)
 		}
 	}
-	for _, unwanted := range []string{"赛事门票券", "合计", "¥", "?0.00"} {
+	for _, unwanted := range []string{"赛事门票券", "赛事门券", "合计", "¥", "?0.00"} {
 		if strings.Contains(job.Content, unwanted) {
 			t.Fatalf("event coupon receipt contains %q:\n%s", unwanted, job.Content)
 		}
@@ -164,7 +164,7 @@ func TestReceiptPlainTextLinesFitPrinterWidth(t *testing.T) {
 		OrderType:       "event_coupon",
 		Member:          "177****3915",
 		VIPLevel:        8,
-		CouponName:      "这是一个很长但不能产生孤立字符的赛事券名称",
+		CouponTypeName:  "这是一个很长但不能产生孤立字符的赛事券类型名称",
 	})
 	for _, line := range strings.Split(job.Content, "\n") {
 		if strings.HasPrefix(line, "<") {

@@ -90,14 +90,16 @@ func TestUseEventCouponIntegration(t *testing.T) {
 	printerID, _ = printerResult.LastInsertId()
 
 	var categoryID int64
-	if err := database.QueryRowContext(ctx, `SELECT id FROM coupon_categories WHERE business_type = 'event_ticket' LIMIT 1`).Scan(&categoryID); err != nil {
+	var categoryName string
+	if err := database.QueryRowContext(ctx, `SELECT id, name FROM coupon_categories
+		WHERE business_type = 'event_ticket' LIMIT 1`).Scan(&categoryID, &categoryName); err != nil {
 		t.Fatalf("select event category: %v", err)
 	}
 	templateResult, err := database.ExecContext(ctx, `INSERT INTO coupon_templates
 		(scope_type, name, coupon_type, category_id, admission_count, validity_rule,
 		 applicable_scope, status, created_at, updated_at)
 		VALUES ('global', ?, 'event_ticket', ?, 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`,
-		"赛事券", categoryID, now, now)
+		"赛事门券", categoryID, now, now)
 	if err != nil {
 		t.Fatalf("insert template: %v", err)
 	}
@@ -141,11 +143,14 @@ func TestUseEventCouponIntegration(t *testing.T) {
 	for _, want := range []string{
 		"手机号  " + maskedPhone,
 		fmt.Sprintf("会员等级  VIP%d", vipLevel),
-		"券名称  " + used.Name,
+		"券名称  " + categoryName,
 		"使用数量  1张",
 	} {
 		if !strings.Contains(receiptContent, want) {
 			t.Fatalf("event coupon receipt missing %q:\n%s", want, receiptContent)
 		}
+	}
+	if strings.Contains(receiptContent, "赛事门券") || strings.Contains(receiptContent, "赛事门票券") {
+		t.Fatalf("event coupon receipt leaked legacy template name:\n%s", receiptContent)
 	}
 }

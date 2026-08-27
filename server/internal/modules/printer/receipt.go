@@ -51,7 +51,9 @@ type Receipt struct {
 	PayMethod  string
 	Points     int64
 	Remark     string
-	CouponName string
+	// CouponTypeName is the coupon_categories.name snapshot resolved when a
+	// direct event coupon is consumed.
+	CouponTypeName string
 	// CoinBalance is the member's available coin balance after this payment.
 	CoinBalance *int64
 	Items       []ReceiptItem
@@ -337,11 +339,11 @@ func renderReceipt(r Receipt) string {
 		for _, item := range r.Items {
 			writeReceiptItem(&b, item)
 		}
-	} else if r.OrderType == "event_coupon" && strings.TrimSpace(r.CouponName) != "" {
+	} else if r.OrderType == "event_coupon" && strings.TrimSpace(r.CouponTypeName) != "" {
 		if r.VIPLevel > 0 {
 			writeReceiptField(&b, "会员等级", fmt.Sprintf("VIP%d", r.VIPLevel))
 		}
-		writeReceiptField(&b, "券名称", strings.TrimSpace(r.CouponName))
+		writeReceiptField(&b, "券名称", strings.TrimSpace(r.CouponTypeName))
 		writeReceiptField(&b, "使用数量", "1张")
 	}
 	b.WriteString(rule)
