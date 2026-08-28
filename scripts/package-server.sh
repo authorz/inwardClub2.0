@@ -11,9 +11,14 @@ DIST_DIR="${REPO_ROOT}/dist"
 TARGET_OS="linux"
 TARGET_ARCH="amd64"
 PACKAGE_LABEL="${1:-$(date '+%Y%m%d-%H%M%S')}"
+PACKAGE_MODE="${2:-full}"
 
 if [[ ! "${PACKAGE_LABEL}" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "错误：打包标签只能包含字母、数字、点、下划线和连字符。" >&2
+  exit 1
+fi
+if [[ "${PACKAGE_MODE}" != "full" && "${PACKAGE_MODE}" != "server-only" ]]; then
+  echo "错误：打包模式只能是 full 或 server-only。" >&2
   exit 1
 fi
 
@@ -41,7 +46,10 @@ STAGED_PACKAGE_DIR="${STAGING_DIR}/${PACKAGE_NAME}"
 STAGED_BIN_DIR="${STAGED_PACKAGE_DIR}/bin"
 STAGED_ADMIN_CONSOLE_DIR="${STAGED_PACKAGE_DIR}/web/admin-console"
 STAGED_STORE_CONSOLE_DIR="${STAGED_PACKAGE_DIR}/web/store-console"
-mkdir -p "${STAGED_BIN_DIR}" "${STAGED_ADMIN_CONSOLE_DIR}" "${STAGED_STORE_CONSOLE_DIR}"
+mkdir -p "${STAGED_BIN_DIR}"
+if [[ "${PACKAGE_MODE}" == "full" ]]; then
+  mkdir -p "${STAGED_ADMIN_CONSOLE_DIR}" "${STAGED_STORE_CONSOLE_DIR}"
+fi
 
 sha256_files() {
   if command -v shasum >/dev/null 2>&1; then
@@ -60,15 +68,19 @@ echo "[1/6] 运行服务端测试"
   go test ./...
 )
 
-echo "[2/6] 构建总后台和门店后台"
-(
-  cd "${ADMIN_CONSOLE_DIR}"
-  npm run build
-)
-(
-  cd "${STORE_CONSOLE_DIR}"
-  npm run build
-)
+if [[ "${PACKAGE_MODE}" == "full" ]]; then
+  echo "[2/6] 构建总后台和门店后台"
+  (
+    cd "${ADMIN_CONSOLE_DIR}"
+    npm run build
+  )
+  (
+    cd "${STORE_CONSOLE_DIR}"
+    npm run build
+  )
+else
+  echo "[2/6] 仅服务端模式，跳过后台构建"
+fi
 
 echo "[3/6] 构建 ${TARGET_OS}/${TARGET_ARCH} 静态二进制"
 (
@@ -81,9 +93,13 @@ echo "[3/6] 构建 ${TARGET_OS}/${TARGET_ARCH} 静态二进制"
     go build -trimpath -ldflags="-s -w" -o "${STAGED_BIN_DIR}/inwardclub-migrate" ./cmd/migrate
 )
 
-echo "[4/6] 复制后台静态文件"
-cp -R "${ADMIN_CONSOLE_DIR}/dist/." "${STAGED_ADMIN_CONSOLE_DIR}/"
-cp -R "${STORE_CONSOLE_DIR}/dist/." "${STAGED_STORE_CONSOLE_DIR}/"
+if [[ "${PACKAGE_MODE}" == "full" ]]; then
+  echo "[4/6] 复制后台静态文件"
+  cp -R "${ADMIN_CONSOLE_DIR}/dist/." "${STAGED_ADMIN_CONSOLE_DIR}/"
+  cp -R "${STORE_CONSOLE_DIR}/dist/." "${STAGED_STORE_CONSOLE_DIR}/"
+else
+  echo "[4/6] 仅服务端模式，不包含后台静态文件"
+fi
 
 COMMIT_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 WORKTREE_DIRTY="false"
@@ -98,18 +114,23 @@ builtAt=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 goVersion=$(go version)
 target=${TARGET_OS}/${TARGET_ARCH}
 dirtyWorktree=${WORKTREE_DIRTY}
-adminConsole=web/admin-console
-storeConsole=web/store-console
+packageMode=${PACKAGE_MODE}
+adminConsole=$([[ "${PACKAGE_MODE}" == "full" ]] && echo "web/admin-console" || echo "not-included")
+storeConsole=$([[ "${PACKAGE_MODE}" == "full" ]] && echo "web/store-console" || echo "not-included")
 EOF
 
 (
   cd "${STAGED_PACKAGE_DIR}"
-  find BUILD_INFO.txt bin web -type f | LC_ALL=C sort | while IFS= read -r packaged_file; do
+  manifest_roots=(BUILD_INFO.txt bin)
+  if [[ "${PACKAGE_MODE}" == "full" ]]; then
+    manifest_roots+=(web)
+  fi
+  find "${manifest_roots[@]}" -type f | LC_ALL=C sort | while IFS= read -r packaged_file; do
     sha256_files "${packaged_file}"
   done > SHA256SUMS
 )
 
-echo "[5/6] 校验二进制格式和后台入口"
+echo "[5/6] 校验二进制格式和打包内容"
 for binary in "${STAGED_BIN_DIR}"/*; do
   binary_type="$(file "${binary}")"
   echo "${binary_type}"
@@ -118,14 +139,19 @@ for binary in "${STAGED_BIN_DIR}"/*; do
     exit 1
   fi
 done
-for frontend_entry in \
-  "${STAGED_ADMIN_CONSOLE_DIR}/index.html" \
-  "${STAGED_STORE_CONSOLE_DIR}/index.html"; do
-  if [[ ! -s "${frontend_entry}" ]]; then
-    echo "错误：后台入口 ${frontend_entry} 不存在或为空。" >&2
-    exit 1
-  fi
-done
+if [[ "${PACKAGE_MODE}" == "full" ]]; then
+  for frontend_entry in \
+    "${STAGED_ADMIN_CONSOLE_DIR}/index.html" \
+    "${STAGED_STORE_CONSOLE_DIR}/index.html"; do
+    if [[ ! -s "${frontend_entry}" ]]; then
+      echo "错误：后台入口 ${frontend_entry} 不存在或为空。" >&2
+      exit 1
+    fi
+  done
+elif [[ -e "${STAGED_PACKAGE_DIR}/web" ]]; then
+  echo "错误：仅服务端包不应包含 web 目录。" >&2
+  exit 1
+fi
 
 mv "${STAGED_PACKAGE_DIR}" "${PACKAGE_DIR}"
 

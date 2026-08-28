@@ -152,10 +152,10 @@ Asset type: WeChat mini program my coupons screen
 Canvas: portrait mobile UI screen, natural app proportions, no non-proportional stretching
 Primary request: Redesign the InwardClub my coupons page in the same white-first style as member center v22.
 Style/medium: high-fidelity mobile UI mockup, premium minimalist coupon entitlement list, not a coupon marketplace
-Composition/framing: single vertical child page with title "我的券" and back affordance. Top segmented control: "可用 / 已使用 / 已过期", active "可用". Add concise summary row "可用 3 张". Coupon list uses restrained full-width entitlement rows with thin dividers and small ticket icon, not red coupon cards. Rows: "酒水兑换券", "可兑换指定酒水", "有效期至 2026-07-22", action "去兑换"; "活动抵扣券", "购票可抵 ¥30", "有效期至 2026-08-01", action "查看适用活动". Bottom small text link "兑换记录". No bottom tabbar.
+Composition/framing: single vertical child page with title "我的券" and back affordance. Top segmented control: "可用 / 已使用 / 已过期", active "可用". Add concise summary row "可用 3 张". Coupon list uses restrained full-width entitlement rows with thin dividers and small ticket icon, not red coupon cards. Rows: "酒水券", "可兑换指定酒水", "有效期至 2026-07-22", action "去兑换"; "活动抵扣券", "购票可抵 ¥30", "有效期至 2026-08-01", action "查看适用活动". Bottom small text link "兑换记录". No bottom tabbar.
 Color rule: black/white/light gray UI; no red coupon marketplace palette.
 Text language: Chinese
-Required visible text: "我的券", "可用", "已使用", "已过期", "可用 3 张", "酒水兑换券", "可兑换指定酒水", "有效期至 2026-07-22", "去兑换", "活动抵扣券", "购票可抵 ¥30", "有效期至 2026-08-01", "查看适用活动", "兑换记录"
+Required visible text: "我的券", "可用", "已使用", "已过期", "可用 3 张", "酒水券", "可兑换指定酒水", "有效期至 2026-07-22", "去兑换", "活动抵扣券", "购票可抵 ¥30", "有效期至 2026-08-01", "查看适用活动", "兑换记录"
 Constraints: no sign-in/check-in, no Alipay, no marketplace coupon feed, no bottom tabbar
 Avoid: red packets, huge discount badges, nested cards, colorful ecommerce coupon style
 ```
