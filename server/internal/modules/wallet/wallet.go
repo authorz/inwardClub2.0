@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/vipbenefit"
 	"github.com/inwardclub/server/internal/platform/audit"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -199,6 +200,11 @@ func (r *sqlRepository) adjustBalance(ctx context.Context, memberID int64, store
 				return apperr.Conflict("adjustment already recorded")
 			}
 			return apperr.Internal(err)
+		}
+		if req.AssetType == AssetGrowthValue {
+			if err := vipbenefit.UpgradeForGrowthBalance(ctx, tx, memberID, newBalance, now); err != nil {
+				return err
+			}
 		}
 		auditEntry.Before = Account{AssetType: req.AssetType, AvailableAmount: available, HeldAmount: held}
 		auditEntry.After = Account{AssetType: req.AssetType, AvailableAmount: newBalance, HeldAmount: held}

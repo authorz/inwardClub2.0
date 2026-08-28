@@ -55,6 +55,62 @@ type FoodPayment struct {
 	LowSpend        bool
 }
 
+type growthTier struct {
+	ID    int64
+	Level int
+}
+
+// UpgradeForGrowthBalance advances a member to the highest active tier covered
+// by their current growth balance, then grants that tier's reached and scheduled
+// benefits. The caller supplies the surrounding transaction so a growth credit,
+// tier change and all rewards either commit together or roll back together.
+func UpgradeForGrowthBalance(ctx context.Context, tx *sql.Tx, memberID, growthBalance int64, now time.Time) error {
+	var target growthTier
+	err := tx.QueryRowContext(ctx, `SELECT id, level FROM membership_tiers
+		WHERE status = 'active' AND threshold <= ?
+		ORDER BY threshold DESC, level DESC, id ASC LIMIT 1`, growthBalance).
+		Scan(&target.ID, &target.Level)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return apperr.Internal(err)
+	}
+
+	var currentTierID sql.NullInt64
+	switch err := tx.QueryRowContext(ctx, `SELECT current_tier_id FROM members WHERE id = ? FOR UPDATE`, memberID).Scan(&currentTierID); {
+	case errors.Is(err, sql.ErrNoRows):
+		return apperr.NotFound("member not found")
+	case err != nil:
+		return apperr.Internal(err)
+	}
+
+	var currentLevel *int
+	if currentTierID.Valid {
+		var level int
+		switch err := tx.QueryRowContext(ctx, `SELECT level FROM membership_tiers WHERE id = ?`, currentTierID.Int64).Scan(&level); {
+		case errors.Is(err, sql.ErrNoRows):
+			// A dangling tier reference is treated as unranked and repaired below.
+		case err != nil:
+			return apperr.Internal(err)
+		default:
+			currentLevel = &level
+		}
+	}
+	if !tierUpgradeNeeded(currentLevel, target.Level) {
+		return nil
+	}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE members SET current_tier_id = ?, updated_at = ? WHERE id = ?`, target.ID, now, memberID); err != nil {
+		return apperr.Internal(err)
+	}
+	return GrantTierReached(ctx, tx, memberID, target.ID, now)
+}
+
+func tierUpgradeNeeded(currentLevel *int, targetLevel int) bool {
+	return currentLevel == nil || *currentLevel < targetLevel
+}
+
 // GrantTierReached applies one-time reached-tier benefits and the current
 // natural period's scheduled benefits. It is safe to call on retries.
 func GrantTierReached(ctx context.Context, tx *sql.Tx, memberID, tierID int64, now time.Time) error {
