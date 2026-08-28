@@ -55,6 +55,7 @@ const reasonLabels: Record<string, string> = {
   sign_in: '签到奖励',
   recharge: '充值到账',
   first_recharge_reward: '用户首充获得积分',
+  first_recharge_reward_correction: '首充双倍积分补发',
   high_value_recharge_reward: '满额充值获得积分',
   recharge_growth: '充值成长值',
   wechat_payment_growth: '微信支付获得成长值',

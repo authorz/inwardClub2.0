@@ -43,6 +43,7 @@ const LEDGER_REASON_LABEL = {
   refund: '订单退款返还',
   recharge: '金币充值到账',
   first_recharge_reward: '用户首充获得积分',
+  first_recharge_reward_correction: '首充双倍积分补发',
   high_value_recharge_reward: '满额充值获得积分',
   low_spend_reward: '预约低消达标奖励',
   invitation_first_low_spend: '邀请奖励',

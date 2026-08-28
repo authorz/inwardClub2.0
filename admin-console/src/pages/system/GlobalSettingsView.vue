@@ -20,7 +20,7 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 const loading = ref(false)
 const saving = ref(false)
 const couponCategories = ref<CouponCategory[]>([])
-const defaultRechargeNotice = '新用户全平台首次成功充值低于 1000 元，按到账金币数赠送 2 倍积分。'
+const defaultRechargeNotice = '新用户全平台首次成功充值低于 1000 元，按对应充值档位配置获得双倍赠送积分。'
 type GiftCouponUsageMode = 'unlimited' | 'limited'
 interface GiftCouponUsageRuleForm {
   couponCategoryId: number | string | null
@@ -230,7 +230,7 @@ async function save(): Promise<void> {
               </NSwitch>
               <NText depth="3">
                 开启后，仅会员全平台首次成功充值且实付金额低于下方上限时，
-                按到账金币数赠送 2 倍积分；后续充值不赠送。
+                在档位赠送积分基础上再发放同额积分，合计到账 2 倍；后续充值不加倍。
               </NText>
             </div>
           </NFormItem>

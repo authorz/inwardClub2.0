@@ -30,7 +30,7 @@ const (
 	printerAPIURLKey                       = "printer_api_url"
 	defaultFirstRechargeDoublePointsMax    = int64(1000)
 	defaultPhoneChangeIntervalDays         = 30
-	defaultRechargeNotice                  = "新用户全平台首次成功充值低于 1000 元，按到账金币数赠送 2 倍积分。"
+	defaultRechargeNotice                  = "新用户全平台首次成功充值低于 1000 元，按对应充值档位配置获得双倍赠送积分。"
 	defaultPrinterAPIURL                   = "https://open.xpyun.net/api/openapi/xprinter"
 )
 

@@ -21,7 +21,7 @@ func TestStoreReceiptEligibleExcludesRecharge(t *testing.T) {
 func TestRechargePointRewards(t *testing.T) {
 	tests := []struct {
 		name          string
-		coins         int64
+		points        int64
 		amountCent    int64
 		thresholdCent int64
 		firstRecharge bool
@@ -29,62 +29,68 @@ func TestRechargePointRewards(t *testing.T) {
 		wantAmounts   []int64
 	}{
 		{
-			name:          "ordinary first recharge",
-			coins:         200,
+			name:          "first recharge doubles configured points",
+			points:        600000,
 			amountCent:    20000,
 			thresholdCent: 100000,
 			firstRecharge: true,
 			wantReasons:   []string{firstRechargeRewardReason},
-			wantAmounts:   []int64{400},
+			wantAmounts:   []int64{600000},
 		},
 		{
 			name:          "ordinary repeat recharge",
-			coins:         200,
+			points:        600000,
 			amountCent:    20000,
 			thresholdCent: 100000,
 		},
 		{
 			name:          "repeat recharge at threshold gets no reward",
-			coins:         1000,
+			points:        600000,
 			amountCent:    100000,
 			thresholdCent: 100000,
 		},
 		{
 			name:          "first recharge at threshold gets no reward",
-			coins:         1000,
+			points:        600000,
 			amountCent:    100000,
 			thresholdCent: 100000,
 			firstRecharge: true,
 		},
 		{
 			name:          "first recharge below threshold gets reward",
-			coins:         1000,
+			points:        35000,
 			amountCent:    99999,
 			thresholdCent: 100000,
 			firstRecharge: true,
 			wantReasons:   []string{firstRechargeRewardReason},
-			wantAmounts:   []int64{2000},
+			wantAmounts:   []int64{35000},
 		},
 		{
 			name:          "custom threshold is an exclusive upper bound",
-			coins:         800,
+			points:        12000,
 			amountCent:    79999,
 			thresholdCent: 80000,
 			firstRecharge: true,
 			wantReasons:   []string{firstRechargeRewardReason},
-			wantAmounts:   []int64{1600},
+			wantAmounts:   []int64{12000},
 		},
 		{
 			name:          "repeat recharge below threshold gets no reward",
-			coins:         800,
+			points:        12000,
 			amountCent:    79999,
 			thresholdCent: 80000,
+		},
+		{
+			name:          "first recharge without configured points gets no reward",
+			amountCent:    50000,
+			thresholdCent: 100000,
+			firstRecharge: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := rechargePointRewards(tt.coins, tt.amountCent, tt.thresholdCent, tt.firstRecharge)
+			got := rechargePointRewards(tt.points, tt.amountCent, tt.thresholdCent, tt.firstRecharge)
 			if len(got) != len(tt.wantReasons) {
 				t.Fatalf("got %d rewards, want %d: %+v", len(got), len(tt.wantReasons), got)
 			}

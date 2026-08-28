@@ -1503,7 +1503,7 @@ components:
       properties:
         firstRechargeDoublePointsEnabled:
           type: boolean
-          description: 'Whether a member platform-wide first successful recharge below the configured exclusive upper limit grants points equal to twice the credited coins'
+          description: 'Whether a member platform-wide first successful recharge below the configured exclusive upper limit doubles the recharge tier configured points in total'
         rechargeDoublePointsThresholdAmount:
           type: integer
           format: int64

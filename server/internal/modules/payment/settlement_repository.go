@@ -280,7 +280,6 @@ const (
 
 	rechargeRewardThresholdSettingKey = "recharge_double_points_threshold_amount"
 	defaultFirstRechargeRewardMax     = int64(1000)
-	rechargePointRewardMultiplier     = int64(2)
 )
 
 type rechargePointReward struct {
@@ -334,7 +333,7 @@ func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessI
 		return err
 	}
 	for _, reward := range rechargePointRewards(
-		coins, amount, rewardThresholdCent, firstRecharge && firstRechargeRewardEnabled,
+		points, amount, rewardThresholdCent, firstRecharge && firstRechargeRewardEnabled,
 	) {
 		if err := creditRechargeAsset(
 			ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset,
@@ -486,11 +485,13 @@ func claimFirstSuccessfulRecharge(ctx context.Context, tx *sql.Tx, memberID, bus
 	return true, nil
 }
 
-func rechargePointRewards(coinAmount, amountCent, thresholdCent int64, firstRecharge bool) []rechargePointReward {
-	if coinAmount <= 0 || !firstRecharge || amountCent >= thresholdCent {
+func rechargePointRewards(configuredPoints, amountCent, thresholdCent int64, firstRecharge bool) []rechargePointReward {
+	if configuredPoints <= 0 || !firstRecharge || amountCent >= thresholdCent {
 		return nil
 	}
-	rewardAmount := coinAmount * rechargePointRewardMultiplier
+	// The configured points were already credited as the tier's base benefit.
+	// Credit the same amount once more so the member receives exactly 2x total.
+	rewardAmount := configuredPoints
 	return []rechargePointReward{{
 		amount:     rewardAmount,
 		reason:     firstRechargeRewardReason,
