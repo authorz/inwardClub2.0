@@ -19,12 +19,14 @@ type OverviewFilter struct {
 type Overview struct {
 	StoreCount                   int64
 	MemberCount                  int64
+	PlatformMemberCount          int64
 	OrderCount                   int64
 	GrossSalesCent               int64
 	OfflineCollectionRevenueCent int64
 	TodayOrderCount              int64
 	TodayGrossSalesCent          int64
 	TodayNewMemberCount          int64
+	TodayNewPlatformMemberCount  int64
 	ActivityRevenueCent          int64
 	TodayActivityRevenueCent     int64
 	CouponsIssued                int64

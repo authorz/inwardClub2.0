@@ -6,12 +6,14 @@ import "time"
 type OverviewView struct {
 	StoreCount                   int64                    `json:"storeCount"`
 	MemberCount                  int64                    `json:"memberCount"`
+	PlatformMemberCount          int64                    `json:"platformMemberCount"`
 	OrderCount                   int64                    `json:"orderCount"`
 	GrossSalesCent               int64                    `json:"grossSalesCent"`
 	OfflineCollectionRevenueCent int64                    `json:"offlineCollectionRevenueCent"`
 	TodayOrderCount              int64                    `json:"todayOrderCount"`
 	TodayGrossSalesCent          int64                    `json:"todayGrossSalesCent"`
 	TodayNewMemberCount          int64                    `json:"todayNewMemberCount"`
+	TodayNewPlatformMemberCount  int64                    `json:"todayNewPlatformMemberCount"`
 	ActivityRevenueCent          int64                    `json:"activityRevenueCent"`
 	TodayActivityRevenueCent     int64                    `json:"todayActivityRevenueCent"`
 	CouponsIssued                int64                    `json:"couponsIssued"`

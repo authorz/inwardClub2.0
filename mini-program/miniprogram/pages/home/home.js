@@ -284,8 +284,15 @@ Page({
     }
     this.setData({ submitting: true });
     ui.showLoading('提交中');
-    api
-      .createRechargeOrder(payload, http.uuid())
+    storeCtx
+      .ensureStore()
+      .then((store) => {
+        if (!store || !store.id) throw new Error('请先选择充值所属门店');
+        return api.createRechargeOrder(
+          Object.assign({}, payload, { storeId: Number(store.id) }),
+          http.uuid()
+        );
+      })
       .then((res) => api.payWechatJsapi((res.data && res.data.paymentOrderId) || 'po_recharge', http.uuid()))
       .then((r) => pay.settle(r))
       .then(() => {

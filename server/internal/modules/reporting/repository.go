@@ -57,8 +57,8 @@ func scopeDate(f ReportFilter, storeCol, dateCol string) (string, []any) {
 
 // Overview computes the dashboard headline counters. A nil StoreID aggregates
 // across every store; a set StoreID pins store-owned counters to that store.
-// Sales count only paid orders. For a selected store, member counters represent
-// members with paid orders there and members whose first paid store order is today.
+// Sales count only paid orders. Platform member counters are always global;
+// scoped member counters represent members with paid orders at the selected store.
 func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overview, error) {
 	const dashboardDays = 7
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -67,15 +67,23 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 	todayStart := todayLocal.UTC()
 	tomorrowStart := todayLocal.AddDate(0, 0, 1).UTC()
 	trendStart := todayLocal.AddDate(0, 0, -(dashboardDays - 1)).UTC()
+	var o Overview
 
 	orderScope := ""
 	var orderScopeArgs []any
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*),
+			COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
+		FROM members`,
+		todayStart, tomorrowStart,
+	).Scan(&o.PlatformMemberCount, &o.TodayNewPlatformMemberCount); err != nil {
+		return Overview{}, apperr.Internal(err)
+	}
+
 	if f.StoreID != nil {
 		orderScope = " AND bo.store_id = ?"
 		orderScopeArgs = []any{*f.StoreID}
 	}
-	var o Overview
-
 	if f.StoreID != nil {
 		o.StoreCount = 1
 	} else if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM stores`).Scan(&o.StoreCount); err != nil {
@@ -97,14 +105,8 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 			return Overview{}, apperr.Internal(err)
 		}
 	} else {
-		if err := r.db.QueryRowContext(ctx,
-			`SELECT COUNT(*),
-				COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
-			FROM members`,
-			todayStart, tomorrowStart,
-		).Scan(&o.MemberCount, &o.TodayNewMemberCount); err != nil {
-			return Overview{}, apperr.Internal(err)
-		}
+		o.MemberCount = o.PlatformMemberCount
+		o.TodayNewMemberCount = o.TodayNewPlatformMemberCount
 	}
 
 	paymentArgs := append([]any{todayStart, tomorrowStart}, orderScopeArgs...)

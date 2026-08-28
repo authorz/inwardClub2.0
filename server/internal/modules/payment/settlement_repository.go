@@ -241,10 +241,10 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				}
 			}
 		}
-		// A store-bound settled order (food / store activity) prints a receipt on
-		// the store's printer; a store-less order (recharge) prints nothing. The
+		// Food and store activity settlements print a receipt. Recharge keeps a
+		// reporting store attribution but never triggers a store printer. The
 		// event rides this settlement transaction, so it can never fire on a rollback.
-		if storeID.Valid {
+		if storeReceiptEligible(orderType, storeID) {
 			if err := printer.WriteReceipt(ctx, tx, printer.Receipt{
 				StoreID:         storeID.Int64,
 				PaymentOrderID:  paymentID,
@@ -259,6 +259,10 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 		}
 		return nil
 	})
+}
+
+func storeReceiptEligible(orderType string, storeID sql.NullInt64) bool {
+	return storeID.Valid && orderType != orderTypeRecharge
 }
 
 const (

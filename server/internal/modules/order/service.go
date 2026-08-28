@@ -207,6 +207,9 @@ func (s *Service) GetRechargeOrder(ctx context.Context, memberID, id int64) (Rec
 // engine are applied on settlement (wired in a later milestone); the top-up
 // amount itself is paid here. The returned view carries the payment order.
 func (s *Service) CreateRechargeOrder(ctx context.Context, memberID int64, idemKey string, req CreateRechargeOrderRequest) (RechargeOrderView, error) {
+	if req.StoreID < 0 {
+		return RechargeOrderView{}, apperr.Invalid("请选择有效的门店")
+	}
 	if err := validatePayMethod(req.PayMethod); err != nil {
 		return RechargeOrderView{}, err
 	}
@@ -219,6 +222,7 @@ func (s *Service) CreateRechargeOrder(ctx context.Context, memberID int64, idemK
 	now := time.Now().UTC()
 	o, po, err := s.repo.CreateRechargeOrder(ctx, RechargeOrderCreate{
 		MemberID:        memberID,
+		StoreID:         req.StoreID,
 		AmountCent:      req.AmountCent,
 		PayMethod:       req.PayMethod,
 		BusinessOrderNo: newNo("BO", now),
@@ -414,7 +418,7 @@ func foodOrderView(o FoodOrder, items []FoodOrderItem) FoodOrderView {
 }
 
 func rechargeOrderView(o RechargeOrder) RechargeOrderView {
-	return RechargeOrderView{
+	view := RechargeOrderView{
 		ID:              o.ID,
 		BusinessOrderNo: o.BusinessOrderNo,
 		TotalAmountCent: o.TotalAmountCent,
@@ -422,6 +426,10 @@ func rechargeOrderView(o RechargeOrder) RechargeOrderView {
 		PaymentStatus:   o.PaymentStatus,
 		CreatedAt:       o.CreatedAt,
 	}
+	if o.StoreID != nil {
+		view.StoreID = *o.StoreID
+	}
+	return view
 }
 
 func activityOrderView(o ActivityOrder, tickets []Ticket) ActivityOrderView {

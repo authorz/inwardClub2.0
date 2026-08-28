@@ -18,6 +18,7 @@ type memRepo struct {
 	payments     map[int64]PaymentOrder
 	tickets      map[int64][]MemberTicket
 	lastFood     *FoodOrderCreate
+	lastRecharge *RechargeOrderCreate
 	lastActivity *ActivityOrderCreate
 
 	// Expiry-sweep fixtures, exercised by expiry_test.go; unused by the other
@@ -134,7 +135,8 @@ func TestCreateFoodOrderWithCouponRequiresOneItemAndForwardsEntitlement(t *testi
 }
 
 func (r *memRepo) CreateRechargeOrder(_ context.Context, in RechargeOrderCreate) (RechargeOrder, PaymentOrder, error) {
-	ro := RechargeOrder{ID: 1, BusinessOrderNo: in.BusinessOrderNo, MemberID: in.MemberID, TotalAmountCent: in.AmountCent, OrderStatus: "created", PaymentStatus: "unpaid"}
+	r.lastRecharge = &in
+	ro := RechargeOrder{ID: 1, BusinessOrderNo: in.BusinessOrderNo, StoreID: &in.StoreID, MemberID: in.MemberID, TotalAmountCent: in.AmountCent, OrderStatus: "created", PaymentStatus: "unpaid"}
 	po := PaymentOrder{ID: 1, PaymentOrderNo: in.PaymentOrderNo, AmountCent: in.AmountCent, PayMethod: in.PayMethod, Status: PaymentStatusPending}
 	return ro, po, nil
 }
@@ -264,7 +266,8 @@ func TestListFoodOrdersReturnsViews(t *testing.T) {
 }
 
 func TestCreateOrdersReturnPayableViews(t *testing.T) {
-	svc := newService(newMemRepo())
+	repo := newMemRepo()
+	svc := newService(repo)
 	ctx := context.Background()
 
 	food, err := svc.CreateFoodOrder(ctx, 10, "idem-food", CreateFoodOrderRequest{
@@ -276,11 +279,12 @@ func TestCreateOrdersReturnPayableViews(t *testing.T) {
 	if food.PaymentOrderID == 0 || food.PayMethod != PayMethodWeChat || food.TotalAmountCent == 0 {
 		t.Fatalf("unexpected food view: %+v", food)
 	}
-	rec, err := svc.CreateRechargeOrder(ctx, 10, "idem-rec", CreateRechargeOrderRequest{AmountCent: 5000, PayMethod: PayMethodWeChat})
+	rec, err := svc.CreateRechargeOrder(ctx, 10, "idem-rec", CreateRechargeOrderRequest{StoreID: 5, AmountCent: 5000, PayMethod: PayMethodWeChat})
 	if err != nil {
 		t.Fatalf("recharge create: %v", err)
 	}
-	if rec.PaymentOrderID == 0 || rec.TotalAmountCent != 5000 {
+	if rec.PaymentOrderID == 0 || rec.TotalAmountCent != 5000 || rec.StoreID != 5 ||
+		repo.lastRecharge == nil || repo.lastRecharge.StoreID != 5 {
 		t.Fatalf("unexpected recharge view: %+v", rec)
 	}
 	act, err := svc.CreateActivityOrder(ctx, 10, "idem-act", CreateActivityOrderRequest{ActivityID: 3, TicketTypeID: 4, Quantity: 2, PayMethod: PayMethodCoin})

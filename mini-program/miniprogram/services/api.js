@@ -197,6 +197,7 @@ function normalizeMe(me) {
 function normalizeRechargeOrder(o) {
   if (!o) return o;
   return Object.assign({}, o, {
+    storeId: o.storeId != null ? Number(o.storeId) : undefined,
     orderNo: o.orderNo != null ? o.orderNo : o.businessOrderNo,
     status: o.status != null ? o.status : o.orderStatus,
     amountCent: o.amountCent != null ? o.amountCent : o.totalAmountCent,
@@ -239,6 +240,7 @@ function activityOrderBody(data) {
 function rechargeOrderBody(data) {
   const d = data || {};
   return Object.assign({}, d, {
+    storeId: d.storeId != null && d.storeId !== '' ? Number(d.storeId) : undefined,
     payMethod: d.payMethod || d.payChannel,
   });
 }

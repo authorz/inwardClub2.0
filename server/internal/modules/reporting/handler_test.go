@@ -29,10 +29,12 @@ func TestOverviewAdminAggregatesAllStores(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &fakeRepo{out: Overview{
-		StoreCount:      5,
-		TodayOrderCount: 8,
-		WechatRevenue:   OverviewBreakdown{Total: 120000, Activity: 20000},
-		Trend:           []OverviewTrendPoint{{WechatRevenueCent: 12000}},
+		StoreCount:                  5,
+		PlatformMemberCount:         4177,
+		TodayNewPlatformMemberCount: 10,
+		TodayOrderCount:             8,
+		WechatRevenue:               OverviewBreakdown{Total: 120000, Activity: 20000},
+		Trend:                       []OverviewTrendPoint{{WechatRevenueCent: 12000}},
 	}}
 	router := gin.New()
 	router.GET("/admin/reports/overview", newHandler(repo).Overview)
@@ -48,6 +50,8 @@ func TestOverviewAdminAggregatesAllStores(t *testing.T) {
 		t.Fatalf("expected unscoped admin overview, got store %v", *repo.last.StoreID)
 	}
 	if body := rec.Body.String(); !strings.Contains(body, `"todayOrderCount":8`) ||
+		!strings.Contains(body, `"platformMemberCount":4177`) ||
+		!strings.Contains(body, `"todayNewPlatformMemberCount":10`) ||
 		!strings.Contains(body, `"wechatRevenue"`) || !strings.Contains(body, `"trend"`) {
 		t.Fatalf("expected expanded overview payload, got: %s", body)
 	}

@@ -25,6 +25,7 @@ type FoodLineItem struct {
 
 // CreateRechargeOrderRequest is the body for POST /mini/recharge-orders.
 type CreateRechargeOrderRequest struct {
+	StoreID    int64  `json:"storeId" binding:"omitempty,min=1"`
 	AmountCent int64  `json:"amountCent" binding:"required,min=1"`
 	PayMethod  string `json:"payMethod" binding:"required,oneof=wechat coin"`
 }
@@ -79,6 +80,7 @@ type FoodOrderItemView struct {
 type RechargeOrderView struct {
 	ID              int64     `json:"id"`
 	BusinessOrderNo string    `json:"businessOrderNo"`
+	StoreID         int64     `json:"storeId"`
 	TotalAmountCent int64     `json:"totalAmountCent"`
 	OrderStatus     string    `json:"orderStatus"`
 	PaymentStatus   string    `json:"paymentStatus"`

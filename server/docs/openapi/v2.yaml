@@ -815,6 +815,11 @@ components:
       type: object
       required: [amountCent, payMethod]
       properties:
+        storeId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 'Originating store used for reporting attribution. Legacy clients may omit it only while exactly one active store exists.'
         amountCent: { type: integer, format: int64, minimum: 1 }
         payMethod: { type: string, enum: [wechat, coin] }
     RechargeOrderView:
@@ -822,6 +827,7 @@ components:
       properties:
         id: { type: integer, format: int64 }
         businessOrderNo: { type: string }
+        storeId: { type: integer, format: int64, description: 'Originating store used for reporting attribution.' }
         totalAmountCent: { type: integer, format: int64 }
         orderStatus: { type: string }
         paymentStatus: { type: string }
@@ -901,16 +907,19 @@ components:
         Dashboard headline counters. Under the admin audience the counters
         aggregate across every store; under the store audience they are pinned
         to the token's store (storeCount is then 1 and memberCount is the
-        distinct members who ordered at that store).
+        distinct members who ordered at that store). platformMemberCount and
+        todayNewPlatformMemberCount remain platform-wide in both audiences.
       properties:
         storeCount: { type: integer, format: int64 }
         memberCount: { type: integer, format: int64 }
+        platformMemberCount: { type: integer, format: int64 }
         orderCount: { type: integer, format: int64 }
         grossSalesCent: { type: integer, format: int64, description: 'Gross amount of all successfully paid orders, retained for report compatibility.' }
         offlineCollectionRevenueCent: { type: integer, format: int64, description: 'Gross amount of successfully paid offline collection orders.' }
         todayOrderCount: { type: integer, format: int64 }
         todayGrossSalesCent: { type: integer, format: int64 }
         todayNewMemberCount: { type: integer, format: int64 }
+        todayNewPlatformMemberCount: { type: integer, format: int64 }
         activityRevenueCent: { type: integer, format: int64 }
         todayActivityRevenueCent: { type: integer, format: int64 }
         couponsIssued: { type: integer, format: int64 }
@@ -2287,9 +2296,9 @@ paths:
       summary: Create a wallet top-up order (creates a pending payment order)
       description: >
         Creates a recharge business_order (order_type=recharge) and a pending
-        payment_order for the requested amount in one transaction. Bonus tiers are
-        applied on settlement (payment callback), not here. The response carries
-        paymentOrderId for the payment step.
+        payment_order for the requested amount and reporting store in one transaction.
+        Bonus tiers are applied on settlement (payment callback), not here. The
+        response carries paymentOrderId for the payment step.
       parameters:
         - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:

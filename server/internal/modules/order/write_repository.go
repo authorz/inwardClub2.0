@@ -55,6 +55,7 @@ type FoodOrderCreate struct {
 // dedicated table; it is a business_orders row of type "recharge".
 type RechargeOrderCreate struct {
 	MemberID        int64
+	StoreID         int64
 	AmountCent      int64
 	PayMethod       string
 	BusinessOrderNo string
@@ -304,17 +305,22 @@ func (r *sqlRepository) CreateRechargeOrder(ctx context.Context, in RechargeOrde
 		if err := claimIdem(ctx, tx, "mini/recharge-orders", in.IdemKey, OrderTypeRecharge, 0); err != nil {
 			return err
 		}
-		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeRecharge, nil, in.MemberID, in.AmountCent, in.Now)
+		storeID, err := resolveRechargeStoreID(ctx, tx, in.StoreID)
 		if err != nil {
 			return err
 		}
-		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, nil, in.MemberID, in.AmountCent, in.PayMethod, in.Now)
+		businessID, err := insertBusinessOrder(ctx, tx, in.BusinessOrderNo, OrderTypeRecharge, &storeID, in.MemberID, in.AmountCent, in.Now)
+		if err != nil {
+			return err
+		}
+		paymentID, err := insertPaymentOrder(ctx, tx, in.PaymentOrderNo, businessID, &storeID, in.MemberID, in.AmountCent, in.PayMethod, in.Now)
 		if err != nil {
 			return err
 		}
 		ro = RechargeOrder{
 			ID:              businessID,
 			BusinessOrderNo: in.BusinessOrderNo,
+			StoreID:         &storeID,
 			MemberID:        in.MemberID,
 			TotalAmountCent: in.AmountCent,
 			OrderStatus:     "created",
@@ -329,6 +335,47 @@ func (r *sqlRepository) CreateRechargeOrder(ctx context.Context, in RechargeOrde
 		return RechargeOrder{}, PaymentOrder{}, err
 	}
 	return ro, po, nil
+}
+
+func resolveRechargeStoreID(ctx context.Context, tx *sql.Tx, requestedStoreID int64) (int64, error) {
+	if requestedStoreID > 0 {
+		var status string
+		err := tx.QueryRowContext(ctx, `SELECT status FROM stores WHERE id = ?`, requestedStoreID).Scan(&status)
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, apperr.NotFound("store not found")
+		}
+		if err != nil {
+			return 0, apperr.Internal(err)
+		}
+		if status != "active" {
+			return 0, apperr.Conflict("当前门店已停用，请重新选择门店")
+		}
+		return requestedStoreID, nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM stores WHERE status = 'active' ORDER BY id LIMIT 2`)
+	if err != nil {
+		return 0, apperr.Internal(err)
+	}
+	defer rows.Close()
+	storeIDs := make([]int64, 0, 2)
+	for rows.Next() {
+		var storeID int64
+		if err := rows.Scan(&storeID); err != nil {
+			return 0, apperr.Internal(err)
+		}
+		storeIDs = append(storeIDs, storeID)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, apperr.Internal(err)
+	}
+	if len(storeIDs) == 0 {
+		return 0, apperr.Conflict("当前没有可用门店")
+	}
+	if len(storeIDs) > 1 {
+		return 0, apperr.Invalid("请选择充值所属门店")
+	}
+	return storeIDs[0], nil
 }
 
 // ---- Activity ----
@@ -723,10 +770,10 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 				}
 			}
 		}
-		// A store-bound coin settlement (food / store activity) prints a receipt on
-		// the store's printer; a store-less order (recharge) prints nothing. Rides
+		// Food and store activity coin settlements print a receipt. Recharge keeps
+		// a reporting store attribution but never triggers a store printer. Rides
 		// this settlement transaction, so it never fires on a rollback.
-		if storeID.Valid {
+		if storeID.Valid && orderType != OrderTypeRecharge {
 			if err := printer.WriteReceipt(ctx, tx, printer.Receipt{
 				StoreID:         storeID.Int64,
 				PaymentOrderID:  in.PaymentOrderID,

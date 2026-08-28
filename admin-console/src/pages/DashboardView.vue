@@ -83,7 +83,7 @@ const summaryMetrics = computed(() => [
   {
     key: 'members',
     label: '总用户数量',
-    value: formatCount(overview.value?.memberCount),
+    value: formatCount(overview.value?.platformMemberCount ?? overview.value?.memberCount),
     detail: '累计注册用户',
   },
   {
@@ -112,7 +112,9 @@ const todayMetrics = computed(() => [
   {
     key: 'todayMembers',
     label: '今日新注册用户',
-    value: formatCount(overview.value?.todayNewMemberCount),
+    value: formatCount(
+      overview.value?.todayNewPlatformMemberCount ?? overview.value?.todayNewMemberCount,
+    ),
     note: '自然日新增',
     tone: 'amber',
   },

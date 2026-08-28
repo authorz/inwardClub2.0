@@ -58,8 +58,8 @@
 | 金币（coin）支付结算 | `order.sqlRepository.SettleByCoin` | 金币支付的餐饮 / 活动订单（门店绑定） |
 
 - **打印规则**：`WriteReceipt` 先查 `printer_devices` 里该门店首个 `active` 设备，取其
-  `device_sn`。**只有门店绑定且门店有在用打印机时**才写事件——因此充值订单（无门店）永不打印，
-  门店没有配置打印机时结算照常成功、只是不出小票。
+  `device_sn`。**只有餐饮、活动等可打印订单绑定门店且门店有在用打印机时**才写事件；
+  充值订单的门店归属只用于经营统计，仍不打印。门店没有配置打印机时结算照常成功、只是不出小票。
 - **payload 就是 `printer.Job`**（`DeviceSN` / `Template` / `Content`），worker 原样消费，
   无需改动处理器。`Content` 由生产端预渲染（单号、类型抬头、金额 `¥X.XX`、结算时间）；
   `Template` 固定为 `order-receipt`（芯烨云 print 接口不吃模板，仅日志/未来分支用）。

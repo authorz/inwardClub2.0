@@ -69,7 +69,7 @@ func newSpineRepo() *spineRepo {
 // whose store has an active printer device appends one print:receipt job. It is
 // called only on a fresh settlement, so replays never double-print.
 func (r *spineRepo) maybeReceipt(po *poRow) {
-	if po.storeID == 0 {
+	if po.storeID == 0 || po.orderType == orderTypeRecharge {
 		return
 	}
 	sn, ok := r.deviceSNByStore[po.storeID]
@@ -414,18 +414,19 @@ func TestSettleWeChatStoreBoundReceipt(t *testing.T) {
 	}
 }
 
-// TestSettleWeChatRechargeNoReceipt: a store-less order (recharge) prints nothing.
+// TestSettleWeChatRechargeNoReceipt: reporting attribution never makes a recharge print.
 func TestSettleWeChatRechargeNoReceipt(t *testing.T) {
 	svc, repo := newTestSettlementService()
 	repo.addWeChatOrder("PO-N", 11, 5000)
 	po := repo.paymentOrders["PO-N"]
-	po.id, po.orderType, po.businessNo = 78, "recharge", "BO-N" // storeID stays 0
+	po.id, po.storeID, po.orderType, po.businessNo = 78, 5, "recharge", "BO-N"
+	repo.deviceSNByStore[5] = "SN-5"
 	n := WeChatNotification{OutTradeNo: "PO-N", TransactionID: "wx-n", AmountCent: 5000, Success: true}
 	if err := svc.SettleWeChat(context.Background(), n); err != nil {
 		t.Fatalf("settle: %v", err)
 	}
 	if len(repo.receiptJobs) != 0 {
-		t.Fatalf("store-less order must not print, got %d", len(repo.receiptJobs))
+		t.Fatalf("store-attributed recharge must not print, got %d", len(repo.receiptJobs))
 	}
 }
 

@@ -510,12 +510,14 @@ export interface ReportOverviewTrendPoint {
 export interface ReportOverview {
   storeCount: number
   memberCount: number
+  platformMemberCount: number
   orderCount: number
   grossSalesCent: number
   offlineCollectionRevenueCent: number
   todayOrderCount: number
   todayGrossSalesCent: number
   todayNewMemberCount: number
+  todayNewPlatformMemberCount: number
   activityRevenueCent: number
   todayActivityRevenueCent: number
   couponsIssued: number

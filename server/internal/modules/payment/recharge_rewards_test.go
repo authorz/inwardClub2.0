@@ -1,6 +1,22 @@
 package payment
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
+
+func TestStoreReceiptEligibleExcludesRecharge(t *testing.T) {
+	storeID := sql.NullInt64{Int64: 1, Valid: true}
+	if storeReceiptEligible(orderTypeRecharge, storeID) {
+		t.Fatal("store-attributed recharge must not print a store receipt")
+	}
+	if !storeReceiptEligible(orderTypeActivity, storeID) {
+		t.Fatal("store activity should remain eligible for a store receipt")
+	}
+	if storeReceiptEligible(orderTypeActivity, sql.NullInt64{}) {
+		t.Fatal("store-less activity must not print a store receipt")
+	}
+}
 
 func TestRechargePointRewards(t *testing.T) {
 	tests := []struct {
