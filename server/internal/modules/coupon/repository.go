@@ -76,7 +76,7 @@ const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.nam
 	JOIN coupon_categories cc ON cc.id = t.category_id`
 
 func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCategory, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
 		FROM coupon_categories WHERE status = 'active' ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -86,7 +86,7 @@ func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCateg
 	for rows.Next() {
 		var category CouponCategory
 		if err := rows.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
-			&category.Status, &category.CreatedAt, &category.UpdatedAt); err != nil {
+			&category.Status, &category.GiftDailyUsageLimit, &category.CreatedAt, &category.UpdatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, category)
@@ -125,9 +125,9 @@ func (r *sqlRepository) ListMemberCoupons(ctx context.Context, memberID int64, s
 }
 
 // ListActivityUsableCoupons returns only entitlements that can currently buy
-// at least one sellable ticket tier of the selected activity. VIP-benefit
-// coupons are omitted after the member has used any VIP coupon that business
-// day; purchased and manually granted coupons do not share that daily limit.
+// at least one sellable ticket tier of the selected activity. Gifted coupons
+// are omitted after their category reaches its configured daily limit;
+// purchased coupons bypass that limit.
 func (r *sqlRepository) ListActivityUsableCoupons(
 	ctx context.Context,
 	memberID, activityID int64,
@@ -168,14 +168,17 @@ func listActivityUsableCoupons(
 			  AND (tt.sale_end_at IS NULL OR tt.sale_end_at >= ?)
 			  AND (tt.stock_quantity = 0 OR tt.sold_quantity < tt.stock_quantity)
 		)
-		AND NOT (
-			e.granted_reason = ? AND e.granted_by_type = 'system'
-			AND EXISTS (
-				SELECT 1 FROM vip_coupon_daily_usages u
-				WHERE u.member_id = e.member_id AND u.usage_date = ?
-			)
+		AND (
+			e.granted_by_type = 'purchase'
+			OR cc.gift_daily_usage_limit = 0
+			OR (
+				SELECT COUNT(*) FROM gift_coupon_daily_usages u
+				WHERE u.member_id = e.member_id
+				  AND u.category_id = t.category_id
+				  AND u.usage_date = ?
+			) < cc.gift_daily_usage_limit
 		)`
-	args := []any{activityID, memberID, now, now, now, vipBenefitGrantedReason, usageDate}
+	args := []any{activityID, memberID, now, now, now, usageDate}
 	var total int64
 	if err := queryer.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id = e.coupon_template_id`+joins+` WHERE `+where,
@@ -249,7 +252,7 @@ func (r *sqlRepository) Redeem(ctx context.Context, in RedeemInput) (MemberCoupo
 		if expiresAt.Valid && !expiresAt.Time.After(in.Now) {
 			return apperr.Conflict("coupon has expired")
 		}
-		if err := ClaimVIPDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
+		if err := ClaimGiftDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
 			return err
 		}
 		for _, item := range in.Items {
@@ -371,7 +374,7 @@ func (r *sqlRepository) UseEventCoupon(ctx context.Context, in UseEventCouponInp
 		if storeExists == 0 {
 			return apperr.NotFound("门店不存在或已停用")
 		}
-		if err := ClaimVIPDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
+		if err := ClaimGiftDailyUsage(ctx, tx, in.MemberID, in.EntitlementID, in.Now); err != nil {
 			return err
 		}
 		const insertRedemption = `INSERT INTO coupon_redemptions

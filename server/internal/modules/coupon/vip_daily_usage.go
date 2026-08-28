@@ -4,54 +4,61 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
-const vipBenefitGrantedReason = "VIP等级福利"
-
 var vipUsageLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
-// ClaimVIPDailyUsage reserves the member's one VIP-benefit coupon redemption
-// for the Beijing calendar day. Entitlements obtained from purchases or any
-// other source do not claim a slot and remain unrestricted by this rule.
+// ClaimGiftDailyUsage reserves one category-specific gifted-coupon redemption
+// slot for the Beijing calendar day. A zero category limit means unlimited;
+// entitlements bought as coupon products are always unrestricted.
 //
-// The unique (member_id, usage_date) key is the concurrency guard shared by all
-// redemption paths. Callers must invoke this inside the same transaction that
-// consumes the entitlement so a failed redemption also rolls back the claim.
-func ClaimVIPDailyUsage(
+// Unique numbered slots are the concurrency guard shared by all redemption
+// paths. Callers invoke this inside the transaction that consumes the coupon,
+// so a failed redemption also rolls back its claimed slot.
+func ClaimGiftDailyUsage(
 	ctx context.Context,
 	tx *sql.Tx,
 	memberID, entitlementID int64,
 	now time.Time,
 ) error {
-	var grantedReason, grantedByType string
-	err := tx.QueryRowContext(ctx, `SELECT granted_reason, granted_by_type
-		FROM coupon_entitlements WHERE id = ? AND member_id = ? FOR UPDATE`,
+	var grantedByType, categoryName string
+	var categoryID int64
+	var dailyLimit int
+	err := tx.QueryRowContext(ctx, `SELECT e.granted_by_type, t.category_id, c.name, c.gift_daily_usage_limit
+		FROM coupon_entitlements e
+		JOIN coupon_templates t ON t.id = e.coupon_template_id
+		JOIN coupon_categories c ON c.id = t.category_id
+		WHERE e.id = ? AND e.member_id = ? FOR UPDATE`,
 		entitlementID, memberID,
-	).Scan(&grantedReason, &grantedByType)
+	).Scan(&grantedByType, &categoryID, &categoryName, &dailyLimit)
 	if errors.Is(err, sql.ErrNoRows) {
 		return apperr.NotFound("优惠券不存在")
 	}
 	if err != nil {
 		return apperr.Internal(err)
 	}
-	if grantedReason != vipBenefitGrantedReason || grantedByType != "system" {
+	if grantedByType == "purchase" || dailyLimit == 0 {
 		return nil
 	}
 
 	usageDate := now.In(vipUsageLocation).Format("2006-01-02")
-	_, err = tx.ExecContext(ctx, `INSERT INTO vip_coupon_daily_usages
-		(member_id, usage_date, entitlement_id, created_at) VALUES (?, ?, ?, ?)`,
-		memberID, usageDate, entitlementID, now.UTC(),
-	)
-	if err != nil {
-		if platdb.IsDuplicate(err) {
-			return apperr.Conflict("VIP权益券每天只能使用一张")
+	for slot := 1; slot <= dailyLimit; slot++ {
+		_, err = tx.ExecContext(ctx, `INSERT INTO gift_coupon_daily_usages
+			(member_id, category_id, usage_date, slot_number, entitlement_id, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			memberID, categoryID, usageDate, slot, entitlementID, now.UTC(),
+		)
+		if err == nil {
+			return nil
 		}
-		return apperr.Internal(err)
+		if !platdb.IsDuplicate(err) {
+			return apperr.Internal(err)
+		}
 	}
-	return nil
+	return apperr.Conflict(fmt.Sprintf("%s赠券每天最多使用%d张", categoryName, dailyLimit))
 }

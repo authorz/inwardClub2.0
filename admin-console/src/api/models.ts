@@ -168,6 +168,8 @@ export interface CouponCategory extends AuditableEntity {
   name: string
   businessType: string
   sortOrder: number
+  /** 赠送券每位会员每天可使用的张数；0 表示不限。 */
+  giftDailyUsageLimit: number
 }
 
 export interface RechargeProduct extends AuditableEntity {

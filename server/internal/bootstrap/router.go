@@ -168,7 +168,6 @@ func (a *App) registerAdmin(r *gin.Engine, mw *authn.Middleware) {
 	// Representative admin resources (business logic lands in later milestones).
 	p.GET("/stores", a.adminHandler.Stores)
 	p.GET("/catalog/items", a.catalogConsoleHandler.Items)
-	p.GET("/coupon-templates", a.adminHandler.CouponTemplates)
 	p.GET("/activities", a.adminHandler.Activities)
 	p.GET("/orders", a.adminHandler.Orders)
 	p.GET("/payment-transactions", a.adminHandler.PaymentTransactions)
@@ -308,7 +307,8 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	p.GET("/activities/:activityID/ticket-types", a.activityConsoleHandler.TicketTypes)
 	p.GET("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.TicketTypeDetail)
 
-	// Coupon templates (list read already registered as adminHandler.CouponTemplates).
+	// Coupon templates and categories share the coupon console service.
+	p.GET("/coupon-templates", a.couponConsoleHandler.List)
 	p.GET("/coupon-categories", a.couponConsoleHandler.Categories)
 	p.GET("/coupon-categories/:categoryID", a.couponConsoleHandler.GetCategory)
 	p.POST("/coupon-categories", a.couponConsoleHandler.CreateCategory)
@@ -363,7 +363,6 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/profile", a.storeConsoleHandler.GetOwnProfile)
 	p.GET("/catalog/items", a.catalogConsoleHandler.StoreItems)
 	p.GET("/activities", a.adminHandler.StoreActivities)
-	p.GET("/coupon-templates", a.adminHandler.StoreCouponTemplates)
 	p.GET("/orders", a.adminHandler.StoreOrders)
 	p.GET("/payment-transactions", a.adminHandler.StorePaymentTransactions)
 	p.GET("/payment-orders", a.paymentStoreHandler.ListPaymentOrders)
@@ -496,7 +495,8 @@ func (a *App) registerStoreConsole(p, idem *gin.RouterGroup) {
 	idem.PUT("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreUpdateTicketType)
 	idem.DELETE("/activities/:activityID/ticket-types/:ticketTypeID", a.activityConsoleHandler.StoreDeleteTicketType)
 
-	// Coupon templates (list read already registered as adminHandler.StoreCouponTemplates).
+	// Coupon templates and categories share the scoped coupon console service.
+	p.GET("/coupon-templates", a.couponConsoleHandler.StoreList)
 	p.GET("/coupon-categories", a.couponConsoleHandler.StoreCategories)
 	p.GET("/coupon-templates/:id", a.couponConsoleHandler.StoreGet)
 	p.GET("/coupon-templates/:id/applicable-items", a.couponConsoleHandler.StoreApplicableItems)

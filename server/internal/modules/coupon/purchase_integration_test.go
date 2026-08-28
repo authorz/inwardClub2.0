@@ -146,6 +146,9 @@ func TestListActivityUsableCouponsIntegration(t *testing.T) {
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_categories WHERE business_type = 'admission_ticket' LIMIT 1`).Scan(&categoryID); err != nil {
 		t.Fatalf("select admission coupon category: %v", err)
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 1 WHERE id = ?`, categoryID); err != nil {
+		t.Fatalf("configure gift usage limit: %v", err)
+	}
 	res, err = tx.ExecContext(ctx, `INSERT INTO coupon_templates
 		(scope_type, name, coupon_type, category_id, admission_count, validity_rule, applicable_scope, status, created_at, updated_at)
 		VALUES ('global', 'activity coupon list integration', 'admission_ticket', ?, 1, JSON_OBJECT('days', 30), JSON_OBJECT(), 'published', ?, ?)`, categoryID, now, now)
@@ -155,7 +158,7 @@ func TestListActivityUsableCouponsIntegration(t *testing.T) {
 	templateID, _ := res.LastInsertId()
 
 	purchasedID := insertActivityListEntitlement(t, tx, memberID, templateID, 1, "购买券商品", "purchase", now.Add(time.Hour), 1)
-	vipID := insertActivityListEntitlement(t, tx, memberID, templateID, 1, vipBenefitGrantedReason, "system", now.Add(time.Hour), 2)
+	vipID := insertActivityListEntitlement(t, tx, memberID, templateID, 1, "VIP等级福利", "system", now.Add(time.Hour), 2)
 	insertActivityListEntitlement(t, tx, memberID, templateID, 2, "购买券商品", "purchase", now.Add(time.Hour), 3)
 	insertActivityListEntitlement(t, tx, memberID, templateID, 1, "购买券商品", "purchase", now.Add(-time.Hour), 4)
 	usageDate := now.In(vipUsageLocation).Format("2006-01-02")
@@ -167,8 +170,9 @@ func TestListActivityUsableCouponsIntegration(t *testing.T) {
 	if total != 2 || len(coupons) != 2 {
 		t.Fatalf("before VIP use got total=%d coupons=%+v", total, coupons)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO vip_coupon_daily_usages
-		(member_id, usage_date, entitlement_id, created_at) VALUES (?, ?, ?, ?)`, memberID, usageDate, vipID, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO gift_coupon_daily_usages
+		(member_id, category_id, usage_date, slot_number, entitlement_id, created_at)
+		VALUES (?, ?, ?, 1, ?, ?)`, memberID, categoryID, usageDate, vipID, now); err != nil {
 		t.Fatalf("insert VIP daily usage: %v", err)
 	}
 	coupons, total, err = listActivityUsableCoupons(ctx, tx, memberID, activityID, now, usageDate, 20, 0)

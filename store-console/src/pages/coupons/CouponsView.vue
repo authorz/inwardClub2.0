@@ -18,7 +18,7 @@ const statusMap: Record<string, EnumOption> = {
   published: { label: '已发布', value: 'published', tone: 'success' },
   disabled: { label: '已停用', value: 'disabled', tone: 'warning' },
 }
-const list = useAsyncList<CouponTemplate>((params) => couponService.list(params))
+const list = useAsyncList<CouponTemplate>((params) => couponService.list({ ...params, includeGlobal: true }))
 const status = ref<string | null>(null)
 const keyword = ref('')
 const show = ref(false)
@@ -52,6 +52,7 @@ async function open(row?: CouponTemplate): Promise<void> {
       name: target.categoryName,
       businessType: target.couponType,
       sortOrder: 0,
+      giftDailyUsageLimit: 0,
       status: 'disabled',
     })
   }
@@ -115,14 +116,18 @@ function resetFilters(): void {
 const columns = computed<DataTableColumns<CouponTemplate>>(() => [
   textColumn<CouponTemplate>('券名称', (row) => row.name),
   textColumn<CouponTemplate>('券类型', (row) => row.categoryName, { width: 130 }),
+  textColumn<CouponTemplate>('来源', (row) => row.scopeType === 'global' ? '总部券' : '本店券', { width: 100 }),
   statusColumn<CouponTemplate>('状态', statusMap, (row) => row.status, { width: 100 }),
   dateColumn<CouponTemplate>('更新时间', (row) => row.updatedAt, { width: 150 }),
   { title: '操作', key: 'actions', width: 220, render: (row) => h(NSpace, { size: 4, wrap: false }, () => [
-    h(PermissionButton, { permissions: [PERM.couponWrite], text: true, onClick: () => open(row) }, () => '编辑'),
+    row.scopeType === 'global'
+      ? h('span', { class: 'readonly-text' }, '总部维护')
+      : h(PermissionButton, { permissions: [PERM.couponWrite], text: true, onClick: () => open(row) }, () => '编辑'),
+    row.scopeType === 'global' ? null : (
     row.status !== 'published'
       ? h(PermissionButton, { permissions: [PERM.couponWrite], type: 'primary', onClick: () => publish(row) }, () => '发布')
-      : h(PermissionButton, { permissions: [PERM.couponWrite], type: 'warning', onClick: () => disable(row) }, () => '停用'),
-    h(PermissionButton, { permissions: [PERM.couponWrite], text: true, type: 'error', onClick: () => remove(row) }, () => '删除'),
+      : h(PermissionButton, { permissions: [PERM.couponWrite], type: 'warning', onClick: () => disable(row) }, () => '停用')),
+    row.scopeType === 'global' ? null : h(PermissionButton, { permissions: [PERM.couponWrite], text: true, type: 'error', onClick: () => remove(row) }, () => '删除'),
   ]) },
 ])
 
@@ -133,7 +138,7 @@ onMounted(loadCategories)
   <div>
     <PageHeader
       title="本店优惠券"
-      description="创建本店券模板；券类型由总后台统一管理"
+      description="总部券由总后台统一维护；本店可创建并管理自己的券模板"
     />
     <StatusFilterBar
       v-model:status="status"
@@ -161,7 +166,7 @@ onMounted(loadCategories)
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
-      empty-text="暂无本店优惠券"
+      empty-text="暂无可用优惠券"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
     />
@@ -232,3 +237,10 @@ onMounted(loadCategories)
     </NModal>
   </div>
 </template>
+
+<style scoped>
+.readonly-text {
+  color: var(--text-color-3);
+  font-size: 13px;
+}
+</style>

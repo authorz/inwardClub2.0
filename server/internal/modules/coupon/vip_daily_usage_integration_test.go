@@ -12,7 +12,7 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
-func TestClaimVIPDailyUsageIntegration(t *testing.T) {
+func TestClaimGiftDailyUsageIntegration(t *testing.T) {
 	dsn := os.Getenv("VIP_TEST_MYSQL_DSN")
 	if dsn == "" {
 		t.Skip("VIP_TEST_MYSQL_DSN is not set")
@@ -36,43 +36,57 @@ func TestClaimVIPDailyUsageIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	memberID, _ := res.LastInsertId()
-	var templateID int64
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_templates
-		WHERE status = 'published' ORDER BY id LIMIT 1`).Scan(&templateID); err != nil {
+	var templateID, categoryID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id, category_id FROM coupon_templates
+		WHERE status = 'published' ORDER BY id LIMIT 1`).Scan(&templateID, &categoryID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 2 WHERE id = ?`, categoryID); err != nil {
 		t.Fatal(err)
 	}
 
 	vip1 := insertUsageTestEntitlement(t, tx, memberID, templateID, "VIP等级福利", "system", 1)
 	vip2 := insertUsageTestEntitlement(t, tx, memberID, templateID, "VIP等级福利", "system", 2)
 	vip3 := insertUsageTestEntitlement(t, tx, memberID, templateID, "VIP等级福利", "system", 3)
-	purchased1 := insertUsageTestEntitlement(t, tx, memberID, templateID, "购买券商品", "purchase", 4)
-	purchased2 := insertUsageTestEntitlement(t, tx, memberID, templateID, "购买券商品", "purchase", 5)
+	vip4 := insertUsageTestEntitlement(t, tx, memberID, templateID, "VIP等级福利", "system", 4)
+	vip5 := insertUsageTestEntitlement(t, tx, memberID, templateID, "VIP等级福利", "system", 5)
+	purchased1 := insertUsageTestEntitlement(t, tx, memberID, templateID, "购买券商品", "purchase", 6)
+	purchased2 := insertUsageTestEntitlement(t, tx, memberID, templateID, "购买券商品", "purchase", 7)
 
 	today := time.Date(2026, 8, 25, 23, 59, 0, 0, vipUsageLocation)
-	if err := ClaimVIPDailyUsage(ctx, tx, memberID, vip1, today); err != nil {
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip1, today); err != nil {
 		t.Fatalf("first VIP coupon: %v", err)
 	}
-	if err := ClaimVIPDailyUsage(ctx, tx, memberID, purchased1, today); err != nil {
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip2, today); err != nil {
+		t.Fatalf("second VIP coupon: %v", err)
+	}
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, purchased1, today); err != nil {
 		t.Fatalf("first purchased coupon: %v", err)
 	}
-	if err := ClaimVIPDailyUsage(ctx, tx, memberID, purchased2, today); err != nil {
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, purchased2, today); err != nil {
 		t.Fatalf("second purchased coupon: %v", err)
 	}
-	if err := ClaimVIPDailyUsage(ctx, tx, memberID, vip2, today); err == nil || apperr.From(err).Code != apperr.CodeConflict {
-		t.Fatalf("second VIP coupon error = %v, want CONFLICT", err)
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip3, today); err == nil || apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("third VIP coupon error = %v, want CONFLICT", err)
 	}
 
 	tomorrow := today.Add(2 * time.Minute)
-	if err := ClaimVIPDailyUsage(ctx, tx, memberID, vip3, tomorrow); err != nil {
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip4, tomorrow); err != nil {
 		t.Fatalf("next-day VIP coupon: %v", err)
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 0 WHERE id = ?`, categoryID); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip5, today); err != nil {
+		t.Fatalf("unlimited VIP coupon: %v", err)
+	}
 	var usageCount int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM vip_coupon_daily_usages
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM gift_coupon_daily_usages
 		WHERE member_id = ?`, memberID).Scan(&usageCount); err != nil {
 		t.Fatal(err)
 	}
-	if usageCount != 2 {
-		t.Fatalf("VIP usage rows = %d, want 2", usageCount)
+	if usageCount != 3 {
+		t.Fatalf("gift usage rows = %d, want 3", usageCount)
 	}
 }
 

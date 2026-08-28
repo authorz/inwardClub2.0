@@ -25,7 +25,10 @@ import (
 // build this from storescope.MustFromContext; it is never taken from a
 // client-supplied storeId.
 type ConsoleScope struct {
-	StoreID *int64
+	StoreID       *int64
+	IncludeGlobal bool
+	Status        string
+	Keyword       string
 }
 
 // Template is a coupon template row as stored in coupon_templates.
@@ -178,10 +181,28 @@ const templateSelect = `SELECT id, scope_type, store_id, name, COALESCE(descript
 	FROM coupon_templates`
 
 func scopeWhere(scope ConsoleScope) (string, []any) {
+	clauses := make([]string, 0, 3)
+	args := make([]any, 0, 3)
 	if scope.StoreID != nil {
-		return ` WHERE scope_type = 'store' AND store_id = ?`, []any{*scope.StoreID}
+		if scope.IncludeGlobal {
+			clauses = append(clauses, `((scope_type = 'global' AND status = 'published') OR (scope_type = 'store' AND store_id = ?))`)
+		} else {
+			clauses = append(clauses, `scope_type = 'store' AND store_id = ?`)
+		}
+		args = append(args, *scope.StoreID)
 	}
-	return ``, nil
+	if scope.Status != "" {
+		clauses = append(clauses, `status = ?`)
+		args = append(args, scope.Status)
+	}
+	if keyword := strings.TrimSpace(scope.Keyword); keyword != "" {
+		clauses = append(clauses, `name LIKE ?`)
+		args = append(args, "%"+keyword+"%")
+	}
+	if len(clauses) == 0 {
+		return ``, args
+	}
+	return ` WHERE ` + strings.Join(clauses, ` AND `), args
 }
 
 func (r *sqlConsoleRepository) ListTemplates(ctx context.Context, scope ConsoleScope, page httpx.Page) ([]Template, int64, error) {
@@ -263,7 +284,7 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 	if categoryID <= 0 {
 		return CouponCategory{}, apperr.Invalid("请选择券类型")
 	}
-	q := `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	q := `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
 		FROM coupon_categories WHERE id = ?`
 	if !includeDisabled {
 		q += ` AND status = 'active'`
@@ -271,7 +292,7 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 	var category CouponCategory
 	err := r.db.QueryRowContext(ctx, q, categoryID).Scan(
 		&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
-		&category.Status, &category.CreatedAt, &category.UpdatedAt,
+		&category.Status, &category.GiftDailyUsageLimit, &category.CreatedAt, &category.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CouponCategory{}, apperr.Invalid("所选券类型不存在或已停用")
@@ -898,7 +919,7 @@ func (r *sqlConsoleRepository) Verify(ctx context.Context, scope ConsoleScope, r
 		if expiresAt.Valid && !expiresAt.Time.After(now) {
 			return apperr.Conflict("coupon entitlement has expired")
 		}
-		if err := ClaimVIPDailyUsage(ctx, tx, memberID, id, now); err != nil {
+		if err := ClaimGiftDailyUsage(ctx, tx, memberID, id, now); err != nil {
 			return err
 		}
 		redNo := fmt.Sprintf("R%d-%d", id, now.UnixNano())
@@ -1143,7 +1164,7 @@ func positivePathID(c *gin.Context, name string) (int64, error) {
 
 // List handles GET /admin/coupon-templates.
 func (h *ConsoleHandler) List(c *gin.Context) {
-	h.list(c, ConsoleScope{})
+	h.list(c, ConsoleScope{Status: c.Query("status"), Keyword: c.Query("keyword")})
 }
 
 // Get handles GET /admin/coupon-templates/:id.
@@ -1288,7 +1309,10 @@ func (h *ConsoleHandler) StoreList(c *gin.Context) {
 	if !ok {
 		return
 	}
-	h.list(c, ConsoleScope{StoreID: &storeID})
+	h.list(c, ConsoleScope{
+		StoreID: &storeID, IncludeGlobal: c.Query("includeGlobal") == "true",
+		Status: c.Query("status"), Keyword: c.Query("keyword"),
+	})
 }
 
 // StoreGet handles GET /store/coupon-templates/:id.
