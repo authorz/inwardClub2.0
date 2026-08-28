@@ -190,8 +190,21 @@ async function loadRangeReports(): Promise<void> {
   ])
   if (requestVersion !== reportRequestVersion) return
 
-  if (revenueResult.status === 'fulfilled') revenueRows.value = revenueResult.value
-  else {
+  if (revenueResult.status === 'fulfilled') {
+    const rows = revenueResult.value
+    const missingChannelFields = rows.some((row) => (
+      !Number.isFinite(row.wechatOrderCount)
+      || !Number.isFinite(row.wechatRevenueCent)
+      || !Number.isFinite(row.coinOrderCount)
+      || !Number.isFinite(row.coinConsumption)
+    ))
+    if (missingChannelFields) {
+      revenueRows.value = []
+      revenueError.value = '报表服务版本过旧，暂时无法区分微信支付与金币消费，请先更新服务端。'
+    } else {
+      revenueRows.value = rows
+    }
+  } else {
     revenueRows.value = []
     revenueError.value = errorMessage(revenueResult.reason, '收款趋势加载失败')
   }

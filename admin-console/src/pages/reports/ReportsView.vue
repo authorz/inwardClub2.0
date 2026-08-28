@@ -544,7 +544,7 @@ const storeColumns = [
 }
 
 .report-tabs :deep(.n-tabs-tab) {
-  padding: 0 12px;
+  padding: 16px 12px;
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-sm);
   transition: color 160ms ease-out, background-color 160ms ease-out;
