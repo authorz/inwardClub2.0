@@ -32,7 +32,7 @@ func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
 		FirstRechargeDoublePointsEnabled:    true,
 		RechargeDoublePointsThresholdAmount: 1200,
-		RechargeNotice:                      "  首充与满额双倍积分不叠加。  ",
+		RechargeNotice:                      "  首次充值低于上限赠送双倍积分。  ",
 		PhoneChangeIntervalDays:             45,
 		GiftCouponUsageRules:                &rules,
 	}, 1)
@@ -45,7 +45,7 @@ func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	if got.RechargeDoublePointsThresholdAmount != 1200 {
 		t.Fatalf("unexpected recharge threshold %d", got.RechargeDoublePointsThresholdAmount)
 	}
-	if got.RechargeNotice != "首充与满额双倍积分不叠加。" {
+	if got.RechargeNotice != "首次充值低于上限赠送双倍积分。" {
 		t.Fatalf("unexpected recharge notice %q", got.RechargeNotice)
 	}
 	if got.PhoneChangeIntervalDays != 45 {

@@ -275,10 +275,7 @@ const (
 	firstRechargeRewardIdemPrefix = "first_recharge_reward"
 
 	rechargeRewardThresholdSettingKey = "recharge_double_points_threshold_amount"
-	defaultRechargeRewardThreshold    = int64(1000)
-	highValueRechargeRewardReason     = "high_value_recharge_reward"
-	highValueRechargeRewardSource     = "high_value_recharge_reward"
-	highValueRechargeRewardIdem       = "high_value_recharge_reward"
+	defaultFirstRechargeRewardMax     = int64(1000)
 	rechargePointRewardMultiplier     = int64(2)
 )
 
@@ -412,7 +409,7 @@ func rechargeRewardSettings(ctx context.Context, tx *sql.Tx) (bool, int64, error
 		return false, 0, apperr.Internal(err)
 	}
 
-	thresholdAmount := defaultRechargeRewardThreshold
+	thresholdAmount := defaultFirstRechargeRewardMax
 	var rawThreshold string
 	switch err := tx.QueryRowContext(ctx, selectSetting, rechargeRewardThresholdSettingKey).Scan(&rawThreshold); {
 	case errors.Is(err, sql.ErrNoRows):
@@ -486,27 +483,16 @@ func claimFirstSuccessfulRecharge(ctx context.Context, tx *sql.Tx, memberID, bus
 }
 
 func rechargePointRewards(coinAmount, amountCent, thresholdCent int64, firstRecharge bool) []rechargePointReward {
-	if coinAmount <= 0 {
+	if coinAmount <= 0 || !firstRecharge || amountCent >= thresholdCent {
 		return nil
 	}
 	rewardAmount := coinAmount * rechargePointRewardMultiplier
-	if amountCent >= thresholdCent {
-		return []rechargePointReward{{
-			amount:     rewardAmount,
-			reason:     highValueRechargeRewardReason,
-			sourceType: highValueRechargeRewardSource,
-			idemPrefix: highValueRechargeRewardIdem,
-		}}
-	}
-	if firstRecharge {
-		return []rechargePointReward{{
-			amount:     rewardAmount,
-			reason:     firstRechargeRewardReason,
-			sourceType: firstRechargeRewardSource,
-			idemPrefix: firstRechargeRewardIdemPrefix,
-		}}
-	}
-	return nil
+	return []rechargePointReward{{
+		amount:     rewardAmount,
+		reason:     firstRechargeRewardReason,
+		sourceType: firstRechargeRewardSource,
+		idemPrefix: firstRechargeRewardIdemPrefix,
+	}}
 }
 
 func creditRechargeAsset(ctx context.Context, tx *sql.Tx, paymentID, businessID, memberID int64, asset string, grant int64, reason, sourceType, idemPrefix string, now time.Time) error {

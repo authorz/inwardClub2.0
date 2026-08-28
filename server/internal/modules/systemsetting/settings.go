@@ -28,9 +28,9 @@ const (
 	printerDeveloperAccountKey             = "printer_developer_account"
 	printerDeveloperKeyKey                 = "printer_developer_key"
 	printerAPIURLKey                       = "printer_api_url"
-	defaultRechargeDoublePointsThreshold   = int64(1000)
+	defaultFirstRechargeDoublePointsMax    = int64(1000)
 	defaultPhoneChangeIntervalDays         = 30
-	defaultRechargeNotice                  = "新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。"
+	defaultRechargeNotice                  = "新用户全平台首次成功充值低于 1000 元，按到账金币数赠送 2 倍积分。"
 	defaultPrinterAPIURL                   = "https://open.xpyun.net/api/openapi/xprinter"
 )
 
@@ -87,7 +87,7 @@ func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
 	settings := GlobalSettings{
-		RechargeDoublePointsThresholdAmount: defaultRechargeDoublePointsThreshold,
+		RechargeDoublePointsThresholdAmount: defaultFirstRechargeDoublePointsMax,
 		RechargeNotice:                      defaultRechargeNotice,
 		FranchiseInquirySources:             append([]string(nil), defaultFranchiseInquirySources...),
 		PhoneChangeIntervalDays:             defaultPhoneChangeIntervalDays,
@@ -304,7 +304,7 @@ func (s *Service) PrinterProviderSettings(ctx context.Context) (string, string, 
 // Update validates and persists the headquarters settings.
 func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, updatedBy int64) (GlobalSettings, error) {
 	if req.RechargeDoublePointsThresholdAmount <= 0 {
-		return GlobalSettings{}, apperr.Invalid("满额双倍积分门槛必须大于 0")
+		return GlobalSettings{}, apperr.Invalid("首充双倍积分上限必须大于 0")
 	}
 	if req.PhoneChangeIntervalDays < 1 || req.PhoneChangeIntervalDays > 3650 {
 		return GlobalSettings{}, apperr.Invalid("手机号更换间隔必须在 1 到 3650 天之间")

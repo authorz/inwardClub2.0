@@ -1494,12 +1494,12 @@ components:
       properties:
         firstRechargeDoublePointsEnabled:
           type: boolean
-          description: 'Whether a member platform-wide first successful recharge grants points equal to twice the credited coins'
+          description: 'Whether a member platform-wide first successful recharge below the configured exclusive upper limit grants points equal to twice the credited coins'
         rechargeDoublePointsThresholdAmount:
           type: integer
           format: int64
           minimum: 1
-          description: 'Recharge amount in yuan that activates the high-value double-points reward and excludes the first-recharge reward'
+          description: 'Exclusive upper limit in yuan for the first-recharge double-points reward; an amount equal to or above this value receives no reward'
         rechargeNotice:
           type: string
           maxLength: 200

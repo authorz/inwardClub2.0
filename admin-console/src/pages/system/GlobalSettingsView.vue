@@ -20,7 +20,7 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 const loading = ref(false)
 const saving = ref(false)
 const couponCategories = ref<CouponCategory[]>([])
-const defaultRechargeNotice = '新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。'
+const defaultRechargeNotice = '新用户全平台首次成功充值低于 1000 元，按到账金币数赠送 2 倍积分。'
 type GiftCouponUsageMode = 'unlimited' | 'limited'
 interface GiftCouponUsageRuleForm {
   couponCategoryId: number | string | null
@@ -118,7 +118,7 @@ async function save(): Promise<void> {
     !Number.isInteger(form.rechargeDoublePointsThresholdAmount)
     || form.rechargeDoublePointsThresholdAmount <= 0
   ) {
-    return toastError('满额双倍积分门槛必须是大于 0 的整数')
+    return toastError('首充双倍积分上限必须是大于 0 的整数')
   }
   if (
     !Number.isInteger(form.phoneChangeIntervalDays)
@@ -229,12 +229,12 @@ async function save(): Promise<void> {
                 </template>
               </NSwitch>
               <NText depth="3">
-                开启后，会员全平台首次成功充值按到账金币数赠送 2 倍积分。
-                首次充值达到下方门槛时，不再享受首充奖励。
+                开启后，仅会员全平台首次成功充值且实付金额低于下方上限时，
+                按到账金币数赠送 2 倍积分；后续充值不赠送。
               </NText>
             </div>
           </NFormItem>
-          <NFormItem label="满额双倍积分门槛">
+          <NFormItem label="首充双倍积分上限">
             <div class="threshold-field">
               <NInputNumber
                 v-model:value="form.rechargeDoublePointsThresholdAmount"
@@ -246,8 +246,8 @@ async function save(): Promise<void> {
                 </template>
               </NInputNumber>
               <NText depth="3">
-                所有单次充值达到此金额时赠送 2 倍积分；若同时属于首次充值，
-                只发放满额奖励，不再叠加首充奖励。
+                首次充值实付金额必须严格低于此金额才赠送 2 倍积分；
+                等于或高于此金额均不赠送。
               </NText>
             </div>
           </NFormItem>

@@ -941,14 +941,14 @@ func TestListRechargeProductsMapsView(t *testing.T) {
 
 func TestRechargeNoticeUsesConfiguredCopy(t *testing.T) {
 	svc := NewService(newFakeRepo(), fakeAssets{}, nil, fakePhonePolicy{
-		days: 30, notice: "首充与满额双倍积分不叠加。",
+		days: 30, notice: "首次充值低于上限赠送双倍积分。",
 	})
 
 	notice, err := svc.RechargeNotice(context.Background())
 	if err != nil {
 		t.Fatalf("recharge notice: %v", err)
 	}
-	if notice != "首充与满额双倍积分不叠加。" {
+	if notice != "首次充值低于上限赠送双倍积分。" {
 		t.Fatalf("unexpected recharge notice %q", notice)
 	}
 }
