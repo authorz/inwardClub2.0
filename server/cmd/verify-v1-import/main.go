@@ -52,7 +52,7 @@ func run() error {
 	countPairs := []struct{ name, sourceTable, targetTable string }{
 		{"members", "users", "members"}, {"catalog categories", "categories", "catalog_categories"}, {"catalog items", "products", "catalog_items"},
 		{"tables", "tables", "tables"}, {"seats", "seats", "seats"}, {"food orders", "food_orders", "food_orders"}, {"food items", "food_order_items", "food_order_items"},
-		{"point savings", "save_points", "point_savings"}, {"point withdrawals", "points_withdrawal", "point_withdrawals"}, {"coupons", "user_coupon", "coupon_entitlements"},
+		{"point savings", "save_points", "point_savings"}, {"point withdrawals", "points_withdrawal", "point_withdrawals"},
 	}
 	for _, pair := range countPairs {
 		s, err := scalar(ctx, source, "SELECT COUNT(*) FROM `"+pair.sourceTable+"`")
@@ -65,6 +65,15 @@ func run() error {
 		}
 		checks = append(checks, check{pair.name, s, t})
 	}
+	legacyCoupons, err := scalar(ctx, source, `SELECT COUNT(*) FROM user_coupon`)
+	if err != nil {
+		return err
+	}
+	migratedCoupons, err := scalar(ctx, target, `SELECT COUNT(*) FROM coupon_entitlements WHERE idem_key LIKE 'v1:user_coupon:%'`)
+	if err != nil {
+		return err
+	}
+	checks = append(checks, check{"legacy coupons", legacyCoupons, migratedCoupons})
 	amountPairs := []struct{ name, sourceQuery, targetQuery string }{
 		{"food amount cents", `SELECT CAST(SUM(total_amount)*100 AS SIGNED) FROM food_orders`, `SELECT SUM(total_amount_cent) FROM business_orders WHERE order_type='food'`},
 		{"recharge amount cents", `SELECT CAST(SUM(total_fee)*100 AS SIGNED) FROM recharge`, `SELECT SUM(total_amount_cent) FROM business_orders WHERE order_type='recharge'`},
@@ -90,8 +99,8 @@ func run() error {
 		{"stores", `SELECT COUNT(*) FROM stores`, 1}, {"admin accounts retained", `SELECT COUNT(*) FROM admin_accounts`, 7},
 		{"printers retained", `SELECT COUNT(*) FROM printer_devices`, 2}, {"printers assigned to store 1", `SELECT COUNT(*) FROM printer_devices WHERE store_id<>1`, 0},
 		{"activities excluded", `SELECT COUNT(*) FROM activities`, 0}, {"activity orders excluded", `SELECT COUNT(*) FROM activity_orders`, 0},
-		{"active alcohol coupons", `SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id=e.coupon_template_id WHERE e.status='active' AND t.coupon_type='alcohol'`, 1714},
-		{"active event coupons", `SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id=e.coupon_template_id WHERE e.status='active' AND t.coupon_type='event_ticket'`, 4},
+		{"active legacy alcohol coupons", `SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id=e.coupon_template_id WHERE e.status='active' AND t.coupon_type='alcohol' AND e.idem_key LIKE 'v1:user_coupon:%'`, 1714},
+		{"active legacy event coupons", `SELECT COUNT(*) FROM coupon_entitlements e JOIN coupon_templates t ON t.id=e.coupon_template_id WHERE e.status='active' AND t.coupon_type='event_ticket' AND e.idem_key LIKE 'v1:user_coupon:%'`, 4},
 		{"completed migration run", `SELECT COUNT(*) FROM migration_runs WHERE run_key='inwardclub-v1-final-20260828' AND status='completed'`, 1},
 	}
 	for _, item := range targetChecks {
