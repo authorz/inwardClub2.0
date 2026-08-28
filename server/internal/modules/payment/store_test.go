@@ -32,6 +32,7 @@ type memStoreRepo struct {
 	// membersByPhone maps a normalized phone to the member it resolves to.
 	membersByPhone map[string]MemberMatch
 	nextID         int64
+	failRefundErr  error
 }
 
 func (r *memStoreRepo) ResolveMemberByPhone(_ context.Context, phone string) (MemberMatch, error) {
@@ -148,6 +149,9 @@ func (r *memStoreRepo) CompleteRefundAdmin(_ context.Context, refundID int64, _ 
 }
 
 func (r *memStoreRepo) FailRefundAdmin(_ context.Context, refundID int64, _ time.Time) error {
+	if r.failRefundErr != nil {
+		return r.failRefundErr
+	}
 	for i := range r.refunds {
 		if r.refunds[i].ID == refundID {
 			r.refunds[i].Status = RefundFailed
@@ -599,6 +603,27 @@ func TestAdminServiceMarksRefundFailedWhenGatewayRejects(t *testing.T) {
 	}
 	if len(repo.refunds) != 1 || repo.refunds[0].Status != RefundFailed {
 		t.Fatalf("expected failed refund persisted, got %+v", repo.refunds)
+	}
+}
+
+func TestAdminServiceSurfacesBenefitRollbackFailure(t *testing.T) {
+	repo := &memStoreRepo{
+		payments:      map[int64]int64{55: 7},
+		failRefundErr: errors.New("benefit rollback failed"),
+	}
+	gateway := &recordingWeChatGateway{
+		WeChatPayGateway: NewFakeWeChatPayGateway(),
+		refundErr:        errors.New("gateway rejected"),
+	}
+	svc := NewAdminService(repo, gateway, NewFakeOfflineAcquirer(), allowAdminPasswords{}, 0)
+
+	_, err := svc.CreateRefund(context.Background(), "platform_admin", 1, "idem-admin-r",
+		CreateRefundRequest{PaymentOrderID: 55, AmountCent: 500, Reason: "damaged", Password: "secret"})
+	if apperr.From(err).Code != apperr.CodeInternal {
+		t.Fatalf("expected rollback failure to surface as internal error, got %v", err)
+	}
+	if len(repo.refunds) != 1 || repo.refunds[0].Status != RefundProcessing {
+		t.Fatalf("refund must remain processing for reconciliation, got %+v", repo.refunds)
 	}
 }
 

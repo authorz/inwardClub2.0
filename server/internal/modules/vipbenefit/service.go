@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	grantReason     = "VIP等级福利"
-	grantSourceType = "vip_benefit"
+	grantReason          = "VIP等级福利"
+	grantSourceType      = "vip_benefit"
+	grantOrderSourceType = "vip_benefit_order"
 )
 
 type pointBenefit struct {
@@ -119,7 +120,7 @@ func GrantTierReached(ctx context.Context, tx *sql.Tx, memberID, tierID int64, n
 	if err != nil {
 		return err
 	}
-	if _, err := grantMatching(ctx, tx, memberID, tier, now, func(trigger string) bool {
+	if _, err := grantMatching(ctx, tx, memberID, tier, now, 0, func(trigger string) bool {
 		return trigger == "tier_achieved"
 	}); err != nil {
 		return err
@@ -143,7 +144,7 @@ func GrantFoodPayment(ctx context.Context, tx *sql.Tx, in FoodPayment) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	return grantMatching(ctx, tx, in.MemberID, tier, in.PaidAt, func(trigger string) bool {
+	return grantMatching(ctx, tx, in.MemberID, tier, in.PaidAt, in.BusinessOrderID, func(trigger string) bool {
 		switch trigger {
 		case "low_spend":
 			return in.LowSpend
@@ -218,7 +219,7 @@ func (s *Service) SweepScheduled(ctx context.Context) (int64, error) {
 }
 
 func grantScheduled(ctx context.Context, tx *sql.Tx, memberID int64, tier tierBenefits, now time.Time) (int64, error) {
-	return grantMatching(ctx, tx, memberID, tier, now, func(trigger string) bool {
+	return grantMatching(ctx, tx, memberID, tier, now, 0, func(trigger string) bool {
 		return scheduledTrigger(trigger) && scheduledTriggerActive(trigger, now)
 	})
 }
@@ -229,6 +230,7 @@ func grantMatching(
 	memberID int64,
 	tier tierBenefits,
 	now time.Time,
+	businessOrderID int64,
 	match func(string) bool,
 ) (int64, error) {
 	var granted int64
@@ -240,7 +242,7 @@ func grantMatching(
 		if !ok {
 			continue
 		}
-		applied, err := grantPoints(ctx, tx, memberID, tier.TierID, benefit, key, now)
+		applied, err := grantPoints(ctx, tx, memberID, tier.TierID, benefit, key, businessOrderID, now)
 		if err != nil {
 			return granted, err
 		}
@@ -256,7 +258,7 @@ func grantMatching(
 		if !ok {
 			continue
 		}
-		count, err := grantCoupons(ctx, tx, memberID, tier.TierID, benefit, key, now)
+		count, err := grantCoupons(ctx, tx, memberID, tier.TierID, benefit, key, businessOrderID, now)
 		if err != nil {
 			return granted, err
 		}
@@ -320,7 +322,7 @@ func isInHoursVisit(ctx context.Context, tx *sql.Tx, storeID int64, now time.Tim
 	return withinBusinessHours(hours, now), nil
 }
 
-func grantPoints(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefit pointBenefit, key string, now time.Time) (bool, error) {
+func grantPoints(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefit pointBenefit, key string, businessOrderID int64, now time.Time) (bool, error) {
 	var accountID, available int64
 	const selectAccount = `SELECT id, available_amount FROM wallet_accounts
 		WHERE member_id = ? AND asset_type = 'points' FOR UPDATE`
@@ -338,12 +340,16 @@ func grantPoints(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefi
 		return false, apperr.Internal(err)
 	}
 	idemKey := benefitKey("p", memberID, tierID, benefit.Period, benefit.Trigger, key, 0)
+	sourceType, sourceID := grantSourceType, tierID
+	if businessOrderID > 0 {
+		sourceType, sourceID = grantOrderSourceType, businessOrderID
+	}
 	newBalance := available + benefit.Amount
 	_, err := tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason,
 		 source_type, source_id, idem_key, created_at)
 		VALUES (?, ?, 'points', 'credit', ?, ?, ?, ?, ?, ?, ?)`,
-		accountID, memberID, benefit.Amount, newBalance, grantReason, grantSourceType, tierID, idemKey, now)
+		accountID, memberID, benefit.Amount, newBalance, grantReason, sourceType, sourceID, idemKey, now)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return false, nil
@@ -358,7 +364,7 @@ func grantPoints(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefi
 	return true, nil
 }
 
-func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefit couponBenefit, key string, now time.Time) (int64, error) {
+func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benefit couponBenefit, key string, businessOrderID int64, now time.Time) (int64, error) {
 	var (
 		templateID     int64
 		admissionCount int
@@ -393,11 +399,15 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 	for sequence := 0; sequence < benefit.Quantity; sequence++ {
 		idemKey := benefitKey("c", memberID, tierID, benefit.Period, benefit.Trigger+":"+benefitIdentity, key, sequence)
 		entitlementNo := compactEntitlementNo(memberID, idemKey)
+		var grantedByID any
+		if businessOrderID > 0 {
+			grantedByID = businessOrderID
+		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO coupon_entitlements
-			(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, rule_version,
-			 granted_reason, granted_by_type, expires_at, idem_key, created_at, updated_at)
-			VALUES (?, ?, ?, ?, NULL, 'active', 1, ?, 'system', ?, ?, ?, ?)`,
-			entitlementNo, templateID, admissionCount, memberID, grantReason, expiresAt, idemKey, now, now)
+				(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, rule_version,
+				 granted_reason, granted_by_type, granted_by_id, expires_at, idem_key, created_at, updated_at)
+				VALUES (?, ?, ?, ?, NULL, 'active', 1, ?, 'system', ?, ?, ?, ?, ?)`,
+			entitlementNo, templateID, admissionCount, memberID, grantReason, grantedByID, expiresAt, idemKey, now, now)
 		if err != nil {
 			if platdb.IsDuplicate(err) {
 				continue

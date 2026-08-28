@@ -610,7 +610,9 @@ func (s *AdminService) createRefund(ctx context.Context, byType string, byID int
 		err = apperr.Invalid("该支付渠道暂不支持退款")
 	}
 	if err != nil {
-		_ = s.repo.FailRefundAdmin(ctx, refund.ID, now)
+		if rollbackErr := s.repo.FailRefundAdmin(ctx, refund.ID, now); rollbackErr != nil {
+			return AdminRefundView{}, apperr.Internal(fmt.Errorf("退款渠道失败后回滚权益: %w", rollbackErr))
+		}
 		return AdminRefundView{}, apperr.From(err)
 	}
 	refund, err = s.repo.CompleteRefundAdmin(ctx, refund.ID, externalRefundNo, now)

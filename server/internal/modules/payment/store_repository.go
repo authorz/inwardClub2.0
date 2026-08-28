@@ -317,9 +317,6 @@ func (r *storeSQLRepository) CreateRefundAdmin(ctx context.Context, in RefundCre
 		if in.AmountCent > paidAmount {
 			return apperr.Invalid("退款金额不能超过订单实付金额")
 		}
-		if orderType == orderTypeRecharge {
-			return apperr.Conflict("充值订单需先回收已发放权益，暂不支持直接退款")
-		}
 		if payMethod == "coin" {
 			if _, err := wallet.CoinsRequired(in.AmountCent); err != nil {
 				return apperr.Invalid("金币退款仅支持整元金额")
@@ -362,6 +359,12 @@ func (r *storeSQLRepository) CreateRefundAdmin(ctx context.Context, in RefundCre
 		id, err := res.LastInsertId()
 		if err != nil {
 			return apperr.Internal(err)
+		}
+		if err := prepareRefundBenefits(
+			ctx, tx, id, in.PaymentOrderID, businessID,
+			in.AmountCent, paidAmount, orderType, in.Now,
+		); err != nil {
+			return err
 		}
 		out = Refund{
 			ID:                id,
@@ -499,6 +502,11 @@ func (r *storeSQLRepository) CompleteRefundAdmin(
 		}); err != nil {
 			return err
 		}
+		if err := completeRefundBenefits(
+			ctx, tx, refundID, paymentOrderID, businessOrderID, memberID, now,
+		); err != nil {
+			return err
+		}
 		out = Refund{
 			ID: refundID, RefundOrderNo: refundNo, PaymentOrderID: paymentOrderID,
 			BusinessOrderID: businessOrderID, AmountCent: amountCent, Channel: channel,
@@ -516,11 +524,28 @@ func (r *storeSQLRepository) CompleteRefundAdmin(
 }
 
 func (r *storeSQLRepository) FailRefundAdmin(ctx context.Context, refundID int64, now time.Time) error {
-	const q = `UPDATE refund_orders SET status = ?, updated_at = ? WHERE id = ? AND status = ?`
-	if _, err := r.db.ExecContext(ctx, q, RefundFailed, now, refundID, RefundProcessing); err != nil {
-		return apperr.Internal(err)
-	}
-	return nil
+	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var paymentOrderID, businessOrderID int64
+		if err := tx.QueryRowContext(ctx, `SELECT ro.payment_order_id, ro.business_order_id
+			FROM refund_orders ro
+			WHERE ro.id = ? AND ro.status = ? FOR UPDATE`, refundID, RefundProcessing).
+			Scan(&paymentOrderID, &businessOrderID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return apperr.Internal(err)
+		}
+		if err := rollbackRefundBenefits(
+			ctx, tx, refundID, paymentOrderID, businessOrderID, now,
+		); err != nil {
+			return err
+		}
+		const q = `UPDATE refund_orders SET status = ?, updated_at = ? WHERE id = ? AND status = ?`
+		if _, err := tx.ExecContext(ctx, q, RefundFailed, now, refundID, RefundProcessing); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
 }
 
 func creditCoinRefund(

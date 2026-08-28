@@ -78,7 +78,6 @@ function canRefund(row: BusinessOrder): boolean {
   return (
     row.paymentStatus === 'paid' &&
     Boolean(row.paymentOrderId) &&
-    row.orderType !== 'recharge' &&
     row.refundStatus !== 'processing' &&
     row.refundStatus !== 'succeeded'
   )
@@ -181,6 +180,7 @@ const columns = [
   statusColumn<BusinessOrder>('类型', 'orderType', ORDER_TYPE_OPTIONS, 110),
   textColumn<BusinessOrder>('门店', 'storeName', { width: 140 }),
   moneyColumn<BusinessOrder>('金额', 'amountCent'),
+  statusColumn<BusinessOrder>('支付方式', 'payChannel', PAY_CHANNEL_OPTIONS),
   statusColumn<BusinessOrder>('支付状态', 'paymentStatus', ORDER_PAYMENT_STATUS_OPTIONS),
   statusColumn<BusinessOrder>('订单状态', 'orderStatus', ORDER_STATUS_OPTIONS),
   dateTimeColumn<BusinessOrder>('创建时间', 'createdAt'),
