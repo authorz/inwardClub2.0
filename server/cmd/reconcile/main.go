@@ -19,6 +19,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/inwardclub/server/internal/platform/config"
 )
 
 // Report is the machine-readable reconciliation output.
@@ -43,10 +45,21 @@ func main() {
 }
 
 func run() error {
-	sourceDSN := flag.String("source-dsn", os.Getenv("V1_MYSQL_DSN"), "v1 (source) MySQL DSN")
-	targetDSN := flag.String("target-dsn", os.Getenv("MYSQL_DSN"), "v2 (target) MySQL DSN")
+	sourceDSN := flag.String("source-dsn", "", "v1 (source) MySQL DSN")
+	targetDSN := flag.String("target-dsn", "", "v2 (target) MySQL DSN")
 	reportPath := flag.String("report", "./tmp/reconciliation.json", "output JSON report path")
 	flag.Parse()
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if *sourceDSN == "" {
+		*sourceDSN = os.Getenv("V1_MYSQL_DSN")
+	}
+	if *targetDSN == "" {
+		*targetDSN = cfg.MySQLDSN
+	}
 
 	report := Report{GeneratedAt: time.Now().UTC(), Diffs: []string{}}
 
