@@ -81,6 +81,8 @@ func (i *importer) migrateMembers(ctx context.Context, tx *sql.Tx) error {
 	count := int64(0)
 	staff := int64(0)
 	duplicatePhones := int64(0)
+	memberRows := [][]any{}
+	staffRows := [][]any{}
 	for rows.Next() {
 		var id int64
 		var openid, nickname, avatar, userType, inviteCode string
@@ -111,15 +113,7 @@ func (i *importer) migrateMembers(ctx context.Context, tx *sql.Tx) error {
 		}
 		createdAt := nullableTime(created, now)
 		updatedAt := nullableTime(updated, createdAt)
-		_, err = tx.ExecContext(ctx, `INSERT INTO members
-			(id,legacy_user_id,wechat_openid,nickname,avatar_url,gender,phone,invite_code,invited_by_member_id,
-			 profile_completed,status,current_tier_id,token_version,created_at,updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?, 'active',?,0,?,?)`, id, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64),
-			nullString(sql.NullString{String: avatar, Valid: avatar != ""}), gender, phoneValue, inviteCode,
-			nullableInt(invitedBy), phoneValue != nil && nickname != "", tier, createdAt, updatedAt)
-		if err != nil {
-			return fmt.Errorf("insert member %d: %w", id, err)
-		}
+		memberRows = append(memberRows, []any{id, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64), nullString(sql.NullString{String: avatar, Valid: avatar != ""}), gender, phoneValue, inviteCode, nullableInt(invitedBy), phoneValue != nil && nickname != "", "active", tier, int64(0), createdAt, updatedAt})
 		if err = i.mapID(ctx, tx, "users", id, "members", id); err != nil {
 			return err
 		}
@@ -128,17 +122,20 @@ func (i *importer) migrateMembers(ctx context.Context, tx *sql.Tx) error {
 			if storeID.Valid && storeID.Int64 > 0 {
 				store = storeID.Int64
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO staff_accounts
-				(id,legacy_staff_id,member_id,wechat_openid,name,store_id,status,token_version,created_at,updated_at)
-				VALUES (?,?,?,?,?,?,'active',0,?,?)`, id, nil, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64), store, createdAt, updatedAt)
-			if err != nil {
-				return fmt.Errorf("insert staff member %d: %w", id, err)
-			}
+			staffRows = append(staffRows, []any{id, nil, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64), store, "active", int64(0), createdAt, updatedAt})
 			staff++
 		}
 		count++
 	}
 	if err = rows.Err(); err != nil {
+		return err
+	}
+	if err = execBatches(ctx, tx, `INSERT INTO members
+		(id,legacy_user_id,wechat_openid,nickname,avatar_url,gender,phone,invite_code,invited_by_member_id,profile_completed,status,current_tier_id,token_version,created_at,updated_at)`, 15, memberRows); err != nil {
+		return err
+	}
+	if err = execBatches(ctx, tx, `INSERT INTO staff_accounts
+		(id,legacy_staff_id,member_id,wechat_openid,name,store_id,status,token_version,created_at,updated_at)`, 10, staffRows); err != nil {
 		return err
 	}
 	i.metrics["membersImported"] = count

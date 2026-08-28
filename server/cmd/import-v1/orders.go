@@ -18,6 +18,10 @@ func (i *importer) migrateFoodOrders(ctx context.Context, tx *sql.Tx) error {
 	orders := int64(0)
 	payments := int64(0)
 	transactions := int64(0)
+	businessRows := [][]any{}
+	paymentRows := [][]any{}
+	foodRows := [][]any{}
+	transactionRows := [][]any{}
 	for rows.Next() {
 		var id, member, store, points int64
 		var orderNo, amount, payMethod, paymentStatus, orderStatus string
@@ -38,28 +42,13 @@ func (i *importer) migrateFoodOrders(ctx context.Context, tx *sql.Tx) error {
 		if businessStatus == "pending" && paymentStatus == "paid" {
 			businessStatus = "paid"
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO business_orders
-			(business_order_no,order_type,store_id,member_id,total_amount_cent,order_status,payment_status,snapshot_json,created_at,updated_at)
-			VALUES (?,'food',?,?,?,?,?,?,?,?)`, orderNo, store, member, amountCent, businessStatus, businessPayment, jsonObject(map[string]any{"legacyTable": "food_orders", "legacyId": id}), createdAt, updatedAt)
-		if err != nil {
-			return fmt.Errorf("insert food business order %d: %w", id, err)
-		}
-		businessID, _ := res.LastInsertId()
+		businessID := id
+		businessRows = append(businessRows, []any{businessID, orderNo, "food", store, member, amountCent, businessStatus, businessPayment, jsonObject(map[string]any{"legacyTable": "food_orders", "legacyId": id}), createdAt, updatedAt})
 		paymentNo := "V1P-" + orderNo
-		res, err = tx.ExecContext(ctx, `INSERT INTO payment_orders
-			(payment_order_no,business_order_id,store_id,member_id,amount_cent,pay_method,status,idem_key,created_at,updated_at,paid_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`, paymentNo, businessID, store, member, amountCent, payMethod, paymentOrderStatus(paymentStatus), fmt.Sprintf("v1:food_payment:%d", id), createdAt, updatedAt, nullableNullTime(paidAt))
-		if err != nil {
-			return fmt.Errorf("insert food payment %d: %w", id, err)
-		}
-		paymentID, _ := res.LastInsertId()
+		paymentID := id
+		paymentRows = append(paymentRows, []any{paymentID, paymentNo, businessID, store, member, amountCent, payMethod, paymentOrderStatus(paymentStatus), fmt.Sprintf("v1:food_payment:%d", id), createdAt, updatedAt, nullableNullTime(paidAt)})
 		payments++
-		_, err = tx.ExecContext(ctx, `INSERT INTO food_orders
-			(id,business_order_id,store_id,member_id,table_id,total_amount_cent,points_earned,fulfillment_status,remark,created_at,updated_at)
-			VALUES (?,?,?,?,?,?,?,?, '',?,?)`, id, businessID, store, member, nullableInt(tableID), amountCent, points, orderStatus, createdAt, updatedAt)
-		if err != nil {
-			return fmt.Errorf("insert food order %d: %w", id, err)
-		}
+		foodRows = append(foodRows, []any{id, businessID, store, member, nullableInt(tableID), amountCent, points, orderStatus, "", createdAt, updatedAt})
 		if err = i.mapID(ctx, tx, "food_orders", id, "food_orders", id); err != nil {
 			return err
 		}
@@ -72,15 +61,26 @@ func (i *importer) migrateFoodOrders(ctx context.Context, tx *sql.Tx) error {
 			if provider == "wechat" {
 				ext = nullString(external)
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO payment_transactions
-				(payment_order_id,provider,channel,out_trade_no,external_transaction_no,amount_cent,status,raw_payload,created_at)
-				VALUES (?,?,?,?,?,?,'success',?,?)`, paymentID, provider, provider, paymentNo, ext, amountCent, jsonObject(map[string]any{"legacyTable": "food_orders", "legacyId": id}), nullableTime(paidAt, updatedAt))
-			if err != nil {
-				return fmt.Errorf("insert food transaction %d: %w", id, err)
-			}
+			transactionRows = append(transactionRows, []any{id, paymentID, provider, provider, paymentNo, ext, amountCent, "success", jsonObject(map[string]any{"legacyTable": "food_orders", "legacyId": id}), nullableTime(paidAt, updatedAt)})
 			transactions++
 		}
 		orders++
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO business_orders
+		(id,business_order_no,order_type,store_id,member_id,total_amount_cent,order_status,payment_status,snapshot_json,created_at,updated_at)`, 11, businessRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO payment_orders
+		(id,payment_order_no,business_order_id,store_id,member_id,amount_cent,pay_method,status,idem_key,created_at,updated_at,paid_at)`, 12, paymentRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO food_orders
+		(id,business_order_id,store_id,member_id,table_id,total_amount_cent,points_earned,fulfillment_status,remark,created_at,updated_at)`, 11, foodRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO payment_transactions
+		(id,payment_order_id,provider,channel,out_trade_no,external_transaction_no,amount_cent,status,raw_payload,created_at)`, 10, transactionRows); err != nil {
+		return err
 	}
 	itemRows, err := i.source.QueryContext(ctx, `SELECT id,food_order_id,product_id,product_name,product_price,quantity,subtotal,created_at FROM food_order_items ORDER BY id`)
 	if err != nil {
@@ -135,6 +135,9 @@ func (i *importer) migrateRecharges(ctx context.Context, tx *sql.Tx) error {
 		businessID int64
 		at         time.Time
 	}{}
+	businessRows := [][]any{}
+	paymentRows := [][]any{}
+	transactionRows := [][]any{}
 	for rows.Next() {
 		var id, member, coins, points int64
 		var amount, orderNo string
@@ -159,28 +162,13 @@ func (i *importer) migrateRecharges(ctx context.Context, tx *sql.Tx) error {
 			boPayment = "paid"
 			poStatus = "paid"
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO business_orders
-			(business_order_no,order_type,store_id,member_id,total_amount_cent,order_status,payment_status,snapshot_json,created_at,updated_at)
-			VALUES (?,'recharge',1,?,?,?,?,?,?,?)`, orderNo, member, amountCent, boStatus, boPayment, jsonObject(map[string]any{"legacyTable": "recharge", "legacyId": id, "coins": coins, "points": points}), createdAt, updatedAt)
-		if err != nil {
-			return fmt.Errorf("insert recharge %d: %w", id, err)
-		}
-		businessID, _ := res.LastInsertId()
+		businessID := int64(1_000_000) + id
+		businessRows = append(businessRows, []any{businessID, orderNo, "recharge", 1, member, amountCent, boStatus, boPayment, jsonObject(map[string]any{"legacyTable": "recharge", "legacyId": id, "coins": coins, "points": points}), createdAt, updatedAt})
 		paymentNo := "V1R-" + orderNo
-		res, err = tx.ExecContext(ctx, `INSERT INTO payment_orders
-			(payment_order_no,business_order_id,store_id,member_id,amount_cent,pay_method,status,idem_key,created_at,updated_at,paid_at)
-			VALUES (?,?,1,?,?,'wechat',?,?,?,?,?)`, paymentNo, businessID, member, amountCent, poStatus, fmt.Sprintf("v1:recharge_payment:%d", id), createdAt, updatedAt, nullableNullTime(paidAt))
-		if err != nil {
-			return err
-		}
-		paymentID, _ := res.LastInsertId()
+		paymentID := businessID
+		paymentRows = append(paymentRows, []any{paymentID, paymentNo, businessID, 1, member, amountCent, "wechat", poStatus, fmt.Sprintf("v1:recharge_payment:%d", id), createdAt, updatedAt, nullableNullTime(paidAt)})
 		if isPaid {
-			_, err = tx.ExecContext(ctx, `INSERT INTO payment_transactions
-			(payment_order_id,provider,channel,out_trade_no,external_transaction_no,amount_cent,status,raw_payload,created_at)
-			VALUES (?,'wechat','wechat',?,?,?,'success',?,?)`, paymentID, paymentNo, nullString(external), amountCent, jsonObject(map[string]any{"legacyTable": "recharge", "legacyId": id}), nullableTime(paidAt, updatedAt))
-			if err != nil {
-				return err
-			}
+			transactionRows = append(transactionRows, []any{paymentID, paymentID, "wechat", "wechat", paymentNo, nullString(external), amountCent, "success", jsonObject(map[string]any{"legacyTable": "recharge", "legacyId": id}), nullableTime(paidAt, updatedAt)})
 			paidAtValue := nullableTime(paidAt, updatedAt)
 			if current, ok := first[member]; !ok || paidAtValue.Before(current.at) {
 				first[member] = struct {
@@ -195,15 +183,29 @@ func (i *importer) migrateRecharges(ctx context.Context, tx *sql.Tx) error {
 		}
 		orders++
 	}
+	if err := execBatches(ctx, tx, `INSERT INTO business_orders
+		(id,business_order_no,order_type,store_id,member_id,total_amount_cent,order_status,payment_status,snapshot_json,created_at,updated_at)`, 11, businessRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO payment_orders
+		(id,payment_order_no,business_order_id,store_id,member_id,amount_cent,pay_method,status,idem_key,created_at,updated_at,paid_at)`, 12, paymentRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO payment_transactions
+		(id,payment_order_id,provider,channel,out_trade_no,external_transaction_no,amount_cent,status,raw_payload,created_at)`, 10, transactionRows); err != nil {
+		return err
+	}
+	legacyMemberRows := [][]any{}
+	historyRows := [][]any{}
 	for member, value := range first {
-		_, err = tx.ExecContext(ctx, `INSERT INTO legacy_recharge_members(legacy_user_id,first_paid_at,source_snapshot) VALUES (?,?,?)`, member, value.at, sourceSnapshot)
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO member_recharge_history(member_id,first_business_order_id,first_paid_at,origin,created_at) VALUES (?,?,?,'legacy',UTC_TIMESTAMP())`, member, value.businessID, value.at)
-		if err != nil {
-			return err
-		}
+		legacyMemberRows = append(legacyMemberRows, []any{member, value.at, sourceSnapshot})
+		historyRows = append(historyRows, []any{member, value.businessID, value.at, "legacy", time.Now().UTC()})
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO legacy_recharge_members(legacy_user_id,first_paid_at,source_snapshot)`, 3, legacyMemberRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO member_recharge_history(member_id,first_business_order_id,first_paid_at,origin,created_at)`, 5, historyRows); err != nil {
+		return err
 	}
 	i.metrics["rechargesImported"] = orders
 	i.metrics["paidRechargesImported"] = paid
