@@ -263,14 +263,16 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 	if categoryID <= 0 {
 		return CouponCategory{}, apperr.Invalid("请选择券类型")
 	}
-	q := `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	q := `SELECT id, name, business_type, description, admission_count,
+		default_validity_days, canonical_template_id, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE id = ?`
 	if !includeDisabled {
 		q += ` AND status = 'active'`
 	}
 	var category CouponCategory
 	err := r.db.QueryRowContext(ctx, q, categoryID).Scan(
-		&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
+		&category.ID, &category.Name, &category.BusinessType, &category.Description,
+		&category.AdmissionCount, &category.DefaultValidityDays, &category.CanonicalTemplateID, &category.SortOrder,
 		&category.Status, &category.CreatedAt, &category.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -529,7 +531,20 @@ func (r *sqlConsoleRepository) grantEntitlement(
 	entry *audit.Entry,
 	requirePublished bool,
 ) (EntitlementView, error) {
-	tmpl, err := r.GetTemplate(ctx, scope, req.TemplateID)
+	lookupScope := scope
+	if scope.StoreID != nil {
+		var canonical int
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM coupon_categories WHERE canonical_template_id = ? AND status = 'active'`,
+			req.TemplateID,
+		).Scan(&canonical); err != nil {
+			return EntitlementView{}, apperr.Internal(err)
+		}
+		if canonical > 0 {
+			lookupScope = ConsoleScope{}
+		}
+	}
+	tmpl, err := r.GetTemplate(ctx, lookupScope, req.TemplateID)
 	if err != nil {
 		return EntitlementView{}, err
 	}
@@ -544,7 +559,12 @@ func (r *sqlConsoleRepository) grantEntitlement(
 		}
 	}
 	now := time.Now().UTC()
-	expiresAt := now.AddDate(0, 0, 30)
+	validityDays := 30
+	_ = r.db.QueryRowContext(ctx,
+		`SELECT default_validity_days FROM coupon_categories WHERE canonical_template_id = ?`,
+		req.TemplateID,
+	).Scan(&validityDays)
+	expiresAt := now.AddDate(0, 0, validityDays)
 	if req.ExpiresAt != nil {
 		expiresAt = req.ExpiresAt.UTC()
 	}

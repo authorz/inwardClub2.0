@@ -167,6 +167,10 @@ export interface CouponTemplate extends AuditableEntity {
 export interface CouponCategory extends AuditableEntity {
   name: string
   businessType: string
+  description?: string
+  admissionCount: number
+  defaultValidityDays: number
+  canonicalTemplateId: string | number
   sortOrder: number
 }
 
@@ -203,6 +207,7 @@ export interface TierCouponBenefit {
   quantity: number
   period: string
   trigger: string
+  validityDays?: number
 }
 
 export interface TierBenefitConfig {

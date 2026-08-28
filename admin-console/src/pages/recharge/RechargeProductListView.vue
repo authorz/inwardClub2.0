@@ -9,7 +9,7 @@ import { actionsColumn, moneyColumn, renderColumn, statusColumn, textColumn } fr
 import { RESOURCE_STATUS_OPTIONS } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
-import { couponTemplateService, rechargeProductService } from '@/api/services'
+import { couponCategoryService, rechargeProductService } from '@/api/services'
 import { API_PATHS } from '@/constants/api-paths'
 import type { RechargeProduct } from '@/api/models'
 import type { FilterField } from '@/components/ui-types'
@@ -29,8 +29,11 @@ onMounted(loadCoupons)
 
 async function loadCoupons(): Promise<void> {
   try {
-    const result = await couponTemplateService.list({ status: 'published', page: 1, pageSize: 100 })
-    couponOptions.value = result.items.map((coupon) => ({ label: coupon.name, value: String(coupon.id) }))
+    const result = await couponCategoryService.list({ status: 'active', page: 1, pageSize: 100 })
+    couponOptions.value = result.items.map((kind) => ({
+      label: `${kind.name}（默认 ${kind.defaultValidityDays} 天）`,
+      value: String(kind.canonicalTemplateId),
+    }))
   } catch (error) {
     toastError((error as { message?: string }).message ?? '读取可赠送优惠券失败')
   }
@@ -205,13 +208,13 @@ const toolbarActions = [
             style="width: 100%"
           />
         </NFormItem>
-        <NFormItem label="赠送优惠券">
+        <NFormItem label="赠送券种">
           <NSelect
             v-model:value="form.couponTemplateId"
             :options="couponOptions"
             clearable
             filterable
-            placeholder="不赠送优惠券"
+            placeholder="不赠送券"
           />
         </NFormItem>
         <NFormItem label="排序（小在前）">

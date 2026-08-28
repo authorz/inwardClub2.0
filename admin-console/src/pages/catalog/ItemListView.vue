@@ -41,17 +41,17 @@ import {
   type OptionItem,
 } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
-import { catalogItemService, categoryService, couponTemplateService, storeService } from '@/api/services'
+import { catalogItemService, categoryService, couponCategoryService, storeService } from '@/api/services'
 import { usePublishableActions } from '@/composables/usePublishableActions'
 import { runAudited } from '@/composables/useAuditedAction'
-import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/api/models'
+import type { CatalogCategory, CatalogItem, CouponCategory } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
 const selectedItemIds = ref<DataTableRowKey[]>([])
 const stores = ref<OptionItem[]>([])
 const categories = ref<CatalogCategory[]>([])
-const couponTemplates = ref<CouponTemplate[]>([])
+const couponKinds = ref<CouponCategory[]>([])
 const uploadKey = ref(0)
 
 const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
@@ -61,7 +61,7 @@ const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
 )
 const onlinePayChannelOptions = PAY_CHANNEL_OPTIONS
 function couponTemplateName(id: string | number): string {
-  return couponTemplates.value.find((template) => String(template.id) === String(id))?.name
+  return couponKinds.value.find((kind) => String(kind.canonicalTemplateId) === String(id))?.name
     ?? `券 ID ${id}`
 }
 const categoryFilterOptions = computed<OptionItem[]>(() =>
@@ -224,30 +224,20 @@ const selectedCategory = computed(() => categories.value.find(
 const categoryIsCoupon = computed(() => selectedCategory.value?.categoryType === 'coupon')
 
 const formCouponTemplateOptions = computed(() =>
-  couponTemplates.value
-    .filter((template) =>
-      ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType)
-      && (template.scopeType === 'global'
-        || String(template.storeId ?? '') === String(form.storeId ?? '')),
-    )
-    .map((template) => ({
-      label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
-      value: String(template.id),
-      disabled: template.status !== 'published',
+  couponKinds.value
+    .filter((kind) => ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(kind.businessType))
+    .map((kind) => ({
+      label: kind.name,
+      value: String(kind.canonicalTemplateId),
+      disabled: kind.status !== 'active',
     })),
 )
 const saleCouponTemplateOptions = computed(() =>
-  couponTemplates.value
-    .filter((template) =>
-      ['event_ticket', 'admission_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType)
-      && (template.scopeType === 'global'
-        || String(template.storeId ?? '') === String(form.storeId ?? '')),
-    )
-    .map((template) => ({
-      label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
-      value: String(template.id),
-      disabled: template.status !== 'published',
-    })),
+  couponKinds.value.map((kind) => ({
+    label: `${kind.name}（默认 ${kind.defaultValidityDays} 天）`,
+    value: String(kind.canonicalTemplateId),
+    disabled: kind.status !== 'active',
+  })),
 )
 
 async function loadReferences(): Promise<void> {
@@ -255,14 +245,14 @@ async function loadReferences(): Promise<void> {
     const [storeResult, categoryResult, couponResult] = await Promise.all([
       storeService.list({ page: 1, pageSize: 100 }),
       categoryService.list({ page: 1, pageSize: 100 }),
-      couponTemplateService.list({ page: 1, pageSize: 100 }),
+      couponCategoryService.list({ page: 1, pageSize: 100 }),
     ])
     stores.value = storeResult.items.map((store) => ({
       label: store.name,
       value: String(store.id),
     }))
     categories.value = categoryResult.items
-    couponTemplates.value = couponResult.items
+    couponKinds.value = couponResult.items
   } catch (e) {
     toastError((e as { message?: string }).message ?? '商品基础数据加载失败')
   }
@@ -360,7 +350,7 @@ async function submit(): Promise<void> {
   if (!form.assetId) return toastError('请上传商品图片')
   if (!form.payChannels.length) return toastError('请选择至少一种支付方式')
   if (categoryIsCoupon.value && !form.grantCouponTemplateId) {
-    return toastError('请选择购买后发放的券')
+    return toastError('请选择券种')
   }
   if (form.rewardPointsEnabled && form.pointsReward <= 0) {
     return toastError('请填写每份商品赠送的积分')
@@ -550,7 +540,7 @@ onMounted(loadReferences)
         <NFormItem
           v-if="categoryIsCoupon"
           class="item-form__span-2"
-          label="购买后发放的券"
+          label="券种"
           required
         >
           <NSelect
@@ -558,16 +548,16 @@ onMounted(loadReferences)
             clearable
             filterable
             :options="saleCouponTemplateOptions"
-            placeholder="一份商品对应发放一张券"
+            placeholder="选择总后台启用的券种"
           />
           <NText depth="3">
-            用户支付成功后按购买数量自动到账，每张券有效期 30 天。
+            用户支付成功后按购买数量自动到账；购买券不受赠券每日使用上限限制。
           </NText>
         </NFormItem>
         <NFormItem
           v-else
           class="item-form__span-2"
-          label="允许兑换该商品的券"
+          label="允许兑换该商品的券种"
         >
           <NSelect
             v-model:value="form.couponTemplateIds"
@@ -575,7 +565,7 @@ onMounted(loadReferences)
             clearable
             filterable
             :options="formCouponTemplateOptions"
-            placeholder="请从当前门店可用的券列表中选择"
+            placeholder="请选择可以兑换该商品的券种"
           />
         </NFormItem>
         <div class="item-form__points item-form__span-2">

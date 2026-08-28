@@ -37,16 +37,21 @@ import {
   PermissionButton,
   StatusFilterBar,
 } from '@/components/common'
-import type { CatalogCategory, CatalogItem, CouponTemplate } from '@/types/models'
+import type { CatalogCategory, CatalogItem, CouponCategory } from '@/types/models'
+
+const props = withDefaults(defineProps<{ couponOnly?: boolean }>(), { couponOnly: false })
 
 const list = useAsyncList<CatalogItem>((params) => catalogService.items(params), {
-  initialFilters: { status: '', keyword: '', categoryId: '' },
+  initialFilters: { status: '', keyword: '', categoryId: '', itemType: props.couponOnly ? 'coupon' : '' },
 })
 const selectedItemIds = ref<DataTableRowKey[]>([])
 const action = useAsyncAction()
 const categories = ref<CatalogCategory[]>([])
-const couponTemplates = ref<CouponTemplate[]>([])
-const categoryOptions = computed(() => categories.value.map((row) => ({
+const couponKinds = ref<CouponCategory[]>([])
+const visibleCategories = computed(() => props.couponOnly
+  ? categories.value.filter((row) => row.categoryType === 'coupon')
+  : categories.value)
+const categoryOptions = computed(() => visibleCategories.value.map((row) => ({
   label: `${row.name} · ${row.categoryType === 'coupon' ? '券商品' : '普通商品'}`,
   value: String(row.id),
 })))
@@ -59,19 +64,17 @@ const itemTypeOptions = [
   { label: '积分兑换', value: 'redeemable' }, { label: '实物', value: 'physical' },
 ]
 const publishOptions = toOptions(PUBLISH_STATUS).map(({ label, value }) => ({ label, value }))
-const couponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
-  .map((template) => ({
-    label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
-    value: String(template.id),
-    disabled: template.status !== 'published',
+const couponTemplateOptions = computed(() => couponKinds.value
+  .filter((kind) => ['snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(kind.businessType))
+  .map((kind) => ({
+    label: kind.name,
+    value: String(kind.canonicalTemplateId),
+    disabled: kind.status !== 'active',
   })))
-const saleCouponTemplateOptions = computed(() => couponTemplates.value
-  .filter((template) => ['event_ticket', 'admission_ticket', 'snack', 'alcohol', 'beverage', 'drink', 'meal', 'gift'].includes(template.couponType))
-  .map((template) => ({
-    label: `${template.name}（ID ${template.id}）${template.status === 'published' ? '' : '（未发布）'}`,
-    value: String(template.id),
-    disabled: template.status !== 'published',
+const saleCouponTemplateOptions = computed(() => couponKinds.value.map((kind) => ({
+    label: `${kind.name}（默认 ${kind.defaultValidityDays} 天）`,
+    value: String(kind.canonicalTemplateId),
+    disabled: kind.status !== 'active',
   })))
 
 // 商品可选支付方式（点餐/积分商城）：微信、金币。
@@ -167,7 +170,7 @@ async function saveEdit() {
       return true
     },
     {
-      successMessage: '商品已保存',
+      successMessage: props.couponOnly ? '券商品已保存' : '商品已保存',
       onSuccess: () => {
         editShow.value = false
         list.refresh()
@@ -307,13 +310,13 @@ onMounted(async () => {
   try {
     const [categoryResult, couponResult] = await Promise.all([
       catalogService.categories({ page: 1, pageSize: 100 }),
-      couponService.list({ page: 1, pageSize: 100, includeGlobal: true }),
+      couponService.categories({ page: 1, pageSize: 100 }),
     ])
     categories.value = categoryResult.rows
-    couponTemplates.value = couponResult.rows
+    couponKinds.value = couponResult.rows
   } catch {
     categories.value = []
-    couponTemplates.value = []
+    couponKinds.value = []
   }
 })
 
@@ -337,8 +340,8 @@ watch(
 <template>
   <div>
     <PageHeader
-      title="本店商品"
-      description="维护当前门店的商品、库存、支付方式和购买赠送积分"
+      :title="props.couponOnly ? '本店券商品' : '本店商品'"
+      :description="props.couponOnly ? '选择总后台券种，设置售价、库存和上下架；购买后按数量发放用户券' : '维护当前门店的商品、库存、支付方式和购买赠送积分'"
     >
       <template #actions>
         <NSpace>
@@ -355,7 +358,7 @@ watch(
             type="primary"
             @click="openEdit()"
           >
-            新增商品
+            {{ props.couponOnly ? '新增券商品' : '新增商品' }}
           </PermissionButton>
         </NSpace>
       </template>
@@ -400,7 +403,7 @@ watch(
     <NModal
       v-model:show="editShow"
       preset="card"
-      :title="editForm.id == null ? '新增商品' : '编辑商品'"
+      :title="editForm.id == null ? (props.couponOnly ? '新增券商品' : '新增商品') : (props.couponOnly ? '编辑券商品' : '编辑商品')"
       style="width: min(680px, calc(100vw - 24px))"
     >
       <div class="edit-form">
@@ -484,25 +487,25 @@ watch(
             </div>
           </div>
           <label v-if="categoryIsCoupon" class="edit-form__field edit-form__span-2">
-            <span class="ic-muted">购买后发放的券</span>
+            <span class="ic-muted">券种</span>
             <NSelect
               v-model:value="editForm.grantCouponTemplateId"
               clearable
               filterable
               :options="saleCouponTemplateOptions"
-              placeholder="一份商品对应发放一张券"
+              placeholder="选择总后台启用的券种"
             />
-            <span class="ic-muted">支付成功后按购买数量自动到账，每张券有效期 30 天。</span>
+            <span class="ic-muted">支付成功后按购买数量自动到账；购买券不受赠券每日使用上限限制。</span>
           </label>
           <label v-else class="edit-form__field edit-form__span-2">
-            <span class="ic-muted">允许兑换该商品的券</span>
+            <span class="ic-muted">允许兑换该商品的券种</span>
             <NSelect
               v-model:value="editForm.couponTemplateIds"
               multiple
               clearable
               filterable
               :options="couponTemplateOptions"
-              placeholder="请从当前门店可用的券列表中选择"
+              placeholder="请选择可以兑换该商品的券种"
             />
           </label>
         </div>

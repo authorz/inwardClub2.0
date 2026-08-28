@@ -15,7 +15,7 @@ import type { MembershipTier, TierBenefitConfig } from '@/api/models'
 import type { FilterField } from '@/components/ui-types'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
-const couponTypes = ref<{ label: string; value: string | number; businessType: string }[]>([])
+const couponTypes = ref<{ label: string; value: string | number; businessType: string; defaultValidityDays: number }[]>([])
 const periods = [
   { label: '达级时', value: 'once' },
   { label: '每日', value: 'daily' },
@@ -37,9 +37,14 @@ const couponTypeLabel = computed(() => Object.fromEntries(couponTypes.value.map(
 async function loadCouponTypes(): Promise<void> {
   try {
     const result = await couponCategoryService.list({ status: 'active', page: 1, pageSize: 100 })
-    couponTypes.value = result.items.map((item) => ({ label: item.name, value: item.id, businessType: item.businessType }))
+    couponTypes.value = result.items.map((item) => ({
+      label: item.name,
+      value: item.id,
+      businessType: item.businessType,
+      defaultValidityDays: item.defaultValidityDays || 30,
+    }))
   } catch (error) {
-    toastError((error as { message?: string }).message ?? '读取券类型失败')
+    toastError((error as { message?: string }).message ?? '读取券种失败')
   }
 }
 
@@ -95,9 +100,16 @@ async function openEdit(row: MembershipTier): Promise<void> {
   editingId.value = String(row.id)
   const benefitConfig = JSON.parse(JSON.stringify(row.benefitConfig || emptyBenefits())) as TierBenefitConfig
   benefitConfig.coupons = (benefitConfig.coupons || []).map((benefit) => {
-    if (benefit.categoryId) return benefit
+    if (benefit.categoryId) {
+      const category = couponTypes.value.find((item) => String(item.value) === String(benefit.categoryId))
+      return { ...benefit, validityDays: benefit.validityDays || category?.defaultValidityDays || 30 }
+    }
     const category = couponTypes.value.find((item) => item.businessType === benefit.couponType)
-    return { ...benefit, categoryId: category?.value }
+    return {
+      ...benefit,
+      categoryId: category?.value,
+      validityDays: benefit.validityDays || category?.defaultValidityDays || 30,
+    }
   })
   Object.assign(form, { name: row.name, level: row.level, threshold: row.threshold ?? 0, benefitConfig })
   descriptionsText.value = (benefitConfig.descriptions || []).join('\n')
@@ -109,13 +121,19 @@ function addPointBenefit(): void {
 }
 
 function addCouponBenefit(): void {
-	if (!couponTypes.value.length) return toastError('请先启用券类型')
-	form.benefitConfig.coupons.push({ categoryId: couponTypes.value[0].value, quantity: 1, period: 'once', trigger: 'tier_achieved' })
+  if (!couponTypes.value.length) return toastError('请先启用券种')
+  form.benefitConfig.coupons.push({
+    categoryId: couponTypes.value[0].value,
+    quantity: 1,
+    period: 'once',
+    trigger: 'tier_achieved',
+    validityDays: couponTypes.value[0].defaultValidityDays,
+  })
 }
 
 function summaryText(config: TierBenefitConfig): string {
   const pointText = config.points.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${item.amount}积分`)
-  const couponText = config.coupons.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${couponTypeLabel.value[String(item.categoryId)] || '券'}${item.quantity}张`)
+  const couponText = config.coupons.map((item) => `${periods.find((x) => x.value === item.period)?.label || ''}${triggers.find((x) => x.value === item.trigger)?.label || ''}赠送${couponTypeLabel.value[String(item.categoryId)] || '券'}${item.quantity}张（${item.validityDays || 30}天有效）`)
   return [...pointText, ...couponText, ...config.descriptions].join('；')
 }
 
@@ -245,7 +263,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>赠送券</h3><p>选择总后台已启用的券类型；一张券兑换一件商品或一张门票。</p></div><NButton
+            <div><h3>赠送券</h3><p>直接选择总后台券种，并设置每次发放数量与有效期。</p></div><NButton
               size="small"
               @click="addCouponBenefit"
             >
@@ -274,6 +292,12 @@ const toolbarActions = [{
             <NSelect
               v-model:value="item.trigger"
               :options="triggers"
+            />
+            <NInputNumber
+              v-model:value="item.validityDays"
+              :min="1"
+              :max="3650"
+              placeholder="有效天数"
             />
             <NButton
               text
@@ -304,7 +328,7 @@ const toolbarActions = [{
         </NFormItem>
       </NForm>
       <p class="form-note">
-        自动发放的积分流水说明统一为“VIP等级福利”；餐饮和礼品券自发放起 30 天有效，工作日赛事券、周赛券和月赛券分别按自然周工作日、自然周和自然月失效。
+        自动发放的积分流水说明统一为“VIP等级福利”；每张赠券从实际发放时间开始，按该权益配置的有效天数计算到期时间。
       </p>
     </FormDrawer>
   </div>
@@ -317,7 +341,7 @@ const toolbarActions = [{
 .benefit-head h3 { margin: 0; font-size: 15px; color: var(--ic-color-text-primary); }
 .benefit-head p, .empty-line, .form-note { margin: 5px 0 0; font-size: var(--ic-font-xs); color: var(--ic-color-text-tertiary); }
 .benefit-row { display: grid; grid-template-columns: 150px 120px minmax(160px, 1fr) 48px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--ic-color-border); }
-.benefit-row--coupon { grid-template-columns: minmax(140px, 1fr) 100px 110px minmax(150px, 1fr) 48px; }
+.benefit-row--coupon { grid-template-columns: minmax(130px, 1fr) 80px 96px minmax(130px, 1fr) 110px 48px; }
 @media (max-width: 720px) {
   .tier-basic, .benefit-row, .benefit-row--coupon { grid-template-columns: 1fr; }
 }

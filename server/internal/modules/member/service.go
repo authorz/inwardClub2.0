@@ -486,7 +486,8 @@ func normalizeBenefitConfig(config TierBenefitConfig) (json.RawMessage, error) {
 	}
 	for _, benefit := range config.Coupons {
 		if benefit.Quantity <= 0 || benefit.Quantity > 99 || (benefit.CategoryID <= 0 && !validTierCouponType(benefit.CouponType)) ||
-			!validBenefitPeriod(benefit.Period) || !validBenefitTrigger(benefit.Trigger) {
+			!validBenefitPeriod(benefit.Period) || !validBenefitTrigger(benefit.Trigger) ||
+			benefit.ValidityDays < 0 || benefit.ValidityDays > 3650 {
 			return nil, apperr.Invalid("券福利类型或数量不正确")
 		}
 	}

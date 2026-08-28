@@ -66,7 +66,7 @@ function addGiftCouponUsageRule(): void {
   const category = couponCategories.value.find(
     (item) => item.status === 'active' && !used.has(String(item.id)),
   )
-  if (!category) return toastError('没有可继续配置的券类型')
+  if (!category) return toastError('没有可继续配置的券种')
   form.giftCouponUsageRules.push({
     couponCategoryId: category.id,
     mode: 'unlimited',
@@ -152,9 +152,9 @@ async function save(): Promise<void> {
   }
   const configuredCategories = new Set<string>()
   for (const rule of form.giftCouponUsageRules) {
-    if (rule.couponCategoryId == null) return toastError('请选择赠送券规则适用的券类型')
+    if (rule.couponCategoryId == null) return toastError('请选择赠送券规则适用的券种')
     const categoryKey = String(rule.couponCategoryId)
-    if (configuredCategories.has(categoryKey)) return toastError('同一券类型不能重复配置')
+    if (configuredCategories.has(categoryKey)) return toastError('同一券种不能重复配置')
     configuredCategories.add(categoryKey)
     if (rule.mode === 'limited'
       && (!Number.isInteger(rule.dailyLimit) || rule.dailyLimit < 1 || rule.dailyLimit > 999)) {
@@ -311,7 +311,7 @@ async function save(): Promise<void> {
           <NFormItem label="赠送券使用限制">
             <div class="gift-coupon-rules">
               <NText depth="3">
-                规则仅作用于 VIP、充值、人工发放等赠送来源。购买券商品获得的券始终不受限制；未配置的券类型默认无限制。
+                规则仅作用于 VIP、充值、人工发放等赠送来源。购买券商品获得的券始终不受限制；未配置的券种默认无限制。
               </NText>
               <div
                 v-for="(rule, index) in form.giftCouponUsageRules"
@@ -321,7 +321,7 @@ async function save(): Promise<void> {
                 <NSelect
                   v-model:value="rule.couponCategoryId"
                   :options="categoryOptionsFor(index)"
-                  placeholder="选择券类型"
+                  placeholder="选择券种"
                 />
                 <NSelect
                   v-model:value="rule.mode"
@@ -357,7 +357,7 @@ async function save(): Promise<void> {
                 secondary
                 @click="addGiftCouponUsageRule"
               >
-                添加券类型规则
+                添加券种规则
               </NButton>
             </div>
           </NFormItem>

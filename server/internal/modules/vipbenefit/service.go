@@ -28,11 +28,12 @@ type pointBenefit struct {
 }
 
 type couponBenefit struct {
-	CategoryID int64  `json:"categoryId"`
-	CouponType string `json:"couponType"`
-	Quantity   int    `json:"quantity"`
-	Period     string `json:"period"`
-	Trigger    string `json:"trigger"`
+	CategoryID   int64  `json:"categoryId"`
+	CouponType   string `json:"couponType"`
+	Quantity     int    `json:"quantity"`
+	Period       string `json:"period"`
+	Trigger      string `json:"trigger"`
+	ValidityDays int    `json:"validityDays"`
 }
 
 type benefitConfig struct {
@@ -362,19 +363,21 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		templateID     int64
 		admissionCount int
 	)
-	query := `SELECT id, admission_count FROM coupon_templates
-		WHERE scope_type = 'global' AND status = 'published'`
+	query := `SELECT t.id, t.admission_count
+		FROM coupon_templates t
+		JOIN coupon_categories c ON c.canonical_template_id = t.id
+		WHERE c.status = 'active' AND t.scope_type = 'global' AND t.status = 'published'`
 	args := make([]any, 0, 1)
 	benefitIdentity := benefit.CouponType
 	if benefit.CategoryID > 0 {
-		query += ` AND category_id = ?`
+		query += ` AND c.id = ?`
 		args = append(args, benefit.CategoryID)
 		benefitIdentity = fmt.Sprintf("category:%d", benefit.CategoryID)
 	} else {
-		query += ` AND coupon_type = ?`
+		query += ` AND c.business_type = ?`
 		args = append(args, benefit.CouponType)
 	}
-	query += ` AND (coupon_type <> 'admission_ticket' OR admission_count = 1) ORDER BY id ASC LIMIT 1`
+	query += ` ORDER BY c.id ASC LIMIT 1`
 	err := tx.QueryRowContext(ctx, query, args...).Scan(&templateID, &admissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
@@ -383,6 +386,9 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		return 0, apperr.Internal(err)
 	}
 	expiresAt := couponExpiry(benefit.Trigger, now)
+	if benefit.ValidityDays > 0 {
+		expiresAt = now.UTC().AddDate(0, 0, benefit.ValidityDays)
+	}
 	var granted int64
 	for sequence := 0; sequence < benefit.Quantity; sequence++ {
 		idemKey := benefitKey("c", memberID, tierID, benefit.Period, benefit.Trigger+":"+benefitIdentity, key, sequence)

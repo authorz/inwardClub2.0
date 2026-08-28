@@ -18,20 +18,27 @@ import (
 // CategoryInput is the HQ-console create/update payload. businessType is a
 // fixed fulfillment capability; name, order and status are managed content.
 type CategoryInput struct {
-	Name         string `json:"name" binding:"required"`
-	BusinessType string `json:"businessType" binding:"required"`
-	SortOrder    int    `json:"sortOrder"`
-	Status       string `json:"status"`
+	Name                string `json:"name" binding:"required"`
+	BusinessType        string `json:"businessType" binding:"required"`
+	Description         string `json:"description"`
+	AdmissionCount      int    `json:"admissionCount"`
+	DefaultValidityDays int    `json:"defaultValidityDays"`
+	SortOrder           int    `json:"sortOrder"`
+	Status              string `json:"status"`
 }
 
 type ConsoleCategoryView struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	BusinessType string    `json:"businessType"`
-	SortOrder    int       `json:"sortOrder"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID                  int64     `json:"id"`
+	Name                string    `json:"name"`
+	BusinessType        string    `json:"businessType"`
+	Description         string    `json:"description,omitempty"`
+	AdmissionCount      int       `json:"admissionCount"`
+	DefaultValidityDays int       `json:"defaultValidityDays"`
+	CanonicalTemplateID int64     `json:"canonicalTemplateId"`
+	SortOrder           int       `json:"sortOrder"`
+	Status              string    `json:"status"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 type CategoryRepository interface {
@@ -65,7 +72,8 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, page httpx.Pa
 		return nil, 0, apperr.Internal(err)
 	}
 	queryArgs := append(append([]any{}, args...), page.Limit(), page.Offset())
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, description, admission_count,
+		default_validity_days, canonical_template_id, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE `+where+` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -83,7 +91,8 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, page httpx.Pa
 }
 
 func (r *sqlConsoleRepository) GetCategory(ctx context.Context, id int64) (CouponCategory, error) {
-	category, err := scanCategory(r.db.QueryRowContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	category, err := scanCategory(r.db.QueryRowContext(ctx, `SELECT id, name, business_type, description, admission_count,
+		default_validity_days, canonical_template_id, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return CouponCategory{}, apperr.NotFound("coupon category not found")
@@ -96,11 +105,28 @@ func (r *sqlConsoleRepository) GetCategory(ctx context.Context, id int64) (Coupo
 
 func normalizeCategoryInput(in CategoryInput) (CategoryInput, error) {
 	in.Name = strings.TrimSpace(in.Name)
+	in.Description = strings.TrimSpace(in.Description)
 	if in.Name == "" {
-		return in, apperr.Invalid("请填写券类型名称")
+		return in, apperr.Invalid("请填写券种名称")
 	}
 	if !validCouponType(in.BusinessType) {
 		return in, apperr.Invalid("请选择正确的兑换场景")
+	}
+	if len([]rune(in.Description)) > 500 {
+		return in, apperr.Invalid("券种说明不能超过 500 个字")
+	}
+	if in.DefaultValidityDays == 0 {
+		in.DefaultValidityDays = 30
+	}
+	if in.DefaultValidityDays < 1 || in.DefaultValidityDays > 3650 {
+		return in, apperr.Invalid("默认有效期必须在 1 到 3650 天之间")
+	}
+	if in.BusinessType == TypeAdmissionTicket {
+		if in.AdmissionCount < 1 || in.AdmissionCount > 99 {
+			return in, apperr.Invalid("门票可兑人数必须在 1 到 99 之间")
+		}
+	} else {
+		in.AdmissionCount = 1
 	}
 	if in.SortOrder < 0 {
 		return in, apperr.Invalid("排序值不能小于 0")
@@ -109,7 +135,7 @@ func normalizeCategoryInput(in CategoryInput) (CategoryInput, error) {
 		in.Status = CategoryStatusActive
 	}
 	if in.Status != CategoryStatusActive && in.Status != CategoryStatusDisabled {
-		return in, apperr.Invalid("券类型状态不正确")
+		return in, apperr.Invalid("券种状态不正确")
 	}
 	return in, nil
 }
@@ -120,18 +146,47 @@ func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, in CategoryIn
 		return CouponCategory{}, err
 	}
 	now := time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, `INSERT INTO coupon_categories
-		(name, business_type, sort_order, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		in.Name, in.BusinessType, in.SortOrder, in.Status, now, now)
+	var id int64
+	err = r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `INSERT INTO coupon_categories
+			(name, business_type, description, admission_count, default_validity_days,
+			 canonical_template_id, sort_order, status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+			in.Name, in.BusinessType, in.Description, in.AdmissionCount,
+			in.DefaultValidityDays, in.SortOrder, in.Status, now, now)
+		if err != nil {
+			return err
+		}
+		id, err = res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		templateStatus := "disabled"
+		if in.Status == CategoryStatusActive {
+			templateStatus = "published"
+		}
+		res, err = tx.ExecContext(ctx, `INSERT INTO coupon_templates
+			(scope_type, store_id, name, description, coupon_type, category_id,
+			 admission_count, value_cent, points_price, stock_quantity, issued_quantity,
+			 validity_rule, applicable_scope, per_member_limit, status, created_at, updated_at)
+			VALUES ('global', NULL, ?, ?, ?, ?, ?, 0, 0, 0, 0,
+			 JSON_OBJECT('days', ?), JSON_OBJECT(), 0, ?, ?, ?)`,
+			in.Name, in.Description, in.BusinessType, id, in.AdmissionCount,
+			in.DefaultValidityDays, templateStatus, now, now)
+		if err != nil {
+			return err
+		}
+		templateID, err := res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE coupon_categories SET canonical_template_id = ? WHERE id = ?`, templateID, id)
+		return err
+	})
 	if err != nil {
 		if platdb.IsDuplicate(err) {
-			return CouponCategory{}, apperr.Conflict("券类型名称已存在")
+			return CouponCategory{}, apperr.Conflict("券种名称已存在")
 		}
-		return CouponCategory{}, apperr.Internal(err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
 		return CouponCategory{}, apperr.Internal(err)
 	}
 	return r.GetCategory(ctx, id)
@@ -152,15 +207,33 @@ func (r *sqlConsoleRepository) UpdateCategory(ctx context.Context, id int64, in 
 			return CouponCategory{}, apperr.Internal(err)
 		}
 		if used > 0 {
-			return CouponCategory{}, apperr.Conflict("该券类型已被使用，不能修改使用方式")
+			return CouponCategory{}, apperr.Conflict("该券种已被使用，不能修改使用方式")
 		}
 	}
-	_, err = r.db.ExecContext(ctx, `UPDATE coupon_categories
-		SET name = ?, business_type = ?, sort_order = ?, status = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.BusinessType, in.SortOrder, in.Status, time.Now().UTC(), id)
+	now := time.Now().UTC()
+	err = r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE coupon_categories
+			SET name = ?, business_type = ?, description = ?, admission_count = ?,
+			    default_validity_days = ?, sort_order = ?, status = ?, updated_at = ? WHERE id = ?`,
+			in.Name, in.BusinessType, in.Description, in.AdmissionCount,
+			in.DefaultValidityDays, in.SortOrder, in.Status, now, id)
+		if err != nil {
+			return err
+		}
+		templateStatus := "disabled"
+		if in.Status == CategoryStatusActive {
+			templateStatus = "published"
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE coupon_templates
+			SET name = ?, description = ?, coupon_type = ?, admission_count = ?,
+			    validity_rule = JSON_OBJECT('days', ?), status = ?, updated_at = ?
+			WHERE id = ?`, in.Name, in.Description, in.BusinessType, in.AdmissionCount,
+			in.DefaultValidityDays, templateStatus, now, existing.CanonicalTemplateID)
+		return err
+	})
 	if err != nil {
 		if platdb.IsDuplicate(err) {
-			return CouponCategory{}, apperr.Conflict("券类型名称已存在")
+			return CouponCategory{}, apperr.Conflict("券种名称已存在")
 		}
 		return CouponCategory{}, apperr.Internal(err)
 	}
@@ -176,7 +249,7 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, id int64) err
 		return apperr.Internal(err)
 	}
 	if used > 0 {
-		return apperr.Conflict("该券类型已被使用，只能停用")
+		return apperr.Conflict("该券种已被使用，只能停用")
 	}
 	_, err := r.db.ExecContext(ctx, `DELETE FROM coupon_categories WHERE id = ?`, id)
 	if err != nil {
@@ -187,7 +260,8 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, id int64) err
 
 func scanCategory(scanner scanner) (CouponCategory, error) {
 	var category CouponCategory
-	err := scanner.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
+	err := scanner.Scan(&category.ID, &category.Name, &category.BusinessType, &category.Description,
+		&category.AdmissionCount, &category.DefaultValidityDays, &category.CanonicalTemplateID, &category.SortOrder,
 		&category.Status, &category.CreatedAt, &category.UpdatedAt)
 	return category, err
 }
@@ -195,6 +269,8 @@ func scanCategory(scanner scanner) (CouponCategory, error) {
 func categoryView(category CouponCategory) ConsoleCategoryView {
 	return ConsoleCategoryView{
 		ID: category.ID, Name: category.Name, BusinessType: category.BusinessType,
+		Description: category.Description, AdmissionCount: category.AdmissionCount,
+		DefaultValidityDays: category.DefaultValidityDays, CanonicalTemplateID: category.CanonicalTemplateID,
 		SortOrder: category.SortOrder, Status: category.Status,
 		CreatedAt: category.CreatedAt, UpdatedAt: category.UpdatedAt,
 	}
@@ -304,7 +380,7 @@ func (h *ConsoleHandler) GetCategory(c *gin.Context) {
 func (h *ConsoleHandler) CreateCategory(c *gin.Context) {
 	var in CategoryInput
 	if err := c.ShouldBindJSON(&in); err != nil {
-		httpx.Fail(c, apperr.Invalid("券类型参数不正确"))
+		httpx.Fail(c, apperr.Invalid("券种参数不正确"))
 		return
 	}
 	view, err := h.svc.CreateCategory(c.Request.Context(), in)
@@ -323,7 +399,7 @@ func (h *ConsoleHandler) UpdateCategory(c *gin.Context) {
 	}
 	var in CategoryInput
 	if err := c.ShouldBindJSON(&in); err != nil {
-		httpx.Fail(c, apperr.Invalid("券类型参数不正确"))
+		httpx.Fail(c, apperr.Invalid("券种参数不正确"))
 		return
 	}
 	view, err := h.svc.UpdateCategory(c.Request.Context(), id, in)

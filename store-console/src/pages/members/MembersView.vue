@@ -29,7 +29,7 @@ import { ApiError } from '@/api/error'
 import { feedback } from '@/utils/feedback'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
 import type {
-  CouponTemplate,
+  CouponCategory,
   Member,
   MemberCouponEntitlement,
   WalletLedgerEntry,
@@ -78,7 +78,7 @@ const couponAction = useAsyncAction()
 const couponShow = ref(false)
 const couponLoading = ref(false)
 const couponTarget = ref<Member | null>(null)
-const couponTemplateOptions = ref<Array<{ label: string; value: number }>>([])
+const couponTemplateOptions = ref<Array<{ label: string; value: number; validityDays: number }>>([])
 const couponForm = reactive<{ templateId: number | null; expiresAt: number | null; reason: string }>({
   templateId: null,
   expiresAt: null,
@@ -186,25 +186,32 @@ function resetCouponForm(): void {
   couponForm.reason = ''
 }
 
+function handleCouponKindChange(templateId: number | null): void {
+  couponForm.templateId = templateId
+  const option = couponTemplateOptions.value.find((item) => item.value === templateId)
+  couponForm.expiresAt = Date.now() + (option?.validityDays || 30) * 24 * 60 * 60 * 1000
+}
+
 async function openCouponGrant(): Promise<void> {
   if (!currentMember.value) return
   couponTarget.value = currentMember.value
   resetCouponForm()
   couponLoading.value = true
   try {
-    const result = await couponService.list({ page: 1, pageSize: 100, status: 'published' })
-    const templates = result.rows.filter((item: CouponTemplate) => item.status === 'published')
-    couponTemplateOptions.value = templates.map((item) => ({
-      label: `${item.name} · ${COUPON_TYPE_LABELS[item.couponType] ?? item.couponType}`,
-      value: Number(item.id),
+    const result = await couponService.categories({ page: 1, pageSize: 100 })
+    const kinds = result.rows.filter((item: CouponCategory) => item.status === 'active')
+    couponTemplateOptions.value = kinds.map((item) => ({
+      label: `${item.name} · ${COUPON_TYPE_LABELS[item.businessType] ?? item.businessType} · 默认 ${item.defaultValidityDays} 天`,
+      value: Number(item.canonicalTemplateId),
+      validityDays: item.defaultValidityDays,
     }))
     if (!couponTemplateOptions.value.length) {
-      feedback.message.warning('本店暂无已发布的优惠券，请先在“本店优惠券”中发布')
+      feedback.message.warning('暂无启用中的券种，请联系总后台配置')
       return
     }
     couponShow.value = true
   } catch (error) {
-    feedback.message.error(error instanceof ApiError ? error.message : '读取本店优惠券失败')
+    feedback.message.error(error instanceof ApiError ? error.message : '读取券种失败')
   } finally {
     couponLoading.value = false
   }
@@ -619,15 +626,16 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
     >
       <div class="coupon-grant">
         <p class="coupon-grant__notice">
-          仅展示并发放当前门店已发布的优惠券，适用门店由系统自动锁定。
+          选择总后台启用的券种，发放后仅限当前门店使用。
         </p>
         <label>
-          <span>优惠券</span>
+          <span>券种</span>
           <NSelect
             v-model:value="couponForm.templateId"
             :options="couponTemplateOptions"
             filterable
-            placeholder="选择本店已发布优惠券"
+            placeholder="选择启用中的券种"
+            @update:value="handleCouponKindChange"
           />
         </label>
         <label>

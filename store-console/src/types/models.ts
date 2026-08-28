@@ -298,6 +298,10 @@ export interface CouponCategory extends AuditFields {
   id: number | string
   name: string
   businessType: string
+  description?: string
+  admissionCount: number
+  defaultValidityDays: number
+  canonicalTemplateId: number | string
   sortOrder: number
   status: string
 }

@@ -154,9 +154,9 @@ export const MENU: MenuGroup[] = [
       {
         name: 'coupons',
         path: '/coupons',
-        title: '本店优惠券',
+        title: '券商品',
         icon: 'coupon',
-        permissions: [PERM.couponRead, PERM.couponWrite],
+        permissions: [PERM.catalogRead, PERM.catalogWrite],
       },
     ],
   },

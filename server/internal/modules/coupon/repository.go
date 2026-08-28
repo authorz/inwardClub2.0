@@ -76,7 +76,8 @@ const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.nam
 	JOIN coupon_categories cc ON cc.id = t.category_id`
 
 func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCategory, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, description, admission_count,
+		default_validity_days, canonical_template_id, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE status = 'active' ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -85,7 +86,8 @@ func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCateg
 	out := make([]CouponCategory, 0)
 	for rows.Next() {
 		var category CouponCategory
-		if err := rows.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
+		if err := rows.Scan(&category.ID, &category.Name, &category.BusinessType, &category.Description,
+			&category.AdmissionCount, &category.DefaultValidityDays, &category.CanonicalTemplateID, &category.SortOrder,
 			&category.Status, &category.CreatedAt, &category.UpdatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}

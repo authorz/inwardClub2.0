@@ -36,12 +36,12 @@ import {
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
 import { useDataTable } from '@/composables/useDataTable'
-import { couponTemplateService, memberService, readonlyLists, storeService } from '@/api/services'
+import { couponCategoryService, memberService, readonlyLists, storeService } from '@/api/services'
 import { http } from '@/api/http'
 import { API_PATHS } from '@/constants/api-paths'
 import { formatDateTime } from '@/utils/format'
 import type {
-  CouponTemplate,
+  CouponCategory,
   Member,
   MemberCouponEntitlement,
   MemberDetail,
@@ -394,7 +394,7 @@ const couponDrawerShow = ref(false)
 const couponSubmitting = ref(false)
 const couponActionMode = ref<CouponActionMode>('grant')
 const couponActionTarget = ref<MemberCouponEntitlement | null>(null)
-const couponTemplates = ref<CouponTemplate[]>([])
+const couponKinds = ref<CouponCategory[]>([])
 const couponTemplateOptions = ref<{ label: string; value: string }[]>([])
 const couponStoreOptions = ref<{ label: string; value: string }[]>([])
 const couponForm = reactive<{
@@ -410,17 +410,12 @@ const couponForm = reactive<{
 })
 
 const selectedCouponTemplate = computed(() =>
-  couponTemplates.value.find((item) => String(item.id) === couponForm.templateId),
+  couponKinds.value.find((item) => String(item.canonicalTemplateId) === couponForm.templateId),
 )
 
 const couponGrantStoreOptions = computed(() => {
   const template = selectedCouponTemplate.value
   if (!template) return []
-  if (template.scopeType === 'store' && template.storeId != null) {
-    const storeId = String(template.storeId)
-    const storeName = couponStoreOptions.value.find((item) => item.value === storeId)?.label
-    return [{ label: `指定门店 · ${storeName ?? `门店 #${storeId}`}`, value: storeId }]
-  }
   return [
     { label: '全部门店', value: 'global' },
     ...couponStoreOptions.value.map((item) => ({
@@ -456,26 +451,25 @@ function resetCouponForm(): void {
 
 async function loadCouponTemplateOptions(): Promise<void> {
   const [templateResult, storeResult] = await Promise.all([
-    couponTemplateService.list({ page: 1, pageSize: 100 }),
+    couponCategoryService.list({ status: 'active', page: 1, pageSize: 100 }),
     storeService.list({ page: 1, pageSize: 100 }),
   ])
-  couponTemplates.value = templateResult.items.filter((item) => item.status === 'published')
+  couponKinds.value = templateResult.items
   couponStoreOptions.value = storeResult.items.map((store) => ({
     label: store.name,
     value: String(store.id),
   }))
-  couponTemplateOptions.value = couponTemplates.value.map((item: CouponTemplate) => ({
-    label: `${item.name} · ${couponTypeLabels[item.couponType] ?? item.couponType} · ${item.scopeType === 'store' ? '门店专属' : '可选全店/单店'}`,
-    value: String(item.id),
+  couponTemplateOptions.value = couponKinds.value.map((item: CouponCategory) => ({
+    label: `${item.name} · ${couponTypeLabels[item.businessType] ?? item.businessType} · 默认 ${item.defaultValidityDays} 天`,
+    value: String(item.canonicalTemplateId),
   }))
 }
 
 function handleCouponTemplateChange(templateId: string | null): void {
   couponForm.templateId = templateId
-  const template = couponTemplates.value.find((item) => String(item.id) === templateId)
-  couponForm.storeTarget = template?.scopeType === 'store' && template.storeId != null
-    ? String(template.storeId)
-    : 'global'
+  couponForm.storeTarget = templateId ? 'global' : null
+  const kind = couponKinds.value.find((item) => String(item.canonicalTemplateId) === templateId)
+  couponForm.expiresAt = Date.now() + (kind?.defaultValidityDays || 30) * 24 * 60 * 60 * 1000
 }
 
 async function openCouponGrant(): Promise<void> {
@@ -484,11 +478,11 @@ async function openCouponGrant(): Promise<void> {
   try {
     await loadCouponTemplateOptions()
   } catch (error) {
-    toastError((error as { message?: string }).message ?? '读取券类型或门店失败')
+    toastError((error as { message?: string }).message ?? '读取券种或门店失败')
     return
   }
   if (!couponTemplateOptions.value.length) {
-    toastError('暂无已发布的券类型，请先在券管理中发布')
+    toastError('暂无启用中的券种，请先在券种管理中启用')
     return
   }
   couponDrawerShow.value = true
@@ -516,7 +510,7 @@ async function submitCouponAction(): Promise<void> {
   const reason = couponForm.reason.trim()
   if (!reason) return toastError('请填写操作原因')
   if (couponActionMode.value === 'grant' && !couponForm.templateId) {
-    return toastError('请选择需要补发的券类型')
+    return toastError('请选择需要补发的券种')
   }
   if (couponActionMode.value === 'grant' && !couponForm.storeTarget) {
     return toastError('请选择优惠券适用门店')
@@ -656,14 +650,14 @@ async function submitCouponAction(): Promise<void> {
       <NForm label-placement="top">
         <NFormItem
           v-if="couponActionMode === 'grant'"
-          label="券类型"
+          label="券种"
           required
         >
           <NSelect
             v-model:value="couponForm.templateId"
             :options="couponTemplateOptions"
             filterable
-            placeholder="选择已发布的券类型"
+            placeholder="选择启用中的券种"
             @update:value="handleCouponTemplateChange"
           />
         </NFormItem>
@@ -675,8 +669,8 @@ async function submitCouponAction(): Promise<void> {
           <NSelect
             v-model:value="couponForm.storeTarget"
             :options="couponGrantStoreOptions"
-            :disabled="!couponForm.templateId || selectedCouponTemplate?.scopeType === 'store'"
-            placeholder="请先选择券类型"
+            :disabled="!couponForm.templateId"
+            placeholder="请先选择券种"
           />
         </NFormItem>
         <NFormItem

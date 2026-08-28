@@ -141,6 +141,7 @@ type VariantView struct {
 type ConsoleListFilter struct {
 	StoreID    *int64
 	CategoryID *int64
+	ItemType   string
 	Keyword    string
 	Status     string
 }
@@ -232,6 +233,10 @@ func consoleListWhere(scope ConsoleScope, filter ConsoleListFilter, alias string
 	if filter.Status != "" {
 		where += " AND " + alias + ".status = ?"
 		args = append(args, filter.Status)
+	}
+	if filter.ItemType != "" {
+		where += " AND " + alias + ".item_type = ?"
+		args = append(args, filter.ItemType)
 	}
 	return where, args
 }
@@ -1540,8 +1545,13 @@ func (h *ConsoleHandler) listItems(c *gin.Context, scope ConsoleScope) {
 
 func consoleListFilterFromQuery(c *gin.Context, includeCategory bool) (ConsoleListFilter, error) {
 	filter := ConsoleListFilter{
-		Keyword: c.Query("keyword"),
-		Status:  c.Query("status"),
+		Keyword:  c.Query("keyword"),
+		Status:   c.Query("status"),
+		ItemType: c.Query("itemType"),
+	}
+	if filter.ItemType != "" && filter.ItemType != ItemTypeFood && filter.ItemType != ItemTypeCoupon &&
+		filter.ItemType != ItemTypeRedeemable && filter.ItemType != ItemTypePhysical {
+		return ConsoleListFilter{}, apperr.Invalid("catalog: invalid itemType")
 	}
 	storeID, err := positiveQueryID(c, "storeId")
 	if err != nil {
