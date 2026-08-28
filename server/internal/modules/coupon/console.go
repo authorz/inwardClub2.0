@@ -25,10 +25,7 @@ import (
 // build this from storescope.MustFromContext; it is never taken from a
 // client-supplied storeId.
 type ConsoleScope struct {
-	StoreID       *int64
-	IncludeGlobal bool
-	Status        string
-	Keyword       string
+	StoreID *int64
 }
 
 // Template is a coupon template row as stored in coupon_templates.
@@ -181,28 +178,10 @@ const templateSelect = `SELECT id, scope_type, store_id, name, COALESCE(descript
 	FROM coupon_templates`
 
 func scopeWhere(scope ConsoleScope) (string, []any) {
-	clauses := make([]string, 0, 3)
-	args := make([]any, 0, 3)
 	if scope.StoreID != nil {
-		if scope.IncludeGlobal {
-			clauses = append(clauses, `((scope_type = 'global' AND status = 'published') OR (scope_type = 'store' AND store_id = ?))`)
-		} else {
-			clauses = append(clauses, `scope_type = 'store' AND store_id = ?`)
-		}
-		args = append(args, *scope.StoreID)
+		return ` WHERE scope_type = 'store' AND store_id = ?`, []any{*scope.StoreID}
 	}
-	if scope.Status != "" {
-		clauses = append(clauses, `status = ?`)
-		args = append(args, scope.Status)
-	}
-	if keyword := strings.TrimSpace(scope.Keyword); keyword != "" {
-		clauses = append(clauses, `name LIKE ?`)
-		args = append(args, "%"+keyword+"%")
-	}
-	if len(clauses) == 0 {
-		return ``, args
-	}
-	return ` WHERE ` + strings.Join(clauses, ` AND `), args
+	return ``, nil
 }
 
 func (r *sqlConsoleRepository) ListTemplates(ctx context.Context, scope ConsoleScope, page httpx.Page) ([]Template, int64, error) {
@@ -1164,7 +1143,7 @@ func positivePathID(c *gin.Context, name string) (int64, error) {
 
 // List handles GET /admin/coupon-templates.
 func (h *ConsoleHandler) List(c *gin.Context) {
-	h.list(c, ConsoleScope{Status: c.Query("status"), Keyword: c.Query("keyword")})
+	h.list(c, ConsoleScope{})
 }
 
 // Get handles GET /admin/coupon-templates/:id.
@@ -1309,10 +1288,7 @@ func (h *ConsoleHandler) StoreList(c *gin.Context) {
 	if !ok {
 		return
 	}
-	h.list(c, ConsoleScope{
-		StoreID: &storeID, IncludeGlobal: c.Query("includeGlobal") == "true",
-		Status: c.Query("status"), Keyword: c.Query("keyword"),
-	})
+	h.list(c, ConsoleScope{StoreID: &storeID})
 }
 
 // StoreGet handles GET /store/coupon-templates/:id.

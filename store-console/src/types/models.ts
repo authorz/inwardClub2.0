@@ -284,7 +284,7 @@ export interface StoreSeat extends AuditFields {
 export interface CouponTemplate extends AuditFields {
   id: number | string
   storeId?: number | string
-  scopeType: 'global' | 'store'
+  scopeType: 'store'
   name: string
   description?: string
   categoryId: number | string

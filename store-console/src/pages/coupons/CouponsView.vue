@@ -18,7 +18,7 @@ const statusMap: Record<string, EnumOption> = {
   published: { label: '已发布', value: 'published', tone: 'success' },
   disabled: { label: '已停用', value: 'disabled', tone: 'warning' },
 }
-const list = useAsyncList<CouponTemplate>((params) => couponService.list({ ...params, includeGlobal: true }))
+const list = useAsyncList<CouponTemplate>((params) => couponService.list(params))
 const status = ref<string | null>(null)
 const keyword = ref('')
 const show = ref(false)
@@ -65,7 +65,7 @@ async function open(row?: CouponTemplate): Promise<void> {
 }
 
 async function save(): Promise<void> {
-  if (!form.name.trim()) return void feedback.message.error('请填写优惠券名称')
+  if (!form.name.trim()) return void feedback.message.error('请填写券商品名称')
   if (!form.categoryId) return void feedback.message.error('请选择券类型')
   if (selectedBusinessType.value === 'admission_ticket' && (!Number.isInteger(form.admissionCount) || form.admissionCount < 1 || form.admissionCount > 99)) {
     return void feedback.message.error('请填写正确的可兑人数')
@@ -78,7 +78,7 @@ async function save(): Promise<void> {
     }
     if (form.id == null) await couponService.create(body)
     else await couponService.update(form.id, body)
-    feedback.message.success('优惠券已保存')
+    feedback.message.success('券商品已保存')
     show.value = false
     list.refresh()
   } catch (error) { feedback.message.error((error as { message?: string }).message ?? '保存失败') }
@@ -86,20 +86,20 @@ async function save(): Promise<void> {
 }
 
 async function remove(row: CouponTemplate): Promise<void> {
-  if (!await confirm({ content: `确认删除优惠券“${row.name}”？已发放的数据不会被删除。`, danger: true })) return
-  try { await couponService.remove(row.id); feedback.message.success('优惠券已删除'); list.refresh() }
+  if (!await confirm({ content: `确认删除券商品“${row.name}”？已发放的数据不会被删除。`, danger: true })) return
+  try { await couponService.remove(row.id); feedback.message.success('券商品已删除'); list.refresh() }
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '删除失败') }
 }
 
 async function publish(row: CouponTemplate): Promise<void> {
-  if (!await confirm({ content: `确认发布优惠券“${row.name}”？` })) return
-  try { await couponService.publish(row.id); feedback.message.success('优惠券已发布'); list.refresh() }
+  if (!await confirm({ content: `确认发布券商品“${row.name}”？发布后可用于本店购买或发放。` })) return
+  try { await couponService.publish(row.id); feedback.message.success('券商品已发布'); list.refresh() }
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '发布失败') }
 }
 
 async function disable(row: CouponTemplate): Promise<void> {
-  if (!await confirm({ content: `确认停用优惠券“${row.name}”？已发出的券不受影响。`, danger: true })) return
-  try { await couponService.disable(row.id); feedback.message.success('优惠券已停用'); list.refresh() }
+  if (!await confirm({ content: `确认停用券商品“${row.name}”？已发出的券不受影响。`, danger: true })) return
+  try { await couponService.disable(row.id); feedback.message.success('券商品已停用'); list.refresh() }
   catch (error) { feedback.message.error((error as { message?: string }).message ?? '停用失败') }
 }
 
@@ -114,20 +114,16 @@ function resetFilters(): void {
 }
 
 const columns = computed<DataTableColumns<CouponTemplate>>(() => [
-  textColumn<CouponTemplate>('券名称', (row) => row.name),
+  textColumn<CouponTemplate>('券商品名称', (row) => row.name),
   textColumn<CouponTemplate>('券类型', (row) => row.categoryName, { width: 130 }),
-  textColumn<CouponTemplate>('来源', (row) => row.scopeType === 'global' ? '总部券' : '本店券', { width: 100 }),
   statusColumn<CouponTemplate>('状态', statusMap, (row) => row.status, { width: 100 }),
   dateColumn<CouponTemplate>('更新时间', (row) => row.updatedAt, { width: 150 }),
   { title: '操作', key: 'actions', width: 220, render: (row) => h(NSpace, { size: 4, wrap: false }, () => [
-    row.scopeType === 'global'
-      ? h('span', { class: 'readonly-text' }, '总部维护')
-      : h(PermissionButton, { permissions: [PERM.couponWrite], text: true, onClick: () => open(row) }, () => '编辑'),
-    row.scopeType === 'global' ? null : (
+    h(PermissionButton, { permissions: [PERM.couponWrite], text: true, onClick: () => open(row) }, () => '编辑'),
     row.status !== 'published'
       ? h(PermissionButton, { permissions: [PERM.couponWrite], type: 'primary', onClick: () => publish(row) }, () => '发布')
-      : h(PermissionButton, { permissions: [PERM.couponWrite], type: 'warning', onClick: () => disable(row) }, () => '停用')),
-    row.scopeType === 'global' ? null : h(PermissionButton, { permissions: [PERM.couponWrite], text: true, type: 'error', onClick: () => remove(row) }, () => '删除'),
+      : h(PermissionButton, { permissions: [PERM.couponWrite], type: 'warning', onClick: () => disable(row) }, () => '停用'),
+    h(PermissionButton, { permissions: [PERM.couponWrite], text: true, type: 'error', onClick: () => remove(row) }, () => '删除'),
   ]) },
 ])
 
@@ -137,8 +133,8 @@ onMounted(loadCategories)
 <template>
   <div>
     <PageHeader
-      title="本店优惠券"
-      description="总部券由总后台统一维护；本店可创建并管理自己的券模板"
+      title="本店券商品"
+      description="基于总后台维护的券类型创建本店券商品；发布后可用于本店购买或发放"
     />
     <StatusFilterBar
       v-model:status="status"
@@ -155,7 +151,7 @@ onMounted(loadCategories)
           type="primary"
           @click="open()"
         >
-          新增优惠券
+          新增券商品
         </PermissionButton>
       </template>
     </StatusFilterBar>
@@ -166,14 +162,14 @@ onMounted(loadCategories)
       :page="list.page.value"
       :page-size="list.pageSize.value"
       :total="list.total.value"
-      empty-text="暂无可用优惠券"
+      empty-text="暂无本店券商品"
       @update:page="list.setPage"
       @update:page-size="list.setPageSize"
     />
     <NModal
       v-model:show="show"
       preset="card"
-      :title="form.id == null ? '新增优惠券' : '编辑优惠券'"
+      :title="form.id == null ? '新增券商品' : '编辑券商品'"
       style="width: min(720px, 92vw)"
     >
       <NForm label-placement="top">
@@ -182,7 +178,7 @@ onMounted(loadCategories)
           :x-gap="16"
         >
           <NFormItemGi
-            label="券名称"
+            label="券商品名称"
             required
           >
             <NInput v-model:value="form.name" />
@@ -237,10 +233,3 @@ onMounted(loadCategories)
     </NModal>
   </div>
 </template>
-
-<style scoped>
-.readonly-text {
-  color: var(--text-color-3);
-  font-size: 13px;
-}
-</style>

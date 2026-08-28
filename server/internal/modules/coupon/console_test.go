@@ -85,16 +85,9 @@ func (r *fakeConsoleRepo) ListTemplates(_ context.Context, scope ConsoleScope, p
 	var out []Template
 	for _, t := range r.templates {
 		if scope.StoreID != nil {
-			isOwnStore := t.ScopeType == "store" && t.StoreID != nil && *t.StoreID == *scope.StoreID
-			if !isOwnStore && !(scope.IncludeGlobal && t.ScopeType == "global" && t.Status == "published") {
+			if t.ScopeType != "store" || t.StoreID == nil || *t.StoreID != *scope.StoreID {
 				continue
 			}
-		}
-		if scope.Status != "" && t.Status != scope.Status {
-			continue
-		}
-		if scope.Keyword != "" && !strings.Contains(t.Name, scope.Keyword) {
-			continue
 		}
 		out = append(out, t)
 	}
@@ -338,7 +331,7 @@ func storeIDPtr(id int64) *int64 { return &id }
 
 func TestConsoleListTemplatesScoping(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{
-		{ID: 1, ScopeType: "global", Name: "Global Coupon", Status: "published"},
+		{ID: 1, ScopeType: "global", Name: "Global Coupon"},
 		{ID: 2, ScopeType: "store", StoreID: storeIDPtr(5), Name: "Store 5 Coupon"},
 		{ID: 3, ScopeType: "store", StoreID: storeIDPtr(6), Name: "Store 6 Coupon"},
 	}}
@@ -360,17 +353,7 @@ func TestConsoleListTemplatesScoping(t *testing.T) {
 	if total != 1 || store[0].Name != "Store 5 Coupon" {
 		t.Fatalf("expected store scope to see only its own template, got %+v", store)
 	}
-	storeWithGlobal, total, err := svc.ListTemplates(context.Background(), ConsoleScope{
-		StoreID: storeIDPtr(5), IncludeGlobal: true,
-	}, page)
-	if err != nil {
-		t.Fatalf("store list with globals: %v", err)
-	}
-	if total != 2 || len(storeWithGlobal) != 2 {
-		t.Fatalf("expected store scope to see headquarters and own templates, got %+v", storeWithGlobal)
-	}
-
-	if len(repo.scopes) != 3 || repo.scopes[1].StoreID == nil || *repo.scopes[1].StoreID != 5 {
+	if len(repo.scopes) != 2 || repo.scopes[1].StoreID == nil || *repo.scopes[1].StoreID != 5 {
 		t.Fatalf("expected scope propagated to repo, got %+v", repo.scopes)
 	}
 }
