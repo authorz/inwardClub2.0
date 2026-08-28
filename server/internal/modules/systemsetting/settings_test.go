@@ -9,6 +9,7 @@ import (
 )
 
 func stringPointer(value string) *string { return &value }
+func intPointer(value int) *int          { return &value }
 
 type memoryRepository struct{ settings GlobalSettings }
 
@@ -23,12 +24,17 @@ func (r *memoryRepository) UpdateGlobalSettings(_ context.Context, settings Glob
 }
 
 func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
+	rules := []GiftCouponUsageRule{
+		{CouponCategoryID: 7, DailyLimit: intPointer(2)},
+		{CouponCategoryID: 8, DailyLimit: nil},
+	}
 	svc := NewService(&memoryRepository{})
 	got, err := svc.Update(context.Background(), UpdateGlobalSettingsRequest{
 		FirstRechargeDoublePointsEnabled:    true,
 		RechargeDoublePointsThresholdAmount: 1200,
 		RechargeNotice:                      "  首充与满额双倍积分不叠加。  ",
 		PhoneChangeIntervalDays:             45,
+		GiftCouponUsageRules:                &rules,
 	}, 1)
 	if err != nil {
 		t.Fatalf("update settings: %v", err)
@@ -44,6 +50,36 @@ func TestUpdateGlobalSettingsPersistsBusinessSettings(t *testing.T) {
 	}
 	if got.PhoneChangeIntervalDays != 45 {
 		t.Fatalf("unexpected phone change interval %d", got.PhoneChangeIntervalDays)
+	}
+	if len(got.GiftCouponUsageRules) != 2 || got.GiftCouponUsageRules[0].DailyLimit == nil || *got.GiftCouponUsageRules[0].DailyLimit != 2 {
+		t.Fatalf("unexpected gift coupon rules %#v", got.GiftCouponUsageRules)
+	}
+	if got.GiftCouponUsageRules[1].DailyLimit != nil {
+		t.Fatalf("expected explicit unrestricted rule, got %#v", got.GiftCouponUsageRules[1])
+	}
+}
+
+func TestUpdateGlobalSettingsRejectsInvalidGiftCouponUsageRules(t *testing.T) {
+	duplicateRules := []GiftCouponUsageRule{
+		{CouponCategoryID: 7, DailyLimit: intPointer(1)},
+		{CouponCategoryID: 7, DailyLimit: intPointer(2)},
+	}
+	if _, err := NewService(&memoryRepository{}).Update(context.Background(), UpdateGlobalSettingsRequest{
+		RechargeDoublePointsThresholdAmount: 1000,
+		PhoneChangeIntervalDays:             30,
+		GiftCouponUsageRules:                &duplicateRules,
+	}, 1); err == nil {
+		t.Fatal("expected duplicate gift coupon rule error")
+	}
+
+	zero := 0
+	invalidLimitRules := []GiftCouponUsageRule{{CouponCategoryID: 7, DailyLimit: &zero}}
+	if _, err := NewService(&memoryRepository{}).Update(context.Background(), UpdateGlobalSettingsRequest{
+		RechargeDoublePointsThresholdAmount: 1000,
+		PhoneChangeIntervalDays:             30,
+		GiftCouponUsageRules:                &invalidLimitRules,
+	}, 1); err == nil {
+		t.Fatal("expected zero daily limit error; unrestricted must use null")
 	}
 }
 

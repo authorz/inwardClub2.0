@@ -39,14 +39,13 @@ const (
 // business behavior. Templates reference the category; redemption code uses
 // BusinessType so display changes never alter fulfillment semantics.
 type CouponCategory struct {
-	ID                  int64
-	Name                string
-	BusinessType        string
-	SortOrder           int
-	Status              string
-	GiftDailyUsageLimit int
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID           int64
+	Name         string
+	BusinessType string
+	SortOrder    int
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // RedemptionOrder is one coupon_redemptions row joined with its entitlement,

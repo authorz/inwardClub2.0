@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NDynamicTags,
@@ -7,17 +7,30 @@ import {
   NFormItem,
   NInput,
   NInputNumber,
+  NSelect,
   NSpin,
   NSwitch,
   NText,
 } from 'naive-ui'
 import PageHeader from '@/components/PageHeader.vue'
-import { systemService } from '@/api/services'
+import { couponCategoryService, systemService } from '@/api/services'
+import type { CouponCategory } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
 const loading = ref(false)
 const saving = ref(false)
+const couponCategories = ref<CouponCategory[]>([])
 const defaultRechargeNotice = '新用户首充积分赠送双倍，充值一千及以上都赠送双倍积分，不与新用户首充赠送双倍同享。'
+type GiftCouponUsageMode = 'unlimited' | 'limited'
+interface GiftCouponUsageRuleForm {
+  couponCategoryId: number | string | null
+  mode: GiftCouponUsageMode
+  dailyLimit: number
+}
+const giftCouponUsageModeOptions = [
+  { label: '无限制', value: 'unlimited' },
+  { label: '每日限用', value: 'limited' },
+]
 const form = reactive({
   firstRechargeDoublePointsEnabled: false,
   rechargeDoublePointsThresholdAmount: 1000,
@@ -29,14 +42,52 @@ const form = reactive({
   printerDeveloperKey: '',
   printerDeveloperKeyConfigured: false,
   printerApiUrl: 'https://open.xpyun.net/api/openapi/xprinter',
+  giftCouponUsageRules: [] as GiftCouponUsageRuleForm[],
 })
+
+const couponCategoryOptions = computed(() => couponCategories.value.map((category) => ({
+  label: category.name,
+  value: category.id,
+  disabled: category.status !== 'active',
+})))
+
+function categoryOptionsFor(index: number) {
+  const selected = new Set(form.giftCouponUsageRules
+    .filter((_, ruleIndex) => ruleIndex !== index)
+    .map((rule) => String(rule.couponCategoryId)))
+  return couponCategoryOptions.value.map((option) => ({
+    ...option,
+    disabled: option.disabled || selected.has(String(option.value)),
+  }))
+}
+
+function addGiftCouponUsageRule(): void {
+  const used = new Set(form.giftCouponUsageRules.map((rule) => String(rule.couponCategoryId)))
+  const category = couponCategories.value.find(
+    (item) => item.status === 'active' && !used.has(String(item.id)),
+  )
+  if (!category) return toastError('没有可继续配置的券类型')
+  form.giftCouponUsageRules.push({
+    couponCategoryId: category.id,
+    mode: 'unlimited',
+    dailyLimit: 1,
+  })
+}
+
+function removeGiftCouponUsageRule(index: number): void {
+  form.giftCouponUsageRules.splice(index, 1)
+}
 
 onMounted(load)
 
 async function load(): Promise<void> {
   loading.value = true
   try {
-    const settings = await systemService.getGlobalSettings()
+    const [settings, categories] = await Promise.all([
+      systemService.getGlobalSettings(),
+      couponCategoryService.list({ page: 1, pageSize: 100 }),
+    ])
+    couponCategories.value = categories.items
     form.firstRechargeDoublePointsEnabled = Boolean(
       settings.firstRechargeDoublePointsEnabled,
     )
@@ -50,6 +101,11 @@ async function load(): Promise<void> {
     form.printerDeveloperKey = ''
     form.printerDeveloperKeyConfigured = Boolean(settings.printerDeveloperKeyConfigured)
     form.printerApiUrl = settings.printerApiUrl || 'https://open.xpyun.net/api/openapi/xprinter'
+    form.giftCouponUsageRules = (settings.giftCouponUsageRules ?? []).map((rule) => ({
+      couponCategoryId: rule.couponCategoryId,
+      mode: rule.dailyLimit == null ? 'unlimited' : 'limited',
+      dailyLimit: rule.dailyLimit ?? 1,
+    }))
   } catch (e) {
     toastError((e as { message?: string }).message ?? '读取全局设置失败')
   } finally {
@@ -94,6 +150,17 @@ async function save(): Promise<void> {
   } catch {
     return toastError('请输入有效的打印机接口 URL')
   }
+  const configuredCategories = new Set<string>()
+  for (const rule of form.giftCouponUsageRules) {
+    if (rule.couponCategoryId == null) return toastError('请选择赠送券规则适用的券类型')
+    const categoryKey = String(rule.couponCategoryId)
+    if (configuredCategories.has(categoryKey)) return toastError('同一券类型不能重复配置')
+    configuredCategories.add(categoryKey)
+    if (rule.mode === 'limited'
+      && (!Number.isInteger(rule.dailyLimit) || rule.dailyLimit < 1 || rule.dailyLimit > 999)) {
+      return toastError('赠送券每日使用上限必须是 1 到 999 的整数')
+    }
+  }
   saving.value = true
   try {
     const settings = await systemService.updateGlobalSettings({
@@ -106,6 +173,10 @@ async function save(): Promise<void> {
       printerDeveloperAccount,
       ...(printerDeveloperKey ? { printerDeveloperKey } : {}),
       printerApiUrl,
+      giftCouponUsageRules: form.giftCouponUsageRules.map((rule) => ({
+        couponCategoryId: rule.couponCategoryId!,
+        dailyLimit: rule.mode === 'unlimited' ? null : rule.dailyLimit,
+      })),
     })
     form.firstRechargeDoublePointsEnabled = Boolean(
       settings.firstRechargeDoublePointsEnabled,
@@ -119,6 +190,11 @@ async function save(): Promise<void> {
     form.printerDeveloperKey = ''
     form.printerDeveloperKeyConfigured = Boolean(settings.printerDeveloperKeyConfigured)
     form.printerApiUrl = settings.printerApiUrl || 'https://open.xpyun.net/api/openapi/xprinter'
+    form.giftCouponUsageRules = (settings.giftCouponUsageRules ?? []).map((rule) => ({
+      couponCategoryId: rule.couponCategoryId,
+      mode: rule.dailyLimit == null ? 'unlimited' : 'limited',
+      dailyLimit: rule.dailyLimit ?? 1,
+    }))
     toastSuccess('全局设置已保存')
   } catch (e) {
     toastError((e as { message?: string }).message ?? '保存全局设置失败')
@@ -132,7 +208,7 @@ async function save(): Promise<void> {
   <section>
     <PageHeader
       title="全局设置"
-      description="配置全局展示、充值奖励、加盟咨询与打印机开放平台账号"
+      description="配置充值奖励、赠送券使用规则、加盟咨询与打印机开放平台账号"
       :breadcrumb="['系统设置', '全局设置']"
     />
 
@@ -227,6 +303,62 @@ async function save(): Promise<void> {
               <NText depth="3">
                 会员更换绑定手机号后，需要等待此间隔才能再次更换；首次绑定不受限制。
               </NText>
+            </div>
+          </NFormItem>
+          <div class="settings-section-title">
+            赠送券单日使用规则
+          </div>
+          <NFormItem label="赠送券使用限制">
+            <div class="gift-coupon-rules">
+              <NText depth="3">
+                规则仅作用于 VIP、充值、人工发放等赠送来源。购买券商品获得的券始终不受限制；未配置的券类型默认无限制。
+              </NText>
+              <div
+                v-for="(rule, index) in form.giftCouponUsageRules"
+                :key="`${rule.couponCategoryId}-${index}`"
+                class="gift-coupon-rule"
+              >
+                <NSelect
+                  v-model:value="rule.couponCategoryId"
+                  :options="categoryOptionsFor(index)"
+                  placeholder="选择券类型"
+                />
+                <NSelect
+                  v-model:value="rule.mode"
+                  :options="giftCouponUsageModeOptions"
+                />
+                <NInputNumber
+                  v-if="rule.mode === 'limited'"
+                  v-model:value="rule.dailyLimit"
+                  :min="1"
+                  :max="999"
+                  :precision="0"
+                >
+                  <template #suffix>
+                    张/日
+                  </template>
+                </NInputNumber>
+                <NText
+                  v-else
+                  depth="3"
+                  class="unlimited-text"
+                >
+                  不限制每日张数
+                </NText>
+                <NButton
+                  type="error"
+                  text
+                  @click="removeGiftCouponUsageRule(index)"
+                >
+                  移除
+                </NButton>
+              </div>
+              <NButton
+                secondary
+                @click="addGiftCouponUsageRule"
+              >
+                添加券类型规则
+              </NButton>
             </div>
           </NFormItem>
           <div class="settings-section-title">
@@ -336,6 +468,28 @@ async function save(): Promise<void> {
   gap: var(--ic-space-sm);
 }
 
+.gift-coupon-rules {
+  display: flex;
+  width: min(100%, 720px);
+  flex-direction: column;
+  gap: var(--ic-space-sm);
+}
+
+.gift-coupon-rule {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 120px minmax(150px, 180px) auto;
+  align-items: center;
+  gap: var(--ic-space-sm);
+  padding: var(--ic-space-sm) 0;
+  border-bottom: 1px solid var(--ic-color-border);
+}
+
+.unlimited-text {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+
 .settings-section-title {
   margin: var(--ic-space-lg) 0 var(--ic-space-md) 160px;
   font-size: var(--ic-font-md);
@@ -357,6 +511,10 @@ async function save(): Promise<void> {
 
 @media (max-width: 720px) {
   .time-field {
+    grid-template-columns: 1fr;
+  }
+
+  .gift-coupon-rule {
     grid-template-columns: 1fr;
   }
 }

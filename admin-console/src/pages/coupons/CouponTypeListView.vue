@@ -5,7 +5,7 @@ import ResourceListView from '@/components/ResourceListView.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
-import { actionsColumn, dateTimeColumn, renderColumn, statusColumn, textColumn } from '@/utils/columns'
+import { actionsColumn, dateTimeColumn, statusColumn, textColumn } from '@/utils/columns'
 import { PERMISSIONS } from '@/constants/permissions'
 import { runAudited } from '@/composables/useAuditedAction'
 import { couponCategoryService } from '@/api/services'
@@ -34,16 +34,11 @@ const fields: FilterField[] = [
   { key: 'status', label: '状态', type: 'select', options: statusOptions },
 ]
 
-function giftLimitText(row: CouponCategory): string {
-  return row.giftDailyUsageLimit === 0 ? '不限' : `每日 ${row.giftDailyUsageLimit} 张`
-}
-
 const columns = [
   textColumn<CouponCategory>('ID', 'id', { width: 72 }),
-  textColumn<CouponCategory>('券类型名称', 'name', { minWidth: 190 }),
-  statusColumn<CouponCategory>('使用方式', 'businessType', usageOptions, 150),
-  renderColumn<CouponCategory>('仅赠送券使用限制', 'giftDailyUsageLimit', giftLimitText, 150),
-  textColumn<CouponCategory>('排序', 'sortOrder', { width: 80 }),
+  textColumn<CouponCategory>('券类型名称', 'name', { minWidth: 200 }),
+  statusColumn<CouponCategory>('使用方式', 'businessType', usageOptions, 160),
+  textColumn<CouponCategory>('排序', 'sortOrder', { width: 90 }),
   statusColumn<CouponCategory>('状态', 'status', statusOptions, 90),
   dateTimeColumn<CouponCategory>('更新时间', 'updatedAt', 170),
   actionsColumn<CouponCategory>((row) => h(NSpace, { size: 6 }, () => [
@@ -62,15 +57,11 @@ const columns = [
 const drawerShow = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
-const form = reactive({
-  name: '', businessType: 'alcohol', sortOrder: 0, status: 'active', giftDailyUsageLimit: 1,
-})
+const form = reactive({ name: '', businessType: 'alcohol', sortOrder: 0, status: 'active' })
 
 function openCreate(): void {
   editingId.value = null
-  Object.assign(form, {
-    name: '', businessType: 'alcohol', sortOrder: 0, status: 'active', giftDailyUsageLimit: 1,
-  })
+  Object.assign(form, { name: '', businessType: 'alcohol', sortOrder: 0, status: 'active' })
   drawerShow.value = true
 }
 
@@ -81,7 +72,6 @@ function openEdit(row: CouponCategory): void {
     businessType: row.businessType,
     sortOrder: row.sortOrder,
     status: row.status,
-    giftDailyUsageLimit: row.giftDailyUsageLimit,
   })
   drawerShow.value = true
 }
@@ -128,7 +118,7 @@ const toolbarActions = [{
     <ResourceListView
       ref="listRef"
       title="券类型"
-      description="管理全局券类型、兑换方式，以及仅赠送券的单日使用限制"
+      description="管理小程序展示的券类型、排序和启停状态"
       :breadcrumb="['权益规则', '券管理']"
       :fields="fields"
       :columns="columns"
@@ -141,7 +131,7 @@ const toolbarActions = [{
       v-model:show="drawerShow"
       :title="editingId ? '编辑券类型' : '新增券类型'"
       :submitting="saving"
-      :width="720"
+      :width="640"
       @submit="save"
     >
       <NForm label-placement="top">
@@ -168,19 +158,6 @@ const toolbarActions = [{
               :disabled="Boolean(editingId)"
             />
           </NFormItemGi>
-          <NFormItemGi
-            label="仅赠送券每日使用上限"
-            required
-          >
-            <NInputNumber
-              v-model:value="form.giftDailyUsageLimit"
-              :min="0"
-              :max="999"
-              :precision="0"
-              placeholder="0 表示不限"
-              style="width: 100%"
-            />
-          </NFormItemGi>
           <NFormItemGi label="排序">
             <NInputNumber
               v-model:value="form.sortOrder"
@@ -199,18 +176,7 @@ const toolbarActions = [{
             />
           </NFormItemGi>
         </NGrid>
-        <p class="form-hint">
-          0 表示不限；购买券商品获得的券不受此限制，VIP、充值及人工赠送的券按该券类型合计限制。
-        </p>
       </NForm>
     </FormDrawer>
   </div>
 </template>
-
-<style scoped>
-.form-hint {
-  margin: 0;
-  color: var(--text-color-3);
-  font-size: 13px;
-}
-</style>

@@ -250,6 +250,10 @@ export const systemService = {
     printerDeveloperAccount: string
     printerDeveloperKey?: string
     printerApiUrl: string
+    giftCouponUsageRules: {
+      couponCategoryId: number | string
+      dailyLimit: number | null
+    }[]
   }) =>
     http.put<GlobalSettings>(API_PATHS.system.globalSettings, settings, { idempotent: true }),
   getPaymentChannelSettings: () =>

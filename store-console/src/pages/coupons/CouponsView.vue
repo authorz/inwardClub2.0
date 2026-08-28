@@ -52,7 +52,6 @@ async function open(row?: CouponTemplate): Promise<void> {
       name: target.categoryName,
       businessType: target.couponType,
       sortOrder: 0,
-      giftDailyUsageLimit: 0,
       status: 'disabled',
     })
   }

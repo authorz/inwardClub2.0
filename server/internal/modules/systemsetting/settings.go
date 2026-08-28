@@ -38,30 +38,40 @@ var defaultFranchiseInquirySources = []string{"美团", "抖音", "小红书", "
 
 // GlobalSettings contains headquarters-level business settings.
 type GlobalSettings struct {
-	FirstRechargeDoublePointsEnabled    bool       `json:"firstRechargeDoublePointsEnabled"`
-	RechargeDoublePointsThresholdAmount int64      `json:"rechargeDoublePointsThresholdAmount"`
-	RechargeNotice                      string     `json:"rechargeNotice"`
-	FranchiseInquirySources             []string   `json:"franchiseInquirySources"`
-	FranchiseHotline                    string     `json:"franchiseHotline"`
-	PhoneChangeIntervalDays             int        `json:"phoneChangeIntervalDays"`
-	PrinterDeveloperAccount             string     `json:"printerDeveloperAccount"`
-	PrinterDeveloperKey                 string     `json:"-"`
-	PrinterDeveloperKeyConfigured       bool       `json:"printerDeveloperKeyConfigured"`
-	PrinterAPIURL                       string     `json:"printerApiUrl"`
-	UpdatedAt                           *time.Time `json:"updatedAt,omitempty"`
+	FirstRechargeDoublePointsEnabled    bool                  `json:"firstRechargeDoublePointsEnabled"`
+	RechargeDoublePointsThresholdAmount int64                 `json:"rechargeDoublePointsThresholdAmount"`
+	RechargeNotice                      string                `json:"rechargeNotice"`
+	FranchiseInquirySources             []string              `json:"franchiseInquirySources"`
+	FranchiseHotline                    string                `json:"franchiseHotline"`
+	PhoneChangeIntervalDays             int                   `json:"phoneChangeIntervalDays"`
+	PrinterDeveloperAccount             string                `json:"printerDeveloperAccount"`
+	PrinterDeveloperKey                 string                `json:"-"`
+	PrinterDeveloperKeyConfigured       bool                  `json:"printerDeveloperKeyConfigured"`
+	PrinterAPIURL                       string                `json:"printerApiUrl"`
+	GiftCouponUsageRules                []GiftCouponUsageRule `json:"giftCouponUsageRules"`
+	UpdatedAt                           *time.Time            `json:"updatedAt,omitempty"`
+}
+
+// GiftCouponUsageRule is an independent headquarters rule for gifted coupons.
+// A nil DailyLimit explicitly means unrestricted use. Purchased coupon
+// products bypass these rules before any limit is evaluated.
+type GiftCouponUsageRule struct {
+	CouponCategoryID int64 `json:"couponCategoryId"`
+	DailyLimit       *int  `json:"dailyLimit"`
 }
 
 // UpdateGlobalSettingsRequest is the writable global-settings payload.
 type UpdateGlobalSettingsRequest struct {
-	FirstRechargeDoublePointsEnabled    bool     `json:"firstRechargeDoublePointsEnabled"`
-	RechargeDoublePointsThresholdAmount int64    `json:"rechargeDoublePointsThresholdAmount"`
-	RechargeNotice                      string   `json:"rechargeNotice"`
-	FranchiseInquirySources             []string `json:"franchiseInquirySources"`
-	FranchiseHotline                    string   `json:"franchiseHotline"`
-	PhoneChangeIntervalDays             int      `json:"phoneChangeIntervalDays"`
-	PrinterDeveloperAccount             *string  `json:"printerDeveloperAccount"`
-	PrinterDeveloperKey                 *string  `json:"printerDeveloperKey"`
-	PrinterAPIURL                       *string  `json:"printerApiUrl"`
+	FirstRechargeDoublePointsEnabled    bool                   `json:"firstRechargeDoublePointsEnabled"`
+	RechargeDoublePointsThresholdAmount int64                  `json:"rechargeDoublePointsThresholdAmount"`
+	RechargeNotice                      string                 `json:"rechargeNotice"`
+	FranchiseInquirySources             []string               `json:"franchiseInquirySources"`
+	FranchiseHotline                    string                 `json:"franchiseHotline"`
+	PhoneChangeIntervalDays             int                    `json:"phoneChangeIntervalDays"`
+	PrinterDeveloperAccount             *string                `json:"printerDeveloperAccount"`
+	PrinterDeveloperKey                 *string                `json:"printerDeveloperKey"`
+	PrinterAPIURL                       *string                `json:"printerApiUrl"`
+	GiftCouponUsageRules                *[]GiftCouponUsageRule `json:"giftCouponUsageRules"`
 }
 
 // Repository persists headquarters-level settings.
@@ -82,6 +92,7 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 		FranchiseInquirySources:             append([]string(nil), defaultFranchiseInquirySources...),
 		PhoneChangeIntervalDays:             defaultPhoneChangeIntervalDays,
 		PrinterAPIURL:                       defaultPrinterAPIURL,
+		GiftCouponUsageRules:                make([]GiftCouponUsageRule, 0),
 	}
 	const q = `SELECT setting_key, setting_value, updated_at FROM system_settings
 		WHERE setting_key IN (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -144,6 +155,31 @@ func (r *sqlRepository) GetGlobalSettings(ctx context.Context) (GlobalSettings, 
 	if err := rows.Err(); err != nil {
 		return GlobalSettings{}, apperr.Internal(err)
 	}
+	ruleRows, err := r.db.QueryContext(ctx, `SELECT coupon_category_id, daily_limit
+		FROM gift_coupon_usage_rules ORDER BY coupon_category_id`)
+	if err != nil {
+		return GlobalSettings{}, apperr.Internal(err)
+	}
+	defer ruleRows.Close()
+	for ruleRows.Next() {
+		var categoryID int64
+		var dailyLimit sql.NullInt64
+		if err := ruleRows.Scan(&categoryID, &dailyLimit); err != nil {
+			return GlobalSettings{}, apperr.Internal(err)
+		}
+		var limit *int
+		if dailyLimit.Valid {
+			value := int(dailyLimit.Int64)
+			limit = &value
+		}
+		settings.GiftCouponUsageRules = append(settings.GiftCouponUsageRules, GiftCouponUsageRule{
+			CouponCategoryID: categoryID,
+			DailyLimit:       limit,
+		})
+	}
+	if err := ruleRows.Err(); err != nil {
+		return GlobalSettings{}, apperr.Internal(err)
+	}
 	settings.PrinterDeveloperKeyConfigured = settings.PrinterDeveloperKey != ""
 	return settings, nil
 }
@@ -182,6 +218,18 @@ func (r *sqlRepository) UpdateGlobalSettings(
 		}
 		for _, setting := range values {
 			if _, err := tx.ExecContext(ctx, q, setting.key, setting.value, updatedBy, now, now); err != nil {
+				return apperr.Internal(err)
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM gift_coupon_usage_rules`); err != nil {
+			return apperr.Internal(err)
+		}
+		for _, rule := range settings.GiftCouponUsageRules {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO gift_coupon_usage_rules
+				(coupon_category_id, daily_limit, updated_by, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?)`,
+				rule.CouponCategoryID, rule.DailyLimit, updatedBy, now, now,
+			); err != nil {
 				return apperr.Internal(err)
 			}
 		}
@@ -275,6 +323,13 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 	if err != nil {
 		return GlobalSettings{}, err
 	}
+	rules := current.GiftCouponUsageRules
+	if req.GiftCouponUsageRules != nil {
+		rules, err = normalizeGiftCouponUsageRules(*req.GiftCouponUsageRules)
+		if err != nil {
+			return GlobalSettings{}, err
+		}
+	}
 	var sources []string
 	if req.FranchiseInquirySources == nil {
 		sources = current.FranchiseInquirySources
@@ -321,7 +376,27 @@ func (s *Service) Update(ctx context.Context, req UpdateGlobalSettingsRequest, u
 		PrinterDeveloperKey:                 printerKey,
 		PrinterDeveloperKeyConfigured:       printerKey != "",
 		PrinterAPIURL:                       printerAPIURL,
+		GiftCouponUsageRules:                rules,
 	}, updatedBy, s.now().UTC())
+}
+
+func normalizeGiftCouponUsageRules(raw []GiftCouponUsageRule) ([]GiftCouponUsageRule, error) {
+	seen := make(map[int64]struct{}, len(raw))
+	result := make([]GiftCouponUsageRule, 0, len(raw))
+	for _, rule := range raw {
+		if rule.CouponCategoryID <= 0 {
+			return nil, apperr.Invalid("请选择正确的券类型")
+		}
+		if _, exists := seen[rule.CouponCategoryID]; exists {
+			return nil, apperr.Invalid("同一券类型不能重复配置")
+		}
+		seen[rule.CouponCategoryID] = struct{}{}
+		if rule.DailyLimit != nil && (*rule.DailyLimit < 1 || *rule.DailyLimit > 999) {
+			return nil, apperr.Invalid("赠送券每日使用上限必须在 1 到 999 之间")
+		}
+		result = append(result, rule)
+	}
+	return result, nil
 }
 
 func normalizeFranchiseInquirySources(raw []string) ([]string, error) {

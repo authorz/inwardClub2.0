@@ -168,8 +168,6 @@ export interface CouponCategory extends AuditableEntity {
   name: string
   businessType: string
   sortOrder: number
-  /** 赠送券每位会员每天可使用的张数；0 表示不限。 */
-  giftDailyUsageLimit: number
 }
 
 export interface RechargeProduct extends AuditableEntity {
@@ -438,6 +436,12 @@ export interface PointReviewSettings {
 }
 
 /** 总后台统一展示配置。 */
+export interface GiftCouponUsageRule {
+  couponCategoryId: number | string
+  /** null 明确表示无限制；正整数表示每位会员每天最多可使用的赠送券张数。 */
+  dailyLimit: number | null
+}
+
 export interface GlobalSettings {
   firstRechargeDoublePointsEnabled: boolean
   rechargeDoublePointsThresholdAmount: number
@@ -448,6 +452,7 @@ export interface GlobalSettings {
   printerDeveloperAccount: string
   printerDeveloperKeyConfigured: boolean
   printerApiUrl: string
+  giftCouponUsageRules: GiftCouponUsageRule[]
   updatedAt?: string
 }
 

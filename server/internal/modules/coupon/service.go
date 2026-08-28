@@ -46,7 +46,6 @@ func (s *Service) ListCouponCategories(ctx context.Context) ([]CouponCategoryVie
 	for _, category := range categories {
 		views = append(views, CouponCategoryView{
 			ID: category.ID, Name: category.Name, BusinessType: category.BusinessType, SortOrder: category.SortOrder,
-			GiftDailyUsageLimit: category.GiftDailyUsageLimit,
 		})
 	}
 	return views, nil

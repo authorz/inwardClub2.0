@@ -146,7 +146,10 @@ func TestListActivityUsableCouponsIntegration(t *testing.T) {
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_categories WHERE business_type = 'admission_ticket' LIMIT 1`).Scan(&categoryID); err != nil {
 		t.Fatalf("select admission coupon category: %v", err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 1 WHERE id = ?`, categoryID); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO gift_coupon_usage_rules
+		(coupon_category_id, daily_limit, created_at, updated_at)
+		VALUES (?, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+		ON DUPLICATE KEY UPDATE daily_limit = 1, updated_at = UTC_TIMESTAMP()`, categoryID); err != nil {
 		t.Fatalf("configure gift usage limit: %v", err)
 	}
 	res, err = tx.ExecContext(ctx, `INSERT INTO coupon_templates

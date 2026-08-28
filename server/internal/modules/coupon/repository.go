@@ -76,7 +76,7 @@ const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.nam
 	JOIN coupon_categories cc ON cc.id = t.category_id`
 
 func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCategory, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE status = 'active' ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -86,7 +86,7 @@ func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCateg
 	for rows.Next() {
 		var category CouponCategory
 		if err := rows.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
-			&category.Status, &category.GiftDailyUsageLimit, &category.CreatedAt, &category.UpdatedAt); err != nil {
+			&category.Status, &category.CreatedAt, &category.UpdatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, category)
@@ -151,7 +151,8 @@ func listActivityUsableCoupons(
 	usageDate string,
 	limit, offset int,
 ) ([]MemberCoupon, int64, error) {
-	const joins = ` JOIN activities a ON a.id = ?`
+	const joins = ` JOIN activities a ON a.id = ?
+		LEFT JOIN gift_coupon_usage_rules gur ON gur.coupon_category_id = t.category_id`
 	const where = `e.member_id = ?
 		AND e.status = 'active'
 		AND t.coupon_type = 'admission_ticket'
@@ -170,13 +171,13 @@ func listActivityUsableCoupons(
 		)
 		AND (
 			e.granted_by_type = 'purchase'
-			OR cc.gift_daily_usage_limit = 0
+			OR gur.daily_limit IS NULL
 			OR (
 				SELECT COUNT(*) FROM gift_coupon_daily_usages u
 				WHERE u.member_id = e.member_id
 				  AND u.category_id = t.category_id
 				  AND u.usage_date = ?
-			) < cc.gift_daily_usage_limit
+			) < gur.daily_limit
 		)`
 	args := []any{activityID, memberID, now, now, now, usageDate}
 	var total int64

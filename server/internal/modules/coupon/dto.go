@@ -4,11 +4,10 @@ import "time"
 
 // CouponCategoryView is one enabled, admin-managed coupon category.
 type CouponCategoryView struct {
-	ID                  int64  `json:"id"`
-	Name                string `json:"name"`
-	BusinessType        string `json:"businessType"`
-	SortOrder           int    `json:"sortOrder"`
-	GiftDailyUsageLimit int    `json:"giftDailyUsageLimit"`
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	BusinessType string `json:"businessType"`
+	SortOrder    int    `json:"sortOrder"`
 }
 
 // RedeemRequest is the body for POST /mini/coupon-redemptions. The member

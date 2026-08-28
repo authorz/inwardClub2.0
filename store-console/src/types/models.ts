@@ -299,7 +299,6 @@ export interface CouponCategory extends AuditFields {
   name: string
   businessType: string
   sortOrder: number
-  giftDailyUsageLimit: number
   status: string
 }
 

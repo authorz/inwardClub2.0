@@ -41,7 +41,10 @@ func TestClaimGiftDailyUsageIntegration(t *testing.T) {
 		WHERE status = 'published' ORDER BY id LIMIT 1`).Scan(&templateID, &categoryID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 2 WHERE id = ?`, categoryID); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO gift_coupon_usage_rules
+		(coupon_category_id, daily_limit, created_at, updated_at)
+		VALUES (?, 2, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+		ON DUPLICATE KEY UPDATE daily_limit = 2, updated_at = UTC_TIMESTAMP()`, categoryID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -74,7 +77,7 @@ func TestClaimGiftDailyUsageIntegration(t *testing.T) {
 	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip4, tomorrow); err != nil {
 		t.Fatalf("next-day VIP coupon: %v", err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE coupon_categories SET gift_daily_usage_limit = 0 WHERE id = ?`, categoryID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE gift_coupon_usage_rules SET daily_limit = NULL WHERE coupon_category_id = ?`, categoryID); err != nil {
 		t.Fatal(err)
 	}
 	if err := ClaimGiftDailyUsage(ctx, tx, memberID, vip5, today); err != nil {

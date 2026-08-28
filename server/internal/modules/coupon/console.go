@@ -263,7 +263,7 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 	if categoryID <= 0 {
 		return CouponCategory{}, apperr.Invalid("请选择券类型")
 	}
-	q := `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
+	q := `SELECT id, name, business_type, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE id = ?`
 	if !includeDisabled {
 		q += ` AND status = 'active'`
@@ -271,7 +271,7 @@ func (r *sqlConsoleRepository) templateCategory(ctx context.Context, categoryID 
 	var category CouponCategory
 	err := r.db.QueryRowContext(ctx, q, categoryID).Scan(
 		&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
-		&category.Status, &category.GiftDailyUsageLimit, &category.CreatedAt, &category.UpdatedAt,
+		&category.Status, &category.CreatedAt, &category.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CouponCategory{}, apperr.Invalid("所选券类型不存在或已停用")

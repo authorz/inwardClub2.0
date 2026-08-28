@@ -18,22 +18,20 @@ import (
 // CategoryInput is the HQ-console create/update payload. businessType is a
 // fixed fulfillment capability; name, order and status are managed content.
 type CategoryInput struct {
-	Name                string `json:"name" binding:"required"`
-	BusinessType        string `json:"businessType" binding:"required"`
-	SortOrder           int    `json:"sortOrder"`
-	Status              string `json:"status"`
-	GiftDailyUsageLimit *int   `json:"giftDailyUsageLimit"`
+	Name         string `json:"name" binding:"required"`
+	BusinessType string `json:"businessType" binding:"required"`
+	SortOrder    int    `json:"sortOrder"`
+	Status       string `json:"status"`
 }
 
 type ConsoleCategoryView struct {
-	ID                  int64     `json:"id"`
-	Name                string    `json:"name"`
-	BusinessType        string    `json:"businessType"`
-	SortOrder           int       `json:"sortOrder"`
-	Status              string    `json:"status"`
-	GiftDailyUsageLimit int       `json:"giftDailyUsageLimit"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	BusinessType string    `json:"businessType"`
+	SortOrder    int       `json:"sortOrder"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 type CategoryRepository interface {
@@ -67,7 +65,7 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, page httpx.Pa
 		return nil, 0, apperr.Internal(err)
 	}
 	queryArgs := append(append([]any{}, args...), page.Limit(), page.Offset())
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE `+where+` ORDER BY sort_order ASC, id ASC LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
@@ -85,7 +83,7 @@ func (r *sqlConsoleRepository) ListCategories(ctx context.Context, page httpx.Pa
 }
 
 func (r *sqlConsoleRepository) GetCategory(ctx context.Context, id int64) (CouponCategory, error) {
-	category, err := scanCategory(r.db.QueryRowContext(ctx, `SELECT id, name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at
+	category, err := scanCategory(r.db.QueryRowContext(ctx, `SELECT id, name, business_type, sort_order, status, created_at, updated_at
 		FROM coupon_categories WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return CouponCategory{}, apperr.NotFound("coupon category not found")
@@ -107,13 +105,6 @@ func normalizeCategoryInput(in CategoryInput) (CategoryInput, error) {
 	if in.SortOrder < 0 {
 		return in, apperr.Invalid("排序值不能小于 0")
 	}
-	if in.GiftDailyUsageLimit == nil {
-		defaultLimit := 1
-		in.GiftDailyUsageLimit = &defaultLimit
-	}
-	if *in.GiftDailyUsageLimit < 0 || *in.GiftDailyUsageLimit > 999 {
-		return in, apperr.Invalid("赠券每日使用上限必须在 0 到 999 之间")
-	}
 	if in.Status == "" {
 		in.Status = CategoryStatusActive
 	}
@@ -130,9 +121,9 @@ func (r *sqlConsoleRepository) CreateCategory(ctx context.Context, in CategoryIn
 	}
 	now := time.Now().UTC()
 	res, err := r.db.ExecContext(ctx, `INSERT INTO coupon_categories
-		(name, business_type, sort_order, status, gift_daily_usage_limit, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.BusinessType, in.SortOrder, in.Status, *in.GiftDailyUsageLimit, now, now)
+		(name, business_type, sort_order, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		in.Name, in.BusinessType, in.SortOrder, in.Status, now, now)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return CouponCategory{}, apperr.Conflict("券类型名称已存在")
@@ -165,8 +156,8 @@ func (r *sqlConsoleRepository) UpdateCategory(ctx context.Context, id int64, in 
 		}
 	}
 	_, err = r.db.ExecContext(ctx, `UPDATE coupon_categories
-		SET name = ?, business_type = ?, sort_order = ?, status = ?, gift_daily_usage_limit = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.BusinessType, in.SortOrder, in.Status, *in.GiftDailyUsageLimit, time.Now().UTC(), id)
+		SET name = ?, business_type = ?, sort_order = ?, status = ?, updated_at = ? WHERE id = ?`,
+		in.Name, in.BusinessType, in.SortOrder, in.Status, time.Now().UTC(), id)
 	if err != nil {
 		if platdb.IsDuplicate(err) {
 			return CouponCategory{}, apperr.Conflict("券类型名称已存在")
@@ -197,14 +188,14 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, id int64) err
 func scanCategory(scanner scanner) (CouponCategory, error) {
 	var category CouponCategory
 	err := scanner.Scan(&category.ID, &category.Name, &category.BusinessType, &category.SortOrder,
-		&category.Status, &category.GiftDailyUsageLimit, &category.CreatedAt, &category.UpdatedAt)
+		&category.Status, &category.CreatedAt, &category.UpdatedAt)
 	return category, err
 }
 
 func categoryView(category CouponCategory) ConsoleCategoryView {
 	return ConsoleCategoryView{
 		ID: category.ID, Name: category.Name, BusinessType: category.BusinessType,
-		SortOrder: category.SortOrder, Status: category.Status, GiftDailyUsageLimit: category.GiftDailyUsageLimit,
+		SortOrder: category.SortOrder, Status: category.Status,
 		CreatedAt: category.CreatedAt, UpdatedAt: category.UpdatedAt,
 	}
 }
