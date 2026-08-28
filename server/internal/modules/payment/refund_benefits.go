@@ -39,6 +39,15 @@ func prepareRefundBenefits(
 	orderType string,
 	now time.Time,
 ) error {
+	if orderType == orderTypeRecharge {
+		unlinked, err := hasUnlinkedVIPUpgradeBenefits(ctx, tx, paymentOrderID)
+		if err != nil {
+			return err
+		}
+		if unlinked {
+			return apperr.Conflict("该历史充值存在未关联订单的VIP升级赠礼，请人工核对后退款")
+		}
+	}
 	grants, err := refundWalletGrants(ctx, tx, paymentOrderID, businessOrderID)
 	if err != nil {
 		return err
@@ -102,6 +111,30 @@ func prepareRefundBenefits(
 		return apperr.Internal(err)
 	}
 	return nil
+}
+
+func hasUnlinkedVIPUpgradeBenefits(ctx context.Context, tx *sql.Tx, paymentOrderID int64) (bool, error) {
+	const q = `SELECT EXISTS(
+		SELECT 1
+		FROM payment_orders po
+		JOIN wallet_ledger_entries le
+		  ON le.member_id = po.member_id AND le.created_at = po.paid_at
+		WHERE po.id = ? AND po.paid_at IS NOT NULL
+		  AND le.direction = 'credit' AND le.source_type = 'vip_benefit'
+		UNION ALL
+		SELECT 1
+		FROM payment_orders po
+		JOIN coupon_entitlements ce
+		  ON ce.member_id = po.member_id AND ce.created_at = po.paid_at
+		WHERE po.id = ? AND po.paid_at IS NOT NULL
+		  AND ce.granted_by_type = 'system' AND ce.granted_by_id IS NULL
+		  AND ce.granted_reason = 'VIP等级福利'
+	) AS unlinked`
+	var unlinked bool
+	if err := tx.QueryRowContext(ctx, q, paymentOrderID, paymentOrderID).Scan(&unlinked); err != nil {
+		return false, apperr.Internal(err)
+	}
+	return unlinked, nil
 }
 
 func refundWalletGrants(ctx context.Context, tx *sql.Tx, paymentOrderID, businessOrderID int64) ([]refundWalletGrant, error) {

@@ -116,16 +116,36 @@ func tierUpgradeNeeded(currentLevel *int, targetLevel int) bool {
 // GrantTierReached applies one-time reached-tier benefits and the current
 // natural period's scheduled benefits. It is safe to call on retries.
 func GrantTierReached(ctx context.Context, tx *sql.Tx, memberID, tierID int64, now time.Time) error {
+	return grantTierReached(ctx, tx, memberID, tierID, 0, now)
+}
+
+// GrantTierReachedForOrder links every benefit issued by a payment-triggered
+// tier upgrade to the originating business order so a later refund can revoke it.
+func GrantTierReachedForOrder(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, tierID, businessOrderID int64,
+	now time.Time,
+) error {
+	return grantTierReached(ctx, tx, memberID, tierID, businessOrderID, now)
+}
+
+func grantTierReached(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, tierID, businessOrderID int64,
+	now time.Time,
+) error {
 	tier, err := loadTierByID(ctx, tx, tierID)
 	if err != nil {
 		return err
 	}
-	if _, err := grantMatching(ctx, tx, memberID, tier, now, 0, func(trigger string) bool {
+	if _, err := grantMatching(ctx, tx, memberID, tier, now, businessOrderID, func(trigger string) bool {
 		return trigger == "tier_achieved"
 	}); err != nil {
 		return err
 	}
-	_, err = grantScheduled(ctx, tx, memberID, tier, now)
+	_, err = grantScheduledForOrder(ctx, tx, memberID, tier, businessOrderID, now)
 	return err
 }
 
@@ -219,7 +239,18 @@ func (s *Service) SweepScheduled(ctx context.Context) (int64, error) {
 }
 
 func grantScheduled(ctx context.Context, tx *sql.Tx, memberID int64, tier tierBenefits, now time.Time) (int64, error) {
-	return grantMatching(ctx, tx, memberID, tier, now, 0, func(trigger string) bool {
+	return grantScheduledForOrder(ctx, tx, memberID, tier, 0, now)
+}
+
+func grantScheduledForOrder(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID int64,
+	tier tierBenefits,
+	businessOrderID int64,
+	now time.Time,
+) (int64, error) {
+	return grantMatching(ctx, tx, memberID, tier, now, businessOrderID, func(trigger string) bool {
 		return scheduledTrigger(trigger) && scheduledTriggerActive(trigger, now)
 	})
 }

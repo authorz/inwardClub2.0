@@ -228,7 +228,9 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			if err != nil {
 				return err
 			}
-			if err := applyTierUpgrade(ctx, tx, memberID.Int64, growthBalance, now); err != nil {
+			if err := applyTierUpgradeForOrder(
+				ctx, tx, memberID.Int64, growthBalance, businessID, now,
+			); err != nil {
 				return err
 			}
 			if orderType == "food" && storeID.Valid {
@@ -610,6 +612,15 @@ func creditGrowthValue(ctx context.Context, tx *sql.Tx, paymentID, businessID, m
 // in the settlement transaction and locks the member row so concurrent recharges
 // for the same member cannot lose an upgrade.
 func applyTierUpgrade(ctx context.Context, tx *sql.Tx, memberID, growthBalance int64, now time.Time) error {
+	return applyTierUpgradeForOrder(ctx, tx, memberID, growthBalance, 0, now)
+}
+
+func applyTierUpgradeForOrder(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, growthBalance, businessOrderID int64,
+	now time.Time,
+) error {
 	const selTiers = `SELECT id, level, threshold FROM membership_tiers WHERE status = 'active'`
 	rows, err := tx.QueryContext(ctx, selTiers)
 	if err != nil {
@@ -664,6 +675,11 @@ func applyTierUpgrade(ctx context.Context, tx *sql.Tx, memberID, growthBalance i
 	const upd = `UPDATE members SET current_tier_id = ?, updated_at = ? WHERE id = ?`
 	if _, err := tx.ExecContext(ctx, upd, target.id, now, memberID); err != nil {
 		return apperr.Internal(err)
+	}
+	if businessOrderID > 0 {
+		return vipbenefit.GrantTierReachedForOrder(
+			ctx, tx, memberID, target.id, businessOrderID, now,
+		)
 	}
 	return vipbenefit.GrantTierReached(ctx, tx, memberID, target.id, now)
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/inwardclub/server/internal/modules/vipbenefit"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
@@ -30,6 +31,18 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 	defer tx.Rollback()
 
 	fixture := createRefundBenefitFixture(t, ctx, tx)
+	legacyLedgerID := insertLegacyVIPGrant(t, ctx, tx, fixture)
+	legacyErr := prepareRefundBenefits(
+		ctx, tx, fixture.refundID, fixture.paymentOrderID, fixture.businessOrderID,
+		1000, 1000, orderTypeRecharge, fixture.now,
+	)
+	if apperr.From(legacyErr).Code != apperr.CodeConflict {
+		t.Fatalf("legacy VIP refund error = %v, want conflict", legacyErr)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM wallet_ledger_entries WHERE id = ?`, legacyLedgerID); err != nil {
+		t.Fatalf("remove legacy VIP fixture: %v", err)
+	}
+
 	partialErr := prepareRefundBenefits(
 		ctx, tx, fixture.refundID, fixture.paymentOrderID, fixture.businessOrderID,
 		500, 1000, orderTypeRecharge, fixture.now,
@@ -38,7 +51,7 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 		t.Fatalf("partial recharge refund error = %v, want conflict", partialErr)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE coupon_entitlements SET status = 'used'
-		WHERE id = ?`, fixture.couponEntitlementID); err != nil {
+		WHERE id = ?`, fixture.couponEntitlementIDs[0]); err != nil {
 		t.Fatalf("mark coupon used: %v", err)
 	}
 	usedCouponErr := prepareRefundBenefits(
@@ -49,7 +62,7 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 		t.Fatalf("used coupon refund error = %v, want conflict", usedCouponErr)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE coupon_entitlements SET status = 'active'
-		WHERE id = ?`, fixture.couponEntitlementID); err != nil {
+		WHERE id = ?`, fixture.couponEntitlementIDs[0]); err != nil {
 		t.Fatalf("restore coupon: %v", err)
 	}
 
@@ -62,6 +75,7 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 	assertRefundBenefitState(t, ctx, tx, fixture, map[string]int64{
 		"coins": -7, "points": -3, "growth_value": 0,
 	}, refundPendingCouponStatus)
+	assertRefundClawbackAmount(t, ctx, tx, fixture.refundID, "points", 10)
 
 	memberID := sql.NullInt64{Int64: fixture.memberID, Valid: true}
 	if err := rollbackRefundBenefits(
@@ -71,7 +85,7 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 		t.Fatalf("rollback benefits: %v", err)
 	}
 	assertRefundBenefitState(t, ctx, tx, fixture, map[string]int64{
-		"coins": 3, "points": 1, "growth_value": 2,
+		"coins": 3, "points": 7, "growth_value": 2,
 	}, "active")
 
 	secondRefundID := insertRefundFixture(t, ctx, tx, fixture, "RF-BENEFIT-COMPLETE")
@@ -90,6 +104,7 @@ func TestRefundBenefitsIntegration(t *testing.T) {
 	assertRefundBenefitState(t, ctx, tx, fixture, map[string]int64{
 		"coins": -7, "points": -3, "growth_value": 0,
 	}, "void")
+	assertRefundClawbackAmount(t, ctx, tx, secondRefundID, "points", 10)
 	var currentTierID sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT current_tier_id FROM members WHERE id = ?`, fixture.memberID).
 		Scan(&currentTierID); err != nil {
@@ -105,7 +120,8 @@ type refundBenefitFixture struct {
 	memberID, baseTierID     int64
 	businessOrderID          int64
 	paymentOrderID, refundID int64
-	couponEntitlementID      int64
+	highTierID               int64
+	couponEntitlementIDs     []int64
 }
 
 func createRefundBenefitFixture(t *testing.T, ctx context.Context, tx *sql.Tx) refundBenefitFixture {
@@ -147,7 +163,7 @@ func createRefundBenefitFixture(t *testing.T, ctx context.Context, tx *sql.Tx) r
 	paymentOrderID, _ := result.LastInsertId()
 	fixture := refundBenefitFixture{
 		now: now, memberID: memberID, baseTierID: baseTierID,
-		businessOrderID: businessOrderID, paymentOrderID: paymentOrderID,
+		businessOrderID: businessOrderID, paymentOrderID: paymentOrderID, highTierID: highTierID,
 	}
 	fixture.refundID = insertRefundFixture(t, ctx, tx, fixture, "RF-BENEFIT-ROLLBACK")
 
@@ -186,8 +202,66 @@ func createRefundBenefitFixture(t *testing.T, ctx context.Context, tx *sql.Tx) r
 	if err != nil {
 		t.Fatalf("insert coupon entitlement: %v", err)
 	}
-	fixture.couponEntitlementID, _ = result.LastInsertId()
+	rechargeCouponID, _ := result.LastInsertId()
+	fixture.couponEntitlementIDs = append(fixture.couponEntitlementIDs, rechargeCouponID)
+	grantVIPUpgradeBenefits(t, ctx, tx, &fixture)
 	return fixture
+}
+
+func grantVIPUpgradeBenefits(t *testing.T, ctx context.Context, tx *sql.Tx, fixture *refundBenefitFixture) {
+	t.Helper()
+	var categoryID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_categories
+		WHERE status = 'active' AND canonical_template_id IS NOT NULL ORDER BY id LIMIT 1`).Scan(&categoryID); err != nil {
+		t.Fatalf("select VIP coupon category: %v", err)
+	}
+	config := fmt.Sprintf(`{
+		"points":[{"amount":6,"period":"once","trigger":"tier_achieved"}],
+		"coupons":[{"categoryId":%d,"quantity":1,"period":"daily","trigger":"period_start"}],
+		"descriptions":[]
+	}`, categoryID)
+	if _, err := tx.ExecContext(ctx, `UPDATE membership_tiers SET benefit_config = ?, updated_at = ? WHERE id = ?`,
+		config, fixture.now, fixture.highTierID); err != nil {
+		t.Fatalf("configure VIP upgrade benefits: %v", err)
+	}
+	if err := vipbenefit.GrantTierReachedForOrder(
+		ctx, tx, fixture.memberID, fixture.highTierID, fixture.businessOrderID, fixture.now,
+	); err != nil {
+		t.Fatalf("grant VIP upgrade benefits: %v", err)
+	}
+	var couponID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM coupon_entitlements
+		WHERE member_id = ? AND granted_by_id = ? AND granted_reason = 'VIP等级福利'`,
+		fixture.memberID, fixture.businessOrderID,
+	).Scan(&couponID); err != nil {
+		t.Fatalf("read VIP upgrade coupon: %v", err)
+	}
+	fixture.couponEntitlementIDs = append(fixture.couponEntitlementIDs, couponID)
+}
+
+func insertLegacyVIPGrant(
+	t *testing.T,
+	ctx context.Context,
+	tx *sql.Tx,
+	fixture refundBenefitFixture,
+) int64 {
+	t.Helper()
+	var accountID, balance int64
+	if err := tx.QueryRowContext(ctx, `SELECT id, available_amount FROM wallet_accounts
+		WHERE member_id = ? AND asset_type = 'points'`, fixture.memberID).Scan(&accountID, &balance); err != nil {
+		t.Fatalf("read points account: %v", err)
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
+		(account_id, member_id, asset_type, direction, amount, balance_after, reason,
+		 source_type, source_id, idem_key, created_at)
+		VALUES (?, ?, 'points', 'credit', 1, ?, 'VIP等级福利', 'vip_benefit', ?, ?, ?)`,
+		accountID, fixture.memberID, balance, fixture.highTierID,
+		fmt.Sprintf("legacy-vip-refund-test:%d", fixture.businessOrderID), fixture.now)
+	if err != nil {
+		t.Fatalf("insert legacy VIP grant: %v", err)
+	}
+	ledgerID, _ := result.LastInsertId()
+	return ledgerID
 }
 
 func insertRefundFixture(
@@ -230,13 +304,36 @@ func assertRefundBenefitState(
 			t.Fatalf("%s balance = %d, want %d", asset, got, want)
 		}
 	}
-	var couponStatus string
-	if err := tx.QueryRowContext(ctx, `SELECT status FROM coupon_entitlements WHERE id = ?`,
-		fixture.couponEntitlementID,
-	).Scan(&couponStatus); err != nil {
-		t.Fatalf("read coupon status: %v", err)
+	for _, couponID := range fixture.couponEntitlementIDs {
+		var couponStatus string
+		if err := tx.QueryRowContext(ctx, `SELECT status FROM coupon_entitlements WHERE id = ?`,
+			couponID,
+		).Scan(&couponStatus); err != nil {
+			t.Fatalf("read coupon %d status: %v", couponID, err)
+		}
+		if couponStatus != wantCouponStatus {
+			t.Fatalf("coupon %d status = %q, want %q", couponID, couponStatus, wantCouponStatus)
+		}
 	}
-	if couponStatus != wantCouponStatus {
-		t.Fatalf("coupon status = %q, want %q", couponStatus, wantCouponStatus)
+}
+
+func assertRefundClawbackAmount(
+	t *testing.T,
+	ctx context.Context,
+	tx *sql.Tx,
+	refundID int64,
+	assetType string,
+	want int64,
+) {
+	t.Helper()
+	var amount int64
+	if err := tx.QueryRowContext(ctx, `SELECT amount FROM wallet_ledger_entries
+		WHERE source_type = ? AND source_id = ? AND reason = ? AND asset_type = ?`,
+		refundBenefitSource, refundID, refundBenefitReason, assetType,
+	).Scan(&amount); err != nil {
+		t.Fatalf("read %s clawback: %v", assetType, err)
+	}
+	if amount != want {
+		t.Fatalf("%s clawback = %d, want %d", assetType, amount, want)
 	}
 }
