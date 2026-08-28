@@ -114,8 +114,12 @@ func TestGetOverviewPassesScope(t *testing.T) {
 
 func TestGetRevenueMaps(t *testing.T) {
 	repo := &fakeRepo{
-		revenue: []RevenueRow{{OrderCount: 3, GrossCent: 1500}},
-		total:   1,
+		revenue: []RevenueRow{{
+			OrderCount: 3, GrossCent: 1500,
+			WechatOrderCount: 2, WechatRevenueCent: 1200,
+			CoinOrderCount: 1, CoinConsumption: 3,
+		}},
+		total: 1,
 	}
 	svc := NewService(repo)
 
@@ -123,7 +127,9 @@ func TestGetRevenueMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("revenue: %v", err)
 	}
-	if total != 1 || len(views) != 1 || views[0].GrossCent != 1500 || views[0].OrderCount != 3 {
+	if total != 1 || len(views) != 1 || views[0].GrossCent != 1500 || views[0].OrderCount != 3 ||
+		views[0].WechatOrderCount != 2 || views[0].WechatRevenueCent != 1200 ||
+		views[0].CoinOrderCount != 1 || views[0].CoinConsumption != 3 {
 		t.Fatalf("unexpected mapping: %+v total=%d", views, total)
 	}
 }

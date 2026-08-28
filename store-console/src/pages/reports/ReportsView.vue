@@ -1,31 +1,68 @@
 <script setup lang="ts">
-/**
- * 本店报表：本店经营概览与分项报表入口（仅本店范围，无跨店维度）。
- */
+/** 本店报表：累计经营概览与可按时间筛选的分项分析。 */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { NAlert, NButton, NSkeleton, NSpin, NTabPane, NTabs } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NDatePicker,
+  NRadioButton,
+  NRadioGroup,
+  NSkeleton,
+  NSpin,
+  NTabPane,
+  NTabs,
+} from 'naive-ui'
 import { reportService } from '@/api/services'
 import { ApiError } from '@/api/error'
 import { formatCent, formatCompactCent } from '@/utils/format'
-import { EmptyState, MetricTile, PageHeader } from '@/components/common'
-import type { ReportOverview, RevenueReportRow } from '@/types/models'
+import { EmptyState, PageHeader } from '@/components/common'
+import type {
+  ActivityReportRow,
+  CatalogItemReportRow,
+  ReportOverview,
+  RevenueReportRow,
+} from '@/types/models'
 
 type RangeKey = 'today' | '7d' | '30d'
+type PaymentChannel = 'wechat' | 'coin'
 
+const tab = ref('revenue')
+const paymentChannel = ref<PaymentChannel>('wechat')
 const overviewLoading = ref(false)
 const overview = ref<ReportOverview | null>(null)
 const overviewError = ref<string | null>(null)
 const revenueLoading = ref(false)
 const revenueRows = ref<RevenueReportRow[]>([])
 const revenueError = ref<string | null>(null)
-const range = ref<RangeKey>('7d')
-let revenueRequestVersion = 0
+const catalogLoading = ref(false)
+const catalogRows = ref<CatalogItemReportRow[]>([])
+const catalogError = ref<string | null>(null)
+const activityLoading = ref(false)
+const activityRows = ref<ActivityReportRow[]>([])
+const activityError = ref<string | null>(null)
+const quickRange = ref<RangeKey | null>('7d')
+const rangeError = ref('')
+let reportRequestVersion = 0
 
 const rangeOptions = [
   { label: '今日', value: 'today' },
   { label: '近 7 天', value: '7d' },
   { label: '近 30 天', value: '30d' },
 ]
+
+const countFormatter = new Intl.NumberFormat('zh-CN')
+const compactFormatter = new Intl.NumberFormat('zh-CN', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+function formatCount(value: number | null | undefined): string {
+  return value == null ? '—' : countFormatter.format(value)
+}
+
+function formatCoins(value: number | null | undefined): string {
+  return value == null ? '—' : `${countFormatter.format(value)} 金币`
+}
 
 function formatDateKey(date: Date): string {
   const year = date.getFullYear()
@@ -34,17 +71,31 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function dateKey(value: string): string {
-  return value.slice(0, 10)
+function atLocalDayStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
-function rangeWindow(key: RangeKey): { from: string; to: string; days: number } {
-  const end = new Date()
+function presetTimestamps(key: RangeKey): [number, number] {
+  const end = atLocalDayStart(new Date())
   const days = key === 'today' ? 1 : key === '7d' ? 7 : 30
   const start = new Date(end)
   start.setDate(end.getDate() - (days - 1))
+  return [start.getTime(), end.getTime()]
+}
+
+const dateRange = ref<[number, number]>(presetTimestamps('7d'))
+
+function windowFromTimestamps(value: [number, number]) {
+  const start = atLocalDayStart(new Date(value[0]))
+  const end = atLocalDayStart(new Date(value[1]))
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
   return { from: formatDateKey(start), to: formatDateKey(end), days }
 }
+
+const selectedWindow = computed(() => windowFromTimestamps(dateRange.value))
+const rangeLabel = computed(() => (
+  `${selectedWindow.value.from.replaceAll('-', '/')} – ${selectedWindow.value.to.replaceAll('-', '/')}`
+))
 
 function dateKeys(from: string, days: number): string[] {
   const cursor = new Date(`${from}T12:00:00`)
@@ -55,7 +106,10 @@ function dateKeys(from: string, days: number): string[] {
   })
 }
 
-const selectedWindow = computed(() => rangeWindow(range.value))
+function dateKey(value: string): string {
+  return value.slice(0, 10)
+}
+
 const revenueTrend = computed<RevenueReportRow[]>(() => {
   const byDate = new Map(revenueRows.value.map((row) => [dateKey(row.date), row]))
   return dateKeys(selectedWindow.value.from, selectedWindow.value.days).map((date) => {
@@ -64,34 +118,145 @@ const revenueTrend = computed<RevenueReportRow[]>(() => {
       date,
       orderCount: row?.orderCount ?? 0,
       grossCent: row?.grossCent ?? 0,
+      wechatOrderCount: row?.wechatOrderCount ?? 0,
+      wechatRevenueCent: row?.wechatRevenueCent ?? 0,
+      coinOrderCount: row?.coinOrderCount ?? 0,
+      coinConsumption: row?.coinConsumption ?? 0,
     }
   })
 })
-const revenueTotalCent = computed(() => (
-  revenueTrend.value.reduce((sum, row) => sum + row.grossCent, 0)
+
+const wechatTotalCent = computed(() => (
+  revenueTrend.value.reduce((sum, row) => sum + row.wechatRevenueCent, 0)
 ))
-const revenueOrderCount = computed(() => (
-  revenueTrend.value.reduce((sum, row) => sum + row.orderCount, 0)
+const coinTotal = computed(() => (
+  revenueTrend.value.reduce((sum, row) => sum + row.coinConsumption, 0)
 ))
-const revenuePeakCent = computed(() => Math.max(0, ...revenueTrend.value.map((row) => row.grossCent)))
-const hasRevenue = computed(() => revenueTotalCent.value > 0 || revenueOrderCount.value > 0)
-const rangeLabel = computed(() => (
-  `${selectedWindow.value.from.replaceAll('-', '/')} – ${selectedWindow.value.to.replaceAll('-', '/')}`
+const wechatOrderCount = computed(() => (
+  revenueTrend.value.reduce((sum, row) => sum + row.wechatOrderCount, 0)
 ))
+const coinOrderCount = computed(() => (
+  revenueTrend.value.reduce((sum, row) => sum + row.coinOrderCount, 0)
+))
+const channelTotal = computed(() => (
+  paymentChannel.value === 'wechat' ? wechatTotalCent.value : coinTotal.value
+))
+const channelOrderCount = computed(() => (
+  paymentChannel.value === 'wechat' ? wechatOrderCount.value : coinOrderCount.value
+))
+const channelLabel = computed(() => paymentChannel.value === 'wechat' ? '微信支付' : '金币消费')
+const hasRevenue = computed(() => channelTotal.value > 0 || channelOrderCount.value > 0)
+
+const summaryMetrics = computed(() => [
+  { key: 'members', label: '累计消费会员', value: formatCount(overview.value?.memberCount) },
+  { key: 'orders', label: '累计已支付订单', value: formatCount(overview.value?.orderCount) },
+  { key: 'wechat', label: '微信实收', value: overview.value ? formatCent(overview.value.wechatRevenue.total) : '—' },
+  { key: 'coins', label: '金币消费', value: formatCoins(overview.value?.coinConsumption.total) },
+  { key: 'issued', label: '累计发券', value: formatCount(overview.value?.couponsIssued) },
+  { key: 'redeemed', label: '累计核销', value: formatCount(overview.value?.couponsRedeemed) },
+])
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback
+}
+
+async function loadOverview(): Promise<void> {
+  overviewLoading.value = true
+  overviewError.value = null
+  try {
+    overview.value = await reportService.overview()
+  } catch (error) {
+    overviewError.value = errorMessage(error, '累计经营概览加载失败')
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
+async function loadRangeReports(): Promise<void> {
+  const requestVersion = ++reportRequestVersion
+  const window = selectedWindow.value
+  const params = { from: window.from, to: window.to, page: 1, pageSize: Math.min(window.days, 100) }
+  revenueLoading.value = true
+  catalogLoading.value = true
+  activityLoading.value = true
+  revenueError.value = null
+  catalogError.value = null
+  activityError.value = null
+
+  const [revenueResult, catalogResult, activityResult] = await Promise.allSettled([
+    reportService.revenue(params),
+    reportService.catalogItems({ ...params, pageSize: 20 }),
+    reportService.activities({ ...params, pageSize: 20 }),
+  ])
+  if (requestVersion !== reportRequestVersion) return
+
+  if (revenueResult.status === 'fulfilled') revenueRows.value = revenueResult.value
+  else {
+    revenueRows.value = []
+    revenueError.value = errorMessage(revenueResult.reason, '收款趋势加载失败')
+  }
+  if (catalogResult.status === 'fulfilled') catalogRows.value = catalogResult.value
+  else {
+    catalogRows.value = []
+    catalogError.value = errorMessage(catalogResult.reason, '商品销售排行加载失败')
+  }
+  if (activityResult.status === 'fulfilled') activityRows.value = activityResult.value
+  else {
+    activityRows.value = []
+    activityError.value = errorMessage(activityResult.reason, '活动经营数据加载失败')
+  }
+  revenueLoading.value = false
+  catalogLoading.value = false
+  activityLoading.value = false
+}
+
+function setQuickRange(value: RangeKey): void {
+  quickRange.value = value
+  dateRange.value = presetTimestamps(value)
+  rangeError.value = ''
+  void loadRangeReports()
+}
+
+function updateCustomRange(value: [number, number] | null): void {
+  if (!value) return
+  const window = windowFromTimestamps(value)
+  if (window.days > 90) {
+    rangeError.value = '自定义时间范围最多支持 90 天，请缩短后重试。'
+    return
+  }
+  quickRange.value = null
+  dateRange.value = value
+  rangeError.value = ''
+  void loadRangeReports()
+}
+
+function disableFutureDate(timestamp: number): boolean {
+  const tomorrow = atLocalDayStart(new Date())
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return timestamp >= tomorrow.getTime()
+}
 
 function formatDateLabel(date: string): string {
   return date.slice(5).replace('-', '/')
 }
 
+function formatChannelValue(value: number): string {
+  return paymentChannel.value === 'wechat' ? formatCent(value) : formatCoins(value)
+}
+
+function formatCompactChannelValue(value: number): string {
+  return paymentChannel.value === 'wechat' ? formatCompactCent(value) : compactFormatter.format(value)
+}
+
 const chartHost = ref<HTMLElement | null>(null)
 const chartWidth = ref(960)
 const chartHeight = 300
-const chartPadding = { top: 24, right: 24, bottom: 48, left: 68 }
+const chartPadding = { top: 24, right: 24, bottom: 48, left: 72 }
 const activePointIndex = ref<number | null>(null)
 let chartResizeObserver: ResizeObserver | null = null
 
 function niceStep(value: number): number {
-  if (value <= 0) return 100
+  if (value <= 0) return 1
   const exponent = Math.floor(Math.log10(value))
   const magnitude = 10 ** exponent
   const fraction = value / magnitude
@@ -99,12 +264,17 @@ function niceStep(value: number): number {
   return niceFraction * magnitude
 }
 
+const chartSeries = computed(() => revenueTrend.value.map((row) => ({
+  ...row,
+  value: paymentChannel.value === 'wechat' ? row.wechatRevenueCent : row.coinConsumption,
+  channelOrders: paymentChannel.value === 'wechat' ? row.wechatOrderCount : row.coinOrderCount,
+})))
+const chartPeak = computed(() => Math.max(0, ...chartSeries.value.map((row) => row.value)))
 const chartScale = computed(() => {
-  const step = niceStep((revenuePeakCent.value * 1.12) / 4)
-  const max = Math.max(step, Math.ceil((revenuePeakCent.value * 1.08) / step) * step)
+  const step = niceStep((chartPeak.value * 1.12) / 4)
+  const max = Math.max(step, Math.ceil((chartPeak.value * 1.08) / step) * step)
   return { max, step }
 })
-
 const chartTicks = computed(() => {
   const count = Math.round(chartScale.value.max / chartScale.value.step)
   const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom
@@ -116,9 +286,8 @@ const chartTicks = computed(() => {
     }
   }).reverse()
 })
-
 const chartPoints = computed(() => {
-  const rows = revenueTrend.value
+  const rows = chartSeries.value
   const plotWidth = chartWidth.value - chartPadding.left - chartPadding.right
   const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom
   return rows.map((row, index) => ({
@@ -126,14 +295,12 @@ const chartPoints = computed(() => {
     x: rows.length === 1
       ? chartPadding.left + plotWidth / 2
       : chartPadding.left + (index / (rows.length - 1)) * plotWidth,
-    y: chartHeight - chartPadding.bottom - (row.grossCent / chartScale.value.max) * plotHeight,
+    y: chartHeight - chartPadding.bottom - (row.value / chartScale.value.max) * plotHeight,
   }))
 })
-
 const revenueLinePath = computed(() => chartPoints.value
   .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
   .join(' '))
-
 const revenueAreaPath = computed(() => {
   const points = chartPoints.value
   if (points.length < 2) return ''
@@ -141,7 +308,6 @@ const revenueAreaPath = computed(() => {
   const line = points.map((point) => `L ${point.x} ${point.y}`).join(' ')
   return `M ${points[0].x} ${baseline} ${line} L ${points.at(-1)?.x ?? 0} ${baseline} Z`
 })
-
 const activePoint = computed(() => (
   activePointIndex.value == null ? null : chartPoints.value[activePointIndex.value] ?? null
 ))
@@ -165,151 +331,155 @@ watch(chartHost, (element, previousElement) => {
   chartResizeObserver.observe(element)
 }, { flush: 'post' })
 
-async function loadOverview() {
-  overviewLoading.value = true
-  overviewError.value = null
-  try {
-    overview.value = await reportService.overview()
-  } catch (err) {
-    overviewError.value = err instanceof ApiError ? err.message : '经营概览加载失败'
-  } finally {
-    overviewLoading.value = false
-  }
-}
-
-async function loadRevenue() {
-  const requestVersion = ++revenueRequestVersion
-  const window = rangeWindow(range.value)
-  revenueLoading.value = true
-  revenueError.value = null
-  try {
-    const rows = await reportService.revenue({
-      from: window.from,
-      to: window.to,
-      page: 1,
-      pageSize: window.days,
-    })
-    if (requestVersion === revenueRequestVersion) revenueRows.value = rows
-  } catch (err) {
-    if (requestVersion === revenueRequestVersion) {
-      revenueRows.value = []
-      revenueError.value = err instanceof ApiError ? err.message : '收款趋势加载失败'
-    }
-  } finally {
-    if (requestVersion === revenueRequestVersion) revenueLoading.value = false
-  }
-}
-
-function setRange(value: RangeKey) {
-  if (range.value === value && revenueRows.value.length > 0) return
-  range.value = value
-  void loadRevenue()
-}
-
 onMounted(() => {
-  void Promise.all([loadOverview(), loadRevenue()])
+  void Promise.all([loadOverview(), loadRangeReports()])
 })
 
 onBeforeUnmount(() => chartResizeObserver?.disconnect())
 </script>
 
 <template>
-  <div>
+  <section class="reports">
     <PageHeader
       title="本店报表"
-      description="本店经营概览与分项统计"
-    >
-      <template #actions>
-        <NButton
-          v-for="opt in rangeOptions"
-          :key="opt.value"
-          size="small"
-          :type="range === opt.value ? 'primary' : 'default'"
-          quaternary
-          @click="setRange(opt.value as RangeKey)"
-        >
-          {{ opt.label }}
-        </NButton>
-      </template>
-    </PageHeader>
+      description="累计经营概览，以及可按时间筛选的收款、商品和活动分析"
+    />
 
     <NSpin :show="overviewLoading">
-      <div class="metrics">
-        <MetricTile
-          label="门店数"
-          :value="overview?.storeCount ?? '—'"
-        />
-        <MetricTile
-          label="会员数"
-          :value="overview?.memberCount ?? '—'"
-        />
-        <MetricTile
-          label="订单数"
-          :value="overview?.orderCount ?? '—'"
-        />
-        <MetricTile
-          label="销售额"
-          :value="formatCent(overview?.grossSalesCent ?? null)"
-        />
-        <MetricTile
-          label="发券数"
-          :value="overview?.couponsIssued ?? '—'"
-        />
-        <MetricTile
-          label="核销券数"
-          :value="overview?.couponsRedeemed ?? '—'"
-        />
-      </div>
-      <p
-        v-if="overviewError"
-        class="ic-muted reports__hint"
+      <section
+        class="summary-section"
+        aria-label="累计经营概览"
       >
-        {{ overviewError }}
-      </p>
+        <header class="section-heading">
+          <div>
+            <h2>累计经营概览</h2>
+            <p>累计口径不受下方时间筛选影响</p>
+          </div>
+        </header>
+        <div class="summary-strip">
+          <article
+            v-for="metric in summaryMetrics"
+            :key="metric.key"
+          >
+            <span>{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+          </article>
+        </div>
+        <NAlert
+          v-if="overviewError"
+          type="error"
+          :show-icon="false"
+          class="reports__alert"
+        >
+          {{ overviewError }}
+        </NAlert>
+      </section>
     </NSpin>
 
+    <section
+      class="report-controls"
+      aria-label="报表时间筛选"
+    >
+      <div class="report-controls__copy">
+        <strong>分析时间</strong>
+        <span>{{ rangeLabel }}，筛选同步作用于下方三个分析页面</span>
+      </div>
+      <div class="report-controls__actions">
+        <div
+          class="range-presets"
+          aria-label="快捷时间范围"
+        >
+          <NButton
+            v-for="option in rangeOptions"
+            :key="option.value"
+            size="small"
+            :type="quickRange === option.value ? 'primary' : 'default'"
+            :secondary="quickRange !== option.value"
+            @click="setQuickRange(option.value as RangeKey)"
+          >
+            {{ option.label }}
+          </NButton>
+        </div>
+        <NDatePicker
+          :value="dateRange"
+          type="daterange"
+          format="yyyy-MM-dd"
+          :is-date-disabled="disableFutureDate"
+          :clearable="false"
+          aria-label="选择自定义分析时间"
+          @update:value="updateCustomRange"
+        />
+      </div>
+    </section>
+
+    <NAlert
+      v-if="rangeError"
+      type="warning"
+      :show-icon="false"
+      class="reports__alert"
+    >
+      {{ rangeError }}
+    </NAlert>
+
     <NTabs
+      v-model:value="tab"
       type="line"
-      default-value="revenue"
       class="reports__tabs"
     >
       <NTabPane
         name="revenue"
         tab="收款趋势"
       >
-        <section class="trend-panel">
-          <header class="trend-panel__header">
+        <section class="analysis-panel">
+          <header class="analysis-panel__header">
             <div>
               <h2>收款趋势</h2>
-              <p>{{ rangeLabel }} · 按支付完成日期汇总</p>
+              <p>{{ rangeLabel }} · 按支付完成日期汇总，人民币与金币分开统计</p>
             </div>
-            <div class="trend-summary">
-              <span>
-                <small>区间收款</small>
-                <strong>{{ formatCent(revenueTotalCent) }}</strong>
-              </span>
-              <span>
-                <small>已支付订单</small>
-                <strong>{{ revenueOrderCount }} 单</strong>
-              </span>
-            </div>
+            <NRadioGroup
+              v-model:value="paymentChannel"
+              size="small"
+              name="payment-channel"
+            >
+              <NRadioButton value="wechat">
+                微信支付
+              </NRadioButton>
+              <NRadioButton value="coin">
+                金币消费
+              </NRadioButton>
+            </NRadioGroup>
           </header>
+
+          <div class="channel-summary">
+            <span>
+              <small>微信实收</small>
+              <strong>{{ formatCent(wechatTotalCent) }}</strong>
+              <em>{{ formatCount(wechatOrderCount) }} 单</em>
+            </span>
+            <span>
+              <small>金币消费</small>
+              <strong>{{ formatCoins(coinTotal) }}</strong>
+              <em>{{ formatCount(coinOrderCount) }} 单</em>
+            </span>
+          </div>
 
           <NSkeleton
             v-if="revenueLoading"
             height="300px"
             :sharp="false"
+            class="analysis-panel__state"
           />
           <NAlert
             v-else-if="revenueError"
             type="error"
             :show-icon="false"
+            class="analysis-panel__state"
           >
-            <div class="trend-error">
+            <div class="state-error">
               <span>{{ revenueError }}</span>
               <NButton
                 size="small"
-                @click="loadRevenue"
+                @click="loadRangeReports"
               >
                 重试
               </NButton>
@@ -319,6 +489,7 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
             v-else-if="hasRevenue"
             ref="chartHost"
             class="trend-chart-scroll"
+            :class="`trend-chart-scroll--${paymentChannel}`"
             @mouseleave="activePointIndex = null"
           >
             <div
@@ -331,7 +502,7 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                 :width="chartWidth"
                 :height="chartHeight"
                 role="img"
-                :aria-label="`${rangeLabel} 收款趋势，区间收款 ${formatCent(revenueTotalCent)}，${revenueOrderCount} 单`"
+                :aria-label="`${rangeLabel} ${channelLabel}趋势，合计 ${formatChannelValue(channelTotal)}，${channelOrderCount} 单`"
               >
                 <g
                   v-for="tick in chartTicks"
@@ -349,7 +520,7 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                     :y="tick.y + 4"
                     text-anchor="end"
                   >
-                    {{ formatCompactCent(tick.value) }}
+                    {{ formatCompactChannelValue(tick.value) }}
                   </text>
                 </g>
 
@@ -369,7 +540,7 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                   class="trend-chart__point-group"
                   role="img"
                   tabindex="0"
-                  :aria-label="`${point.date}，收款 ${formatCent(point.grossCent)}，已支付订单 ${point.orderCount} 单`"
+                  :aria-label="`${point.date}，${channelLabel} ${formatChannelValue(point.value)}，${point.channelOrders} 单`"
                   @mouseenter="activePointIndex = index"
                   @focus="activePointIndex = index"
                   @blur="activePointIndex = null"
@@ -392,10 +563,10 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                   />
                   <circle
                     class="trend-chart__point"
-                    :class="{ 'trend-chart__point--zero': point.grossCent === 0 }"
+                    :class="{ 'trend-chart__point--zero': point.value === 0 }"
                     :cx="point.x"
                     :cy="point.y"
-                    :r="activePointIndex === index ? 5 : point.grossCent === 0 ? 2.5 : 3.5"
+                    :r="activePointIndex === index ? 5 : point.value === 0 ? 2.5 : 3.5"
                   />
                   <text
                     v-if="showDateLabel(index)"
@@ -418,161 +589,429 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                 }"
               >
                 <span>{{ activePoint.date }}</span>
-                <strong>{{ formatCent(activePoint.grossCent) }}</strong>
-                <small>{{ activePoint.orderCount }} 单已支付</small>
+                <strong>{{ formatChannelValue(activePoint.value) }}</strong>
+                <small>{{ activePoint.channelOrders }} 单{{ channelLabel }}</small>
               </div>
             </div>
           </div>
           <EmptyState
             v-else
-            description="所选时间范围内暂无已支付收款"
+            :description="`所选时间范围内暂无${channelLabel}记录`"
           />
         </section>
       </NTabPane>
+
       <NTabPane
         name="items"
         tab="热门商品"
       >
-        <EmptyState description="热门商品统计待服务端 /store/reports/catalog-items 接入" />
+        <section class="analysis-panel">
+          <header class="analysis-panel__header">
+            <div>
+              <h2>热门商品</h2>
+              <p>{{ rangeLabel }} · 按销售流水排序，展示前 20 项</p>
+            </div>
+            <strong>{{ catalogRows.length }} 项</strong>
+          </header>
+          <NSkeleton
+            v-if="catalogLoading"
+            height="260px"
+            :sharp="false"
+            class="analysis-panel__state"
+          />
+          <NAlert
+            v-else-if="catalogError"
+            type="error"
+            :show-icon="false"
+            class="analysis-panel__state"
+          >
+            <div class="state-error">
+              <span>{{ catalogError }}</span>
+              <NButton
+                size="small"
+                @click="loadRangeReports"
+              >
+                重试
+              </NButton>
+            </div>
+          </NAlert>
+          <div
+            v-else-if="catalogRows.length"
+            class="rank-table"
+          >
+            <div class="rank-table__head">
+              <span>排名</span><span>商品</span><span>销量</span><span>销售流水</span>
+            </div>
+            <div
+              v-for="(row, index) in catalogRows"
+              :key="row.itemId"
+              class="rank-table__row"
+            >
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <strong>{{ row.itemName }}</strong>
+              <span>{{ formatCount(row.soldQty) }} 份</span>
+              <span>{{ formatCent(row.grossCent) }}</span>
+            </div>
+          </div>
+          <EmptyState
+            v-else
+            description="所选时间范围内暂无商品销售"
+          />
+        </section>
       </NTabPane>
+
       <NTabPane
         name="activities"
-        tab="活动核销"
+        tab="活动经营"
       >
-        <EmptyState description="活动核销统计待服务端 /store/reports/activities 接入" />
+        <section class="analysis-panel">
+          <header class="analysis-panel__header">
+            <div>
+              <h2>活动经营</h2>
+              <p>{{ rangeLabel }} · 按订单数量排序，展示前 20 项</p>
+            </div>
+            <strong>{{ activityRows.length }} 项</strong>
+          </header>
+          <NSkeleton
+            v-if="activityLoading"
+            height="260px"
+            :sharp="false"
+            class="analysis-panel__state"
+          />
+          <NAlert
+            v-else-if="activityError"
+            type="error"
+            :show-icon="false"
+            class="analysis-panel__state"
+          >
+            <div class="state-error">
+              <span>{{ activityError }}</span>
+              <NButton
+                size="small"
+                @click="loadRangeReports"
+              >
+                重试
+              </NButton>
+            </div>
+          </NAlert>
+          <div
+            v-else-if="activityRows.length"
+            class="rank-table"
+          >
+            <div class="rank-table__head">
+              <span>排名</span><span>活动</span><span>订单数</span><span>售票数</span>
+            </div>
+            <div
+              v-for="(row, index) in activityRows"
+              :key="row.activityId"
+              class="rank-table__row"
+            >
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <strong>{{ row.activityName }}</strong>
+              <span>{{ formatCount(row.orderCount) }} 单</span>
+              <span>{{ formatCount(row.ticketCount) }} 张</span>
+            </div>
+          </div>
+          <EmptyState
+            v-else
+            description="所选时间范围内暂无活动订单"
+          />
+        </section>
       </NTabPane>
     </NTabs>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--ic-space-3);
+.reports {
+  max-width: 1480px;
 }
-.reports__hint {
-  font-size: var(--ic-font-xs);
-  margin-top: var(--ic-space-3);
+
+.summary-section {
+  padding: var(--ic-space-2) 0 var(--ic-space-5);
 }
-.reports__tabs {
-  margin-top: var(--ic-space-6);
-}
-.trend-panel {
-  padding-top: var(--ic-space-2);
-}
-.trend-panel__header {
+
+.section-heading,
+.analysis-panel__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--ic-space-5);
-  padding-bottom: var(--ic-space-4);
-  border-bottom: var(--ic-divider);
 }
-.trend-panel__header h2 {
+
+.section-heading {
+  margin-bottom: var(--ic-space-3);
+}
+
+.section-heading h2,
+.analysis-panel__header h2 {
   margin: 0;
-  font-size: var(--ic-font-lg);
+  color: var(--ic-color-text);
+  font-size: var(--ic-font-md);
+  font-weight: 650;
 }
-.trend-panel__header p {
+
+.section-heading p,
+.analysis-panel__header p {
   margin: var(--ic-space-1) 0 0;
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-sm);
 }
-.trend-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--ic-space-5);
-  flex-shrink: 0;
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-top: var(--ic-divider);
+  border-bottom: var(--ic-divider);
 }
-.trend-summary span {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--ic-space-1);
+
+.summary-strip article {
+  min-width: 0;
+  padding: var(--ic-space-4) var(--ic-space-4) var(--ic-space-4) 0;
 }
-.trend-summary small {
+
+.summary-strip article + article {
+  padding-left: var(--ic-space-4);
+  border-left: var(--ic-divider);
+}
+
+.summary-strip span,
+.summary-strip strong {
+  display: block;
+}
+
+.summary-strip span {
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
 }
-.trend-summary strong {
+
+.summary-strip strong {
+  margin-top: var(--ic-space-2);
+  overflow: hidden;
+  color: var(--ic-color-text);
+  font-size: var(--ic-font-lg);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-5);
+  padding: var(--ic-space-3) 0;
+  border-top: var(--ic-divider);
+  border-bottom: var(--ic-divider);
+}
+
+.report-controls__copy {
+  min-width: 0;
+}
+
+.report-controls__copy strong,
+.report-controls__copy span {
+  display: block;
+}
+
+.report-controls__copy strong {
+  font-size: var(--ic-font-sm);
+}
+
+.report-controls__copy span {
+  margin-top: 3px;
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+}
+
+.report-controls__actions,
+.range-presets {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-2);
+}
+
+.report-controls__actions :deep(.n-date-picker) {
+  width: 260px;
+}
+
+.reports__alert {
+  margin-top: var(--ic-space-3);
+}
+
+.reports__tabs {
+  margin-top: var(--ic-space-5);
+}
+
+.reports__tabs :deep(.n-tabs-nav) {
+  min-height: 48px;
+  border-bottom: var(--ic-divider);
+}
+
+.reports__tabs :deep(.n-tabs-nav-scroll-content) {
+  gap: var(--ic-space-1);
+}
+
+.reports__tabs :deep(.n-tabs-tab) {
+  padding: 0 var(--ic-space-4);
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+  transition: color 160ms ease-out, background-color 160ms ease-out;
+}
+
+.reports__tabs :deep(.n-tabs-tab:hover) {
+  color: var(--ic-color-text);
+  background: var(--ic-color-surface-muted);
+}
+
+.reports__tabs :deep(.n-tabs-tab--active) {
+  color: var(--ic-color-text);
+  font-weight: 600;
+}
+
+.analysis-panel {
+  padding-top: var(--ic-space-5);
+}
+
+.analysis-panel__header {
+  padding-bottom: var(--ic-space-4);
+  border-bottom: var(--ic-divider);
+}
+
+.analysis-panel__header > strong {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.channel-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: var(--ic-divider);
+}
+
+.channel-summary > span {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) auto auto;
+  gap: var(--ic-space-3);
+  align-items: baseline;
+  padding: var(--ic-space-3) 0;
+}
+
+.channel-summary > span + span {
+  padding-left: var(--ic-space-5);
+  border-left: var(--ic-divider);
+}
+
+.channel-summary small,
+.channel-summary em {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+  font-style: normal;
+}
+
+.channel-summary strong {
   font-size: var(--ic-font-md);
   font-variant-numeric: tabular-nums;
 }
-.trend-error {
+
+.analysis-panel__state {
+  margin-top: var(--ic-space-5);
+}
+
+.state-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--ic-space-4);
 }
-.trend-panel > .n-skeleton,
-.trend-panel > .n-alert {
-  margin-top: var(--ic-space-5);
-}
+
 .trend-chart-scroll {
+  --chart-color: var(--ic-color-info);
+  --chart-area: color-mix(in srgb, var(--ic-color-info) 10%, transparent);
   overflow-x: auto;
   margin-top: var(--ic-space-4);
 }
+
+.trend-chart-scroll--coin {
+  --chart-color: var(--ic-color-primary);
+  --chart-area: color-mix(in srgb, var(--ic-color-primary) 7%, transparent);
+}
+
 .trend-chart-stage {
   position: relative;
   min-width: 680px;
   height: 300px;
 }
+
 .trend-chart {
   display: block;
   overflow: visible;
 }
+
 .trend-chart__grid line {
   stroke: var(--ic-color-border);
   stroke-width: 1;
   shape-rendering: crispEdges;
 }
+
 .trend-chart__grid text,
 .trend-chart__date {
   fill: var(--ic-color-text-tertiary);
   font-size: var(--ic-font-xs);
   font-variant-numeric: tabular-nums;
 }
+
 .trend-chart__area {
-  fill: rgba(64, 115, 158, 0.08);
+  fill: var(--chart-area);
   pointer-events: none;
 }
+
 .trend-chart__line {
   fill: none;
-  stroke: var(--ic-color-info);
+  stroke: var(--chart-color);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.5;
   pointer-events: none;
 }
+
 .trend-chart__hit-area {
   fill: transparent;
   cursor: crosshair;
 }
+
 .trend-chart__crosshair {
   stroke: var(--ic-color-border-strong);
   stroke-dasharray: 3 4;
   stroke-width: 1;
   pointer-events: none;
 }
+
 .trend-chart__point {
-  fill: var(--ic-color-info);
+  fill: var(--chart-color);
   stroke: var(--ic-color-surface);
   stroke-width: 2;
   transition: r 120ms ease-out;
   pointer-events: none;
 }
+
 .trend-chart__point--zero {
   fill: var(--ic-color-surface);
   stroke: var(--ic-color-border-strong);
   stroke-width: 1.5;
 }
+
 .trend-chart__point-group:focus {
   outline: none;
 }
+
 .trend-chart__point-group:focus .trend-chart__point {
   stroke: var(--ic-color-text);
   stroke-width: 2.5;
 }
+
 .trend-chart__tooltip {
   position: absolute;
   z-index: 1;
@@ -586,30 +1025,134 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
   pointer-events: none;
   transform: translateX(-50%);
 }
+
 .trend-chart__tooltip span,
 .trend-chart__tooltip small {
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
 }
+
 .trend-chart__tooltip strong {
   margin: 2px 0;
   color: var(--ic-color-text);
   font-size: var(--ic-font-md);
   font-variant-numeric: tabular-nums;
 }
-@media (max-width: 720px) {
-  .trend-panel__header {
-    flex-direction: column;
+
+.rank-table {
+  overflow-x: auto;
+}
+
+.rank-table__head,
+.rank-table__row {
+  display: grid;
+  min-width: 680px;
+  grid-template-columns: 72px minmax(260px, 1fr) 140px 160px;
+  gap: var(--ic-space-4);
+  align-items: center;
+  padding: 13px var(--ic-space-2);
+  border-bottom: var(--ic-divider);
+}
+
+.rank-table__head {
+  color: var(--ic-color-text-secondary);
+  background: var(--ic-color-surface-muted);
+  font-size: var(--ic-font-xs);
+}
+
+.rank-table__row {
+  font-size: var(--ic-font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-table__row > span:first-child {
+  color: var(--ic-color-text-tertiary);
+}
+
+.rank-table__row strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .trend-summary {
-    width: 100%;
-    justify-content: space-between;
+
+  .summary-strip article:nth-child(4) {
+    padding-left: 0;
+    border-left: 0;
   }
-  .trend-summary span {
-    align-items: flex-start;
+
+  .summary-strip article:nth-child(n + 4) {
+    border-top: var(--ic-divider);
   }
 }
+
+@media (max-width: 860px) {
+  .report-controls,
+  .analysis-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-controls__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-controls__actions :deep(.n-date-picker) {
+    width: 100%;
+  }
+
+  .channel-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .channel-summary > span + span {
+    padding-left: 0;
+    border-top: var(--ic-divider);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-strip article:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .summary-strip article:nth-child(even) {
+    padding-left: var(--ic-space-3);
+    border-left: var(--ic-divider);
+  }
+
+  .summary-strip article:nth-child(n + 3) {
+    border-top: var(--ic-divider);
+  }
+
+  .range-presets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .channel-summary > span {
+    grid-template-columns: 1fr auto;
+  }
+
+  .channel-summary em {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .reports__tabs :deep(.n-tabs-tab),
   .trend-chart__point {
     transition: none;
   }

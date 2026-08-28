@@ -4,7 +4,13 @@
 
 import { get } from '../request'
 import { API_PATHS } from '@/constants/apiPaths'
-import type { ReportOverview, RevenueReportQuery, RevenueReportRow } from '@/types/models'
+import type {
+  ActivityReportRow,
+  CatalogItemReportRow,
+  ReportOverview,
+  RevenueReportQuery,
+  RevenueReportRow,
+} from '@/types/models'
 
 export const reportService = {
   overview() {
@@ -15,9 +21,9 @@ export const reportService = {
     return get<RevenueReportRow[]>(API_PATHS.reports.revenue, { params })
   },
   catalogItems(params?: Record<string, unknown>) {
-    return get<Record<string, unknown>[]>(API_PATHS.reports.catalogItems, { params })
+    return get<CatalogItemReportRow[]>(API_PATHS.reports.catalogItems, { params })
   },
   activities(params?: Record<string, unknown>) {
-    return get<Record<string, unknown>[]>(API_PATHS.reports.activities, { params })
+    return get<ActivityReportRow[]>(API_PATHS.reports.activities, { params })
   },
 }

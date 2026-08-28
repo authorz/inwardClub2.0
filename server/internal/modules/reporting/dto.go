@@ -42,9 +42,13 @@ type OverviewTrendPointView struct {
 
 // RevenueView is one day's revenue rollup.
 type RevenueView struct {
-	Date       time.Time `json:"date"`
-	OrderCount int64     `json:"orderCount"`
-	GrossCent  int64     `json:"grossCent"`
+	Date              time.Time `json:"date"`
+	OrderCount        int64     `json:"orderCount"`
+	GrossCent         int64     `json:"grossCent"`
+	WechatOrderCount  int64     `json:"wechatOrderCount"`
+	WechatRevenueCent int64     `json:"wechatRevenueCent"`
+	CoinOrderCount    int64     `json:"coinOrderCount"`
+	CoinConsumption   int64     `json:"coinConsumption"`
 }
 
 // CatalogItemView is a per-item sales rollup.

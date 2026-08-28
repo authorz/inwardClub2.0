@@ -530,6 +530,10 @@ export interface RevenueReportRow {
   date: string
   orderCount: number
   grossCent: number
+  wechatOrderCount: number
+  wechatRevenueCent: number
+  coinOrderCount: number
+  coinConsumption: number
 }
 
 /** 报表：商品销量（/admin/reports/catalog-items） */

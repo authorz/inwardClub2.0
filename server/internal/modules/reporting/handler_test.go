@@ -98,7 +98,11 @@ func TestOverviewStoreScopesToToken(t *testing.T) {
 func TestRevenueStoreScopesToTokenAndParsesWindow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	repo := &fakeRepo{revenue: []RevenueRow{{OrderCount: 3, GrossCent: 1500}}, total: 1}
+	repo := &fakeRepo{revenue: []RevenueRow{{
+		OrderCount: 3, GrossCent: 1500,
+		WechatOrderCount: 2, WechatRevenueCent: 1200,
+		CoinOrderCount: 1, CoinConsumption: 3,
+	}}, total: 1}
 	router := gin.New()
 	router.GET("/store/reports/revenue", withStoreScope(42), newHandler(repo).Revenue)
 
@@ -109,7 +113,9 @@ func TestRevenueStoreScopesToTokenAndParsesWindow(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"grossCent":1500`) {
+	if body := rec.Body.String(); !strings.Contains(body, `"grossCent":1500`) ||
+		!strings.Contains(body, `"wechatRevenueCent":1200`) ||
+		!strings.Contains(body, `"coinConsumption":3`) {
 		t.Fatalf("expected revenue data in response, got: %s", rec.Body.String())
 	}
 	if repo.lastReport.StoreID == nil || *repo.lastReport.StoreID != 42 {

@@ -234,13 +234,26 @@ func (r *sqlRepository) Revenue(ctx context.Context, f ReportFilter) ([]RevenueR
 	const reportDate = "DATE(CONVERT_TZ(po.paid_at, '+00:00', '+08:00'))"
 	base := ` FROM payment_orders po
 		JOIN business_orders bo ON bo.id = po.business_order_id
+		LEFT JOIN (
+			SELECT source_id AS payment_order_id, COALESCE(SUM(amount), 0) AS coin_amount
+			FROM wallet_ledger_entries
+			WHERE asset_type = 'coins' AND direction = 'debit'
+				AND reason = 'order_payment' AND source_type = 'payment_order'
+			GROUP BY source_id
+		) coin_ledger ON coin_ledger.payment_order_id = po.id
 		WHERE po.status = 'paid'` + sd
 	var total int64
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(DISTINCT `+reportDate+`)`+base, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	q := `SELECT ` + reportDate + `, COUNT(*), COALESCE(SUM(po.amount_cent), 0)` + base +
+	q := `SELECT ` + reportDate + `,
+		COUNT(*),
+		COALESCE(SUM(po.amount_cent), 0),
+		COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN po.pay_method = 'wechat' THEN po.amount_cent ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN po.pay_method = 'coin' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN po.pay_method = 'coin' THEN coin_ledger.coin_amount ELSE 0 END), 0)` + base +
 		` GROUP BY ` + reportDate + ` ORDER BY ` + reportDate + ` DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Page.Limit(), f.Page.Offset())
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -251,7 +264,11 @@ func (r *sqlRepository) Revenue(ctx context.Context, f ReportFilter) ([]RevenueR
 	out := make([]RevenueRow, 0)
 	for rows.Next() {
 		var row RevenueRow
-		if err := rows.Scan(&row.Date, &row.OrderCount, &row.GrossCent); err != nil {
+		if err := rows.Scan(
+			&row.Date, &row.OrderCount, &row.GrossCent,
+			&row.WechatOrderCount, &row.WechatRevenueCent,
+			&row.CoinOrderCount, &row.CoinConsumption,
+		); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
 		out = append(out, row)

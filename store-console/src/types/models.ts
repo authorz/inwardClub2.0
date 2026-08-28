@@ -375,6 +375,10 @@ export interface RevenueReportRow {
   date: string
   orderCount: number
   grossCent: number
+  wechatOrderCount: number
+  wechatRevenueCent: number
+  coinOrderCount: number
+  coinConsumption: number
 }
 
 export interface RevenueReportQuery {
@@ -382,6 +386,20 @@ export interface RevenueReportQuery {
   to: string
   page: number
   pageSize: number
+}
+
+export interface CatalogItemReportRow {
+  itemId: number | string
+  itemName: string
+  soldQty: number
+  grossCent: number
+}
+
+export interface ActivityReportRow {
+  activityId: number | string
+  activityName: string
+  orderCount: number
+  ticketCount: number
 }
 
 /** 会员单一资产余额（仅会员详情返回 wallet 数组）。 */

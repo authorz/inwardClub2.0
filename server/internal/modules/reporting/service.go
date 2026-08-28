@@ -64,7 +64,11 @@ func (s *Service) GetRevenue(ctx context.Context, f ReportFilter) ([]RevenueView
 	}
 	views := make([]RevenueView, 0, len(rows))
 	for _, r := range rows {
-		views = append(views, RevenueView{Date: r.Date, OrderCount: r.OrderCount, GrossCent: r.GrossCent})
+		views = append(views, RevenueView{
+			Date: r.Date, OrderCount: r.OrderCount, GrossCent: r.GrossCent,
+			WechatOrderCount: r.WechatOrderCount, WechatRevenueCent: r.WechatRevenueCent,
+			CoinOrderCount: r.CoinOrderCount, CoinConsumption: r.CoinConsumption,
+		})
 	}
 	return views, total, nil
 }

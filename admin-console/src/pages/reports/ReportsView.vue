@@ -193,13 +193,10 @@ const storeFetcher = (query: ListQuery) => reportService.stores(scopedQuery(quer
 const revenueColumns = [
   textColumn<RevenueReportRow>('日期', 'date', { width: 140 }),
   textColumn<RevenueReportRow>('已支付订单', 'orderCount', { width: 120 }),
-  moneyColumn<RevenueReportRow>('流水', 'grossCent'),
-  renderColumn<RevenueReportRow>(
-    '平均订单金额',
-    'averageOrderCent',
-    (row) => formatAverage(row.grossCent, row.orderCount),
-    140,
-  ),
+  textColumn<RevenueReportRow>('微信订单', 'wechatOrderCount', { width: 110 }),
+  moneyColumn<RevenueReportRow>('微信实收', 'wechatRevenueCent'),
+  textColumn<RevenueReportRow>('金币订单', 'coinOrderCount', { width: 110 }),
+  renderColumn<RevenueReportRow>('金币消费', 'coinConsumption', (row) => formatCoins(row.coinConsumption), 140),
 ]
 
 const catalogColumns = [
@@ -271,21 +268,6 @@ const storeColumns = [
       :breadcrumb="['报表', '经营报表']"
     />
 
-    <div class="report-scope">
-      <div>
-        <strong>统计门店</strong>
-        <span>选择门店后，所有报表分项同步切换；清空后恢复总部汇总。</span>
-      </div>
-      <NSelect
-        v-model:value="selectedStoreId"
-        :options="storeOptions"
-        :loading="storesLoading"
-        placeholder="全部门店"
-        filterable
-        clearable
-      />
-    </div>
-
     <NAlert
       v-if="storesError"
       type="error"
@@ -298,8 +280,22 @@ const storeColumns = [
     <NTabs
       v-model:value="tab"
       type="line"
-      animated
+      class="report-tabs"
     >
+      <template #suffix>
+        <div class="report-tabs__scope">
+          <span>统计范围</span>
+          <NSelect
+            v-model:value="selectedStoreId"
+            :options="storeOptions"
+            :loading="storesLoading"
+            placeholder="全部门店"
+            aria-label="选择统计门店"
+            filterable
+            clearable
+          />
+        </div>
+      </template>
       <NTabPane
         v-for="item in reportTabs"
         :key="item.key"
@@ -440,6 +436,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'revenue'"
           :key="`revenue-${reportScopeKey}`"
+          class="report-list-pane"
           title="收款趋势"
           :description="`${selectedStoreName}按支付日期汇总的已支付订单`"
           :fields="rangeFields"
@@ -449,6 +446,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'catalog'"
           :key="`catalog-${reportScopeKey}`"
+          class="report-list-pane"
           title="商品销售"
           :description="`${selectedStoreName}商品销量与销售流水`"
           :fields="rangeFields"
@@ -458,6 +456,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'activities'"
           :key="`activities-${reportScopeKey}`"
+          class="report-list-pane"
           title="活动经营"
           :description="`${selectedStoreName}活动订单与售票数量`"
           :fields="rangeFields"
@@ -467,6 +466,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'coupons'"
           :key="`coupons-${reportScopeKey}`"
+          class="report-list-pane"
           title="券效率"
           :description="`${selectedStoreName}券发放、核销数量与核销率`"
           :fields="rangeFields"
@@ -476,6 +476,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'records'"
           :key="`records-${reportScopeKey}`"
+          class="report-list-pane"
           title="核销记录"
           :description="`${selectedStoreName}活动票与优惠券核销明细`"
           :fields="rangeFields"
@@ -485,6 +486,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'members'"
           :key="`members-${reportScopeKey}`"
+          class="report-list-pane"
           title="会员消费"
           :description="`${selectedStoreName}产生订单的会员及订单数量`"
           :fields="rangeFields"
@@ -494,6 +496,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'reservations'"
           :key="`reservations-${reportScopeKey}`"
+          class="report-list-pane"
           title="预约趋势"
           :description="`${selectedStoreName}每日预约数量`"
           :fields="rangeFields"
@@ -503,6 +506,7 @@ const storeColumns = [
         <ResourceListView
           v-else-if="item.key === 'stores'"
           :key="`stores-${reportScopeKey}`"
+          class="report-list-pane"
           title="门店经营对比"
           description="对比各门店的订单、会员、预约、流水与券核销表现"
           :fields="rangeFields"
@@ -519,44 +523,63 @@ const storeColumns = [
   max-width: 1480px;
 }
 
-.report-scope {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ic-space-lg);
-  padding: var(--ic-space-md) 0;
-  border-top: 1px solid var(--ic-color-border);
-  border-bottom: 1px solid var(--ic-color-border);
-  margin-bottom: var(--ic-space-md);
-}
-
-.report-scope > div {
-  min-width: 0;
-}
-
-.report-scope strong,
-.report-scope span {
-  display: block;
-}
-
-.report-scope span,
 .section-heading p,
 .breakdown-row small {
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
 }
 
-.report-scope span {
-  margin-top: 4px;
-}
-
-.report-scope :deep(.n-select) {
-  width: min(320px, 100%);
-  flex: 0 1 320px;
-}
-
 .reports__alert {
   margin-bottom: var(--ic-space-md);
+}
+
+.report-tabs :deep(.n-tabs-nav) {
+  min-height: 54px;
+  border-top: 1px solid var(--ic-color-border);
+  border-bottom: 1px solid var(--ic-color-border);
+}
+
+.report-tabs :deep(.n-tabs-nav-scroll-content) {
+  gap: 2px;
+}
+
+.report-tabs :deep(.n-tabs-tab) {
+  padding: 0 12px;
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+  transition: color 160ms ease-out, background-color 160ms ease-out;
+}
+
+.report-tabs :deep(.n-tabs-tab:hover) {
+  color: var(--ic-color-text);
+  background: var(--ic-color-surface-muted);
+}
+
+.report-tabs :deep(.n-tabs-tab--active) {
+  color: var(--ic-color-text);
+  font-weight: 600;
+}
+
+.report-tabs__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--ic-space-sm);
+  padding-left: var(--ic-space-md);
+}
+
+.report-tabs__scope > span {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-xs);
+  white-space: nowrap;
+}
+
+.report-tabs__scope :deep(.n-select) {
+  width: 260px;
+}
+
+:deep(.report-list-pane > .page-header) {
+  padding-top: var(--ic-space-lg);
+  padding-bottom: 4px;
 }
 
 .overview-section {
@@ -708,6 +731,7 @@ const storeColumns = [
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .report-tabs :deep(.n-tabs-tab),
   .trend-rail i {
     transition: none;
   }
@@ -722,15 +746,17 @@ const storeColumns = [
 }
 
 @media (max-width: 640px) {
-  .report-scope,
   .section-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .report-scope :deep(.n-select) {
-    width: 100%;
-    flex-basis: auto;
+  .report-tabs__scope > span {
+    display: none;
+  }
+
+  .report-tabs__scope :deep(.n-select) {
+    width: 190px;
   }
 
   .metric-grid,

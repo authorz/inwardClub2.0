@@ -66,9 +66,13 @@ type ReportFilter struct {
 
 // RevenueRow is one day's revenue rollup.
 type RevenueRow struct {
-	Date       time.Time
-	OrderCount int64
-	GrossCent  int64
+	Date              time.Time
+	OrderCount        int64
+	GrossCent         int64
+	WechatOrderCount  int64
+	WechatRevenueCent int64
+	CoinOrderCount    int64
+	CoinConsumption   int64
 }
 
 // CatalogItemStat is a per-item sales rollup.
