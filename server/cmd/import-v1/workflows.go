@@ -10,6 +10,7 @@ import (
 
 func (i *importer) migratePointWorkflows(ctx context.Context, tx *sql.Tx) error {
 	now := time.Now().UTC()
+	savingRows := [][]any{}
 	rows, err := i.source.QueryContext(ctx, `SELECT id,store_id,user_id,save_points,points,verify_staff,verify_time,COALESCE(remark,''),status,created_at,updated_at FROM save_points ORDER BY id`)
 	if err != nil {
 		return err
@@ -26,13 +27,7 @@ func (i *importer) migratePointWorkflows(ctx context.Context, tx *sql.Tx) error 
 			return err
 		}
 		state := map[int]string{1: "pending", 2: "approved", 3: "rejected"}[status]
-		_, err = tx.ExecContext(ctx, `INSERT INTO point_savings
-			(id,store_id,member_id,points,base_points,awarded_points,status,remark,idem_key,reviewed_by,reviewed_by_type,reviewed_at,created_at,updated_at)
-			VALUES (?,?,?,?,?,?,?, ?,?,?,?, ?,?,?)`, id, store, member, rawPoints, rawPoints, awarded, state, truncateUTF8(remark, 255), fmt.Sprintf("v1:save_points:%d", id), nullableInt(reviewer), nullableReviewerType(reviewer), nullableNullTime(reviewed), nullableTime(created, now), nullableTime(updated, now))
-		if err != nil {
-			rows.Close()
-			return fmt.Errorf("insert point saving %d: %w", id, err)
-		}
+		savingRows = append(savingRows, []any{id, store, member, rawPoints, rawPoints, awarded, state, truncateUTF8(remark, 255), fmt.Sprintf("v1:save_points:%d", id), nullableInt(reviewer), nullableReviewerType(reviewer), nullableNullTime(reviewed), nullableTime(created, now), nullableTime(updated, now)})
 		if err = i.mapID(ctx, tx, "save_points", id, "point_savings", id); err != nil {
 			rows.Close()
 			return err
@@ -40,11 +35,16 @@ func (i *importer) migratePointWorkflows(ctx context.Context, tx *sql.Tx) error 
 		savings++
 	}
 	rows.Close()
+	if err := execBatches(ctx, tx, `INSERT INTO point_savings
+		(id,store_id,member_id,points,base_points,awarded_points,status,remark,idem_key,reviewed_by,reviewed_by_type,reviewed_at,created_at,updated_at)`, 14, savingRows); err != nil {
+		return err
+	}
 	rows, err = i.source.QueryContext(ctx, `SELECT id,user_id,store_id,points,audit_status,auditor_id,audited_at,COALESCE(audit_remark,description,''),created_at,updated_at FROM points_withdrawal ORDER BY id`)
 	if err != nil {
 		return err
 	}
 	withdrawals := int64(0)
+	withdrawalRows := [][]any{}
 	for rows.Next() {
 		var id, member, store, points int64
 		var status, remark string
@@ -54,13 +54,7 @@ func (i *importer) migratePointWorkflows(ctx context.Context, tx *sql.Tx) error 
 			rows.Close()
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO point_withdrawals
-			(id,store_id,member_id,points,status,remark,idem_key,reviewed_by,reviewed_at,created_at,updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`, id, store, member, points, status, truncateUTF8(remark, 255), fmt.Sprintf("v1:points_withdrawal:%d", id), nullableInt(reviewer), nullableNullTime(reviewed), nullableTime(created, now), nullableTime(updated, now))
-		if err != nil {
-			rows.Close()
-			return fmt.Errorf("insert point withdrawal %d: %w", id, err)
-		}
+		withdrawalRows = append(withdrawalRows, []any{id, store, member, points, status, truncateUTF8(remark, 255), fmt.Sprintf("v1:points_withdrawal:%d", id), nullableInt(reviewer), nullableNullTime(reviewed), nullableTime(created, now), nullableTime(updated, now)})
 		if err = i.mapID(ctx, tx, "points_withdrawal", id, "point_withdrawals", id); err != nil {
 			rows.Close()
 			return err
@@ -68,6 +62,10 @@ func (i *importer) migratePointWorkflows(ctx context.Context, tx *sql.Tx) error 
 		withdrawals++
 	}
 	rows.Close()
+	if err := execBatches(ctx, tx, `INSERT INTO point_withdrawals
+		(id,store_id,member_id,points,status,remark,idem_key,reviewed_by,reviewed_at,created_at,updated_at)`, 11, withdrawalRows); err != nil {
+		return err
+	}
 	i.metrics["pointSavingsImported"] = savings
 	i.metrics["pointWithdrawalsImported"] = withdrawals
 	return nil
@@ -132,6 +130,8 @@ func (i *importer) migrateCoupons(ctx context.Context, tx *sql.Tx) error {
 	entitlements := int64(0)
 	redemptions := int64(0)
 	active := int64(0)
+	entitlementRows := [][]any{}
+	redemptionRows := [][]any{}
 	for rows.Next() {
 		var id, member int64
 		var name string
@@ -151,30 +151,26 @@ func (i *importer) migrateCoupons(ctx context.Context, tx *sql.Tx) error {
 		}
 		createdAt := nullableTime(created, now)
 		updatedAt := nullableTime(updated, createdAt)
-		_, err = tx.ExecContext(ctx, `INSERT INTO coupon_entitlements
-			(id,entitlement_no,coupon_template_id,admission_count,member_id,store_id,status,rule_version,granted_reason,granted_by_type,expires_at,idem_key,created_at,updated_at)
-			VALUES (?,?,?,?,?,1,?,1,'1.0历史迁移','legacy',?,?,?,?)`, id, fmt.Sprintf("V1C%010d", id), info.id, 1, member, state, nullableNullTime(expires), fmt.Sprintf("v1:user_coupon:%d", id), createdAt, updatedAt)
-		if err != nil {
-			rows.Close()
-			return fmt.Errorf("insert coupon %d: %w", id, err)
-		}
+		entitlementRows = append(entitlementRows, []any{id, fmt.Sprintf("V1C%010d", id), info.id, 1, member, 1, state, 1, "1.0历史迁移", "legacy", nullableNullTime(expires), fmt.Sprintf("v1:user_coupon:%d", id), createdAt, updatedAt})
 		if err = i.mapID(ctx, tx, "user_coupon", id, "coupon_entitlements", id); err != nil {
 			rows.Close()
 			return err
 		}
 		if state == "used" {
-			_, err = tx.ExecContext(ctx, `INSERT INTO coupon_redemptions
-			(id,redemption_no,entitlement_id,coupon_template_id,member_id,store_id,matched_rule_json,item_snapshot_json,verified_by_type,created_at)
-			VALUES (?,?,?,?,?,1,?,JSON_ARRAY(),'legacy',?)`, id, fmt.Sprintf("V1CR%010d", id), id, info.id, member, jsonObject(map[string]any{"couponType": info.kind, "legacy": true}), updatedAt)
-			if err != nil {
-				rows.Close()
-				return err
-			}
+			redemptionRows = append(redemptionRows, []any{id, fmt.Sprintf("V1CR%010d", id), id, info.id, member, 1, jsonObject(map[string]any{"couponType": info.kind, "legacy": true}), "[]", "legacy", updatedAt})
 			redemptions++
 		}
 		entitlements++
 	}
 	rows.Close()
+	if err := execBatches(ctx, tx, `INSERT INTO coupon_entitlements
+		(id,entitlement_no,coupon_template_id,admission_count,member_id,store_id,status,rule_version,granted_reason,granted_by_type,expires_at,idem_key,created_at,updated_at)`, 14, entitlementRows); err != nil {
+		return err
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO coupon_redemptions
+		(id,redemption_no,entitlement_id,coupon_template_id,member_id,store_id,matched_rule_json,item_snapshot_json,verified_by_type,created_at)`, 10, redemptionRows); err != nil {
+		return err
+	}
 	i.metrics["legacyCouponTemplatesCreated"] = templateCount
 	i.metrics["couponEntitlementsImported"] = entitlements
 	i.metrics["activeCouponEntitlementsImported"] = active
@@ -184,6 +180,7 @@ func (i *importer) migrateCoupons(ctx context.Context, tx *sql.Tx) error {
 
 func (i *importer) archiveOverlappingLedgers(ctx context.Context, tx *sql.Tx) error {
 	total := int64(0)
+	archiveRows := [][]any{}
 	queries := []struct{ table, query string }{
 		{"balance_consumption_records", `SELECT id,user_id,amount_consumed,balance_before,balance_after,consumption_type,related_type,related_id,description,extra_data,created_at FROM balance_consumption_records ORDER BY id`},
 		{"user_points", `SELECT id,user_id,points,type,source,source_id,description,created_at FROM user_points ORDER BY id`},
@@ -223,11 +220,7 @@ func (i *importer) archiveOverlappingLedgers(ctx context.Context, tx *sql.Tx) er
 					sourceCreated = values[idx]
 				}
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO legacy_v1_archives(source_table,source_id,payload_json,source_created_at,imported_at) VALUES (?,?,?,?,UTC_TIMESTAMP())`, item.table, sourceID, jsonObject(payload), sourceCreated)
-			if err != nil {
-				rows.Close()
-				return err
-			}
+			archiveRows = append(archiveRows, []any{item.table, sourceID, jsonObject(payload), sourceCreated, time.Now().UTC()})
 			total++
 		}
 		if err = rows.Err(); err != nil {
@@ -235,6 +228,10 @@ func (i *importer) archiveOverlappingLedgers(ctx context.Context, tx *sql.Tx) er
 			return err
 		}
 		rows.Close()
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO legacy_v1_archives
+		(source_table,source_id,payload_json,source_created_at,imported_at)`, 5, archiveRows); err != nil {
+		return err
 	}
 	i.metrics["legacyRowsArchived"] = total
 	return nil

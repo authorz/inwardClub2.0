@@ -31,6 +31,7 @@ type importer struct {
 	assetIDs     map[string]int64
 	backupPath   string
 	backupSHA256 string
+	legacyMaps   [][]any
 }
 
 type importReport struct {
@@ -163,6 +164,9 @@ func (i *importer) execute(ctx context.Context) error {
 		if err := i.archiveOverlappingLedgers(ctx, tx); err != nil {
 			return err
 		}
+		if err := i.flushLegacyMaps(ctx, tx); err != nil {
+			return err
+		}
 		if err := i.finishRun(ctx, tx); err != nil {
 			return err
 		}
@@ -222,10 +226,39 @@ func clearTarget(ctx context.Context, tx *sql.Tx) error {
 }
 
 func (i *importer) mapID(ctx context.Context, tx *sql.Tx, sourceTable string, sourceID int64, targetTable string, targetID int64) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO legacy_id_maps
-		(source_system,source_table,source_id,target_table,target_id,created_at)
-		VALUES ('v1',?,?,?,?,UTC_TIMESTAMP())`, sourceTable, sourceID, targetTable, targetID)
-	return err
+	_ = ctx
+	_ = tx
+	i.legacyMaps = append(i.legacyMaps, []any{"v1", sourceTable, sourceID, targetTable, targetID, time.Now().UTC()})
+	return nil
+}
+
+func (i *importer) flushLegacyMaps(ctx context.Context, tx *sql.Tx) error {
+	return execBatches(ctx, tx, `INSERT INTO legacy_id_maps
+		(source_system,source_table,source_id,target_table,target_id,created_at)`, 6, i.legacyMaps)
+}
+
+func execBatches(ctx context.Context, tx *sql.Tx, prefix string, columnCount int, rows [][]any) error {
+	const batchSize = 400
+	placeholder := "(" + strings.TrimSuffix(strings.Repeat("?,", columnCount), ",") + ")"
+	for start := 0; start < len(rows); start += batchSize {
+		end := start + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		parts := make([]string, end-start)
+		args := make([]any, 0, (end-start)*columnCount)
+		for idx, row := range rows[start:end] {
+			if len(row) != columnCount {
+				return fmt.Errorf("batch column mismatch: got %d want %d", len(row), columnCount)
+			}
+			parts[idx] = placeholder
+			args = append(args, row...)
+		}
+		if _, err := tx.ExecContext(ctx, prefix+" VALUES "+strings.Join(parts, ","), args...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func nullableTime(value sql.NullTime, fallback time.Time) time.Time {

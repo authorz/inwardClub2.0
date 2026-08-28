@@ -18,6 +18,7 @@ type walletState struct {
 
 func (i *importer) migrateWallet(ctx context.Context, tx *sql.Tx) error {
 	states := map[walletKey]*walletState{}
+	accountRows := [][]any{}
 	rows, err := i.source.QueryContext(ctx, `SELECT id,FLOOR(COALESCE(points,0)),FLOOR(COALESCE(balance,0)),FLOOR(COALESCE(all_balance,0)),created_at,updated_at FROM users ORDER BY id`)
 	if err != nil {
 		return err
@@ -32,26 +33,24 @@ func (i *importer) migrateWallet(ctx context.Context, tx *sql.Tx) error {
 			return err
 		}
 		for asset, amount := range map[string]int64{"points": points, "coins": coins, "growth_value": growth} {
-			res, err := tx.ExecContext(ctx, `INSERT INTO wallet_accounts(member_id,asset_type,available_amount,held_amount,version,created_at,updated_at) VALUES (?,?,?,0,0,?,?)`, member, asset, amount, nullableTime(created, now), nullableTime(updated, now))
-			if err != nil {
-				rows.Close()
-				return fmt.Errorf("insert wallet %d/%s: %w", member, asset, err)
-			}
-			accountID, err := res.LastInsertId()
-			if err != nil {
-				rows.Close()
-				return err
-			}
+			assetCode := map[string]int64{"points": 1, "coins": 2, "growth_value": 3}[asset]
+			accountID := member*10 + assetCode
+			accountRows = append(accountRows, []any{accountID, member, asset, amount, int64(0), int64(0), nullableTime(created, now), nullableTime(updated, now)})
 			states[walletKey{member, asset}] = &walletState{accountID: accountID, targetBalance: amount}
 			accounts++
 		}
 	}
 	rows.Close()
+	if err := execBatches(ctx, tx, `INSERT INTO wallet_accounts
+		(id,member_id,asset_type,available_amount,held_amount,version,created_at,updated_at)`, 8, accountRows); err != nil {
+		return err
+	}
 	rows, err = i.source.QueryContext(ctx, `SELECT id,user_id,amount_type,trans_type,FLOOR(ABS(amount)),FLOOR(balance_after),COALESCE(description,''),related_id,created_at FROM transaction_records ORDER BY id`)
 	if err != nil {
 		return err
 	}
 	entries := int64(0)
+	ledgerRows := [][]any{}
 	for rows.Next() {
 		var id, member, amount, balance int64
 		var amountType string
@@ -73,13 +72,7 @@ func (i *importer) migrateWallet(ctx context.Context, tx *sql.Tx) error {
 		if transType == 2 {
 			direction = "debit"
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
-			(id,account_id,member_id,asset_type,direction,amount,balance_after,reason,source_type,source_id,idem_key,created_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, id, state.accountID, member, asset, direction, amount, balance, truncateUTF8(defaultString(description, "1.0交易记录"), 64), "v1_transaction_records", nullableInt(related), fmt.Sprintf("v1:transaction_records:%d", id), nullableTime(created, now))
-		if err != nil {
-			rows.Close()
-			return fmt.Errorf("insert ledger %d: %w", id, err)
-		}
+		ledgerRows = append(ledgerRows, []any{id, state.accountID, member, asset, direction, amount, balance, truncateUTF8(defaultString(description, "1.0交易记录"), 64), "v1_transaction_records", nullableInt(related), fmt.Sprintf("v1:transaction_records:%d", id), nullableTime(created, now)})
 		if err = i.mapID(ctx, tx, "transaction_records", id, "wallet_ledger_entries", id); err != nil {
 			rows.Close()
 			return err
@@ -89,6 +82,7 @@ func (i *importer) migrateWallet(ctx context.Context, tx *sql.Tx) error {
 		entries++
 	}
 	rows.Close()
+	correctionID := int64(40_000)
 	corrections := int64(0)
 	for key, state := range states {
 		base := int64(0)
@@ -105,13 +99,13 @@ func (i *importer) migrateWallet(ctx context.Context, tx *sql.Tx) error {
 			direction = "debit"
 			amount = -diff
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
-			(account_id,member_id,asset_type,direction,amount,balance_after,reason,source_type,idem_key,created_at)
-			VALUES (?,?,?,?,?,?,?,'v1_opening_balance',?,UTC_TIMESTAMP())`, state.accountID, key.memberID, key.assetType, direction, amount, state.targetBalance, "1.0迁移余额校准", fmt.Sprintf("v1:opening:%d:%s", key.memberID, key.assetType))
-		if err != nil {
-			return err
-		}
+		correctionID++
+		ledgerRows = append(ledgerRows, []any{correctionID, state.accountID, key.memberID, key.assetType, direction, amount, state.targetBalance, "1.0迁移余额校准", "v1_opening_balance", nil, fmt.Sprintf("v1:opening:%d:%s", key.memberID, key.assetType), time.Now().UTC()})
 		corrections++
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO wallet_ledger_entries
+		(id,account_id,member_id,asset_type,direction,amount,balance_after,reason,source_type,source_id,idem_key,created_at)`, 12, ledgerRows); err != nil {
+		return err
 	}
 	i.metrics["walletAccountsImported"] = accounts
 	i.metrics["walletLedgerEntriesImported"] = entries

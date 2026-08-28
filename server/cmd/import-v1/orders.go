@@ -88,6 +88,7 @@ func (i *importer) migrateFoodOrders(ctx context.Context, tx *sql.Tx) error {
 	}
 	defer itemRows.Close()
 	items := int64(0)
+	itemBatch := [][]any{}
 	for itemRows.Next() {
 		var id, orderID, itemID int64
 		var name, price, subtotal string
@@ -104,16 +105,15 @@ func (i *importer) migrateFoodOrders(ctx context.Context, tx *sql.Tx) error {
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO food_order_items
-			(id,food_order_id,item_id,name_snapshot,unit_price_cent,quantity,pay_channels_snapshot,points_reward_snapshot,subtotal_cent,created_at)
-			VALUES (?,?,?,?,?,?,JSON_ARRAY('wechat','coin'),0,?,?)`, id, orderID, itemID, truncateUTF8(name, 128), priceCent, quantity, subtotalCent, nullableTime(created, now))
-		if err != nil {
-			return fmt.Errorf("insert food item %d: %w", id, err)
-		}
+		itemBatch = append(itemBatch, []any{id, orderID, itemID, truncateUTF8(name, 128), priceCent, quantity, "[\"wechat\",\"coin\"]", int64(0), subtotalCent, nullableTime(created, now)})
 		if err = i.mapID(ctx, tx, "food_order_items", id, "food_order_items", id); err != nil {
 			return err
 		}
 		items++
+	}
+	if err := execBatches(ctx, tx, `INSERT INTO food_order_items
+		(id,food_order_id,item_id,name_snapshot,unit_price_cent,quantity,pay_channels_snapshot,points_reward_snapshot,subtotal_cent,created_at)`, 10, itemBatch); err != nil {
+		return err
 	}
 	i.metrics["foodOrdersImported"] = orders
 	i.metrics["foodOrderItemsImported"] = items
