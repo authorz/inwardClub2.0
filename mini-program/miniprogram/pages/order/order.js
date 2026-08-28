@@ -9,6 +9,21 @@ const draft = require('../../utils/order-draft');
 
 const SELECTED_COUPON_KEY = 'ic_selected_coupon_v1';
 
+const CATEGORY_ICONS = {
+  1: '/assets/menu-category/voucher-redemption.svg',
+  2: '/assets/menu-category/whisky-neat.svg',
+  3: '/assets/menu-category/soft-drinks.svg',
+  4: '/assets/menu-category/classic-beer.svg',
+  6: '/assets/menu-category/voucher-sets.svg',
+  24: '/assets/menu-category/classic-cocktails.svg',
+  26: '/assets/menu-category/signature-drinks.svg',
+  27: '/assets/menu-category/signature-drinks.svg',
+};
+
+function categoryIcon(category) {
+  return CATEGORY_ICONS[String(category.id)] || category.imageUrl || '';
+}
+
 function formatMenuPrice(cent) {
   const n = Number(cent || 0);
   if (n % 100 === 0) return String(Math.floor(n / 100));
@@ -124,7 +139,7 @@ Page({
         const groups = (catRes.data || []).map((category) => ({
           id: category.id,
           name: category.name,
-          iconUrl: category.imageUrl || '',
+          iconUrl: categoryIcon(category),
           categoryType: category.categoryType || 'product',
           items: [],
         }));

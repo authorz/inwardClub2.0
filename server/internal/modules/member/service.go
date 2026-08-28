@@ -3,6 +3,7 @@ package member
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"strconv"
 	"time"
 
@@ -14,6 +15,12 @@ import (
 // AssetResolver resolves assets to public URLs. Implemented by asset.Service.
 type AssetResolver interface {
 	PublicURLByID(ctx context.Context, id int64) (string, error)
+}
+
+// AvatarUploader stores a selected profile image and returns its public URL.
+// asset.Service implements this alongside AssetResolver.
+type AvatarUploader interface {
+	UploadAvatar(ctx context.Context, r io.Reader, size int64, contentType string) (string, error)
 }
 
 // PhoneResolver exchanges a WeChat phone authorisation code for the raw phone
@@ -33,6 +40,7 @@ type MemberSettingsPolicy interface {
 type Service struct {
 	repo           Repository
 	assets         AssetResolver
+	avatarUploader AvatarUploader
 	phone          PhoneResolver
 	settingsPolicy MemberSettingsPolicy
 }
@@ -41,10 +49,22 @@ type Service struct {
 // exchange is available.
 func NewService(repo Repository, assets AssetResolver, phone PhoneResolver, policies ...MemberSettingsPolicy) *Service {
 	svc := &Service{repo: repo, assets: assets, phone: phone}
+	if uploader, ok := assets.(AvatarUploader); ok {
+		svc.avatarUploader = uploader
+	}
 	if len(policies) > 0 {
 		svc.settingsPolicy = policies[0]
 	}
 	return svc
+}
+
+// UploadAvatar stores an authenticated member's selected profile image. The
+// caller persists the returned URL through UpdateProfile after upload succeeds.
+func (s *Service) UploadAvatar(ctx context.Context, r io.Reader, size int64, contentType string) (string, error) {
+	if s.avatarUploader == nil {
+		return "", apperr.NotImplemented("头像上传暂不可用")
+	}
+	return s.avatarUploader.UploadAvatar(ctx, r, size, contentType)
 }
 
 const (
@@ -413,12 +433,16 @@ func (s *Service) ListRankings(ctx context.Context, period string) ([]RankingEnt
 }
 
 func (s *Service) memberView(ctx context.Context, m Member) MemberView {
+	avatarURL := m.AvatarURL
+	if avatarURL == "" {
+		avatarURL = s.assetURL(ctx, m.AvatarAssetID)
+	}
 	return MemberView{
 		ID:         m.ID,
 		Nickname:   m.Nickname,
 		Gender:     m.Gender,
 		Phone:      maskPhone(m.Phone),
-		AvatarURL:  s.assetURL(ctx, m.AvatarAssetID),
+		AvatarURL:  avatarURL,
 		InviteCode: m.InviteCode,
 		Status:     m.Status,
 	}

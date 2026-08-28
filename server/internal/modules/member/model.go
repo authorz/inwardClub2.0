@@ -18,6 +18,7 @@ type Member struct {
 	PhoneChangedAt    *time.Time
 	InviteCode        string
 	AvatarAssetID     *int64
+	AvatarURL         string
 	InvitedByMemberID *int64
 	CurrentTierID     *int64
 	Status            string

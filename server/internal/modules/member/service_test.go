@@ -3,6 +3,8 @@ package member
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +50,9 @@ func (r *fakeRepo) UpdateProfile(_ context.Context, id int64, p ProfileUpdate) e
 	}
 	if p.AvatarAssetID != nil {
 		m.AvatarAssetID = p.AvatarAssetID
+	}
+	if p.AvatarURL != nil {
+		m.AvatarURL = *p.AvatarURL
 	}
 	return nil
 }
@@ -251,6 +256,22 @@ func (fakeAssets) PublicURL(objectKey string) string {
 	return "https://cdn.test/" + objectKey
 }
 
+type fakeAvatarAssets struct {
+	fakeAssets
+	uploaded    string
+	contentType string
+}
+
+func (a *fakeAvatarAssets) UploadAvatar(_ context.Context, r io.Reader, _ int64, contentType string) (string, error) {
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	a.uploaded = string(body)
+	a.contentType = contentType
+	return "https://cdn.test/avatar/member.webp", nil
+}
+
 type fakePhone struct {
 	phone string
 	err   error
@@ -286,6 +307,28 @@ func TestUpdateProfileWritesAndMasksPhone(t *testing.T) {
 	}
 	if view.Gender != "female" || repo.members[1].Gender != "female" {
 		t.Fatalf("expected gender updated, got view=%q stored=%q", view.Gender, repo.members[1].Gender)
+	}
+}
+
+func TestUploadAndPersistAvatarURL(t *testing.T) {
+	repo := newFakeRepo()
+	repo.members[1] = &Member{ID: 1, Nickname: "member", Status: StatusActive}
+	assets := &fakeAvatarAssets{}
+	svc := NewService(repo, assets, nil)
+
+	avatarURL, err := svc.UploadAvatar(context.Background(), strings.NewReader("avatar-bytes"), 12, "image/webp")
+	if err != nil {
+		t.Fatalf("upload avatar: %v", err)
+	}
+	if assets.uploaded != "avatar-bytes" || assets.contentType != "image/webp" {
+		t.Fatalf("unexpected upload: body=%q contentType=%q", assets.uploaded, assets.contentType)
+	}
+	view, err := svc.UpdateProfile(context.Background(), 1, UpdateProfileRequest{AvatarURL: &avatarURL})
+	if err != nil {
+		t.Fatalf("persist avatar: %v", err)
+	}
+	if view.AvatarURL != avatarURL || repo.members[1].AvatarURL != avatarURL {
+		t.Fatalf("expected direct avatar URL in response and repository, view=%q stored=%q", view.AvatarURL, repo.members[1].AvatarURL)
 	}
 }
 

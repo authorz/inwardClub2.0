@@ -28,6 +28,7 @@ Page({
     phoneMasked: '',
     phoneBinding: false,
     saving: false,
+    avatarDirty: false,
     genderOptions: GENDER_OPTIONS,
     genderIndex: 0,
     genderLabel: '',
@@ -36,12 +37,10 @@ Page({
 
   onLoad() {
     api.getMe().then((res) => {
-      // getMe returns no avatarUrl (and no avatar-upload endpoint exists), so
-      // fall back to the locally-cached avatar/nickname/gender picked at login —
-      // same restore the home / 我的 pages do — otherwise the avatar shows blank.
       const me = mergeCachedProfile(res.data || {});
       me.nickname = me.nickname || me.nickName || '';
-      this.setData(Object.assign({ me, phoneMasked: fmt.maskPhone(me.phone) }, genderState(me.gender)));
+      const avatarDirty = Boolean(me.avatarUrl && !/^https?:\/\//i.test(me.avatarUrl));
+      this.setData(Object.assign({ me, avatarDirty, phoneMasked: fmt.maskPhone(me.phone) }, genderState(me.gender)));
     });
   },
 
@@ -55,7 +54,7 @@ Page({
       mediaType: ['image'],
       success: (res) => {
         const file = res.tempFiles && res.tempFiles[0];
-        if (file) this.setData({ 'me.avatarUrl': file.tempFilePath });
+        if (file) this.setData({ 'me.avatarUrl': file.tempFilePath, avatarDirty: true });
       },
       fail: () => {},
     });
@@ -141,23 +140,29 @@ Page({
 	  return;
 	}
 	this.setData({ saving: true, 'me.nickname': nickname });
-    api
-	  .updateMe({ nickname, gender })
-      .then(() => {
-        // Persist the edited avatar/nickname/gender locally so they survive a
-        // reload — getMe returns an empty avatarUrl and there is no avatar
-        // upload endpoint, so without this the chosen avatar is lost.
-        const profile = {};
-        if (me.avatarUrl) profile.avatarUrl = me.avatarUrl;
-        if (me.nickname) profile.nickname = me.nickname;
-        if (me.gender) profile.gender = me.gender;
-        return Object.keys(profile).length ? saveProfilePersistently(profile) : null;
+    const avatarUpload = this.data.avatarDirty && me.avatarUrl
+      ? api.uploadAvatar(me.avatarUrl).then((res) => {
+          const avatarUrl = res && res.data && res.data.avatarUrl;
+          if (!avatarUrl) throw new Error('头像上传失败，请重试');
+          return avatarUrl;
+        })
+      : Promise.resolve('');
+    avatarUpload
+      .then((avatarUrl) => {
+        const payload = { nickname, gender };
+        if (avatarUrl) payload.avatarUrl = avatarUrl;
+        return api.updateMe(payload);
       })
-      .then((saved) => {
-        if (saved && saved.avatarUrl && saved.avatarUrl !== me.avatarUrl) {
-          this.setData({ 'me.avatarUrl': saved.avatarUrl });
-        }
-        this.setData({ saving: false });
+      .then((res) => {
+        const updated = Object.assign({}, me, (res && res.data) || {}, { nickname, gender });
+        return saveProfilePersistently({
+          avatarUrl: updated.avatarUrl || '',
+          nickname: updated.nickname || '',
+          gender: updated.gender || '',
+        }).then(() => updated);
+      })
+      .then((updated) => {
+        this.setData({ me: updated, avatarDirty: false, saving: false });
         ui.success('已保存');
       })
       .catch((err) => {

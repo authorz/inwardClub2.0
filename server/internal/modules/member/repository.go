@@ -70,12 +70,12 @@ func NewRepository(db *platdb.DB, clock Clock) Repository {
 }
 
 const memberColumns = `id, nickname, COALESCE(gender,''), COALESCE(phone,''), phone_changed_at, COALESCE(invite_code,''),
-	avatar_asset_id, invited_by_member_id, current_tier_id, status, created_at`
+	avatar_asset_id, COALESCE(avatar_url,''), invited_by_member_id, current_tier_id, status, created_at`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	err := row.Scan(&m.ID, &m.Nickname, &m.Gender, &m.Phone, &m.PhoneChangedAt, &m.InviteCode,
-		&m.AvatarAssetID, &m.InvitedByMemberID, &m.CurrentTierID, &m.Status, &m.CreatedAt)
+		&m.AvatarAssetID, &m.AvatarURL, &m.InvitedByMemberID, &m.CurrentTierID, &m.Status, &m.CreatedAt)
 	return m, err
 }
 

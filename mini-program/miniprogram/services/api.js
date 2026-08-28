@@ -458,6 +458,7 @@ const api = {
   /* ---------- member / wallet ---------- */
   getMe: () => http.get(m('/me')).then((res) => ({ data: normalizeMe(res.data), meta: res.meta })),
   updateMe: (data) => http.patch(m('/me'), data),
+  uploadAvatar: (filePath) => http.uploadFile(m('/me/avatar'), filePath, {}, { name: 'file' }),
   bindPhone: (data) => http.post(m('/me/phone-bindings'), data, { idempotent: true }),
   getWallet: () => http.get(m('/wallet')).then((res) => ({ data: normalizeWallet(res.data), meta: res.meta })),
   getWalletLedger: (params) =>

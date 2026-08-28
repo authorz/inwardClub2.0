@@ -1,7 +1,10 @@
 package member
 
 import (
+	"mime"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -217,6 +220,34 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, view)
+}
+
+// UploadAvatar handles POST /mini/me/avatar. Authentication is enforced by
+// the mini router before the image is streamed to object storage.
+func (h *Handler) UploadAvatar(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		httpx.Fail(c, apperr.Invalid("file is required"))
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if _, ok := allowedProfileAvatarMimes[contentType]; !ok {
+		contentType = mime.TypeByExtension(strings.ToLower(filepath.Ext(header.Filename)))
+	}
+	url, err := h.svc.UploadAvatar(c.Request.Context(), file, header.Size, contentType)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, map[string]string{"avatarUrl": url})
+}
+
+var allowedProfileAvatarMimes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/webp": true,
 }
 
 // BindPhone handles POST /mini/me/phone-bindings.

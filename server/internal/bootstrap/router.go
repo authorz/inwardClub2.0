@@ -76,6 +76,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.POST("/auth/logout", a.authHandler.MiniLogout)
 	p.GET("/me", a.authHandler.MiniMe)
 	p.PATCH("/me", a.memberHandler.UpdateProfile)
+	p.POST("/me/avatar", a.memberHandler.UploadAvatar)
 	p.POST("/me/phone-bindings", idempotency.Optional(), a.memberHandler.BindPhone)
 	p.POST("/assets/upload-credentials", a.assetHandler.UploadCredentials)
 	p.GET("/wallet", a.walletHandler.Get)
