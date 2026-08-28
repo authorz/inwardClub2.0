@@ -50,6 +50,12 @@ Never use them for production.
 
 ## Required verification
 
+Run the independent source/target verifier after the import commits:
+
+```bash
+go run ./cmd/verify-v1-import -source-dsn "$V1_MYSQL_DSN"
+```
+
 - Compare source and target counts for members, catalog, food orders/items,
   points workflows and coupon entitlements.
 - Compare food and recharge amount totals in integer RMB cents.
