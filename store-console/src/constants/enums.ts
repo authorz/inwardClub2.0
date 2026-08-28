@@ -55,6 +55,15 @@ export const PAY_CHANNEL: Record<PayChannel, EnumOption<PayChannel>> = {
   offline: { value: 'offline', label: '线下收款', tone: 'default' },
 }
 
+/** 统一订单还会返回优惠券兑换记录，仅用于订单筛选和展示。 */
+export const ORDER_PAY_CHANNEL: Record<
+  PayChannel | 'coupon',
+  EnumOption<PayChannel | 'coupon'>
+> = {
+  ...PAY_CHANNEL,
+  coupon: { value: 'coupon', label: '优惠券', tone: 'default' },
+}
+
 /** 线下收款当前使用已接入的微信支付 Native 渠道。 */
 export const COLLECTION_PAY_CHANNELS: PayChannel[] = ['wechat']
 

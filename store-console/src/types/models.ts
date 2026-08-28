@@ -35,7 +35,7 @@ export interface StoreOrder extends AuditFields {
   orderType: string
   paymentStatus: PaymentStatus
   orderStatus?: string
-  payChannel?: PayChannel
+  payChannel?: PayChannel | 'coupon'
   amountCent: number
   refundableCent?: number
   memberPhoneMasked?: string

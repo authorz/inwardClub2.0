@@ -11,7 +11,6 @@ import PermissionButton from '@/components/PermissionButton.vue'
 import {
   actionsColumn,
   dateTimeColumn,
-  moneyColumn,
   renderColumn,
   statusColumn,
   textColumn,
@@ -19,7 +18,7 @@ import {
 import {
   ORDER_STATUS_OPTIONS,
   ORDER_TYPE_OPTIONS,
-  PAY_CHANNEL_OPTIONS,
+  ORDER_PAY_CHANNEL_OPTIONS,
 } from '@/constants/enums'
 import type { OptionItem } from '@/constants/enums'
 import { PERMISSIONS } from '@/constants/permissions'
@@ -43,7 +42,7 @@ const fields = computed<FilterField[]>(() => [
   { key: 'orderType', label: '订单类型', type: 'select', options: ORDER_TYPE_OPTIONS },
   { key: 'paymentStatus', label: '支付状态', type: 'select', options: ORDER_PAYMENT_STATUS_OPTIONS },
   { key: 'orderStatus', label: '订单状态', type: 'select', options: ORDER_STATUS_OPTIONS },
-  { key: 'payChannel', label: '支付渠道', type: 'select', options: PAY_CHANNEL_OPTIONS },
+  { key: 'payChannel', label: '支付渠道', type: 'select', options: ORDER_PAY_CHANNEL_OPTIONS },
   { key: 'storeId', label: '门店', type: 'select', options: storeOptions.value, width: 200 },
   { key: 'memberNickname', label: '会员昵称', type: 'input', placeholder: '支持模糊搜索' },
   { key: 'memberPhone', label: '会员手机号', type: 'input', placeholder: '支持模糊搜索' },
@@ -179,8 +178,19 @@ const columns = [
   textColumn<BusinessOrder>('订单号', 'orderNo', { width: 200 }),
   statusColumn<BusinessOrder>('类型', 'orderType', ORDER_TYPE_OPTIONS, 110),
   textColumn<BusinessOrder>('门店', 'storeName', { width: 140 }),
-  moneyColumn<BusinessOrder>('金额', 'amountCent'),
-  statusColumn<BusinessOrder>('支付方式', 'payChannel', PAY_CHANNEL_OPTIONS),
+  renderColumn<BusinessOrder>(
+    '支付金额',
+    'paymentAmount',
+    (row) => {
+      const channel = row.payChannel?.trim()
+      const channelLabel = ORDER_PAY_CHANNEL_OPTIONS.find((option) => option.value === channel)?.label
+      return h('div', { class: 'order-payment' }, [
+        h('span', { class: 'order-payment__channel' }, channelLabel ?? channel ?? '-'),
+        h('span', { class: 'order-payment__amount' }, formatCent(row.amountCent)),
+      ])
+    },
+    170,
+  ),
   statusColumn<BusinessOrder>('支付状态', 'paymentStatus', ORDER_PAYMENT_STATUS_OPTIONS),
   statusColumn<BusinessOrder>('订单状态', 'orderStatus', ORDER_STATUS_OPTIONS),
   dateTimeColumn<BusinessOrder>('创建时间', 'createdAt'),
@@ -308,6 +318,23 @@ const columns = [
   color: var(--ic-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-payment {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.order-payment__channel {
+  color: var(--ic-color-text-secondary);
+}
+
+.order-payment__amount {
+  color: var(--ic-color-text);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

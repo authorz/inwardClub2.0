@@ -22,14 +22,15 @@ import { useAsyncAction } from '@/composables/useAsyncAction'
 import { useAsyncList } from '@/composables/useAsyncList'
 import {
   ORDER_PAYMENT_STATUS,
+  ORDER_PAY_CHANNEL,
   ORDER_STATUS,
   ORDER_TYPE,
-  PAY_CHANNEL,
+  resolveEnum,
   toOptions,
 } from '@/constants/enums'
 import { PERM } from '@/constants/permissions'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
-import { actionColumn, dateColumn, moneyColumn, statusColumn, textColumn } from '@/utils/columns'
+import { actionColumn, dateColumn, statusColumn, textColumn } from '@/utils/columns'
 import { centToYuan, formatCent, yuanToCent } from '@/utils/format'
 import { feedback } from '@/utils/feedback'
 import type { StoreOrder } from '@/types/models'
@@ -55,7 +56,7 @@ const paymentStatusOptions = toOptions(ORDER_PAYMENT_STATUS).map(({ label, value
   value,
 }))
 const orderStatusOptions = toOptions(ORDER_STATUS).map(({ label, value }) => ({ label, value }))
-const payChannelOptions = toOptions(PAY_CHANNEL).map(({ label, value }) => ({ label, value }))
+const payChannelOptions = toOptions(ORDER_PAY_CHANNEL).map(({ label, value }) => ({ label, value }))
 
 function applyFilters(): void {
   const range = createdRange.value
@@ -216,7 +217,18 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
   textColumn<StoreOrder>('订单号', (row) => row.orderNo, { width: 200 }),
   statusColumn<StoreOrder>('类型', ORDER_TYPE, (row) => row.orderType, { width: 110 }),
   textColumn<StoreOrder>('门店', (row) => row.storeName, { width: 140 }),
-  moneyColumn<StoreOrder>('金额', (row) => row.amountCent, { width: 120 }),
+  {
+    title: '支付金额',
+    key: 'paymentAmount',
+    width: 170,
+    render: (row) => {
+      const channel = resolveEnum(ORDER_PAY_CHANNEL, row.payChannel)
+      return h('div', { class: 'order-payment' }, [
+        h('span', { class: 'order-payment__channel' }, channel.label),
+        h('span', { class: 'order-payment__amount' }, formatCent(row.amountCent)),
+      ])
+    },
+  },
   statusColumn<StoreOrder>('支付状态', ORDER_PAYMENT_STATUS, (row) => row.paymentStatus, {
     width: 110,
   }),
@@ -552,6 +564,23 @@ const columns = computed<DataTableColumns<StoreOrder>>(() => [
   color: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
   line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+:deep(.order-payment) {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ic-space-2);
+  white-space: nowrap;
+}
+
+:deep(.order-payment__channel) {
+  color: var(--ic-color-text-secondary);
+}
+
+:deep(.order-payment__amount) {
+  color: var(--ic-color-text);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

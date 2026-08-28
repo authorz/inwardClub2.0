@@ -94,6 +94,12 @@ export const PAY_CHANNEL_OPTIONS: OptionItem[] = [
   { label: '金币', value: PAY_CHANNEL.COIN, tone: 'warning' },
 ]
 
+/** 订单列表还会返回优惠券兑换记录，仅用于订单筛选和展示。 */
+export const ORDER_PAY_CHANNEL_OPTIONS: OptionItem[] = [
+  ...PAY_CHANNEL_OPTIONS,
+  { label: '优惠券', value: 'coupon', tone: 'default' },
+]
+
 /** 订单类型 */
 export const ORDER_TYPE = {
   FOOD: 'food',
