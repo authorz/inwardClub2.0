@@ -35,3 +35,34 @@ func TestTruncateUTF8(t *testing.T) {
 		t.Fatalf("unexpected truncation %q", got)
 	}
 }
+
+func TestMapCatalogItemStatus(t *testing.T) {
+	tests := map[string]string{
+		"active":   "published",
+		"inactive": "unpublished",
+		"sold_out": "unpublished",
+	}
+	for input, want := range tests {
+		if got := mapCatalogItemStatus(input); got != want {
+			t.Fatalf("mapCatalogItemStatus(%q)=%q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestResolveLegacyAvatarURL(t *testing.T) {
+	tests := map[string]string{
+		"":                                      "",
+		"avatars/2026/08/member.jpg":            "https://api.inwardclub.com/storage/avatars/2026/08/member.jpg",
+		"/avatars/2026/08/member.jpg":           "https://api.inwardclub.com/storage/avatars/2026/08/member.jpg",
+		"https://wechat.example.com/member.jpg": "https://wechat.example.com/member.jpg",
+	}
+	for input, want := range tests {
+		got, err := resolveLegacyAvatarURL("https://api.inwardclub.com/storage/", input)
+		if err != nil || got != want {
+			t.Fatalf("resolveLegacyAvatarURL(%q)=(%q,%v), want %q", input, got, err, want)
+		}
+	}
+	if _, err := resolveLegacyAvatarURL("https://api.inwardclub.com/storage/", "file:///tmp/avatar.jpg"); err == nil {
+		t.Fatal("expected non-HTTP absolute avatar URL to fail")
+	}
+}

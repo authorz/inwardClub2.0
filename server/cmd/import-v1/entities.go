@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -113,7 +114,11 @@ func (i *importer) migrateMembers(ctx context.Context, tx *sql.Tx) error {
 		}
 		createdAt := nullableTime(created, now)
 		updatedAt := nullableTime(updated, createdAt)
-		memberRows = append(memberRows, []any{id, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64), nullString(sql.NullString{String: avatar, Valid: avatar != ""}), gender, phoneValue, inviteCode, nullableInt(invitedBy), phoneValue != nil && nickname != "", "active", tier, int64(0), createdAt, updatedAt})
+		avatarURL, err := resolveLegacyAvatarURL(i.sourceBase, avatar)
+		if err != nil {
+			return fmt.Errorf("resolve avatar for user %d: %w", id, err)
+		}
+		memberRows = append(memberRows, []any{id, id, truncateUTF8(openid, 64), truncateUTF8(nickname, 64), nullString(sql.NullString{String: avatarURL, Valid: avatarURL != ""}), gender, phoneValue, inviteCode, nullableInt(invitedBy), phoneValue != nil && nickname != "", "active", tier, int64(0), createdAt, updatedAt})
 		if err = i.mapID(ctx, tx, "users", id, "members", id); err != nil {
 			return err
 		}
@@ -217,7 +222,7 @@ func (i *importer) migrateCatalog(ctx context.Context, tx *sql.Tx) error {
 		_, err = tx.ExecContext(ctx, `INSERT INTO catalog_items
 			(id,scope_type,store_id,source_item_id,category_id,name,description,asset_id,item_type,price_cent,stock_quantity,
 			 pay_channels,points_reward,sort_order,status,created_at,updated_at)
-			VALUES (?,'store',1,?,?,?,?,?,?,?,?,JSON_ARRAY('wechat','coin'),?,?,?,?,?)`, id, id, categoryID, truncateUTF8(name, 128), description, nullableAsset(i.assetIDs[assetMapKey("product", id)]), itemType, priceCent, stock, points, sort, mapStatus(status), nullableTime(created, now), nullableTime(updated, now))
+			VALUES (?,'store',1,?,?,?,?,?,?,?,?,JSON_ARRAY('wechat','coin'),?,?,?,?,?)`, id, id, categoryID, truncateUTF8(name, 128), description, nullableAsset(i.assetIDs[assetMapKey("product", id)]), itemType, priceCent, stock, points, sort, mapCatalogItemStatus(status), nullableTime(created, now), nullableTime(updated, now))
 		if err != nil {
 			rows.Close()
 			return fmt.Errorf("insert product %d: %w", id, err)
@@ -362,6 +367,40 @@ func mapStatus(value string) string {
 		return "sold_out"
 	}
 	return "disabled"
+}
+func mapCatalogItemStatus(value string) string {
+	if value == "active" {
+		return "published"
+	}
+	return "unpublished"
+}
+func resolveLegacyAvatarURL(sourceBase, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+	if parsed.IsAbs() {
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return "", fmt.Errorf("unsupported URL scheme %q", parsed.Scheme)
+		}
+		return parsed.String(), nil
+	}
+	base, err := url.Parse(strings.TrimRight(sourceBase, "/") + "/")
+	if err != nil {
+		return "", err
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return "", fmt.Errorf("unsupported source base URL scheme %q", base.Scheme)
+	}
+	parsed, err = url.Parse(strings.TrimLeft(value, "/"))
+	if err != nil {
+		return "", err
+	}
+	return base.ResolveReference(parsed).String(), nil
 }
 func parseLeadingInt(value string) int64 {
 	part := strings.Split(value, "/")[0]
