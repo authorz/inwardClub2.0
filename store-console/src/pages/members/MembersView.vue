@@ -11,6 +11,8 @@ import {
   NInput,
   NInputNumber,
   NModal,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NSpin,
@@ -42,6 +44,7 @@ import {
 } from '@/constants/enums'
 
 type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
+type AdjustmentDirection = 'credit' | 'debit'
 const sortBy = ref<MemberSortField | ''>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const balanceFormatter = new Intl.NumberFormat('zh-CN')
@@ -107,9 +110,15 @@ const adjustAssetTypeOptions = toOptions(WALLET_ASSET_TYPE)
 const ASSET_LABELS = Object.fromEntries(
   toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => [value, label]),
 )
-const adjustForm = reactive<{ assetType: string; changeAmount: number | null; reason: string }>({
+const adjustForm = reactive<{
+  assetType: string
+  direction: AdjustmentDirection
+  amount: number | null
+  reason: string
+}>({
   assetType: WALLET_ASSET_TYPE.coins.value,
-  changeAmount: null,
+  direction: 'credit',
+  amount: null,
   reason: '',
 })
 
@@ -157,7 +166,8 @@ async function openMember(row: Member, tab: 'coupons' | 'ledger' | 'adjust') {
   detailShow.value = true
   detailLoading.value = true
   adjustForm.assetType = WALLET_ASSET_TYPE.coins.value
-  adjustForm.changeAmount = null
+  adjustForm.direction = 'credit'
+  adjustForm.amount = null
   adjustForm.reason = ''
   try {
     currentMember.value = await memberService.detail(row.id)
@@ -259,23 +269,37 @@ function submitCouponGrant(): void {
 }
 
 function submitAdjust() {
-  if (!currentMember.value || adjustForm.changeAmount == null || adjustForm.changeAmount === 0 || !adjustForm.reason)
+  const member = currentMember.value
+  const amount = adjustForm.amount
+  const reason = adjustForm.reason.trim()
+  if (!member) return
+  if (amount == null || !Number.isInteger(amount) || amount <= 0) {
+    feedback.message.error('请输入大于 0 的整数数量')
     return
-  // 服务端以 direction(credit/debit) + 正整数 amount 建模；界面用带符号数量表达增减。
-  const signed = adjustForm.changeAmount
+  }
+  if (!reason) {
+    feedback.message.error('请填写调账原因')
+    return
+  }
+  const assetLabel = ASSET_LABELS[adjustForm.assetType] ?? adjustForm.assetType
+  const directionLabel = adjustForm.direction === 'credit' ? '增加' : '减少'
   void action.run(
     () =>
-      memberService.adjustWallet(currentMember.value!.id, {
+      memberService.adjustWallet(member.id, {
         assetType: adjustForm.assetType,
-        direction: signed >= 0 ? 'credit' : 'debit',
-        amount: Math.abs(signed),
-        reason: adjustForm.reason,
+        direction: adjustForm.direction,
+        amount,
+        reason,
       }),
     {
-      confirm: { content: '确认提交人工调账？该操作将写入会员钱包流水', danger: true },
+      confirm: {
+        content: `确认将会员“${member.nickname || member.id}”的${assetLabel}${directionLabel} ${balanceFormatter.format(amount)}？该操作将写入会员钱包流水。`,
+        danger: true,
+      },
       successMessage: '调账已提交',
       onSuccess: async () => {
-        adjustForm.changeAmount = null
+        adjustForm.direction = 'credit'
+        adjustForm.amount = null
         adjustForm.reason = ''
         if (currentMember.value) currentMember.value = await memberService.detail(currentMember.value.id)
         ledger.refresh()
@@ -579,10 +603,34 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
                 />
               </label>
               <label>
-                <span class="ic-muted">变动数量（正数增加，负数扣减）</span>
+                <span class="ic-muted">调整方式</span>
+                <NRadioGroup
+                  v-model:value="adjustForm.direction"
+                  name="wallet-adjustment-direction"
+                  class="adjust-direction"
+                >
+                  <NRadioButton
+                    value="credit"
+                    class="adjust-direction__option"
+                  >
+                    增加
+                  </NRadioButton>
+                  <NRadioButton
+                    value="debit"
+                    class="adjust-direction__option"
+                  >
+                    减少
+                  </NRadioButton>
+                </NRadioGroup>
+              </label>
+              <label>
+                <span class="ic-muted">调整数量</span>
                 <NInputNumber
-                  v-model:value="adjustForm.changeAmount"
-                  placeholder="如 100 或 -50"
+                  v-model:value="adjustForm.amount"
+                  :min="1"
+                  :precision="0"
+                  clearable
+                  placeholder="请输入正整数"
                   style="width: 100%"
                 />
               </label>
@@ -598,7 +646,7 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
                 :permissions="[PERM.memberWalletAdjustRequest]"
                 type="primary"
                 :loading="action.running.value"
-                :disabled="adjustForm.changeAmount == null || adjustForm.changeAmount === 0 || !adjustForm.reason"
+                :disabled="adjustForm.amount == null || adjustForm.amount <= 0 || !adjustForm.reason.trim()"
                 @click="submitAdjust"
               >
                 提交调账
@@ -755,6 +803,14 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
   flex-direction: column;
   gap: var(--ic-space-2);
   font-size: var(--ic-font-sm);
+}
+.adjust-direction {
+  display: flex;
+  width: 100%;
+}
+.adjust-direction__option {
+  flex: 1;
+  text-align: center;
 }
 .member-detail__coupon-toolbar {
   display: flex;
