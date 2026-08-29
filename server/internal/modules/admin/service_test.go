@@ -28,7 +28,8 @@ type fakeRepo struct {
 	nextID           int64
 	lastPasswordHash string
 
-	members map[int64]Member
+	members           map[int64]Member
+	walletLedgerEntry *WalletLedgerEntry
 
 	activities []Activity
 }
@@ -109,17 +110,38 @@ func (f *fakeRepo) ListWalletLedger(_ context.Context, flt ListFilter) ([]Wallet
 	if f.err != nil {
 		return nil, 0, f.err
 	}
+	if f.walletLedgerEntry != nil {
+		return []WalletLedgerEntry{*f.walletLedgerEntry}, 1, nil
+	}
 	sourceID := int64(999)
 	balanceAfter := int64(150)
 	return []WalletLedgerEntry{{
 		ID: 100, RecordKey: "ledger:100",
 		MemberID: 7, MemberNickname: "Sam", MemberPhone: "13800001234",
 		MemberAvatarURL: "https://cdn.test/member.webp",
-		AssetType:       "points", Direction: "credit", Amount: 50,
+		AssetType:       "points", AssetName: "", Direction: "credit", Amount: 50,
 		BalanceAfter: &balanceAfter, Status: "completed",
 		Reason: "sign_in", SourceType: "sign_in", SourceID: &sourceID,
 		RelatedOrderNo: "BO-1",
 	}}, 1, nil
+}
+
+func TestListWalletLedgerMapsCouponAssetName(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo, fakeStores{}, nil)
+
+	repo.walletLedgerEntry = &WalletLedgerEntry{
+		ID: 101, RecordKey: "coupon_grant:101", MemberID: 7,
+		AssetType: "coupon", AssetName: "周末入场券", Direction: "credit", Amount: 1,
+		Status: "completed", Reason: "coupon_grant", SourceType: "coupon_grant",
+	}
+	views, _, err := svc.ListWalletLedger(context.Background(), ListFilter{Page: page()})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(views) != 1 || views[0].AssetType != "coupon" || views[0].AssetName != "周末入场券" {
+		t.Fatalf("unexpected coupon ledger view: %+v", views)
+	}
 }
 
 func (f *fakeRepo) ListPaymentTransactions(_ context.Context, flt ListFilter) ([]PaymentTransaction, int64, error) {

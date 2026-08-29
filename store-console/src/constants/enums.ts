@@ -209,6 +209,11 @@ export const WALLET_ASSET_TYPE: Record<WalletAssetType, EnumOption<WalletAssetTy
   growth_value: { value: 'growth_value', label: '成长值', tone: 'default' },
 }
 
+export const LEDGER_ASSET_TYPE: Record<string, EnumOption> = {
+  ...WALLET_ASSET_TYPE,
+  coupon: { value: 'coupon', label: '优惠券', tone: 'info' },
+}
+
 export type WalletDirection = 'credit' | 'debit'
 
 export const WALLET_DIRECTION: Record<WalletDirection, EnumOption<WalletDirection>> = {
@@ -238,6 +243,13 @@ export const WALLET_SOURCE_TYPE: Record<string, EnumOption> = {
   admin_adjustment: { value: 'admin_adjustment', label: '管理员调账', tone: 'error' },
   offline_collection: { value: 'offline_collection', label: '线下收款奖励', tone: 'info' },
   low_spend_reward: { value: 'low_spend_reward', label: '预约低消奖励', tone: 'success' },
+  coupon_grant: { value: 'coupon_grant', label: '优惠券发放', tone: 'success' },
+  coupon_redemption: { value: 'coupon_redemption', label: '优惠券核销', tone: 'warning' },
+  food_order_coupon: { value: 'food_order_coupon', label: '餐品订单用券', tone: 'warning' },
+  activity_order_coupon: { value: 'activity_order_coupon', label: '活动订单用券', tone: 'warning' },
+  coupon_void: { value: 'coupon_void', label: '优惠券作废', tone: 'error' },
+  coupon_expired: { value: 'coupon_expired', label: '优惠券过期', tone: 'default' },
+  coupon_return: { value: 'coupon_return', label: '优惠券退回', tone: 'success' },
 }
 
 export const WALLET_REASON_LABELS: Record<string, string> = {
@@ -259,6 +271,11 @@ export const WALLET_REASON_LABELS: Record<string, string> = {
   refund: '订单退款返还',
   admin_adjustment: '管理员调账',
   low_spend_reward: '预约低消达标奖励',
+  coupon_grant: '优惠券发放',
+  coupon_used: '优惠券使用',
+  coupon_void: '优惠券作废',
+  coupon_expired: '优惠券过期',
+  coupon_return: '订单取消或退款退回优惠券',
 }
 
 /* ------------------------------------------------------------------ */

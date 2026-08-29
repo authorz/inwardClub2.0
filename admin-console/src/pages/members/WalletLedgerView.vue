@@ -19,6 +19,11 @@ const DIRECTION_OPTIONS: OptionItem[] = [
   { label: '扣减', value: 'debit', tone: 'error' },
 ]
 
+const LEDGER_ASSET_TYPE_OPTIONS: OptionItem[] = [
+  ...ASSET_TYPE_OPTIONS,
+  { label: '优惠券', value: 'coupon', tone: 'info' },
+]
+
 const SOURCE_OPTIONS: OptionItem[] = [
   { label: '存积分', value: 'point_saving', tone: 'success' },
   { label: '取积分', value: 'point_withdrawal', tone: 'warning' },
@@ -34,6 +39,13 @@ const SOURCE_OPTIONS: OptionItem[] = [
   { label: '管理员调账', value: 'admin_adjustment', tone: 'error' },
   { label: '线下收款奖励', value: 'offline_collection', tone: 'info' },
   { label: '预约低消奖励', value: 'low_spend_reward', tone: 'success' },
+  { label: '优惠券发放', value: 'coupon_grant', tone: 'success' },
+  { label: '优惠券核销', value: 'coupon_redemption', tone: 'warning' },
+  { label: '餐品订单用券', value: 'food_order_coupon', tone: 'warning' },
+  { label: '活动订单用券', value: 'activity_order_coupon', tone: 'warning' },
+  { label: '优惠券作废', value: 'coupon_void', tone: 'error' },
+  { label: '优惠券过期', value: 'coupon_expired', tone: 'default' },
+  { label: '优惠券退回', value: 'coupon_return', tone: 'success' },
 ]
 
 const STATUS_OPTIONS: OptionItem[] = [
@@ -63,6 +75,11 @@ const reasonLabels: Record<string, string> = {
   refund: '订单退款返还',
   admin_adjustment: '管理员调账',
   low_spend_reward: '预约低消达标奖励',
+  coupon_grant: '优惠券发放',
+  coupon_used: '优惠券使用',
+  coupon_void: '优惠券作废',
+  coupon_expired: '优惠券过期',
+  coupon_return: '订单取消或退款退回优惠券',
 }
 
 const storeOptions = ref<OptionItem[]>([])
@@ -71,7 +88,7 @@ const fields = computed<FilterField[]>(() => [
   { key: 'memberNickname', label: '会员昵称', type: 'input', placeholder: '支持模糊搜索' },
   { key: 'memberPhone', label: '会员手机号', type: 'input', placeholder: '支持模糊搜索' },
   { key: 'storeId', label: '门店', type: 'select', options: storeOptions.value, width: 200 },
-  { key: 'assetType', label: '资产类型', type: 'select', options: ASSET_TYPE_OPTIONS },
+  { key: 'assetType', label: '资产类型', type: 'select', options: LEDGER_ASSET_TYPE_OPTIONS },
   { key: 'direction', label: '变动方向', type: 'select', options: DIRECTION_OPTIONS },
   { key: 'sourceType', label: '业务来源', type: 'select', options: SOURCE_OPTIONS },
   { key: 'status', label: '处理状态', type: 'select', options: STATUS_OPTIONS },
@@ -123,7 +140,13 @@ const columns = [
     160,
   ),
   textColumn<WalletLedgerEntry>('门店', 'storeName', { width: 110 }),
-  statusColumn<WalletLedgerEntry>('资产', 'assetType', ASSET_TYPE_OPTIONS, 78),
+  statusColumn<WalletLedgerEntry>('资产', 'assetType', LEDGER_ASSET_TYPE_OPTIONS, 78),
+  renderColumn<WalletLedgerEntry>(
+    '资产明细',
+    'assetName',
+    (row) => row.assetName || '—',
+    120,
+  ),
   statusColumn<WalletLedgerEntry>('方向', 'direction', DIRECTION_OPTIONS, 78),
   textColumn<WalletLedgerEntry>('变动数量', 'amount', { width: 82 }),
   renderColumn<WalletLedgerEntry>(
@@ -139,7 +162,7 @@ const columns = [
     (row) => sourceLabels[row.sourceType ?? ''] ?? '其他业务',
     100,
   ),
-  textColumn<WalletLedgerEntry>('关联订单号', 'relatedOrderNo', { width: 140 }),
+  textColumn<WalletLedgerEntry>('关联单号', 'relatedOrderNo', { width: 140 }),
   renderColumn<WalletLedgerEntry>(
     '原因',
     'reason',
@@ -156,7 +179,7 @@ const columns = [
 <template>
   <ResourceListView
     title="资产流水"
-    description="查看会员积分、金币、余额、成长值以及存取积分申请记录"
+    description="查看会员积分、金币、余额、成长值、优惠券以及存取积分申请记录"
     :breadcrumb="['用户管理', '资产流水']"
     :fields="fields"
     :columns="columns"

@@ -222,14 +222,25 @@ const ledgerReasonLabels: Record<string, string> = {
   refund: '订单退款返还',
   admin_adjustment: '管理员调账',
   low_spend_reward: '预约低消达标奖励',
+  coupon_grant: '优惠券发放',
+  coupon_used: '优惠券使用',
+  coupon_void: '优惠券作废',
+  coupon_expired: '优惠券过期',
+  coupon_return: '订单取消或退款退回优惠券',
 }
 
 const ledgerColumns: TableColumnList<WalletLedgerEntry> = [
   renderColumn<WalletLedgerEntry>(
     '类型',
     'assetType',
-    (row) => assetTypeLabel(row.assetType),
+    (row) => row.assetType === 'coupon' ? '优惠券' : assetTypeLabel(row.assetType),
     88,
+  ),
+  renderColumn<WalletLedgerEntry>(
+    '资产明细',
+    'assetName',
+    (row) => row.assetName || '—',
+    130,
   ),
   renderColumn<WalletLedgerEntry>(
     '变动',
@@ -240,7 +251,7 @@ const ledgerColumns: TableColumnList<WalletLedgerEntry> = [
   renderColumn<WalletLedgerEntry>(
     '变动后余额',
     'balanceAfter',
-    (row) => balanceFormatter.format(row.balanceAfter ?? 0),
+    (row) => row.balanceAfter == null ? '—' : balanceFormatter.format(row.balanceAfter),
     120,
   ),
   renderColumn<WalletLedgerEntry>(
@@ -818,7 +829,7 @@ async function submitCouponAction(): Promise<void> {
 
             <NTabPane
               name="ledger"
-              tab="钱包流水"
+              tab="资产流水"
             >
               <DataTable
                 class="member-detail__ledger"
@@ -829,7 +840,7 @@ async function submitCouponAction(): Promise<void> {
                 :page-size="ledgerTable.pagination.pageSize"
                 :item-count="ledgerTable.pagination.itemCount"
                 :row-key="(row) => row.recordKey"
-                empty-text="暂无流水"
+                empty-text="暂无资产流水"
                 @update:page="ledgerTable.handlePageChange"
                 @update:page-size="ledgerTable.handlePageSizeChange"
               />

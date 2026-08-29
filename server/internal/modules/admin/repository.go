@@ -603,9 +603,8 @@ func (r *sqlRepository) SearchMembersByPhone(ctx context.Context, phone string) 
 	return out, rows.Err()
 }
 
-// ListWalletLedger combines settled wallet balance changes with point deposit
-// and withdrawal applications. Pending/rejected applications intentionally
-// carry a NULL balance_after because they did not change the member's wallet.
+// ListWalletLedger combines settled wallet balance changes, point applications,
+// and coupon lifecycle events. Non-balance assets carry a NULL balance_after.
 func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]WalletLedgerEntry, int64, error) {
 	where := "1 = 1"
 	var args []any
@@ -659,7 +658,7 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 	}
 
 	const settledEntries = `SELECT wle.id, CONCAT('ledger:', wle.id) AS record_key,
-			wle.member_id, wle.asset_type, wle.direction, wle.amount,
+			wle.member_id, wle.asset_type, '' AS asset_name, wle.direction, wle.amount,
 			wle.balance_after, 'completed' AS status, wle.reason,
 			wle.source_type, wle.source_id,
 			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
@@ -689,12 +688,12 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 		LEFT JOIN point_withdrawals point_withdrawal
 			ON wle.source_type = 'point_withdrawal' AND point_withdrawal.id = wle.source_id`
 	const pointRequestEntries = `
-		UNION ALL SELECT ps.id, CONCAT('point_saving:', ps.id), ps.member_id, 'points',
+		UNION ALL SELECT ps.id, CONCAT('point_saving:', ps.id), ps.member_id, 'points', '',
 			'credit', ps.points, NULL, ps.status,
 			CASE WHEN ps.remark = '' THEN 'point_saving' ELSE ps.remark END,
 			'point_saving', ps.id, ps.store_id, '', ps.created_at
 		FROM point_savings ps
-		UNION ALL SELECT pw.id, CONCAT('point_withdrawal:', pw.id), pw.member_id, 'points',
+		UNION ALL SELECT pw.id, CONCAT('point_withdrawal:', pw.id), pw.member_id, 'points', '',
 			'debit', pw.points, NULL, pw.status,
 			CASE WHEN pw.remark = '' THEN 'point_withdrawal' ELSE pw.remark END,
 			'point_withdrawal', pw.id, pw.store_id, '', pw.created_at
@@ -703,11 +702,85 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 			SELECT 1 FROM wallet_ledger_entries wle
 			WHERE wle.source_type = 'point_withdrawal' AND wle.source_id = pw.id
 		)`
-	entries := "(" + settledEntries
+	const couponGrantEntries = `SELECT e.id AS id, CONCAT('coupon_grant:', e.id) AS record_key,
+			e.member_id AS member_id, 'coupon' AS asset_type, ct.name AS asset_name,
+			'credit' AS direction, 1 AS amount, NULL AS balance_after, 'completed' AS status,
+			CASE WHEN e.granted_reason = '' THEN 'coupon_grant' ELSE e.granted_reason END AS reason,
+			'coupon_grant' AS source_type, e.id AS source_id, e.store_id AS store_id,
+			e.entitlement_no AS related_order_no, e.created_at AS created_at
+		FROM coupon_entitlements e
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id`
+	const couponRedemptionEntries = `SELECT e.id, CONCAT('coupon_redeem:', e.id), e.member_id,
+			'coupon', ct.name, 'debit', 1, NULL, 'completed', 'coupon_used',
+			'coupon_redemption', e.id, cr.store_id, cr.redemption_no, cr.created_at
+		FROM coupon_redemptions cr
+		JOIN coupon_entitlements e ON e.id = cr.entitlement_id
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id`
+	const couponFoodUseEntries = `SELECT e.id, CONCAT('coupon_food_use:', e.id), e.member_id,
+			'coupon', ct.name, 'debit', 1, NULL, 'completed', 'coupon_used',
+			'food_order_coupon', e.id, fo.store_id, bo.business_order_no, fo.created_at
+		FROM food_orders fo
+		JOIN coupon_entitlements e ON e.id = fo.coupon_entitlement_id
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		JOIN business_orders bo ON bo.id = fo.business_order_id
+		WHERE fo.coupon_entitlement_id IS NOT NULL`
+	const couponActivityUseEntries = `SELECT e.id, CONCAT('coupon_activity_use:', e.id), e.member_id,
+			'coupon', ct.name, 'debit', 1, NULL, 'completed', 'coupon_used',
+			'activity_order_coupon', e.id, ao.store_id, bo.business_order_no, ao.created_at
+		FROM activity_orders ao
+		JOIN coupon_entitlements e ON e.id = ao.coupon_entitlement_id
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		JOIN business_orders bo ON bo.id = ao.business_order_id
+		WHERE ao.coupon_entitlement_id IS NOT NULL`
+	const couponTerminalEntries = `SELECT e.id, CONCAT('coupon_terminal:', e.id), e.member_id,
+			'coupon', ct.name, 'debit', 1, NULL, 'completed',
+			CASE e.status WHEN 'void' THEN 'coupon_void' WHEN 'expired' THEN 'coupon_expired' ELSE 'coupon_used' END,
+			CASE e.status WHEN 'void' THEN 'coupon_void' WHEN 'expired' THEN 'coupon_expired' ELSE 'coupon_redemption' END,
+			e.id, e.store_id, e.entitlement_no, e.updated_at
+		FROM coupon_entitlements e
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		WHERE e.status IN ('used', 'void', 'expired')
+			AND NOT EXISTS (SELECT 1 FROM coupon_redemptions cr WHERE cr.entitlement_id = e.id)
+			AND NOT EXISTS (SELECT 1 FROM food_orders fo WHERE fo.coupon_entitlement_id = e.id)
+			AND NOT EXISTS (SELECT 1 FROM activity_orders ao WHERE ao.coupon_entitlement_id = e.id)`
+	const couponFoodReturnEntries = `SELECT e.id, CONCAT('coupon_food_return:', e.id), e.member_id,
+			'coupon', ct.name, 'credit', 1, NULL, 'completed', 'coupon_return',
+			'coupon_return', e.id, fo.store_id, bo.business_order_no, e.updated_at
+		FROM food_orders fo
+		JOIN coupon_entitlements e ON e.id = fo.coupon_entitlement_id AND e.status = 'active'
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		JOIN business_orders bo ON bo.id = fo.business_order_id
+		WHERE fo.coupon_entitlement_id IS NOT NULL`
+	const couponActivityReturnEntries = `SELECT e.id, CONCAT('coupon_activity_return:', e.id), e.member_id,
+			'coupon', ct.name, 'credit', 1, NULL, 'completed', 'coupon_return',
+			'coupon_return', e.id, ao.store_id, bo.business_order_no, e.updated_at
+		FROM activity_orders ao
+		JOIN coupon_entitlements e ON e.id = ao.coupon_entitlement_id AND e.status = 'active'
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		JOIN business_orders bo ON bo.id = ao.business_order_id
+		WHERE ao.coupon_entitlement_id IS NOT NULL`
+	walletEntries := settledEntries
 	if f.IncludePointRequests {
-		entries += pointRequestEntries
+		walletEntries += pointRequestEntries
 	}
-	entries += ") entry"
+	couponEntries := strings.Join([]string{
+		couponGrantEntries,
+		couponRedemptionEntries,
+		couponFoodUseEntries,
+		couponActivityUseEntries,
+		couponTerminalEntries,
+		couponFoodReturnEntries,
+		couponActivityReturnEntries,
+	}, "\nUNION ALL ")
+	var entries string
+	switch f.AssetType {
+	case "coupon":
+		entries = "(" + couponEntries + ") entry"
+	case "":
+		entries = "(" + walletEntries + "\nUNION ALL " + couponEntries + ") entry"
+	default:
+		entries = "(" + walletEntries + ") entry"
+	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)
 		FROM `+entries+`
@@ -718,7 +791,7 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 	}
 	q := `SELECT entry.id, entry.record_key, entry.member_id,
 			COALESCE(m.nickname, ''), COALESCE(m.phone, ''), COALESCE(m.avatar_url, ''),
-			entry.store_id, COALESCE(s.name, ''), entry.asset_type, entry.direction,
+			entry.store_id, COALESCE(s.name, ''), entry.asset_type, entry.asset_name, entry.direction,
 			entry.amount, entry.balance_after, entry.status, entry.reason,
 			entry.source_type, entry.source_id, entry.related_order_no, entry.created_at
 		FROM ` + entries + `
@@ -735,7 +808,7 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 	for rows.Next() {
 		var e WalletLedgerEntry
 		if err := rows.Scan(&e.ID, &e.RecordKey, &e.MemberID, &e.MemberNickname, &e.MemberPhone,
-			&e.MemberAvatarURL, &e.StoreID, &e.StoreName, &e.AssetType, &e.Direction,
+			&e.MemberAvatarURL, &e.StoreID, &e.StoreName, &e.AssetType, &e.AssetName, &e.Direction,
 			&e.Amount, &e.BalanceAfter, &e.Status, &e.Reason, &e.SourceType,
 			&e.SourceID, &e.RelatedOrderNo, &e.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)

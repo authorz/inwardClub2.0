@@ -18,7 +18,7 @@ import { memberService } from '@/api/services'
 import { useAsyncList } from '@/composables/useAsyncList'
 import {
   toOptions,
-  WALLET_ASSET_TYPE,
+  LEDGER_ASSET_TYPE,
   WALLET_DIRECTION,
   WALLET_LEDGER_STATUS,
   WALLET_REASON_LABELS,
@@ -46,7 +46,7 @@ const list = useAsyncList<WalletLedgerEntry>(
 const createdRange = ref<[number, number] | null>(null)
 const selectOptions = (options: ReturnType<typeof toOptions>) =>
   options.map(({ label, value }) => ({ label, value }))
-const assetTypeOptions = selectOptions(toOptions(WALLET_ASSET_TYPE))
+const assetTypeOptions = selectOptions(toOptions(LEDGER_ASSET_TYPE))
 const directionOptions = selectOptions(toOptions(WALLET_DIRECTION))
 const sourceTypeOptions = selectOptions(toOptions(WALLET_SOURCE_TYPE))
 const statusOptions = selectOptions(toOptions(WALLET_LEDGER_STATUS))
@@ -100,17 +100,21 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
     width: 110,
     ellipsis: { tooltip: true },
   }),
-  statusColumn<WalletLedgerEntry>('资产', WALLET_ASSET_TYPE, (row) => row.assetType, { width: 78 }),
+  statusColumn<WalletLedgerEntry>('资产', LEDGER_ASSET_TYPE, (row) => row.assetType, { width: 78 }),
+  textColumn<WalletLedgerEntry>('资产明细', (row) => row.assetName || '—', {
+    width: 120,
+    ellipsis: { tooltip: true },
+  }),
   statusColumn<WalletLedgerEntry>('方向', WALLET_DIRECTION, (row) => row.direction, { width: 78 }),
   textColumn<WalletLedgerEntry>('变动数量', (row) => row.amount, { width: 82 }),
-  textColumn<WalletLedgerEntry>('变动后余额', (row) => row.balanceAfter, { width: 90 }),
+  textColumn<WalletLedgerEntry>('变动后余额', (row) => row.balanceAfter ?? '—', { width: 90 }),
   statusColumn<WalletLedgerEntry>('处理状态', WALLET_LEDGER_STATUS, (row) => row.status, { width: 88 }),
   textColumn<WalletLedgerEntry>(
     '业务来源',
     (row) => WALLET_SOURCE_TYPE[row.sourceType ?? '']?.label ?? row.sourceType,
     { width: 100, ellipsis: { tooltip: true } },
   ),
-  textColumn<WalletLedgerEntry>('关联订单号', (row) => row.relatedOrderNo, {
+  textColumn<WalletLedgerEntry>('关联单号', (row) => row.relatedOrderNo, {
     width: 140,
     ellipsis: { tooltip: true },
   }),
@@ -131,7 +135,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   <section class="wallet-ledger">
     <PageHeader
       title="资产流水"
-      description="查看本店产生的会员积分、金币、余额、成长值以及存取积分申请记录"
+      description="查看本店产生的会员积分、金币、余额、成长值、优惠券以及存取积分申请记录"
       :breadcrumb="['会员管理', '资产流水']"
     />
 
@@ -263,7 +267,7 @@ const columns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
         :page-size="list.pageSize.value"
         :total="list.total.value"
         :row-key="(row) => row.recordKey"
-        :scroll-x="1240"
+        :scroll-x="1360"
         empty-text="本店暂无资产流水"
         @update:page="list.setPage"
         @update:page-size="list.setPageSize"

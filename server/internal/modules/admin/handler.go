@@ -250,7 +250,7 @@ func parseWalletLedgerFilter(c *gin.Context) (ListFilter, error) {
 		ReasonKeyword:  c.Query("reason"),
 	}
 	switch f.AssetType {
-	case "", "points", "coins", "cash_balance", "growth_value":
+	case "", "points", "coins", "cash_balance", "growth_value", "coupon":
 	default:
 		return ListFilter{}, apperr.Invalid("invalid assetType")
 	}

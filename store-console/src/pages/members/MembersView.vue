@@ -39,6 +39,7 @@ import type {
 } from '@/types/models'
 import {
   ACTIVE_STATUS,
+  LEDGER_ASSET_TYPE,
   toOptions,
   WALLET_ASSET_TYPE,
   WALLET_REASON_LABELS,
@@ -112,6 +113,7 @@ const adjustAssetTypeOptions = toOptions(WALLET_ASSET_TYPE)
 const ASSET_LABELS = Object.fromEntries(
   toOptions(WALLET_ASSET_TYPE).map(({ label, value }) => [value, label]),
 )
+ASSET_LABELS.coupon = LEDGER_ASSET_TYPE.coupon.label
 const adjustForm = reactive<{
   assetType: string
   direction: AdjustmentDirection
@@ -389,12 +391,13 @@ const columns = computed<DataTableColumns<Member>>(() => [
 
 const ledgerColumns = computed<DataTableColumns<WalletLedgerEntry>>(() => [
   textColumn<WalletLedgerEntry>('类型', (r) => ASSET_LABELS[r.assetType] ?? r.assetType),
+  textColumn<WalletLedgerEntry>('资产明细', (r) => r.assetName || '—', { minWidth: 130 }),
   textColumn<WalletLedgerEntry>(
     '变动',
     (r) => `${r.direction === 'debit' ? '-' : '+'}${r.amount}`,
     { align: 'right' },
   ),
-  textColumn<WalletLedgerEntry>('变动后余额', (r) => r.balanceAfter, { align: 'right' }),
+  textColumn<WalletLedgerEntry>('变动后余额', (r) => r.balanceAfter ?? '—', { align: 'right' }),
   textColumn<WalletLedgerEntry>(
     '原因',
     (r) => WALLET_REASON_LABELS[r.reason || ''] ?? r.reason,
@@ -588,7 +591,7 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
 
           <NTabPane
             name="ledger"
-            tab="钱包流水"
+            tab="资产流水"
           >
             <DataTable
               :columns="ledgerColumns"
@@ -598,7 +601,8 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
               :page-size="ledger.pageSize.value"
               :total="ledger.total.value"
               :row-key="(row) => row.recordKey"
-              empty-text="暂无流水"
+              :scroll-x="720"
+              empty-text="暂无资产流水"
               @update:page="ledger.setPage"
               @update:page-size="ledger.setPageSize"
             />

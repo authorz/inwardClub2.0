@@ -136,8 +136,8 @@ type WalletAdjustmentView struct {
 	Reason       string `json:"reason,omitempty"`
 }
 
-// WalletLedgerEntryView is the console list representation of a wallet ledger
-// entry, carrying the fields useful for audit review.
+// WalletLedgerEntryView is the console list representation of one asset event,
+// carrying the fields useful for audit review.
 type WalletLedgerEntryView struct {
 	ID              int64     `json:"id"`
 	RecordKey       string    `json:"recordKey"`
@@ -148,6 +148,7 @@ type WalletLedgerEntryView struct {
 	StoreID         *int64    `json:"storeId,omitempty"`
 	StoreName       string    `json:"storeName,omitempty"`
 	AssetType       string    `json:"assetType"`
+	AssetName       string    `json:"assetName,omitempty"`
 	Direction       string    `json:"direction"`
 	Amount          int64     `json:"amount"`
 	BalanceAfter    *int64    `json:"balanceAfter,omitempty"`

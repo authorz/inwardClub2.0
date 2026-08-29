@@ -111,7 +111,7 @@ type Member struct {
 	CreatedAt     time.Time
 }
 
-// WalletLedgerEntry is the console read model for a wallet_ledger_entries row.
+// WalletLedgerEntry is the console read model for wallet and coupon asset events.
 type WalletLedgerEntry struct {
 	ID              int64
 	RecordKey       string
@@ -122,6 +122,7 @@ type WalletLedgerEntry struct {
 	StoreID         *int64
 	StoreName       string
 	AssetType       string
+	AssetName       string
 	Direction       string
 	Amount          int64
 	BalanceAfter    *int64

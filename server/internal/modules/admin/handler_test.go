@@ -457,6 +457,24 @@ func TestWalletLedgerHandlerRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestWalletLedgerHandlerAcceptsCouponAssetType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &fakeRepo{}
+	h := NewHandler(NewService(repo, fakeStores{}, nil))
+	router := gin.New()
+	router.GET("/admin/wallet-ledger", h.WalletLedger)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/wallet-ledger?assetType=coupon", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastFilter.AssetType != "coupon" {
+		t.Fatalf("expected coupon asset filter, got %+v", repo.lastFilter)
+	}
+}
+
 func TestStoreWalletLedgerHandlerScopesToStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

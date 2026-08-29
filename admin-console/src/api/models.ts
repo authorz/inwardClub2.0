@@ -330,6 +330,7 @@ export interface WalletLedgerEntry {
   storeId?: string
   storeName?: string
   assetType: string
+  assetName?: string
   direction: string
   amount: number
   balanceAfter?: number

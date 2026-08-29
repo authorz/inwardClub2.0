@@ -286,7 +286,7 @@ func (s *Service) ListWalletLedger(ctx context.Context, f ListFilter) ([]WalletL
 			MemberID: r.MemberID, MemberNickname: r.MemberNickname,
 			MemberPhone: r.MemberPhone, MemberAvatarURL: r.MemberAvatarURL,
 			StoreID: r.StoreID, StoreName: r.StoreName,
-			AssetType: r.AssetType, Direction: r.Direction,
+			AssetType: r.AssetType, AssetName: r.AssetName, Direction: r.Direction,
 			Amount: r.Amount, BalanceAfter: r.BalanceAfter, Status: r.Status, Reason: r.Reason,
 			SourceType: r.SourceType, SourceID: r.SourceID,
 			RelatedOrderNo: r.RelatedOrderNo, CreatedAt: r.CreatedAt,
