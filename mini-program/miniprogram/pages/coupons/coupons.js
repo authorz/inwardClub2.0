@@ -68,25 +68,32 @@ Page({
           return labels;
         }, {});
         const now = Date.now();
-        const all = (couponsRes.data || []).map((c) => ({
-          id: c.id,
-          templateId: c.templateId,
-          storeId: c.storeId,
-          name: c.name,
-          desc: c.desc,
-          type: c.type,
-          categoryId: String(c.categoryId || ''),
-          categoryLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
-          typeLabel: c.categoryName || typeLabels[String(c.categoryId)] || '福利券',
-          ruleText: c.type === 'event_ticket'
-            ? '确认后直接使用'
-            : (c.type === 'admission_ticket' ? '一券兑一张门票' : '一券兑一份'),
-          validUntil: c.validUntil,
-          status: c.status,
-          action: c.action || 'none',
-          actionText: '去使用',
-          dateText: c.validUntil || '-',
-        })).filter((coupon) => isUsableCoupon(coupon, now));
+        const all = (couponsRes.data || []).map((c) => {
+          const rawCategoryId = String(c.categoryId || '');
+          const categoryLabel = c.categoryName || typeLabels[rawCategoryId] || '福利券';
+          const categoryId = rawCategoryId && typeLabels[rawCategoryId] && typeLabels[rawCategoryId] !== categoryLabel
+            ? `display:${c.type || 'coupon'}:${categoryLabel}`
+            : rawCategoryId;
+          return {
+            id: c.id,
+            templateId: c.templateId,
+            storeId: c.storeId,
+            name: c.name,
+            desc: c.desc,
+            type: c.type,
+            categoryId,
+            categoryLabel,
+            typeLabel: categoryLabel,
+            ruleText: c.type === 'event_ticket'
+              ? '确认后直接使用'
+              : (c.type === 'admission_ticket' ? '一券兑一张门票' : '一券兑一份'),
+            validUntil: c.validUntil,
+            status: c.status,
+            action: c.action || 'none',
+            actionText: '去使用',
+            dateText: c.validUntil || '-',
+          };
+        }).filter((coupon) => isUsableCoupon(coupon, now));
         this.setData({ categories, loading: false });
         this.setCouponState(all, categories, 'all');
         this.refreshCountdowns();

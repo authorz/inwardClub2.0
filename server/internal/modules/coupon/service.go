@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/inwardclub/server/internal/modules/catalog"
@@ -261,6 +262,7 @@ func redemptionView(o RedemptionOrder) RedemptionOrderView {
 }
 
 func couponView(c MemberCoupon) MemberCouponView {
+	c = normalizeLegacyVIPEventCoupon(c)
 	return MemberCouponView{
 		ID:             c.RedemptionID,
 		EntitlementID:  c.EntitlementID,
@@ -277,6 +279,28 @@ func couponView(c MemberCoupon) MemberCouponView {
 		ExpiresAt:      formatCouponDateTime(c.ExpiresAt),
 		CreatedAt:      c.CreatedAt,
 	}
+}
+
+func normalizeLegacyVIPEventCoupon(c MemberCoupon) MemberCoupon {
+	if c.CouponType != TypeEventTicket || !strings.HasPrefix(c.IdemKey, "vipb:c:") ||
+		(c.Name != "无效使用" && c.CategoryName != "无效使用") {
+		return c
+	}
+	switch {
+	case strings.Contains(c.IdemKey, ":low_spend:"), strings.Contains(c.IdemKey, ":weekday_event:"):
+		c.Name = "周内低消券"
+		c.CategoryName = "周内低消券"
+		c.Description = "除周月赛不可使用，使用方式根据当天赛制规则"
+	case strings.Contains(c.IdemKey, ":weekly_event:"):
+		c.Name = "周赛卡券"
+		c.CategoryName = "周赛卡券"
+		c.Description = "周赛当日可使用"
+	case strings.Contains(c.IdemKey, ":monthly_event:"):
+		c.Name = "月赛卡券"
+		c.CategoryName = "月赛卡券"
+		c.Description = "月赛当日可使用"
+	}
+	return c
 }
 
 func formatCouponDateTime(value *time.Time) string {

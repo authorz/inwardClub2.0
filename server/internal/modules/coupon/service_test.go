@@ -306,3 +306,37 @@ func TestListEligibleItemsUsesCouponTemplate(t *testing.T) {
 		t.Fatalf("unexpected eligible items: %+v", view)
 	}
 }
+
+func TestCouponViewRestoresLegacyVIPEventCouponDisplay(t *testing.T) {
+	tests := []struct {
+		name     string
+		idemKey  string
+		wantName string
+		wantDesc string
+	}{
+		{name: "low spend", idemKey: "vipb:c:9:6:weekly:low_spend:event_ticket:20260824:0", wantName: "周内低消券", wantDesc: "除周月赛不可使用，使用方式根据当天赛制规则"},
+		{name: "weekday event", idemKey: "vipb:c:9:6:weekly:weekday_event:event_ticket:20260824:0", wantName: "周内低消券", wantDesc: "除周月赛不可使用，使用方式根据当天赛制规则"},
+		{name: "weekly event", idemKey: "vipb:c:9:6:monthly:weekly_event:event_ticket:202608:0", wantName: "周赛卡券", wantDesc: "周赛当日可使用"},
+		{name: "monthly event", idemKey: "vipb:c:9:7:monthly:monthly_event:event_ticket:202608:0", wantName: "月赛卡券", wantDesc: "月赛当日可使用"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			view := couponView(MemberCoupon{
+				Name: "无效使用", CategoryName: "无效使用", CouponType: TypeEventTicket,
+				IdemKey: test.idemKey,
+			})
+			if view.Name != test.wantName || view.CategoryName != test.wantName || view.Description != test.wantDesc {
+				t.Fatalf("unexpected legacy coupon view: %+v", view)
+			}
+		})
+	}
+}
+
+func TestCouponViewKeepsNonVIPInvalidCategoryUnchanged(t *testing.T) {
+	view := couponView(MemberCoupon{
+		Name: "无效使用", CategoryName: "无效使用", CouponType: TypeEventTicket,
+	})
+	if view.Name != "无效使用" || view.CategoryName != "无效使用" {
+		t.Fatalf("non-VIP coupon must remain unchanged: %+v", view)
+	}
+}

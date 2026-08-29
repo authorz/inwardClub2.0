@@ -69,8 +69,9 @@ type sqlRepository struct{ db *platdb.DB }
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
 const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.name,
-	COALESCE(t.description,''), t.category_id, COALESCE(cc.name, ''), t.coupon_type,
-	e.admission_count, t.value_cent, e.store_id, e.status, e.expires_at, e.created_at
+		COALESCE(t.description,''), t.category_id, COALESCE(cc.name, ''), t.coupon_type,
+		e.admission_count, t.value_cent, e.store_id, e.status, e.expires_at,
+		COALESCE(e.idem_key, ''), e.created_at
 	FROM coupon_entitlements e
 	JOIN coupon_templates t ON t.id = e.coupon_template_id
 	JOIN coupon_categories cc ON cc.id = t.category_id`
@@ -524,6 +525,6 @@ func scanCoupon(s scanner) (MemberCoupon, error) {
 	var c MemberCoupon
 	err := s.Scan(&c.EntitlementID, &c.EntitlementNo, &c.TemplateID, &c.Name, &c.Description,
 		&c.CategoryID, &c.CategoryName, &c.CouponType, &c.AdmissionCount, &c.ValueCent,
-		&c.StoreID, &c.Status, &c.ExpiresAt, &c.CreatedAt)
+		&c.StoreID, &c.Status, &c.ExpiresAt, &c.IdemKey, &c.CreatedAt)
 	return c, err
 }

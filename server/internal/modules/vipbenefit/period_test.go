@@ -67,3 +67,27 @@ func TestPeriodKeyUsesNaturalWeek(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyEventCouponCategoryNameFollowsTrigger(t *testing.T) {
+	tests := []struct {
+		trigger string
+		want    string
+	}{
+		{trigger: "low_spend", want: "周内低消券"},
+		{trigger: "weekday_event", want: "周内低消券"},
+		{trigger: "weekly_event", want: "周赛卡券"},
+		{trigger: "monthly_event", want: "月赛卡券"},
+		{trigger: "visit", want: ""},
+	}
+	for _, test := range tests {
+		benefit := couponBenefit{CouponType: "event_ticket", Trigger: test.trigger}
+		if got := legacyEventCouponCategoryName(benefit); got != test.want {
+			t.Fatalf("trigger %s category = %q, want %q", test.trigger, got, test.want)
+		}
+	}
+	if got := legacyEventCouponCategoryName(couponBenefit{
+		CategoryID: 19, CouponType: "event_ticket", Trigger: "low_spend",
+	}); got != "" {
+		t.Fatalf("explicit category must not be overridden, got %q", got)
+	}
+}

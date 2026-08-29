@@ -84,6 +84,7 @@ type MemberCoupon struct {
 	StoreID        *int64
 	Status         string
 	ExpiresAt      *time.Time
+	IdemKey        string
 	CreatedAt      time.Time
 }
 

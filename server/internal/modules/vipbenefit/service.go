@@ -414,7 +414,12 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		query += ` AND c.business_type = ?`
 		args = append(args, benefit.CouponType)
 	}
-	query += ` ORDER BY c.id ASC LIMIT 1`
+	if preferred := legacyEventCouponCategoryName(benefit); preferred != "" && benefit.CategoryID <= 0 {
+		query += ` ORDER BY CASE WHEN c.name = ? THEN 0 ELSE 1 END, c.id ASC LIMIT 1`
+		args = append(args, preferred)
+	} else {
+		query += ` ORDER BY c.id ASC LIMIT 1`
+	}
 	err := tx.QueryRowContext(ctx, query, args...).Scan(&templateID, &admissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
@@ -452,6 +457,22 @@ func grantCoupons(ctx context.Context, tx *sql.Tx, memberID, tierID int64, benef
 		granted++
 	}
 	return granted, nil
+}
+
+func legacyEventCouponCategoryName(benefit couponBenefit) string {
+	if benefit.CategoryID > 0 || benefit.CouponType != "event_ticket" {
+		return ""
+	}
+	switch benefit.Trigger {
+	case "low_spend", "weekday_event":
+		return "周内低消券"
+	case "weekly_event":
+		return "周赛卡券"
+	case "monthly_event":
+		return "月赛卡券"
+	default:
+		return ""
+	}
 }
 
 func compactEntitlementNo(memberID int64, idemKey string) string {
