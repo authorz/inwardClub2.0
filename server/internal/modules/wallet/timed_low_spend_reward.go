@@ -69,15 +69,11 @@ func GrantTimedLowSpendReward(
 		return 0, apperr.Internal(err)
 	}
 
-	qualified, err := hasTimelyReservationOrWaitlist(ctx, tx, memberID, storeID, window)
-	if err != nil || !qualified {
-		return 0, err
-	}
 	totalCent, err := cumulativeFoodSpend(ctx, tx, memberID, storeID, window)
 	if err != nil {
 		return 0, err
 	}
-	if totalCent < settings.MinimumAmountCent {
+	if !lowSpendAmountQualified(totalCent, settings.MinimumAmountCent) {
 		return 0, nil
 	}
 	if err := markLowSpendMemberArrived(ctx, tx, memberID, storeID, window, paidAt); err != nil {
@@ -159,15 +155,15 @@ func TimedLowSpendQualified(
 	if paidAt.Before(window.DayStart) || !paidAt.Before(window.ConsumptionCutoff) {
 		return false, nil
 	}
-	qualified, err := hasTimelyReservationOrWaitlist(ctx, tx, memberID, storeID, window)
-	if err != nil || !qualified {
-		return false, err
-	}
 	totalCent, err := cumulativeFoodSpend(ctx, tx, memberID, storeID, window)
 	if err != nil {
 		return false, err
 	}
-	return totalCent >= settings.MinimumAmountCent, nil
+	return lowSpendAmountQualified(totalCent, settings.MinimumAmountCent), nil
+}
+
+func lowSpendAmountQualified(totalCent, minimumAmountCent int64) bool {
+	return minimumAmountCent > 0 && totalCent >= minimumAmountCent
 }
 
 // InvitationLowSpendQualified reports whether an invited member has completed

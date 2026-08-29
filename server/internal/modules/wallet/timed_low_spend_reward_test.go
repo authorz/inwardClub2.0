@@ -35,3 +35,25 @@ func TestBuildTimedLowSpendWindowRejectsReversedCutoffs(t *testing.T) {
 		t.Fatal("expected reversed cutoff validation error")
 	}
 }
+
+func TestLowSpendAmountQualifiedIncludesExactThreshold(t *testing.T) {
+	tests := []struct {
+		name      string
+		totalCent int64
+		minimum   int64
+		qualified bool
+	}{
+		{name: "below threshold", totalCent: 8799, minimum: 8800, qualified: false},
+		{name: "exact threshold", totalCent: 8800, minimum: 8800, qualified: true},
+		{name: "above threshold", totalCent: 17600, minimum: 8800, qualified: true},
+		{name: "invalid minimum", totalCent: 8800, minimum: 0, qualified: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := lowSpendAmountQualified(test.totalCent, test.minimum); got != test.qualified {
+				t.Fatalf("lowSpendAmountQualified(%d, %d) = %t, want %t",
+					test.totalCent, test.minimum, got, test.qualified)
+			}
+		})
+	}
+}
