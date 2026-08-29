@@ -26,6 +26,7 @@ import DataTable from '@/components/DataTable.vue'
 import type { ResourceListInstance } from '@/components/ui-types'
 import FormDrawer from '@/components/FormDrawer.vue'
 import PermissionButton from '@/components/PermissionButton.vue'
+import BulkCouponGrantModal from './BulkCouponGrantModal.vue'
 import { dateTimeColumn, statusColumn, textColumn, actionsColumn, renderColumn } from '@/utils/columns'
 import {
   ASSET_TYPE,
@@ -53,6 +54,7 @@ import { toastError } from '@/utils/feedback'
 
 const listRef = ref<ResourceListInstance | null>(null)
 const target = ref<Member | null>(null)
+const bulkCouponGrantShow = ref(false)
 type MemberSortField = 'pointsBalance' | 'coinsBalance' | 'vipLevel'
 const sortBy = ref<MemberSortField | ''>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
@@ -74,6 +76,18 @@ const fields: FilterField[] = [
     label: '注册时间',
     type: 'daterange',
     width: 280,
+  },
+]
+
+const toolbarActions = [
+  {
+    key: 'bulk-coupon-grant',
+    label: '补发券',
+    permission: PERMISSIONS.COUPON_GLOBAL_WRITE,
+    type: 'primary' as const,
+    onClick: () => {
+      bulkCouponGrantShow.value = true
+    },
   },
 ]
 
@@ -598,8 +612,10 @@ async function submitCouponAction(): Promise<void> {
       :fields="fields"
       :columns="columns"
       :fetcher="fetchMembers"
+      :toolbar-actions="toolbarActions"
       @update:sorter="handleSorter"
     />
+    <BulkCouponGrantModal v-model:show="bulkCouponGrantShow" />
     <FormDrawer
       v-model:show="drawerShow"
       title="人工调账"

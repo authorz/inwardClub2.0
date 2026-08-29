@@ -30,6 +30,7 @@ import { formatDateTime } from '@/utils/format'
 import { ApiError } from '@/api/error'
 import { feedback } from '@/utils/feedback'
 import { DataTable, PageHeader, PermissionButton } from '@/components/common'
+import BulkCouponGrantModal from './BulkCouponGrantModal.vue'
 import type {
   CouponCategory,
   Member,
@@ -48,6 +49,7 @@ type AdjustmentDirection = 'credit' | 'debit'
 const sortBy = ref<MemberSortField | ''>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const balanceFormatter = new Intl.NumberFormat('zh-CN')
+const bulkCouponGrantShow = ref(false)
 
 const list = useAsyncList<Member>(
   (params) =>
@@ -417,7 +419,19 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
       title="会员列表"
       description="全局会员查询；人工调账和补发券均为高风险操作"
       :breadcrumb="['用户 / 会员', '会员列表']"
-    />
+    >
+      <template #actions>
+        <PermissionButton
+          :permissions="[PERM.couponWrite]"
+          type="primary"
+          @click="bulkCouponGrantShow = true"
+        >
+          补发券
+        </PermissionButton>
+      </template>
+    </PageHeader>
+
+    <BulkCouponGrantModal v-model:show="bulkCouponGrantShow" />
 
     <div class="member-filter">
       <div class="member-filter__fields">
