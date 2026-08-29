@@ -49,6 +49,8 @@ type ListFilter struct {
 	// Store-console wallet reads retain their existing settled-ledger semantics.
 	IncludePointRequests bool
 	// MemberID and AssetType additionally narrow the wallet ledger console read.
+	// A store-scoped member detail may include that member's globally usable
+	// coupon events; unfiltered store ledger pages remain strictly store-bound.
 	MemberID  *int64
 	AssetType string
 }
@@ -653,7 +655,11 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 		args = append(args, f.CreatedBefore.UTC())
 	}
 	if f.StoreID != nil {
-		where += " AND entry.store_id = ?"
+		if f.MemberID != nil {
+			where += " AND (entry.store_id = ? OR (entry.asset_type = 'coupon' AND entry.store_id IS NULL))"
+		} else {
+			where += " AND entry.store_id = ?"
+		}
 		args = append(args, *f.StoreID)
 	}
 
