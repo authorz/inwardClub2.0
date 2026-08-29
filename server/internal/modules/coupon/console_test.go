@@ -223,7 +223,7 @@ func (r *fakeConsoleRepo) ListMemberEntitlements(_ context.Context, scope Consol
 		if e.memberID != memberID {
 			continue
 		}
-		if scope.StoreID != nil && (e.storeID == nil || *e.storeID != *scope.StoreID) {
+		if scope.StoreID != nil && e.storeID != nil && *e.storeID != *scope.StoreID {
 			continue
 		}
 		view := ConsoleEntitlementView{
@@ -622,6 +622,37 @@ func TestStoreGrantMemberEntitlementForcesAuthenticatedStore(t *testing.T) {
 	)
 	if apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("expected foreign-store template NOT_FOUND, got %v", err)
+	}
+}
+
+func TestStoreMemberEntitlementsIncludeGlobalAndExcludeOtherStores(t *testing.T) {
+	storeFive := int64(5)
+	storeSix := int64(6)
+	repo := &fakeConsoleRepo{
+		templates: []Template{
+			{ID: 1, Name: "全局酒水券", CouponType: TypeAlcohol, ScopeType: "global", Status: "published"},
+			{ID: 2, Name: "本店券", CouponType: TypeBeverage, ScopeType: "store", StoreID: &storeFive, Status: "published"},
+			{ID: 3, Name: "其他门店券", CouponType: TypeSnack, ScopeType: "store", StoreID: &storeSix, Status: "published"},
+		},
+		ents: []*fakeEnt{
+			{id: 1, no: "GLOBAL", tmplID: 1, memberID: 100, status: StatusActive},
+			{id: 2, no: "OWN", tmplID: 2, memberID: 100, storeID: &storeFive, status: StatusActive},
+			{id: 3, no: "FOREIGN", tmplID: 3, memberID: 100, storeID: &storeSix, status: StatusActive},
+		},
+	}
+	svc := NewConsoleService(repo)
+	rows, total, err := svc.ListMemberEntitlements(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		httpx.Page{Page: 1, PageSize: 20},
+	)
+	if err != nil {
+		t.Fatalf("list store member entitlements: %v", err)
+	}
+	if total != 2 || len(rows) != 2 {
+		t.Fatalf("expected global and own-store coupons only, rows=%+v total=%d", rows, total)
+	}
+	if rows[0].EntitlementNo != "GLOBAL" || rows[1].EntitlementNo != "OWN" {
+		t.Fatalf("unexpected scoped entitlements: %+v", rows)
 	}
 }
 

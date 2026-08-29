@@ -583,7 +583,7 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
               :total="memberCoupons.total.value"
               :row-key="(row) => row.entitlementId"
               :scroll-x="720"
-              empty-text="该用户暂无本店优惠券"
+              empty-text="该用户暂无本店或全局优惠券"
               @update:page="memberCoupons.setPage"
               @update:page-size="memberCoupons.setPageSize"
             />

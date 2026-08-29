@@ -454,7 +454,8 @@ func (r *sqlConsoleRepository) SetTemplateStatus(ctx context.Context, scope Cons
 }
 
 // ListMemberEntitlements returns one member's coupons within the requested
-// console scope. Store callers can only see entitlements bound to their store.
+// console scope. Store callers can see globally usable entitlements and those
+// bound to their store, but never another store's entitlements.
 func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, scope ConsoleScope, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error) {
 	var exists int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE id = ?`, memberID).Scan(&exists); err != nil {
@@ -466,7 +467,7 @@ func (r *sqlConsoleRepository) ListMemberEntitlements(ctx context.Context, scope
 	where := ` WHERE e.member_id = ?`
 	args := []any{memberID}
 	if scope.StoreID != nil {
-		where += ` AND e.store_id = ?`
+		where += ` AND (e.store_id IS NULL OR e.store_id = ?)`
 		args = append(args, *scope.StoreID)
 	}
 	var total int64
