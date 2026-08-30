@@ -189,6 +189,7 @@ Page({
       id: it.id,
       categoryId: it.categoryId,
       name: it.name,
+      description: (it.description || '').trim(),
       initial: (it.name || '餐').slice(0, 1),
       priceCent: it.priceCent,
       priceText,
