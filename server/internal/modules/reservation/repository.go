@@ -331,7 +331,19 @@ func (r *sqlRepository) CreateReservation(
 
 		var insertErr error
 		id, insertErr = insertReservation(ctx, tx, res)
-		return insertErr
+		if insertErr != nil {
+			return insertErr
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE waitlist_entries SET status = ?, updated_at = ?
+			 WHERE store_id = ? AND member_id = ? AND status IN (?, ?)
+			   AND queued_at >= ? AND queued_at < ?`,
+			WaitlistLeft, res.UpdatedAt, res.StoreID, res.MemberID,
+			WaitlistWaiting, WaitlistCalled, dailyStart.UTC(), dailyEnd.UTC(),
+		); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
 	})
 	return id, err
 }

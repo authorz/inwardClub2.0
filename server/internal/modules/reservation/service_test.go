@@ -157,6 +157,15 @@ func (r *memRepo) CreateReservation(
 	r.nextID++
 	res.ID = r.nextID
 	r.reservations = append(r.reservations, res)
+	for i := range r.waitlist {
+		entry := &r.waitlist[i]
+		if entry.StoreID == res.StoreID && entry.MemberID == res.MemberID &&
+			(entry.Status == WaitlistWaiting || entry.Status == WaitlistCalled) &&
+			!entry.QueuedAt.Before(dailyStart) && entry.QueuedAt.Before(dailyEnd) {
+			entry.Status = WaitlistLeft
+			entry.UpdatedAt = res.UpdatedAt
+		}
+	}
 	return res.ID, nil
 }
 
@@ -319,6 +328,29 @@ func TestCreateReservationBooks(t *testing.T) {
 	}
 	if !repo.reservations[0].ReservedAt.Equal(svc.now().UTC()) {
 		t.Fatalf("reserved_at must mirror server creation time, got %s", repo.reservations[0].ReservedAt)
+	}
+}
+
+func TestCreateReservationLeavesCurrentWaitlistForSameStore(t *testing.T) {
+	svc, repo := newTestService()
+	dailyStart, _ := svc.reservationDay()
+	repo.waitlist = []WaitlistEntry{
+		{ID: 1, StoreID: 1, MemberID: 42, Status: WaitlistWaiting, QueuedAt: dailyStart.Add(time.Hour)},
+		{ID: 2, StoreID: 1, MemberID: 42, Status: WaitlistCalled, QueuedAt: dailyStart.Add(2 * time.Hour)},
+		{ID: 3, StoreID: 2, MemberID: 42, Status: WaitlistWaiting, QueuedAt: dailyStart.Add(time.Hour)},
+		{ID: 4, StoreID: 1, MemberID: 7, Status: WaitlistWaiting, QueuedAt: dailyStart.Add(time.Hour)},
+		{ID: 5, StoreID: 1, MemberID: 42, Status: WaitlistWaiting, QueuedAt: dailyStart.Add(-time.Hour)},
+	}
+
+	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); err != nil {
+		t.Fatalf("create reservation: %v", err)
+	}
+
+	wantStatuses := []string{WaitlistLeft, WaitlistLeft, WaitlistWaiting, WaitlistWaiting, WaitlistWaiting}
+	for i, want := range wantStatuses {
+		if got := repo.waitlist[i].Status; got != want {
+			t.Fatalf("waitlist entry %d status = %q, want %q", repo.waitlist[i].ID, got, want)
+		}
 	}
 }
 
