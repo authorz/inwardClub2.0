@@ -67,6 +67,13 @@ type WaitlistEntryView struct {
 	QueuedAt  time.Time `json:"queuedAt"`
 }
 
+// WaitlistAvatarView exposes only the visual identity needed by the public
+// reservation-page queue preview.
+type WaitlistAvatarView struct {
+	EntryID   int64  `json:"entryId"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+}
+
 // CreateWaitlistRequest is the mini-program walk-in queue payload.
 type CreateWaitlistRequest struct {
 	StoreID   int64 `json:"storeId"`
@@ -113,4 +120,8 @@ func waitlistView(w WaitlistEntry) WaitlistEntryView {
 		Status:    w.Status,
 		QueuedAt:  w.QueuedAt,
 	}
+}
+
+func waitlistAvatarView(w WaitlistEntry) WaitlistAvatarView {
+	return WaitlistAvatarView{EntryID: w.ID, AvatarURL: w.MemberAvatarURL}
 }

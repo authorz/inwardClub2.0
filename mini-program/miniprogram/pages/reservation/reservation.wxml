@@ -60,7 +60,7 @@
             </view>
             <button
               class="rsv__reserve {{item.isMineTable ? 'rsv__reserve--cancel' : ''}} {{item.actionDisabled ? 'rsv__reserve--disabled' : ''}}"
-              disabled="{{item.actionDisabled || cancellingReservationId}}"
+              disabled="{{item.actionDisabled || cancellingReservationId !== ''}}"
               loading="{{item.isMineTable && cancellingReservationId === item.mineReservationId}}"
               data-id="{{item.id}}"
               bindtap="onTableAction"
@@ -73,8 +73,20 @@
 
   <view class="rsv__waitbar ic-glass-recessed">
     <button class="rsv__waitbtn" loading="{{waitlisting}}" disabled="{{waitlisting}}" bindtap="onWaitlist">
-      <text>排队等候</text>
-      <view class="rsv__wait-arrow"></view>
+      <view wx:if="{{waitlistAvatars.length}}" class="rsv__wait-avatars" aria-hidden="true">
+        <image
+          class="rsv__wait-avatar {{item.isFallback ? 'rsv__wait-avatar--fallback' : ''}}"
+          wx:for="{{waitlistAvatars}}"
+          wx:key="id"
+          src="{{item.avatarUrl}}"
+          mode="{{item.isFallback ? 'aspectFit' : 'aspectFill'}}"
+        ></image>
+      </view>
+      <view wx:if="{{waitlistAvatars.length}}" class="rsv__wait-shade"></view>
+      <view class="rsv__wait-content">
+        <text>排队等候</text>
+        <view class="rsv__wait-arrow"></view>
+      </view>
     </button>
   </view>
 

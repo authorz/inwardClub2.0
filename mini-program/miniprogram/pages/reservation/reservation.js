@@ -8,6 +8,7 @@ const ui = require('../../utils/ui');
 const silentLogin = require('../../utils/silent-login');
 
 const RESERVATION_DAY_START_HOUR = 4;
+const FALLBACK_WAITLIST_AVATAR = 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png';
 
 function isCurrentReservationDay(value) {
   const timestamp = Date.parse(value || '');
@@ -36,6 +37,7 @@ Page({
     showConfirm: false,
     submitting: false,
     waitlisting: false,
+    waitlistAvatars: [],
     cancellingReservationId: '',
     hasDailyReservation: false,
     selected: null, // { tableId, tableName }
@@ -90,6 +92,7 @@ Page({
 
   loadTables(storeId) {
     this.setData({ loading: true });
+    this.loadWaitlistAvatars(storeId);
     // Tables carry no seats; the seat endpoint includes current occupancy and
     // the booked member's display profile. Group the real seats by table.
     // When logged in, load the member's active reservation as well so their
@@ -185,11 +188,26 @@ Page({
       mineReservationId: ownReservation ? ownReservation.id : '',
       mineSeatNo: ownReservation ? ownReservation.seatNo || '' : '',
       actionText: ownReservation ? '取消预约' : '预约座位',
-      actionDisabled: ownReservation
-        ? ownReservation.status !== 'booked'
-        : hasDailyReservation || free === 0,
+      actionDisabled: ownReservation ? false : hasDailyReservation || free === 0,
       seats,
     };
+  },
+
+  loadWaitlistAvatars(storeId) {
+    if (!storeId) {
+      this.setData({ waitlistAvatars: [] });
+      return Promise.resolve();
+    }
+    return api.getWaitlistAvatars(storeId)
+      .then((res) => {
+        const waitlistAvatars = (res.data || []).map((entry) => ({
+          id: entry.entryId,
+          avatarUrl: entry.avatarUrl || FALLBACK_WAITLIST_AVATAR,
+          isFallback: !entry.avatarUrl,
+        }));
+        this.setData({ waitlistAvatars });
+      })
+      .catch(() => this.setData({ waitlistAvatars: [] }));
   },
 
   onTableAction(e) {
@@ -391,6 +409,10 @@ Page({
       ui.toast('请先登录后排队');
       return;
     }
+    if (this.data.hasDailyReservation) {
+      ui.toast('你已经预约座位了，如需排队请先取消预约');
+      return;
+    }
     try {
       validation.integer(store && store.id, { label: '门店', min: 1 });
     } catch (err) {
@@ -402,6 +424,7 @@ Page({
       .then(() => {
         this._waitlistKey = http.uuid();
         this.setData({ waitlisting: false });
+        this.loadWaitlistAvatars(store.id);
         ui.success('已加入排队');
       })
       .catch((err) => {

@@ -51,6 +51,21 @@ func (h *Handler) Seats(c *gin.Context) {
 	httpx.OK(c, views)
 }
 
+// WaitlistAvatars handles GET /mini/stores/{storeID}/waitlist-avatars.
+func (h *Handler) WaitlistAvatars(c *gin.Context) {
+	id, err := pathID(c, "storeID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	views, err := h.svc.ListWaitlistAvatars(c.Request.Context(), id)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, views)
+}
+
 // ListReservations handles GET /mini/reservations.
 func (h *Handler) ListReservations(c *gin.Context) {
 	claims := authn.MustFromContext(c)

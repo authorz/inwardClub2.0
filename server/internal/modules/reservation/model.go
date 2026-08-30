@@ -64,14 +64,16 @@ type Reservation struct {
 
 // WaitlistEntry is a walk-in party queued for a table.
 type WaitlistEntry struct {
-	ID        int64
-	StoreID   int64
-	MemberID  int64
-	PartySize int
-	Status    string
-	QueuedAt  time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                  int64
+	StoreID             int64
+	MemberID            int64
+	MemberAvatarAssetID *int64
+	MemberAvatarURL     string
+	PartySize           int
+	Status              string
+	QueuedAt            time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // Reservation status values (see 00009_reservation.sql).

@@ -20,6 +20,8 @@ type Service struct {
 	now      func() time.Time
 }
 
+const waitlistAvatarLimit = 16
+
 // NewService builds the reservation service.
 func NewService(repo Repository, assets AssetResolver, location *time.Location) *Service {
 	if location == nil {
@@ -232,12 +234,33 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, memberID int64, req C
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	id, err := s.repo.CreateWaitlistEntry(ctx, entry)
+	dailyStart, dailyEnd := s.reservationDay()
+	id, err := s.repo.CreateWaitlistEntry(ctx, entry, dailyStart, dailyEnd)
 	if err != nil {
 		return WaitlistEntryView{}, err
 	}
 	entry.ID = id
 	return waitlistView(entry), nil
+}
+
+// ListWaitlistAvatars returns a compact, privacy-limited visual preview of the
+// current reservation day's unique waiting members for one store.
+func (s *Service) ListWaitlistAvatars(ctx context.Context, storeID int64) ([]WaitlistAvatarView, error) {
+	if storeID <= 0 {
+		return nil, apperr.Invalid("storeId is required")
+	}
+	entries, err := s.repo.ListWaitingMembers(ctx, storeID, s.latestSeatReset(), waitlistAvatarLimit)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]WaitlistAvatarView, 0, len(entries))
+	for _, entry := range entries {
+		if entry.MemberAvatarURL == "" && entry.MemberAvatarAssetID != nil && s.assets != nil {
+			entry.MemberAvatarURL, _ = s.assets.PublicURLByID(ctx, *entry.MemberAvatarAssetID)
+		}
+		views = append(views, waitlistAvatarView(entry))
+	}
+	return views, nil
 }
 
 // ArriveReservation records a member's arrival against a booking (store console).

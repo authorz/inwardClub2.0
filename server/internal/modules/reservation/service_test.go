@@ -193,7 +193,26 @@ func (r *memRepo) CancelStoreReservation(_ context.Context, id, storeID int64, d
 	return apperr.Conflict("reservation cannot be cancelled")
 }
 
-func (r *memRepo) CreateWaitlistEntry(_ context.Context, w WaitlistEntry) (int64, error) {
+func (r *memRepo) ListWaitingMembers(_ context.Context, storeID int64, queuedFrom time.Time, limit int) ([]WaitlistEntry, error) {
+	seen := make(map[int64]bool)
+	var entries []WaitlistEntry
+	for _, entry := range r.waitlist {
+		if entry.StoreID != storeID || entry.Status != WaitlistWaiting || entry.QueuedAt.Before(queuedFrom) || seen[entry.MemberID] {
+			continue
+		}
+		seen[entry.MemberID] = true
+		entries = append(entries, entry)
+		if len(entries) == limit {
+			break
+		}
+	}
+	return entries, nil
+}
+
+func (r *memRepo) CreateWaitlistEntry(_ context.Context, w WaitlistEntry, dailyStart, dailyEnd time.Time) (int64, error) {
+	if exists, _ := r.HasMemberReservation(context.Background(), w.MemberID, dailyStart, dailyEnd); exists {
+		return 0, apperr.Conflict("你已经预约座位了，如需排队请先取消预约")
+	}
 	r.nextID++
 	w.ID = r.nextID
 	r.waitlist = append(r.waitlist, w)
@@ -572,6 +591,38 @@ func TestCreateWaitlistEntry(t *testing.T) {
 	}
 	if _, err := svc.CreateWaitlistEntry(context.Background(), 42, CreateWaitlistRequest{StoreID: 1, PartySize: 0}); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for zero party, got %v", err)
+	}
+}
+
+func TestCreateWaitlistEntryRejectsMemberWithReservation(t *testing.T) {
+	svc, _ := newTestService()
+	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); err != nil {
+		t.Fatalf("create reservation: %v", err)
+	}
+	_, err := svc.CreateWaitlistEntry(context.Background(), 42, CreateWaitlistRequest{StoreID: 1, PartySize: 1})
+	appErr := apperr.From(err)
+	if appErr.Code != apperr.CodeConflict || appErr.Message != "你已经预约座位了，如需排队请先取消预约" {
+		t.Fatalf("waitlist conflict = %#v", appErr)
+	}
+}
+
+func TestListWaitlistAvatarsUsesCurrentWaitingMembers(t *testing.T) {
+	svc, repo := newTestService()
+	assetID := int64(88)
+	queuedAt := svc.latestSeatReset().Add(time.Hour)
+	repo.waitlist = []WaitlistEntry{
+		{ID: 1, StoreID: 1, MemberID: 7, MemberAvatarAssetID: &assetID, Status: WaitlistWaiting, QueuedAt: queuedAt},
+		{ID: 2, StoreID: 1, MemberID: 7, Status: WaitlistWaiting, QueuedAt: queuedAt.Add(time.Minute)},
+		{ID: 3, StoreID: 1, MemberID: 8, MemberAvatarURL: "https://cdn.example.com/direct.png", Status: WaitlistWaiting, QueuedAt: queuedAt},
+		{ID: 4, StoreID: 1, MemberID: 9, Status: WaitlistSeated, QueuedAt: queuedAt},
+		{ID: 5, StoreID: 2, MemberID: 10, Status: WaitlistWaiting, QueuedAt: queuedAt},
+	}
+	views, err := svc.ListWaitlistAvatars(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(views) != 2 || views[0].AvatarURL != "https://cdn.example.com/assets/88" || views[1].AvatarURL != "https://cdn.example.com/direct.png" {
+		t.Fatalf("unexpected waitlist avatars: %+v", views)
 	}
 }
 

@@ -28,7 +28,8 @@ type Repository interface {
 	CancelStoreReservation(ctx context.Context, id, storeID int64, now time.Time) error
 
 	// Waitlist (mini).
-	CreateWaitlistEntry(ctx context.Context, w WaitlistEntry) (int64, error)
+	ListWaitingMembers(ctx context.Context, storeID int64, queuedFrom time.Time, limit int) ([]WaitlistEntry, error)
+	CreateWaitlistEntry(ctx context.Context, w WaitlistEntry, dailyStart, dailyEnd time.Time) (int64, error)
 
 	// Arrival (store console): mark a booking arrived and record who did it.
 	ArriveReservation(ctx context.Context, reservationID, storeID int64, byType string, byID int64, now time.Time) error
@@ -415,20 +416,76 @@ func (r *sqlRepository) CancelStoreReservation(ctx context.Context, id, storeID 
 	})
 }
 
-func (r *sqlRepository) CreateWaitlistEntry(ctx context.Context, w WaitlistEntry) (int64, error) {
-	const q = `INSERT INTO waitlist_entries
-		(store_id, member_id, party_size, status, queued_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
-	result, err := r.db.ExecContext(ctx, q, w.StoreID, w.MemberID, w.PartySize, w.Status,
-		w.QueuedAt, w.CreatedAt, w.UpdatedAt)
+func (r *sqlRepository) ListWaitingMembers(ctx context.Context, storeID int64, queuedFrom time.Time, limit int) ([]WaitlistEntry, error) {
+	const q = `SELECT w.id, w.store_id, w.member_id, m.avatar_asset_id, COALESCE(m.avatar_url, ''),
+		w.party_size, w.status, w.queued_at, w.created_at, w.updated_at
+		FROM waitlist_entries w
+		JOIN members m ON m.id = w.member_id
+		WHERE w.store_id = ? AND w.status = ? AND w.queued_at >= ?
+		  AND NOT EXISTS (
+			SELECT 1 FROM waitlist_entries earlier
+			WHERE earlier.store_id = w.store_id AND earlier.member_id = w.member_id
+			  AND earlier.status = ? AND earlier.queued_at >= ?
+			  AND (earlier.queued_at < w.queued_at OR (earlier.queued_at = w.queued_at AND earlier.id < w.id))
+		  )
+		ORDER BY w.queued_at ASC, w.id ASC LIMIT ?`
+	rows, err := r.db.QueryContext(ctx, q, storeID, WaitlistWaiting, queuedFrom.UTC(), WaitlistWaiting, queuedFrom.UTC(), limit)
 	if err != nil {
-		return 0, apperr.Internal(err)
+		return nil, apperr.Internal(err)
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, apperr.Internal(err)
+	defer rows.Close()
+	entries := make([]WaitlistEntry, 0)
+	for rows.Next() {
+		var entry WaitlistEntry
+		if err := rows.Scan(
+			&entry.ID, &entry.StoreID, &entry.MemberID, &entry.MemberAvatarAssetID, &entry.MemberAvatarURL,
+			&entry.PartySize, &entry.Status, &entry.QueuedAt, &entry.CreatedAt, &entry.UpdatedAt,
+		); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		entries = append(entries, entry)
 	}
-	return id, nil
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return entries, nil
+}
+
+func (r *sqlRepository) CreateWaitlistEntry(ctx context.Context, w WaitlistEntry, dailyStart, dailyEnd time.Time) (int64, error) {
+	var id int64
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var lockedMemberID int64
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM members WHERE id = ? FOR UPDATE`, w.MemberID).Scan(&lockedMemberID); errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFound("member not found")
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+		var hasReservation bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+			SELECT 1 FROM reservation_daily_claims WHERE member_id = ? AND daily_start = ?
+			UNION ALL
+			SELECT 1 FROM reservations WHERE member_id = ? AND created_at >= ? AND created_at < ?
+		)`, w.MemberID, dailyStart.UTC(), w.MemberID, dailyStart.UTC(), dailyEnd.UTC()).Scan(&hasReservation); err != nil {
+			return apperr.Internal(err)
+		}
+		if hasReservation {
+			return apperr.Conflict("你已经预约座位了，如需排队请先取消预约")
+		}
+		const q = `INSERT INTO waitlist_entries
+			(store_id, member_id, party_size, status, queued_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`
+		result, err := tx.ExecContext(ctx, q, w.StoreID, w.MemberID, w.PartySize, w.Status,
+			w.QueuedAt, w.CreatedAt, w.UpdatedAt)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		id, err = result.LastInsertId()
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
+	return id, err
 }
 
 func (r *sqlRepository) ArriveReservation(ctx context.Context, reservationID, storeID int64, byType string, byID int64, now time.Time) error {

@@ -55,6 +55,7 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	g.GET("/stores/:storeID/tournament-events", a.tournamentHandler.PublicList)
 	g.GET("/stores/:storeID/tables", a.reservationHandler.Tables)
 	g.GET("/stores/:storeID/seats", a.reservationHandler.Seats)
+	g.GET("/stores/:storeID/waitlist-avatars", a.reservationHandler.WaitlistAvatars)
 	g.GET("/activities", a.activityHandler.List)
 	g.GET("/activities/:activityID", a.activityHandler.Detail)
 	g.GET("/tournament-events/:eventID", a.tournamentHandler.PublicDetail)
