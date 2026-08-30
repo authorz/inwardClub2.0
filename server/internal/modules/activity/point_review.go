@@ -53,6 +53,15 @@ func businessWindow(now time.Time) pointReviewWindow {
 	}
 }
 
+func pointReviewBaseWindowStart(now time.Time) time.Time {
+	local := now.In(pointReviewLocation)
+	dayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, pointReviewLocation)
+	if local.Hour() < 17 {
+		return dayStart.Add(-7 * time.Hour)
+	}
+	return dayStart.Add(17 * time.Hour)
+}
+
 func calculatePointReview(now time.Time, requested, base int64, rule PointReviewRule) PointReviewCalculation {
 	if rule.PointsDivisor <= 0 {
 		rule.PointsDivisor = defaultPointsDivisor
@@ -64,20 +73,22 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 		rule.CoinPointsDivisor = defaultCoinPointsDivisor
 	}
 	calc := PointReviewCalculation{RequestedPoints: requested, Window: businessWindow(now)}
-	coinDescription := "奖励金币 = 0；无正数基数积分，不将总存入积分计为盈利"
+	coinDescription := "奖励金币 = 0；存入积分未超过基数积分"
 	if base > 0 {
 		calc.BasePoints = base
 		if requested > base {
 			calc.ExcessPoints = requested - base
 			calc.CoinBasePoints = calc.ExcessPoints
-			calc.AwardedCoins = calc.CoinBasePoints / rule.CoinPointsDivisor
-			coinDescription = fmt.Sprintf(
-				"奖励金币 = 盈利积分 %d ÷ %d（向下取整）= %d",
-				calc.CoinBasePoints, rule.CoinPointsDivisor, calc.AwardedCoins,
-			)
-		} else {
-			coinDescription = "奖励金币 = 0；存入积分未超过基数积分"
 		}
+	} else {
+		calc.CoinBasePoints = requested
+	}
+	if calc.CoinBasePoints > 0 {
+		calc.AwardedCoins = calc.CoinBasePoints / rule.CoinPointsDivisor
+		coinDescription = fmt.Sprintf(
+			"奖励金币 = 可兑换积分 %d ÷ %d（向下取整）= %d",
+			calc.CoinBasePoints, rule.CoinPointsDivisor, calc.AwardedCoins,
+		)
 	}
 	if !calc.Window.InBusiness || base <= 0 {
 		calc.AwardedPoints = requested / rule.PointsDivisor
