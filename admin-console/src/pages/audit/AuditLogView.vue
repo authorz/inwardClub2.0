@@ -34,6 +34,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ACTION_LABELS: Record<string, string> = {
   'member.wallet.adjust': '会员人工调账',
+  'store_console.write': '门店后台操作',
   login: '登录后台',
   logout: '退出后台',
   create: '新增',
@@ -79,6 +80,9 @@ const DETAIL_FIELD_LABELS: Record<string, string> = {
   reason: '原因',
   createdAt: '创建时间',
   updatedAt: '更新时间',
+  method: '请求方法',
+  route: '接口路由',
+  statusCode: '响应状态码',
 }
 
 const VALUE_LABELS: Record<string, string> = {
@@ -100,6 +104,7 @@ const actorTypeOptions: OptionItem[] = Object.entries(ACTOR_TYPE_LABELS).map(([v
 }))
 const actionOptions: OptionItem[] = [
   { label: '会员人工调账', value: 'member.wallet.adjust' },
+  { label: '门店后台操作', value: 'store_console.write' },
   { label: '登录后台', value: 'login' },
   { label: '退出后台', value: 'logout' },
 ]

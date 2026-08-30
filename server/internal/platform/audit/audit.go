@@ -37,12 +37,15 @@ type Recorder struct {
 	db *platdb.DB
 }
 
+const ctxEntryDeclared = "audit.entry_declared"
+
 // NewRecorder builds an audit Recorder.
 func NewRecorder(db *platdb.DB) *Recorder { return &Recorder{db: db} }
 
 // FromContext seeds an Entry with actor identity, role, store scope and request
 // ID pulled from the authenticated request.
 func FromContext(c *gin.Context, action, targetType string, targetID int64) Entry {
+	c.Set(ctxEntryDeclared, true)
 	e := Entry{
 		Action:     action,
 		TargetType: targetType,
@@ -61,6 +64,12 @@ func FromContext(c *gin.Context, action, targetType string, targetID int64) Entr
 // Record persists an entry outside a transaction.
 func (r *Recorder) Record(ctx context.Context, e Entry) error {
 	return insert(ctx, r.db, e)
+}
+
+func entryDeclared(c *gin.Context) bool {
+	declared, _ := c.Get(ctxEntryDeclared)
+	value, _ := declared.(bool)
+	return value
 }
 
 // RecordTx persists an entry using an existing transaction so the audit row

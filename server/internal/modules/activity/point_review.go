@@ -3,6 +3,8 @@ package activity
 import (
 	"fmt"
 	"time"
+
+	"github.com/inwardclub/server/internal/platform/businesshours"
 )
 
 const (
@@ -11,7 +13,7 @@ const (
 	defaultCoinPointsDivisor      int64 = 2000
 )
 
-var pointReviewLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+var pointReviewLocation = businesshours.ShanghaiLocation()
 
 type PointReviewRule struct {
 	PointsDivisor          int64
@@ -38,22 +40,20 @@ type PointReviewCalculation struct {
 	Description     string
 }
 
-func businessWindow(now time.Time) pointReviewWindow {
-	local := now.In(pointReviewLocation)
-	dayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, pointReviewLocation)
-	switch {
-	case local.Hour() < 10:
-		start := dayStart.Add(-24*time.Hour + 17*time.Hour)
-		return pointReviewWindow{true, start.Format("2006-01-02"), start, dayStart.Add(10 * time.Hour)}
-	case local.Hour() >= 17:
-		start := dayStart.Add(17 * time.Hour)
-		return pointReviewWindow{true, start.Format("2006-01-02"), start, dayStart.Add(34 * time.Hour)}
-	default:
-		return pointReviewWindow{Date: dayStart.Format("2006-01-02")}
+func businessWindow(now time.Time, configuredHours string) (pointReviewWindow, error) {
+	schedule, err := businesshours.Parse(configuredHours)
+	if err != nil {
+		return pointReviewWindow{}, fmt.Errorf("门店营业时间配置无效：%w", err)
 	}
+	local := now.In(pointReviewLocation)
+	start, end, open := schedule.CurrentWindow(local, pointReviewLocation)
+	if !open {
+		return pointReviewWindow{Date: local.Format("2006-01-02")}, nil
+	}
+	return pointReviewWindow{InBusiness: true, Date: start.Format("2006-01-02"), Start: start, End: end}, nil
 }
 
-func calculatePointReview(now time.Time, requested, base int64, rule PointReviewRule) PointReviewCalculation {
+func calculatePointReview(window pointReviewWindow, requested, base int64, rule PointReviewRule) PointReviewCalculation {
 	if rule.PointsDivisor <= 0 {
 		rule.PointsDivisor = defaultPointsDivisor
 	}
@@ -63,7 +63,7 @@ func calculatePointReview(now time.Time, requested, base int64, rule PointReview
 	if rule.CoinPointsDivisor <= 0 {
 		rule.CoinPointsDivisor = defaultCoinPointsDivisor
 	}
-	calc := PointReviewCalculation{RequestedPoints: requested, Window: businessWindow(now)}
+	calc := PointReviewCalculation{RequestedPoints: requested, Window: window}
 	coinDescription := "奖励金币 = 0；无正数基数积分，不将总存入积分计为盈利"
 	if base > 0 {
 		calc.BasePoints = base

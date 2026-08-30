@@ -125,16 +125,19 @@ func TestConsoleGetProfileMapsView(t *testing.T) {
 	qrID := int64(8)
 	repo := &consoleFakeRepo{store: Store{
 		ID: 1, Name: "Store A", Phone: "123", Address: "Addr",
-		Latitude: &lat, Longitude: &lng, BusinessHours: "9-21",
+		Latitude: &lat, Longitude: &lng, BusinessHours: "15:00-02:00",
 		Status: StatusActive, LogoAssetID: &logoID, CustomerServiceQRAssetID: &qrID,
 	}}
 	svc := NewConsoleService(repo, fakeResolver{})
+	svc.now = func() time.Time {
+		return time.Date(2026, 8, 30, 16, 29, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	}
 
 	view, err := svc.GetProfile(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("GetProfile: %v", err)
 	}
-	if view.ID != 1 || view.Name != "Store A" || view.Address != "Addr" || view.Status != StatusActive {
+	if view.ID != 1 || view.Name != "Store A" || view.Address != "Addr" || view.Status != BusinessStatusOpen || view.StatusMode != BusinessStatusModeAuto {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 	if view.LogoURL != "https://cdn.test/asset" {
@@ -152,7 +155,7 @@ func TestConsoleUpdateProfilePassesStoreIDAndReturnsView(t *testing.T) {
 	repo := &consoleFakeRepo{store: Store{ID: 42, Name: "Old", Status: StatusActive}}
 	svc := NewConsoleService(repo, fakeResolver{})
 
-	req := UpdateProfileRequest{Name: "New Name", Phone: "999", Address: "New Addr", BusinessHours: "8-22"}
+	req := UpdateProfileRequest{Name: "New Name", Phone: "999", Address: "New Addr", BusinessHours: "08:00-22:00"}
 	view, err := svc.UpdateProfile(context.Background(), 42, req)
 	if err != nil {
 		t.Fatalf("UpdateProfile: %v", err)
@@ -168,19 +171,33 @@ func TestConsoleUpdateProfilePassesStoreIDAndReturnsView(t *testing.T) {
 	}
 }
 
-func TestConsoleUpdateStatusPassesStoreIDAndReturnsView(t *testing.T) {
-	repo := &consoleFakeRepo{store: Store{ID: 42, Name: "Old", Status: StatusActive}}
+func TestConsoleUpdateStatusPersistsUntilNextBusinessBoundary(t *testing.T) {
+	repo := &consoleFakeRepo{store: Store{ID: 42, Name: "Old", Status: StatusActive, BusinessHours: "15:00-02:00"}}
 	svc := NewConsoleService(repo, fakeResolver{})
+	now := time.Date(2026, 8, 30, 16, 29, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	svc.now = func() time.Time { return now }
 
-	view, err := svc.UpdateStatus(context.Background(), 42, StatusInactive)
+	view, err := svc.UpdateStatus(context.Background(), 42, BusinessStatusClosed)
 	if err != nil {
 		t.Fatalf("UpdateStatus: %v", err)
 	}
-	if repo.gotStatusID != 42 || repo.gotStatus != StatusInactive {
-		t.Fatalf("expected storeID/status passed through, got id=%d status=%q", repo.gotStatusID, repo.gotStatus)
+	if repo.gotSettingsID != 42 {
+		t.Fatalf("expected store settings update for store 42, got %d", repo.gotSettingsID)
 	}
-	if view.Status != StatusInactive {
+	if view.Status != BusinessStatusClosed || view.StatusMode != BusinessStatusModeManual || view.StatusOverrideUntil == nil {
 		t.Fatalf("expected view reflecting new status, got %+v", view)
+	}
+	if got := view.StatusOverrideUntil.In(now.Location()).Format("2006-01-02 15:04"); got != "2026-08-31 02:00" {
+		t.Fatalf("override boundary=%s", got)
+	}
+
+	now = time.Date(2026, 8, 31, 2, 0, 0, 0, now.Location())
+	view, err = svc.GetProfile(context.Background(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Status != BusinessStatusClosed || view.StatusMode != BusinessStatusModeAuto {
+		t.Fatalf("override should expire at boundary: %+v", view)
 	}
 }
 
@@ -188,7 +205,7 @@ func TestConsoleUpdateStatusRejectsInvalidStoreID(t *testing.T) {
 	repo := &consoleFakeRepo{}
 	svc := NewConsoleService(repo, fakeResolver{})
 
-	if _, err := svc.UpdateStatus(context.Background(), 0, StatusActive); err == nil {
+	if _, err := svc.UpdateStatus(context.Background(), 0, BusinessStatusOpen); err == nil {
 		t.Fatal("expected error for invalid storeID")
 	}
 }
@@ -238,6 +255,33 @@ func TestConsoleUpdateSettingsPassesStoreIDAndReturnsView(t *testing.T) {
 	}
 	if view.UpdatedAt == nil {
 		t.Fatalf("expected updatedAt set after write")
+	}
+}
+
+func TestConsoleUpdateSettingsPreservesAndHidesBusinessStatusOverride(t *testing.T) {
+	repo := &consoleFakeRepo{settings: StoreSettings{
+		StoreID:      7,
+		SettingsJSON: []byte(`{"_businessStatusOverride":{"status":"closed","until":"2026-08-31T02:00:00+08:00"},"old":true}`),
+	}}
+	svc := NewConsoleService(repo, fakeResolver{})
+
+	view, err := svc.UpdateSettings(context.Background(), 7, UpdateSettingsRequest{Settings: map[string]any{
+		"autoAcceptOrders":        true,
+		businessStatusOverrideKey: map[string]any{"status": "open"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exposed := view.Settings[businessStatusOverrideKey]; exposed {
+		t.Fatalf("internal override must not be exposed: %+v", view.Settings)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(repo.gotSettingsJSON, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	override := persisted[businessStatusOverrideKey].(map[string]any)
+	if override["status"] != BusinessStatusClosed {
+		t.Fatalf("client must not overwrite internal override: %+v", override)
 	}
 }
 
@@ -352,7 +396,7 @@ func TestConsoleCreateStorePersistsAndReturns(t *testing.T) {
 
 	logoID := int64(9)
 	st, err := svc.CreateStore(context.Background(), StoreInput{
-		Name: "New Store", Phone: "111", Address: "Some Addr", BusinessHours: "9-18", LogoAssetID: &logoID,
+		Name: "New Store", Phone: "111", Address: "Some Addr", BusinessHours: "09:00-18:00", LogoAssetID: &logoID,
 	})
 	if err != nil {
 		t.Fatalf("CreateStore: %v", err)

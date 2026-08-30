@@ -17,6 +17,10 @@ export interface StoreProfile extends StoreScope {
   latitude?: number | null
   longitude?: number | null
   logoAssetId?: number | null
+  status?: 'open' | 'closed'
+  statusMode?: 'auto' | 'manual'
+  scheduledOpen?: boolean
+  statusOverrideUntil?: string | null
 }
 
 export const profileService = {
@@ -26,7 +30,7 @@ export const profileService = {
   update(body: Partial<StoreProfile>) {
     return patch<StoreProfile>(API_PATHS.profile.update, body, { idempotent: true })
   },
-  updateStatus(status: string) {
+  updateStatus(status: 'open' | 'closed' | 'auto') {
     return patch<StoreProfile>(API_PATHS.profile.status, { status }, { idempotent: true })
   },
 }

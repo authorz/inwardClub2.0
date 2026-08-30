@@ -15,22 +15,26 @@ type StoreView struct {
 	Longitude                *float64 `json:"longitude,omitempty"`
 	BusinessHours            string   `json:"businessHours,omitempty"`
 	Status                   string   `json:"status"`
+	Open                     bool     `json:"open"`
 	DistanceMeters           *int64   `json:"distanceMeters,omitempty"`
 }
 
 // ConsoleProfileView is the store console's own-store profile representation.
 type ConsoleProfileView struct {
-	ID                       int64    `json:"id"`
-	Name                     string   `json:"name"`
-	LogoURL                  string   `json:"logoUrl,omitempty"`
-	Phone                    string   `json:"phone,omitempty"`
-	CustomerServiceQRAssetID *int64   `json:"customerServiceQrAssetId,omitempty"`
-	CustomerServiceQRURL     string   `json:"customerServiceQrUrl,omitempty"`
-	Address                  string   `json:"address"`
-	Latitude                 *float64 `json:"latitude,omitempty"`
-	Longitude                *float64 `json:"longitude,omitempty"`
-	BusinessHours            string   `json:"businessHours,omitempty"`
-	Status                   string   `json:"status"`
+	ID                       int64      `json:"id"`
+	Name                     string     `json:"name"`
+	LogoURL                  string     `json:"logoUrl,omitempty"`
+	Phone                    string     `json:"phone,omitempty"`
+	CustomerServiceQRAssetID *int64     `json:"customerServiceQrAssetId,omitempty"`
+	CustomerServiceQRURL     string     `json:"customerServiceQrUrl,omitempty"`
+	Address                  string     `json:"address"`
+	Latitude                 *float64   `json:"latitude,omitempty"`
+	Longitude                *float64   `json:"longitude,omitempty"`
+	BusinessHours            string     `json:"businessHours,omitempty"`
+	Status                   string     `json:"status"`
+	StatusMode               string     `json:"statusMode"`
+	ScheduledOpen            bool       `json:"scheduledOpen"`
+	StatusOverrideUntil      *time.Time `json:"statusOverrideUntil,omitempty"`
 }
 
 // UpdateProfileRequest is a full-replace update of the editable store profile
@@ -46,9 +50,10 @@ type UpdateProfileRequest struct {
 	LogoAssetID              *int64   `json:"logoAssetId"`
 }
 
-// StoreStatusPatch updates the caller's own store's active/inactive status.
+// StoreStatusPatch temporarily overrides the store's schedule-derived status,
+// or restores automatic schedule evaluation.
 type StoreStatusPatch struct {
-	Status string `json:"status" binding:"required,oneof=active inactive"`
+	Status string `json:"status" binding:"required,oneof=open closed auto"`
 }
 
 // StoreSettingsView is the store console's settings representation. Settings

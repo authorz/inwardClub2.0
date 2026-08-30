@@ -27,6 +27,7 @@ import (
 	"github.com/inwardclub/server/internal/modules/systemsetting"
 	"github.com/inwardclub/server/internal/modules/tournament"
 	"github.com/inwardclub/server/internal/modules/wallet"
+	"github.com/inwardclub/server/internal/platform/audit"
 	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/config"
 	"github.com/inwardclub/server/internal/platform/credentialcrypto"
@@ -39,7 +40,8 @@ type App struct {
 	log *slog.Logger
 	db  *platdb.DB
 
-	tokens *authn.Manager
+	tokens        *authn.Manager
+	auditRecorder *audit.Recorder
 
 	// Per-audience token-version checkers make the access-token middleware reject
 	// tokens invalidated by a logout/disable (mini reads members or staff
@@ -216,6 +218,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		log:               log,
 		db:                database,
 		tokens:            tokens,
+		auditRecorder:     audit.NewRecorder(database),
 		memberVersions:    auth.NewMemberTokenVersions(authMembers, authStaff),
 		accountVersions:   auth.NewAccountTokenVersions(authAccounts),
 		authHandler:       auth.NewHandler(authSvc),

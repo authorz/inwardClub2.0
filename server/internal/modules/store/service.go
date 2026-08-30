@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"math"
+	"time"
 
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
@@ -16,11 +17,12 @@ type AssetResolver interface {
 type Service struct {
 	repo   Repository
 	assets AssetResolver
+	now    func() time.Time
 }
 
 // NewService builds the store service.
 func NewService(repo Repository, assets AssetResolver) *Service {
-	return &Service{repo: repo, assets: assets}
+	return &Service{repo: repo, assets: assets, now: time.Now}
 }
 
 // Geo is an optional caller location used to compute store distance.
@@ -37,7 +39,11 @@ func (s *Service) ListStores(ctx context.Context, page httpx.Page, geo Geo) ([]S
 	}
 	views := make([]StoreView, 0, len(stores))
 	for _, st := range stores {
-		views = append(views, s.storeView(ctx, st, geo))
+		view, err := s.storeView(ctx, st, geo)
+		if err != nil {
+			return nil, 0, err
+		}
+		views = append(views, view)
 	}
 	return views, total, nil
 }
@@ -48,10 +54,15 @@ func (s *Service) GetStore(ctx context.Context, id int64, geo Geo) (StoreView, e
 	if err != nil {
 		return StoreView{}, err
 	}
-	return s.storeView(ctx, st, geo), nil
+	return s.storeView(ctx, st, geo)
 }
 
-func (s *Service) storeView(ctx context.Context, st Store, geo Geo) StoreView {
+func (s *Service) storeView(ctx context.Context, st Store, geo Geo) (StoreView, error) {
+	settings, err := s.repo.GetStoreSettings(ctx, st.ID)
+	if err != nil {
+		return StoreView{}, err
+	}
+	status := evaluateBusinessStatus(st, settings, s.now())
 	view := StoreView{
 		ID:                       st.ID,
 		Name:                     st.Name,
@@ -62,6 +73,7 @@ func (s *Service) storeView(ctx context.Context, st Store, geo Geo) StoreView {
 		Longitude:                st.Longitude,
 		BusinessHours:            st.BusinessHours,
 		Status:                   st.Status,
+		Open:                     status.Status == BusinessStatusOpen,
 	}
 	if st.LogoAssetID != nil {
 		if url, err := s.assets.PublicURLByID(ctx, *st.LogoAssetID); err == nil {
@@ -77,7 +89,7 @@ func (s *Service) storeView(ctx context.Context, st Store, geo Geo) StoreView {
 		d := int64(haversineMeters(*geo.Lat, *geo.Lng, *st.Latitude, *st.Longitude))
 		view.DistanceMeters = &d
 	}
-	return view
+	return view, nil
 }
 
 // haversineMeters returns the great-circle distance between two points.

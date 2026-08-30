@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/inwardclub/server/internal/platform/audit"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
@@ -77,8 +78,11 @@ func TestHaversineMeters(t *testing.T) {
 
 func TestListStoresComputesDistance(t *testing.T) {
 	lat, lng := 31.0, 121.0
-	repo := &memRepo{stores: []Store{{ID: 1, Name: "A", Status: StatusActive, Latitude: &lat, Longitude: &lng}}}
+	repo := &memRepo{stores: []Store{{ID: 1, Name: "A", Status: StatusActive, BusinessHours: "15:00-02:00", Latitude: &lat, Longitude: &lng}}}
 	svc := NewService(repo, fakeResolver{})
+	svc.now = func() time.Time {
+		return time.Date(2026, 8, 30, 16, 29, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	}
 
 	callerLat, callerLng := 31.01, 121.0
 	views, total, err := svc.ListStores(context.Background(), httpx.Page{Page: 1, PageSize: 20}, Geo{Lat: &callerLat, Lng: &callerLng})
@@ -90,5 +94,8 @@ func TestListStoresComputesDistance(t *testing.T) {
 	}
 	if views[0].DistanceMeters == nil {
 		t.Fatal("expected distance to be computed when caller geo provided")
+	}
+	if !views[0].Open {
+		t.Fatal("expected public store status to follow configured business hours")
 	}
 }

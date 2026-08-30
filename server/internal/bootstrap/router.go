@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/inwardclub/server/internal/platform/audit"
 	"github.com/inwardclub/server/internal/platform/authn"
 	"github.com/inwardclub/server/internal/platform/httpx"
 	"github.com/inwardclub/server/internal/platform/idempotency"
@@ -355,7 +356,8 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	g.POST("/auth/refresh", a.authHandler.StoreRefresh)
 
 	// Every authed store route pins the store scope from the token.
-	p := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin, authn.SubjectCashier), storescope.Inject())
+	storeWriteAudit := audit.StoreWrites(a.auditRecorder, a.log)
+	p := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin, authn.SubjectCashier), storescope.Inject(), storeWriteAudit)
 	p.GET("/auth/me", a.authHandler.StoreMe)
 	p.POST("/auth/logout", a.authHandler.AccountLogout)
 	p.GET("/auth/password-encryption-key", a.credentialHandler.PublicKey)
@@ -398,7 +400,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/reports/coupons", a.reportingHandler.Coupons)
 
 	// Store money/verification endpoints require an Idempotency-Key.
-	idem := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin, authn.SubjectCashier), storescope.Inject(), idempotency.Require())
+	idem := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin, authn.SubjectCashier), storescope.Inject(), idempotency.Require(), storeWriteAudit)
 	idem.POST("/offline-collection-orders", a.paymentStoreHandler.CreateCollectionOrder)
 	idem.POST("/offline-collection-orders/:collectionOrderID/cancel", a.paymentStoreHandler.CancelCollectionOrder)
 	idem.POST("/tickets/verify", a.activityStoreHandler.VerifyTicket)
@@ -414,7 +416,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	// retain store operations but cannot list or mutate peer accounts.
 	managerRead := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin), storescope.Inject())
 	managerRead.GET("/cashiers", a.adminHandler.StoreCashiers)
-	managerWrite := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin), storescope.Inject(), idempotency.Require())
+	managerWrite := g.Group("", mw.RequireAuth(authn.SubjectStoreAdmin), storescope.Inject(), idempotency.Require(), storeWriteAudit)
 	managerWrite.POST("/cashiers", a.adminHandler.StoreCreateCashier)
 	managerWrite.PATCH("/cashiers/:cashierID", a.adminHandler.StoreUpdateCashier)
 	managerWrite.POST("/cashiers/:cashierID/disable", a.adminHandler.StoreDisableCashier)

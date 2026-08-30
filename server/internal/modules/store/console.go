@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/inwardclub/server/internal/platform/audit"
+	"github.com/inwardclub/server/internal/platform/businesshours"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
 
@@ -16,6 +18,7 @@ type ConsoleService struct {
 	repo      Repository
 	assets    AssetResolver
 	passwords AccountPasswordVerifier
+	now       func() time.Time
 }
 
 // AccountPasswordVerifier re-authenticates the current headquarters account
@@ -27,7 +30,7 @@ type AccountPasswordVerifier interface {
 // NewConsoleService builds the store console service. The optional password
 // verifier is required only by the headquarters store-deletion operation.
 func NewConsoleService(repo Repository, assets AssetResolver, passwords ...AccountPasswordVerifier) *ConsoleService {
-	svc := &ConsoleService{repo: repo, assets: assets}
+	svc := &ConsoleService{repo: repo, assets: assets, now: time.Now}
 	if len(passwords) > 0 {
 		svc.passwords = passwords[0]
 	}
@@ -40,7 +43,11 @@ func (s *ConsoleService) GetProfile(ctx context.Context, storeID int64) (Console
 	if err != nil {
 		return ConsoleProfileView{}, err
 	}
-	return s.consoleProfileView(ctx, st), nil
+	settings, err := s.repo.GetStoreSettings(ctx, storeID)
+	if err != nil {
+		return ConsoleProfileView{}, err
+	}
+	return s.consoleProfileView(ctx, st, settings), nil
 }
 
 // UpdateProfile applies a full-replace update to the caller's own store and
@@ -49,27 +56,59 @@ func (s *ConsoleService) UpdateProfile(ctx context.Context, storeID int64, req U
 	if storeID <= 0 {
 		return ConsoleProfileView{}, apperr.Invalid("invalid storeID")
 	}
+	if _, err := businesshours.Parse(req.BusinessHours); err != nil {
+		return ConsoleProfileView{}, apperr.Invalid(err.Error())
+	}
 	st, err := s.repo.UpdateStoreProfile(ctx, storeID, req)
 	if err != nil {
 		return ConsoleProfileView{}, err
 	}
-	return s.consoleProfileView(ctx, st), nil
+	settings, err := s.repo.GetStoreSettings(ctx, storeID)
+	if err != nil {
+		return ConsoleProfileView{}, err
+	}
+	return s.consoleProfileView(ctx, st, settings), nil
 }
 
-// UpdateStatus updates the caller's own store's active/inactive status and
-// returns the refreshed profile view.
+// UpdateStatus applies a manual open/closed override until the next configured
+// business boundary, or clears it when status is auto.
 func (s *ConsoleService) UpdateStatus(ctx context.Context, storeID int64, status string) (ConsoleProfileView, error) {
 	if storeID <= 0 {
 		return ConsoleProfileView{}, apperr.Invalid("invalid storeID")
 	}
-	if status != StatusActive && status != StatusInactive {
+	if status != BusinessStatusOpen && status != BusinessStatusClosed && status != BusinessStatusAuto {
 		return ConsoleProfileView{}, apperr.Invalid("invalid status")
 	}
-	st, err := s.repo.UpdateStoreStatus(ctx, storeID, status)
+	st, err := s.repo.GetStore(ctx, storeID)
 	if err != nil {
 		return ConsoleProfileView{}, err
 	}
-	return s.consoleProfileView(ctx, st), nil
+	settings, err := s.repo.GetStoreSettings(ctx, storeID)
+	if err != nil {
+		return ConsoleProfileView{}, err
+	}
+	values := settingsMap(settings)
+	if status == BusinessStatusAuto {
+		delete(values, businessStatusOverrideKey)
+	} else {
+		schedule, err := businesshours.Parse(st.BusinessHours)
+		if err != nil {
+			return ConsoleProfileView{}, apperr.Invalid("请先设置有效的门店营业时间")
+		}
+		values[businessStatusOverrideKey] = businessStatusOverride{
+			Status: status,
+			Until:  schedule.NextBoundary(s.now(), businesshours.ShanghaiLocation()),
+		}
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return ConsoleProfileView{}, apperr.Internal(err)
+	}
+	settings, err = s.repo.UpsertStoreSettings(ctx, storeID, raw)
+	if err != nil {
+		return ConsoleProfileView{}, err
+	}
+	return s.consoleProfileView(ctx, st, settings), nil
 }
 
 // GetSettings returns the caller's own store's settings view.
@@ -94,6 +133,14 @@ func (s *ConsoleService) UpdateSettings(ctx context.Context, storeID int64, req 
 	if payload == nil {
 		payload = map[string]any{}
 	}
+	delete(payload, businessStatusOverrideKey)
+	current, err := s.repo.GetStoreSettings(ctx, storeID)
+	if err != nil {
+		return StoreSettingsView{}, err
+	}
+	if override, ok := settingsMap(current)[businessStatusOverrideKey]; ok {
+		payload[businessStatusOverrideKey] = override
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return StoreSettingsView{}, apperr.Invalid("invalid settings")
@@ -106,10 +153,8 @@ func (s *ConsoleService) UpdateSettings(ctx context.Context, storeID int64, req 
 }
 
 func settingsView(settings StoreSettings) StoreSettingsView {
-	view := StoreSettingsView{Settings: map[string]any{}}
-	if len(settings.SettingsJSON) > 0 {
-		_ = json.Unmarshal(settings.SettingsJSON, &view.Settings)
-	}
+	view := StoreSettingsView{Settings: settingsMap(settings)}
+	delete(view.Settings, businessStatusOverrideKey)
 	if !settings.UpdatedAt.IsZero() {
 		u := settings.UpdatedAt
 		view.UpdatedAt = &u
@@ -159,16 +204,26 @@ func validateStoreInput(input StoreInput) error {
 	if input.Address == "" {
 		return apperr.Invalid("address is required")
 	}
+	if input.BusinessHours != "" {
+		if _, err := businesshours.Parse(input.BusinessHours); err != nil {
+			return apperr.Invalid(err.Error())
+		}
+	}
 	return nil
 }
 
 // ProfileView maps a store to its console profile view (resolving the logo
 // URL). Handlers use this to render create/update responses.
-func (s *ConsoleService) ProfileView(ctx context.Context, st Store) ConsoleProfileView {
-	return s.consoleProfileView(ctx, st)
+func (s *ConsoleService) ProfileView(ctx context.Context, st Store) (ConsoleProfileView, error) {
+	settings, err := s.repo.GetStoreSettings(ctx, st.ID)
+	if err != nil {
+		return ConsoleProfileView{}, err
+	}
+	return s.consoleProfileView(ctx, st, settings), nil
 }
 
-func (s *ConsoleService) consoleProfileView(ctx context.Context, st Store) ConsoleProfileView {
+func (s *ConsoleService) consoleProfileView(ctx context.Context, st Store, settings StoreSettings) ConsoleProfileView {
+	status := evaluateBusinessStatus(st, settings, s.now())
 	view := ConsoleProfileView{
 		ID:                       st.ID,
 		Name:                     st.Name,
@@ -178,7 +233,10 @@ func (s *ConsoleService) consoleProfileView(ctx context.Context, st Store) Conso
 		Latitude:                 st.Latitude,
 		Longitude:                st.Longitude,
 		BusinessHours:            st.BusinessHours,
-		Status:                   st.Status,
+		Status:                   status.Status,
+		StatusMode:               status.Mode,
+		ScheduledOpen:            status.ScheduledOpen,
+		StatusOverrideUntil:      status.OverrideUntil,
 	}
 	if st.LogoAssetID != nil {
 		if url, err := s.assets.PublicURLByID(ctx, *st.LogoAssetID); err == nil {

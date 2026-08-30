@@ -182,7 +182,12 @@ func (h *ConsoleHandler) AdminCreateStore(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
-	httpx.OK(c, h.svc.ProfileView(c.Request.Context(), st))
+	view, err := h.svc.ProfileView(c.Request.Context(), st)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
 }
 
 // AdminUpdateStore handles the admin-side store update contract.
@@ -202,7 +207,12 @@ func (h *ConsoleHandler) AdminUpdateStore(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
-	httpx.OK(c, h.svc.ProfileView(c.Request.Context(), st))
+	view, err := h.svc.ProfileView(c.Request.Context(), st)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
 }
 
 // AdminDeleteStore handles DELETE /admin/stores/:storeID. The current

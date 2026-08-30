@@ -138,7 +138,17 @@ func evaluatePointReview(
 	if err != nil {
 		return pointReviewEvaluation{}, err
 	}
-	window := businessWindow(now)
+	var configuredHours string
+	if err := queryer.QueryRowContext(ctx, `SELECT business_hours FROM stores WHERE id = ?`, saving.StoreID).Scan(&configuredHours); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return pointReviewEvaluation{}, apperr.NotFound("store not found")
+		}
+		return pointReviewEvaluation{}, apperr.Internal(err)
+	}
+	window, err := businessWindow(now, configuredHours)
+	if err != nil {
+		return pointReviewEvaluation{}, apperr.Invalid(err.Error())
+	}
 	var (
 		basePoints   int64
 		calcStart    *time.Time
@@ -176,7 +186,7 @@ func evaluatePointReview(
 	}
 
 	return pointReviewEvaluation{
-		Calculation:          calculatePointReview(now, saving.Points, basePoints, rule),
+		Calculation:          calculatePointReview(window, saving.Points, basePoints, rule),
 		Rule:                 rule,
 		CalculationStartAt:   calcStart,
 		LastApprovedSavingID: lastSavingID,

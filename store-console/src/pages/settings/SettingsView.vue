@@ -4,7 +4,7 @@
  * 门店 Logo 只提交 assetId（此处展示当前 Logo，上传组件待资产服务接入）。
  * 门店范围来自 token scope，页面不出现门店选择器。
  */
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { NButton, NForm, NFormItem, NInput, NInputNumber, NSpin, NSwitch, NTimePicker } from 'naive-ui'
 import { profileService, type StoreProfile } from '@/api/services/profile'
 import { lowSpendRuleService } from '@/api/services/lowSpendRule'
@@ -17,6 +17,8 @@ const auth = useAuthStore()
 const action = useAsyncAction()
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
+const savedBusinessHours = ref('')
+let statusTimer: number | undefined
 
 const ruleForm = reactive({
   enabled: true,
@@ -45,6 +47,7 @@ async function load() {
   try {
     const profile = await profileService.get()
     Object.assign(form, profile)
+    savedBusinessHours.value = profile.businessHours ?? ''
   } catch (err) {
     errorMsg.value = err instanceof ApiError ? err.message : '门店资料加载失败'
     // 退化：至少展示 token scope 中的门店名。
@@ -88,14 +91,58 @@ function saveProfile() {
 }
 
 function toggleStatus(open: boolean) {
-  const status = open ? 'open' : 'closed'
+  const status: 'open' | 'closed' = open ? 'open' : 'closed'
   void action.run(() => profileService.updateStatus(status), {
-    confirm: { content: open ? '确认设置为营业中？' : '确认设置为休息中？' },
-    successMessage: '营业状态已更新',
-    onSuccess: () => {
-      form.status = status
+    confirm: {
+      content: `${open ? '确认设置为营业中' : '确认设置为休息中'}？人工状态将在下一个营业时间边界自动恢复。`,
     },
+    successMessage: '营业状态已更新',
+    onSuccess: (profile) => Object.assign(form, profile),
   })
+}
+
+function restoreAutomaticStatus() {
+  void action.run(() => profileService.updateStatus('auto'), {
+    successMessage: '已恢复按营业时间自动判断',
+    onSuccess: (profile) => Object.assign(form, profile),
+  })
+}
+
+function formatBoundary(value?: string | null) {
+  if (!value) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
+}
+
+const statusHint = computed(() => {
+  if (form.statusMode === 'manual') {
+    return `人工调整，至 ${formatBoundary(form.statusOverrideUntil)} 自动恢复`
+  }
+  return `按营业时间 ${savedBusinessHours.value || '未设置'} 自动判断`
+})
+
+async function refreshStatus() {
+  if (document.visibilityState !== 'visible') return
+  try {
+    const profile = await profileService.get()
+    savedBusinessHours.value = profile.businessHours ?? ''
+    form.status = profile.status
+    form.statusMode = profile.statusMode
+    form.scheduledOpen = profile.scheduledOpen
+    form.statusOverrideUntil = profile.statusOverrideUntil
+  } catch {
+    // 定时刷新失败不打断当前资料编辑，下一轮继续尝试。
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') void refreshStatus()
 }
 
 function saveRule() {
@@ -125,6 +172,13 @@ function saveRule() {
 onMounted(() => {
   load()
   loadRule()
+  statusTimer = window.setInterval(() => void refreshStatus(), 60_000)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onUnmounted(() => {
+  if (statusTimer !== undefined) window.clearInterval(statusTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
@@ -159,7 +213,17 @@ onMounted(() => {
                 营业状态
               </div>
               <div class="ic-muted settings__status-hint">
-                关闭后门店显示为休息中
+                {{ statusHint }}
+                <NButton
+                  v-if="form.statusMode === 'manual'"
+                  text
+                  size="tiny"
+                  class="settings__status-auto"
+                  :disabled="action.running.value"
+                  @click="restoreAutomaticStatus"
+                >
+                  恢复自动
+                </NButton>
               </div>
             </div>
             <NSwitch
@@ -202,7 +266,7 @@ onMounted(() => {
                 <NFormItem label="营业时间">
                   <NInput
                     v-model:value="form.businessHours"
-                    placeholder="如：10:00 - 22:00"
+                    placeholder="如：15:00-02:00"
                   />
                 </NFormItem>
                 <NFormItem
@@ -289,14 +353,20 @@ onMounted(() => {
     <section class="reward-settings ic-band">
       <div class="reward-settings__head">
         <div>
-          <h2 class="settings__section-title">预约低消奖励</h2>
+          <h2 class="settings__section-title">
+            预约低消奖励
+          </h2>
           <p class="ic-muted settings__section-desc">
             按时预约座位或候桌，并在截止前完成微信或金币点餐低消后，自动标记已到店并发放积分
           </p>
         </div>
         <NSwitch v-model:value="ruleForm.enabled">
-          <template #checked>已开启</template>
-          <template #unchecked>已关闭</template>
+          <template #checked>
+            已开启
+          </template>
+          <template #unchecked>
+            已关闭
+          </template>
         </NSwitch>
       </div>
 
@@ -319,19 +389,37 @@ onMounted(() => {
             />
           </NFormItem>
           <NFormItem label="累计低消金额">
-            <NInputNumber v-model:value="ruleForm.minimumAmount" :min="1" :precision="0" style="width: 100%">
-              <template #suffix>元</template>
+            <NInputNumber
+              v-model:value="ruleForm.minimumAmount"
+              :min="1"
+              :precision="0"
+              style="width: 100%"
+            >
+              <template #suffix>
+                元
+              </template>
             </NInputNumber>
           </NFormItem>
           <NFormItem label="达标赠送积分">
-            <NInputNumber v-model:value="ruleForm.rewardPoints" :min="1" :precision="0" style="width: 100%">
-              <template #suffix>积分</template>
+            <NInputNumber
+              v-model:value="ruleForm.rewardPoints"
+              :min="1"
+              :precision="0"
+              style="width: 100%"
+            >
+              <template #suffix>
+                积分
+              </template>
             </NInputNumber>
           </NFormItem>
         </div>
         <div class="reward-settings__actions">
           <span class="ic-muted">同一会员在本门店每天最多获得一次</span>
-          <NButton type="primary" :loading="action.running.value" @click="saveRule">
+          <NButton
+            type="primary"
+            :loading="action.running.value"
+            @click="saveRule"
+          >
             保存奖励规则
           </NButton>
         </div>
@@ -383,6 +471,9 @@ onMounted(() => {
 .settings__status-hint {
   font-size: var(--ic-font-xs);
   margin-top: 2px;
+}
+.settings__status-auto {
+  margin-left: var(--ic-space-2);
 }
 .settings__form {
   width: 100%;
