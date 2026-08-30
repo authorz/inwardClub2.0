@@ -5,6 +5,7 @@ import {
   NCheckbox,
   NDatePicker,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
@@ -28,11 +29,19 @@ const submitting = ref(false)
 const selectedMembers = ref(new Map<string, Member>())
 const couponKinds = ref<CouponCategory[]>([])
 const couponTemplateOptions = ref<Array<{ label: string; value: number }>>([])
-const form = reactive<{ templateId: number | null; expiresAt: number | null; reason: string }>({
-  templateId: null,
-  expiresAt: null,
+const form = reactive<{ reason: string }>({
   reason: '',
 })
+
+interface CouponGrantLine {
+  key: number
+  templateId: number | null
+  expiresAt: number | null
+  quantity: number | null
+}
+
+let nextGrantLineKey = 0
+const grantLines = ref<CouponGrantLine[]>([])
 
 const memberList = useAsyncList<Member>((params) => memberService.list(params), {
   immediate: false,
@@ -58,8 +67,20 @@ const allCurrentPageSelected = computed(
 const partiallySelectedCurrentPage = computed(
   () => selectedCurrentPageCount.value > 0 && !allCurrentPageSelected.value,
 )
-const selectedCouponKind = computed(() =>
-  couponKinds.value.find((item) => Number(item.canonicalTemplateId) === form.templateId),
+const selectedTemplateIds = computed(() => new Set(
+  grantLines.value
+    .map((line) => line.templateId)
+    .filter((templateId): templateId is number => templateId != null),
+))
+const couponKindsPerMember = computed(() => selectedTemplateIds.value.size)
+const couponsPerMember = computed(() => grantLines.value.reduce((total, line) => {
+  if (line.templateId == null) return total
+  const quantity = Number(line.quantity)
+  return total + (Number.isInteger(quantity) && quantity > 0 ? quantity : 0)
+}, 0))
+const totalCouponCount = computed(() => couponsPerMember.value * selectedList.value.length)
+const canAddCouponKind = computed(
+  () => grantLines.value.length < Math.min(20, couponTemplateOptions.value.length),
 )
 
 watch(
@@ -72,11 +93,20 @@ watch(
 function reset(): void {
   searchKeyword.value = ''
   selectedMembers.value = new Map()
-  form.templateId = null
-  form.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000
   form.reason = ''
+  grantLines.value = [createGrantLine()]
   memberList.page.value = 1
   delete memberList.filters.keyword
+}
+
+function createGrantLine(): CouponGrantLine {
+  nextGrantLineKey += 1
+  return {
+    key: nextGrantLineKey,
+    templateId: null,
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    quantity: 1,
+  }
 }
 
 async function initialize(): Promise<void> {
@@ -152,24 +182,41 @@ function clearSelected(): void {
   selectedMembers.value = new Map()
 }
 
-function handleTemplateChange(templateId: number | null): void {
-  form.templateId = templateId
-  const kind = couponKinds.value.find((item) => Number(item.canonicalTemplateId) === templateId)
-  form.expiresAt = Date.now() + (kind?.defaultValidityDays || 30) * 24 * 60 * 60 * 1000
+function templateOptionsFor(line: CouponGrantLine) {
+  return couponTemplateOptions.value.map((option) => ({
+    ...option,
+    disabled: option.value !== line.templateId && selectedTemplateIds.value.has(option.value),
+  }))
 }
 
-async function grantToMembers(members: Member[], expiresAt: string, reason: string): Promise<Member[]> {
+function handleTemplateChange(line: CouponGrantLine, templateId: number | null): void {
+  line.templateId = templateId
+  const kind = couponKinds.value.find((item) => Number(item.canonicalTemplateId) === templateId)
+  line.expiresAt = Date.now() + (kind?.defaultValidityDays || 30) * 24 * 60 * 60 * 1000
+}
+
+function addGrantLine(): void {
+  if (!canAddCouponKind.value) return
+  grantLines.value.push(createGrantLine())
+}
+
+function removeGrantLine(key: number): void {
+  if (grantLines.value.length <= 1) return
+  grantLines.value = grantLines.value.filter((line) => line.key !== key)
+}
+
+async function grantToMembers(
+  members: Member[],
+  items: Array<{ templateId: number; expiresAt: string; quantity: number }>,
+  reason: string,
+): Promise<Member[]> {
   const failures: Member[] = []
   let nextIndex = 0
   const worker = async () => {
     while (nextIndex < members.length) {
       const member = members[nextIndex++]
       try {
-        await memberService.grantCoupon(member.id, {
-          templateId: form.templateId!,
-          expiresAt,
-          reason,
-        })
+        await memberService.grantCouponBatch(member.id, { items, reason })
       } catch {
         failures.push(member)
       }
@@ -186,37 +233,60 @@ async function submit(): Promise<void> {
     feedback.message.error('请至少选择一位会员')
     return
   }
-  if (form.templateId == null) {
-    feedback.message.error('请选择需要补发的券种')
-    return
-  }
-  if (!form.expiresAt || form.expiresAt <= Date.now()) {
-    feedback.message.error('有效期必须晚于当前时间')
-    return
-  }
   if (!reason) {
     feedback.message.error('请填写补发原因')
     return
   }
 
-  const expiresAt = new Date(form.expiresAt).toISOString()
-  const templateLabel = selectedCouponKind.value?.name ?? `券种 #${form.templateId}`
+  const templateIds = new Set<number>()
+  const items: Array<{ templateId: number; expiresAt: string; quantity: number }> = []
+  const itemSummaries: string[] = []
+  for (const [index, line] of grantLines.value.entries()) {
+    const position = `第 ${index + 1} 种券`
+    if (line.templateId == null) {
+      feedback.message.error(`${position}尚未选择券种`)
+      return
+    }
+    if (templateIds.has(line.templateId)) {
+      feedback.message.error('同一券种请合并数量后补发')
+      return
+    }
+    templateIds.add(line.templateId)
+    if (!line.expiresAt || line.expiresAt <= Date.now()) {
+      feedback.message.error(`${position}的有效期必须晚于当前时间`)
+      return
+    }
+    const quantity = Number(line.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      feedback.message.error(`${position}的数量须为 1 至 99 的整数`)
+      return
+    }
+    const expiresAt = new Date(line.expiresAt).toISOString()
+    const templateLabel = couponKinds.value.find(
+      (item) => Number(item.canonicalTemplateId) === line.templateId,
+    )?.name ?? `券种 #${line.templateId}`
+    items.push({ templateId: line.templateId, expiresAt, quantity })
+    itemSummaries.push(`${templateLabel} × ${quantity}（至 ${formatDateTime(expiresAt)}）`)
+  }
+
+  const perMemberCount = items.reduce((total, item) => total + item.quantity, 0)
+  const totalCount = perMemberCount * members.length
   const confirmed = await confirm({
-    content: `确认向 ${members.length} 位会员补发本店券“${templateLabel}”？有效期至 ${formatDateTime(expiresAt)}，操作将写入审计日志。`,
+    content: `确认向 ${members.length} 位会员补发 ${items.length} 种本店券，每人 ${perMemberCount} 张、共 ${totalCount} 张？${itemSummaries.join('；')}。操作将写入审计日志。`,
     danger: true,
   })
   if (!confirmed) return
 
   submitting.value = true
   try {
-    const failures = await grantToMembers(members, expiresAt, reason)
+    const failures = await grantToMembers(members, items, reason)
     if (failures.length) {
       selectedMembers.value = new Map(failures.map((member) => [String(member.id), member]))
       const succeeded = members.length - failures.length
-      feedback.message.error(`已成功补发 ${succeeded} 人，失败 ${failures.length} 人；失败会员已保留，可重试`)
+      feedback.message.error(`已成功补发 ${succeeded} 人、${succeeded * perMemberCount} 张，失败 ${failures.length} 人；失败会员已保留，可重试`)
       return
     }
-    feedback.message.success(`已向 ${members.length} 位会员补发本店优惠券`)
+    feedback.message.success(`已向 ${members.length} 位会员补发 ${items.length} 种本店券，共 ${totalCount} 张`)
     emit('update:show', false)
   } finally {
     submitting.value = false
@@ -328,26 +398,72 @@ async function submit(): Promise<void> {
       </div>
 
       <section class="grant-form">
-        <label>
-          <span>券种</span>
-          <NSelect
-            v-model:value="form.templateId"
-            :options="couponTemplateOptions"
-            :loading="initializing"
-            filterable
-            placeholder="选择启用中的券种"
-            @update:value="handleTemplateChange"
-          />
-        </label>
-        <label>
-          <span>有效期至</span>
-          <NDatePicker
-            v-model:value="form.expiresAt"
-            type="datetime"
-            clearable
-            style="width: 100%"
-          />
-        </label>
+        <div class="grant-form__header">
+          <div>
+            <strong>补发券明细</strong>
+            <span>每位已选会员都会收到以下全部券种，且仅限当前门店使用</span>
+          </div>
+          <NButton
+            size="small"
+            :disabled="!canAddCouponKind"
+            @click="addGrantLine"
+          >
+            添加券种
+          </NButton>
+        </div>
+        <div
+          v-for="(line, index) in grantLines"
+          :key="line.key"
+          class="grant-form__row"
+        >
+          <label>
+            <span>券种 {{ index + 1 }}</span>
+            <NSelect
+              v-model:value="line.templateId"
+              :options="templateOptionsFor(line)"
+              :loading="initializing"
+              filterable
+              placeholder="选择启用中的券种"
+              @update:value="(value) => handleTemplateChange(line, value)"
+            />
+          </label>
+          <label>
+            <span>有效期至</span>
+            <NDatePicker
+              v-model:value="line.expiresAt"
+              type="datetime"
+              clearable
+              style="width: 100%"
+            />
+          </label>
+          <label>
+            <span>每人数量</span>
+            <NInputNumber
+              v-model:value="line.quantity"
+              :min="1"
+              :max="99"
+              :precision="0"
+              placeholder="数量"
+              style="width: 100%"
+            />
+          </label>
+          <NButton
+            v-if="grantLines.length > 1"
+            class="grant-form__remove"
+            text
+            type="error"
+            @click="removeGrantLine(line.key)"
+          >
+            移除
+          </NButton>
+        </div>
+        <p
+          class="grant-form__summary"
+          aria-live="polite"
+        >
+          每人 {{ couponKindsPerMember }} 种、{{ couponsPerMember }} 张；当前已选
+          {{ selectedList.length }} 人，共 {{ totalCouponCount }} 张
+        </p>
         <label class="grant-form__reason">
           <span>补发原因</span>
           <NInput
@@ -377,7 +493,7 @@ async function submit(): Promise<void> {
           :disabled="!selectedList.length"
           @click="submit"
         >
-          确认补发（{{ selectedList.length }} 人）
+          确认补发（{{ selectedList.length }} 人 / {{ totalCouponCount }} 张）
         </PermissionButton>
       </NSpace>
     </template>
@@ -460,11 +576,36 @@ async function submit(): Promise<void> {
   text-align: center;
 }
 .grant-form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ic-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-3);
   padding-top: var(--ic-space-5);
   border-top: 1px solid var(--ic-color-border);
+}
+.grant-form__header,
+.grant-form__row {
+  display: grid;
+  align-items: end;
+  gap: var(--ic-space-3);
+}
+.grant-form__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.grant-form__header > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ic-space-1);
+}
+.grant-form__header span,
+.grant-form__summary {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+}
+.grant-form__row {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(210px, 1fr) minmax(110px, 0.55fr) auto;
+  padding-bottom: var(--ic-space-3);
+  border-bottom: 1px solid var(--ic-color-border);
 }
 .grant-form label {
   display: flex;
@@ -473,8 +614,14 @@ async function submit(): Promise<void> {
   gap: var(--ic-space-2);
   font-size: var(--ic-font-sm);
 }
+.grant-form__remove {
+  align-self: center;
+}
+.grant-form__summary {
+  margin: 0;
+}
 .grant-form__reason {
-  grid-column: 1 / -1;
+  margin-top: var(--ic-space-1);
 }
 @media (max-width: 840px) {
   .member-picker {
@@ -492,11 +639,11 @@ async function submit(): Promise<void> {
   .selected-members__list {
     max-height: 220px;
   }
-  .grant-form {
+  .grant-form__row {
     grid-template-columns: 1fr;
   }
-  .grant-form__reason {
-    grid-column: auto;
+  .grant-form__remove {
+    justify-self: start;
   }
 }
 @media (max-width: 560px) {

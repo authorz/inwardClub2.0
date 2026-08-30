@@ -85,9 +85,15 @@ const couponShow = ref(false)
 const couponLoading = ref(false)
 const couponTarget = ref<Member | null>(null)
 const couponTemplateOptions = ref<Array<{ label: string; value: number; validityDays: number }>>([])
-const couponForm = reactive<{ templateId: number | null; expiresAt: number | null; reason: string }>({
+const couponForm = reactive<{
+  templateId: number | null
+  expiresAt: number | null
+  quantity: number | null
+  reason: string
+}>({
   templateId: null,
   expiresAt: null,
+  quantity: 1,
   reason: '',
 })
 const COUPON_TYPE_LABELS: Record<string, string> = {
@@ -197,6 +203,7 @@ function openAdjust(row: Member): void {
 function resetCouponForm(): void {
   couponForm.templateId = null
   couponForm.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000
+  couponForm.quantity = 1
   couponForm.reason = ''
 }
 
@@ -242,6 +249,11 @@ function submitCouponGrant(): void {
     feedback.message.error('有效期必须晚于当前时间')
     return
   }
+  const quantity = Number(couponForm.quantity)
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    feedback.message.error('补发数量须为 1 至 99 的整数')
+    return
+  }
   if (!reason) {
     feedback.message.error('请填写补发原因')
     return
@@ -251,14 +263,17 @@ function submitCouponGrant(): void {
   )?.label ?? `优惠券 #${couponForm.templateId}`
   const expiresAt = new Date(couponForm.expiresAt).toISOString()
   void couponAction.run(
-    () => memberService.grantCoupon(member.id, {
-      templateId: couponForm.templateId!,
-      expiresAt,
+    () => memberService.grantCouponBatch(member.id, {
+      items: [{
+        templateId: couponForm.templateId!,
+        expiresAt,
+        quantity,
+      }],
       reason,
     }),
     {
       confirm: {
-        content: `确认向会员“${member.nickname || member.id}”补发本店券“${templateLabel}”？有效期至 ${formatDateTime(expiresAt)}，操作将写入审计日志。`,
+        content: `确认向会员“${member.nickname || member.id}”补发本店券“${templateLabel}” × ${quantity}？有效期至 ${formatDateTime(expiresAt)}，操作将写入审计日志。`,
         danger: true,
       },
       successMessage: '本店优惠券已补发',
@@ -714,6 +729,17 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
           />
         </label>
         <label>
+          <span>补发数量</span>
+          <NInputNumber
+            v-model:value="couponForm.quantity"
+            :min="1"
+            :max="99"
+            :precision="0"
+            placeholder="1–99 张"
+            style="width: 100%"
+          />
+        </label>
+        <label>
           <span>补发原因</span>
           <NInput
             v-model:value="couponForm.reason"
@@ -736,7 +762,7 @@ const couponColumns = computed<DataTableColumns<MemberCouponEntitlement>>(() => 
             :loading="couponAction.running.value"
             @click="submitCouponGrant"
           >
-            确认补发
+            确认补发（{{ couponForm.quantity || 0 }} 张）
           </PermissionButton>
         </NSpace>
       </template>

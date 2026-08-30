@@ -135,6 +135,7 @@ export const API_PATHS = {
     detail: (id: string | number) => `/store/members/${id}`,
     walletAdjustments: (id: string | number) => `/store/members/${id}/wallet-adjustments`,
     couponEntitlements: (id: string | number) => `/store/members/${id}/coupon-entitlements`,
+    couponEntitlementBatch: (id: string | number) => `/store/members/${id}/coupon-entitlement-batches`,
     walletLedger: '/store/wallet-ledger',
   },
 

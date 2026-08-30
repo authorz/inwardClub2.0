@@ -21,6 +21,15 @@ export interface CouponGrantPayload {
   reason: string
 }
 
+export interface CouponGrantBatchPayload {
+  items: Array<{
+    templateId: number
+    expiresAt: string
+    quantity: number
+  }>
+  reason: string
+}
+
 export const memberService = {
   list(params?: PageQuery) {
     return getPaged<Member>(API_PATHS.members.list, params)
@@ -37,6 +46,9 @@ export const memberService = {
   },
   grantCoupon(id: string | number, body: CouponGrantPayload) {
     return post<unknown>(API_PATHS.members.couponEntitlements(id), body, { idempotent: true })
+  },
+  grantCouponBatch(id: string | number, body: CouponGrantBatchPayload) {
+    return post<unknown>(API_PATHS.members.couponEntitlementBatch(id), body, { idempotent: true })
   },
   couponEntitlements(id: string | number, params?: PageQuery) {
     return getPaged<MemberCouponEntitlement>(API_PATHS.members.couponEntitlements(id), params)

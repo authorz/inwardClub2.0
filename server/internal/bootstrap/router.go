@@ -409,6 +409,7 @@ func (a *App) registerStore(r *gin.Engine, mw *authn.Middleware) {
 	idem.POST("/refunds", a.paymentStoreHandler.CreateRefund)
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.StoreCreateWalletAdjustment)
 	idem.POST("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.StoreGrantMemberEntitlement)
+	idem.POST("/members/:memberID/coupon-entitlement-batches", a.couponConsoleHandler.StoreGrantMemberEntitlements)
 
 	a.registerStoreConsole(p, idem)
 

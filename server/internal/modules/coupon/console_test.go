@@ -327,14 +327,18 @@ func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, scope Consol
 	return view, err
 }
 
-func (r *fakeConsoleRepo) GrantMemberEntitlements(_ context.Context, memberID int64, req MemberGrantBatchRequest, _ string, _ audit.Entry) (MemberGrantBatchView, error) {
+func (r *fakeConsoleRepo) GrantMemberEntitlements(_ context.Context, scope ConsoleScope, memberID int64, req MemberGrantBatchRequest, _ string, _ audit.Entry) (MemberGrantBatchView, error) {
 	originalTemplates := append([]Template(nil), r.templates...)
 	originalEntCount := len(r.ents)
 	originalNextEntID := r.nextEntID
 	views := make([]EntitlementView, 0)
 	for _, item := range req.Items {
 		for range item.Quantity {
-			view, err := r.GrantMemberEntitlement(context.Background(), ConsoleScope{}, memberID, GrantRequest{
+			grantScope := scope
+			if i := r.templateIndex(ConsoleScope{}, item.TemplateID); i >= 0 && r.templates[i].ScopeType == "global" {
+				grantScope = ConsoleScope{}
+			}
+			view, err := r.GrantMemberEntitlement(context.Background(), grantScope, memberID, GrantRequest{
 				TemplateID: item.TemplateID,
 				ScopeType:  item.ScopeType,
 				StoreID:    item.StoreID,
@@ -648,7 +652,7 @@ func TestAdminMemberEntitlementBatchSupportsMultipleKindsAndQuantities(t *testin
 	}}
 	svc := NewConsoleService(repo)
 	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
-	view, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+	view, err := svc.GrantMemberEntitlements(context.Background(), ConsoleScope{}, 100, MemberGrantBatchRequest{
 		Reason: "活动异常补发",
 		Items: []MemberGrantBatchItem{
 			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 2},
@@ -670,7 +674,7 @@ func TestAdminMemberEntitlementBatchRejectsDuplicateKinds(t *testing.T) {
 	repo := &fakeConsoleRepo{templates: []Template{{ID: 1, ScopeType: "global", Status: "published"}}}
 	svc := NewConsoleService(repo)
 	expiresAt := time.Now().UTC().Add(24 * time.Hour)
-	_, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+	_, err := svc.GrantMemberEntitlements(context.Background(), ConsoleScope{}, 100, MemberGrantBatchRequest{
 		Reason: "重复券种",
 		Items: []MemberGrantBatchItem{
 			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 1},
@@ -689,7 +693,7 @@ func TestAdminMemberEntitlementBatchRollsBackOneMemberOnFailure(t *testing.T) {
 	}}
 	svc := NewConsoleService(repo)
 	expiresAt := time.Now().UTC().Add(24 * time.Hour)
-	_, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+	_, err := svc.GrantMemberEntitlements(context.Background(), ConsoleScope{}, 100, MemberGrantBatchRequest{
 		Reason: "原子补发",
 		Items: []MemberGrantBatchItem{
 			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 2},
@@ -822,6 +826,53 @@ func TestStoreGrantMemberEntitlementForcesAuthenticatedStore(t *testing.T) {
 	}
 }
 
+func TestStoreGrantMemberEntitlementsSupportsQuantitiesAndForcesAuthenticatedStore(t *testing.T) {
+	storeFive := int64(5)
+	storeSix := int64(6)
+	repo := &fakeConsoleRepo{templates: []Template{
+		{ID: 1, Name: "全局饮料券", CouponType: TypeBeverage, ScopeType: "global", Status: "published"},
+		{ID: 2, Name: "本店餐券", CouponType: TypeMeal, ScopeType: "store", StoreID: &storeFive, Status: "published"},
+		{ID: 3, Name: "其他门店券", CouponType: TypeSnack, ScopeType: "store", StoreID: &storeSix, Status: "published"},
+	}}
+	svc := NewConsoleService(repo)
+	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+
+	view, err := svc.GrantMemberEntitlements(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		MemberGrantBatchRequest{
+			Reason: "门店批量补发",
+			Items: []MemberGrantBatchItem{
+				{TemplateID: 1, ScopeType: "global", StoreID: &storeSix, ExpiresAt: &expiresAt, Quantity: 2},
+				{TemplateID: 2, ScopeType: "global", StoreID: &storeSix, ExpiresAt: &expiresAt, Quantity: 3},
+			},
+		},
+		"store-batch-idem", audit.Entry{ActorID: 9, StoreID: storeFive},
+	)
+	if err != nil {
+		t.Fatalf("grant store member entitlement batch: %v", err)
+	}
+	if view.Total != 5 || len(repo.ents) != 5 {
+		t.Fatalf("unexpected store batch result: view=%+v entitlements=%d", view, len(repo.ents))
+	}
+	for _, entitlement := range repo.ents {
+		if entitlement.storeID == nil || *entitlement.storeID != storeFive {
+			t.Fatalf("batch entitlement was not pinned to store 5: %+v", entitlement)
+		}
+	}
+
+	_, err = svc.GrantMemberEntitlements(
+		context.Background(), ConsoleScope{StoreID: &storeFive}, 100,
+		MemberGrantBatchRequest{
+			Reason: "越权批量补发",
+			Items:  []MemberGrantBatchItem{{TemplateID: 3, ExpiresAt: &expiresAt, Quantity: 1}},
+		},
+		"store-batch-foreign", audit.Entry{ActorID: 9, StoreID: storeFive},
+	)
+	if apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("expected foreign-store template NOT_FOUND, got %v", err)
+	}
+}
+
 func TestStoreMemberEntitlementsIncludeGlobalAndExcludeOtherStores(t *testing.T) {
 	storeFive := int64(5)
 	storeSix := int64(6)
@@ -883,6 +934,44 @@ func TestStoreGrantMemberEntitlementHandlerUsesPinnedStore(t *testing.T) {
 	}
 	if len(repo.ents) != 1 || repo.ents[0].memberID != 100 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != storeFive {
 		t.Fatalf("handler did not pin entitlement to authenticated store: %+v (foreign=%d)", repo.ents, storeSix)
+	}
+}
+
+func TestStoreGrantMemberEntitlementsHandlerUsesPinnedStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storeFive := int64(5)
+	storeSix := int64(6)
+	repo := &fakeConsoleRepo{templates: []Template{{
+		ID: 1, Name: "本店酒水券", CouponType: TypeAlcohol,
+		ScopeType: "store", StoreID: &storeFive, Status: "published",
+	}}}
+	handler := NewConsoleHandler(NewConsoleService(repo))
+	router := gin.New()
+	router.POST(
+		"/store/members/:memberID/coupon-entitlement-batches",
+		func(c *gin.Context) {
+			c.Set(httpx.CtxStoreScope, storeFive)
+			c.Next()
+		},
+		handler.StoreGrantMemberEntitlements,
+	)
+
+	body := `{"items":[{"templateId":1,"scopeType":"store","storeId":6,"expiresAt":"2099-09-30T15:24:14Z","quantity":3}],"reason":"测试门店批量补发"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/members/100/coupon-entitlement-batches", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", response.Code, response.Body.String())
+	}
+	if len(repo.ents) != 3 {
+		t.Fatalf("expected three entitlements, got %+v", repo.ents)
+	}
+	for _, entitlement := range repo.ents {
+		if entitlement.memberID != 100 || entitlement.storeID == nil || *entitlement.storeID != storeFive {
+			t.Fatalf("handler did not pin batch entitlement to authenticated store: %+v (foreign=%d)", entitlement, storeSix)
+		}
 	}
 }
 
