@@ -368,16 +368,16 @@
   overflow: hidden;
 }
 .rsv__wait-avatar {
-  flex: 0 0 72rpx;
-  width: 72rpx;
-  height: 72rpx;
+  flex: 0 0 56rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: block;
   border-radius: 50%;
   opacity: 0.66;
 }
 .rsv__wait-avatar--fallback {
   box-sizing: border-box;
-  padding: 18rpx 10rpx;
+  padding: 14rpx 8rpx;
   background: rgba(255, 255, 255, 0.9);
 }
 .rsv__wait-shade {
