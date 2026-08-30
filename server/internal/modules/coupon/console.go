@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +72,32 @@ type GrantRequest struct {
 	StoreID    *int64     `json:"storeId"`
 	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
 	Reason     string     `json:"reason"`
+}
+
+const (
+	maxMemberGrantBatchItems   = 20
+	maxMemberGrantItemQuantity = 99
+)
+
+// MemberGrantBatchItem is one coupon kind in an admin member grant batch.
+type MemberGrantBatchItem struct {
+	TemplateID int64      `json:"templateId" binding:"required"`
+	ScopeType  string     `json:"scopeType"`
+	StoreID    *int64     `json:"storeId"`
+	ExpiresAt  *time.Time `json:"expiresAt" binding:"required"`
+	Quantity   int        `json:"quantity" binding:"required,min=1,max=99"`
+}
+
+// MemberGrantBatchRequest atomically grants multiple coupon kinds to one member.
+type MemberGrantBatchRequest struct {
+	Items  []MemberGrantBatchItem `json:"items" binding:"required,min=1,max=20,dive"`
+	Reason string                 `json:"reason"`
+}
+
+// MemberGrantBatchView summarizes one member's successfully created entitlements.
+type MemberGrantBatchView struct {
+	Entitlements []EntitlementView `json:"entitlements"`
+	Total        int               `json:"total"`
 }
 
 // VoidRequest voids an existing entitlement.
@@ -159,6 +186,7 @@ type ConsoleRepository interface {
 	GetApplicableScope(ctx context.Context, scope ConsoleScope, templateID int64) (ApplicableScope, error)
 	ListMemberEntitlements(ctx context.Context, scope ConsoleScope, memberID int64, page httpx.Page) ([]ConsoleEntitlementView, int64, error)
 	GrantMemberEntitlement(ctx context.Context, scope ConsoleScope, memberID int64, req GrantRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
+	GrantMemberEntitlements(ctx context.Context, memberID int64, req MemberGrantBatchRequest, idemKey string, entry audit.Entry) (MemberGrantBatchView, error)
 	UpdateMemberEntitlementExpiry(ctx context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, idemKey string, entry audit.Entry) (EntitlementView, error)
 	VoidMemberEntitlement(ctx context.Context, memberID, entitlementID int64, reason, idemKey string, entry audit.Entry) (EntitlementView, error)
 	Grant(ctx context.Context, scope ConsoleScope, req GrantRequest) (EntitlementView, error)
@@ -522,6 +550,156 @@ func (r *sqlConsoleRepository) GrantMemberEntitlement(
 ) (EntitlementView, error) {
 	req.MemberID = memberID
 	return r.grantEntitlement(ctx, scope, req, idemKey, &entry, true)
+}
+
+func (r *sqlConsoleRepository) GrantMemberEntitlements(
+	ctx context.Context,
+	memberID int64,
+	req MemberGrantBatchRequest,
+	idemKey string,
+	entry audit.Entry,
+) (MemberGrantBatchView, error) {
+	items := append([]MemberGrantBatchItem(nil), req.Items...)
+	sort.Slice(items, func(i, j int) bool { return items[i].TemplateID < items[j].TemplateID })
+	total := 0
+	for _, item := range items {
+		total += item.Quantity
+	}
+	views := make([]EntitlementView, 0, total)
+	now := time.Now().UTC()
+	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		if err := idempotency.Claim(ctx, tx, "admin/member-coupon-batch-grant", idemKey, "member", memberID); err != nil {
+			return err
+		}
+		var memberExists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE id = ?`, memberID).Scan(&memberExists); err != nil {
+			return apperr.Internal(err)
+		}
+		if memberExists == 0 {
+			return apperr.NotFound("member not found")
+		}
+
+		type auditItem struct {
+			TemplateID     int64   `json:"templateId"`
+			Quantity       int     `json:"quantity"`
+			ScopeType      string  `json:"scopeType"`
+			StoreID        *int64  `json:"storeId,omitempty"`
+			ExpiresAt      string  `json:"expiresAt"`
+			EntitlementIDs []int64 `json:"entitlementIds"`
+		}
+		auditItems := make([]auditItem, 0, len(items))
+		validatedStores := make(map[int64]struct{})
+		sequence := int64(0)
+		for _, item := range items {
+			var tmpl Template
+			if err := tx.QueryRowContext(ctx,
+				`SELECT id, scope_type, store_id, admission_count, stock_quantity, issued_quantity,
+					per_member_limit, status
+				 FROM coupon_templates WHERE id = ? FOR UPDATE`,
+				item.TemplateID,
+			).Scan(
+				&tmpl.ID, &tmpl.ScopeType, &tmpl.StoreID, &tmpl.AdmissionCount, &tmpl.StockQty,
+				&tmpl.IssuedQty, &tmpl.PerMemberLim, &tmpl.Status,
+			); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return apperr.NotFound("coupon template not found")
+				}
+				return apperr.Internal(err)
+			}
+			if tmpl.Status != "published" {
+				return apperr.Conflict("只能补发已发布的优惠券")
+			}
+			grantReq := GrantRequest{
+				TemplateID: item.TemplateID,
+				MemberID:   memberID,
+				ScopeType:  item.ScopeType,
+				StoreID:    item.StoreID,
+				ExpiresAt:  item.ExpiresAt,
+				Reason:     req.Reason,
+			}
+			entitlementStoreID, err := resolveMemberGrantStore(tmpl, grantReq)
+			if err != nil {
+				return err
+			}
+			if entitlementStoreID != nil {
+				if _, ok := validatedStores[*entitlementStoreID]; !ok {
+					var storeExists int
+					if err := tx.QueryRowContext(ctx,
+						`SELECT COUNT(*) FROM stores WHERE id = ? AND status = 'active'`,
+						*entitlementStoreID,
+					).Scan(&storeExists); err != nil {
+						return apperr.Internal(err)
+					}
+					if storeExists == 0 {
+						return apperr.Invalid("所选门店不存在或未启用")
+					}
+					validatedStores[*entitlementStoreID] = struct{}{}
+				}
+			}
+			expiresAt := item.ExpiresAt.UTC()
+			if !expiresAt.After(now) {
+				return apperr.Invalid("优惠券有效期必须晚于当前时间")
+			}
+			quantity := int64(item.Quantity)
+			if tmpl.StockQty > 0 && tmpl.IssuedQty+quantity > tmpl.StockQty {
+				return apperr.Conflict("优惠券库存不足")
+			}
+			if tmpl.PerMemberLim > 0 {
+				var held int64
+				if err := tx.QueryRowContext(ctx,
+					`SELECT COUNT(*) FROM coupon_entitlements
+					 WHERE coupon_template_id = ? AND member_id = ? AND status IN ('active','used')`,
+					item.TemplateID, memberID,
+				).Scan(&held); err != nil {
+					return apperr.Internal(err)
+				}
+				if held+quantity > tmpl.PerMemberLim {
+					return apperr.Conflict("补发数量超过该会员的持券上限")
+				}
+			}
+
+			entitlementIDs := make([]int64, 0, item.Quantity)
+			for range item.Quantity {
+				sequence++
+				entNo := fmt.Sprintf("E%d-%d-%d", item.TemplateID, now.UnixNano(), sequence)
+				const ins = `INSERT INTO coupon_entitlements
+					(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, granted_reason,
+					 granted_by_type, expires_at, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, 'active', ?, 'admin', ?, ?, ?)`
+				res, err := tx.ExecContext(ctx, ins, entNo, item.TemplateID, tmpl.AdmissionCount, memberID,
+					entitlementStoreID, req.Reason, expiresAt, now, now)
+				if err != nil {
+					return apperr.Internal(err)
+				}
+				id, err := res.LastInsertId()
+				if err != nil {
+					return apperr.Internal(err)
+				}
+				entitlementIDs = append(entitlementIDs, id)
+				views = append(views, EntitlementView{EntitlementID: id, EntitlementNo: entNo, Status: StatusActive})
+			}
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE coupon_templates SET issued_quantity = issued_quantity + ?, updated_at = ? WHERE id = ?`,
+				item.Quantity, now, item.TemplateID,
+			); err != nil {
+				return apperr.Internal(err)
+			}
+			auditItems = append(auditItems, auditItem{
+				TemplateID: item.TemplateID, Quantity: item.Quantity, ScopeType: item.ScopeType,
+				StoreID: entitlementStoreID, ExpiresAt: expiresAt.Format(time.RFC3339), EntitlementIDs: entitlementIDs,
+			})
+		}
+		entry.Action = "member.coupon.grant"
+		entry.TargetType = "member"
+		entry.TargetID = memberID
+		entry.Reason = req.Reason
+		entry.After = map[string]any{"items": auditItems, "total": total}
+		return audit.RecordTx(ctx, tx, entry)
+	})
+	if err != nil {
+		return MemberGrantBatchView{}, err
+	}
+	return MemberGrantBatchView{Entitlements: views, Total: total}, nil
 }
 
 func (r *sqlConsoleRepository) grantEntitlement(
@@ -1077,6 +1255,52 @@ func (s *ConsoleService) GrantMemberEntitlement(
 	return s.repo.GrantMemberEntitlement(ctx, scope, memberID, req, idemKey, entry)
 }
 
+func (s *ConsoleService) GrantMemberEntitlements(
+	ctx context.Context,
+	memberID int64,
+	req MemberGrantBatchRequest,
+	idemKey string,
+	entry audit.Entry,
+) (MemberGrantBatchView, error) {
+	req.Reason = strings.TrimSpace(req.Reason)
+	if memberID <= 0 {
+		return MemberGrantBatchView{}, apperr.Invalid("会员信息不正确")
+	}
+	if req.Reason == "" {
+		return MemberGrantBatchView{}, apperr.Invalid("请填写补发原因")
+	}
+	if len(req.Items) == 0 || len(req.Items) > maxMemberGrantBatchItems {
+		return MemberGrantBatchView{}, apperr.Invalid("每次请选择 1 至 20 种优惠券")
+	}
+	seenTemplates := make(map[int64]struct{}, len(req.Items))
+	for i := range req.Items {
+		item := &req.Items[i]
+		if item.TemplateID <= 0 {
+			return MemberGrantBatchView{}, apperr.Invalid("优惠券信息不正确")
+		}
+		if _, exists := seenTemplates[item.TemplateID]; exists {
+			return MemberGrantBatchView{}, apperr.Invalid("同一券种请合并数量后补发")
+		}
+		seenTemplates[item.TemplateID] = struct{}{}
+		if item.Quantity <= 0 || item.Quantity > maxMemberGrantItemQuantity {
+			return MemberGrantBatchView{}, apperr.Invalid("每种优惠券的补发数量须为 1 至 99 张")
+		}
+		if item.ExpiresAt == nil || !item.ExpiresAt.After(time.Now().UTC()) {
+			return MemberGrantBatchView{}, apperr.Invalid("优惠券有效期必须晚于当前时间")
+		}
+		if item.ScopeType != "global" && item.ScopeType != "store" {
+			return MemberGrantBatchView{}, apperr.Invalid("请选择全部门店或指定门店")
+		}
+		if item.ScopeType == "store" && (item.StoreID == nil || *item.StoreID <= 0) {
+			return MemberGrantBatchView{}, apperr.Invalid("请选择适用门店")
+		}
+		if item.ScopeType == "global" && item.StoreID != nil {
+			return MemberGrantBatchView{}, apperr.Invalid("全部门店券不能指定门店")
+		}
+	}
+	return s.repo.GrantMemberEntitlements(ctx, memberID, req, idemKey, entry)
+}
+
 func (s *ConsoleService) UpdateMemberEntitlementExpiry(
 	ctx context.Context,
 	memberID, entitlementID int64,
@@ -1227,6 +1451,29 @@ func (h *ConsoleHandler) GrantMemberEntitlement(c *gin.Context) {
 	entry := audit.FromContext(c, "member.coupon.grant", "member", memberID)
 	view, err := h.svc.GrantMemberEntitlement(
 		c.Request.Context(), ConsoleScope{}, memberID, req, idempotency.Key(c), entry,
+	)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.Created(c, view)
+}
+
+// GrantMemberEntitlements handles POST /admin/members/:memberID/coupon-entitlement-batches.
+func (h *ConsoleHandler) GrantMemberEntitlements(c *gin.Context) {
+	memberID, err := positivePathID(c, "memberID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	var req MemberGrantBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("优惠券批量补发参数不正确"))
+		return
+	}
+	entry := audit.FromContext(c, "member.coupon.grant", "member", memberID)
+	view, err := h.svc.GrantMemberEntitlements(
+		c.Request.Context(), memberID, req, idempotency.Key(c), entry,
 	)
 	if err != nil {
 		httpx.Fail(c, err)

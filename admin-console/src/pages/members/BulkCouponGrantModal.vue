@@ -5,6 +5,7 @@ import {
   NCheckbox,
   NDatePicker,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
@@ -35,16 +36,21 @@ const couponKinds = ref<CouponCategory[]>([])
 const couponTemplateOptions = ref<Array<{ label: string; value: string }>>([])
 const storeOptions = ref<Array<{ label: string; value: string }>>([])
 const form = reactive<{
+  reason: string
+}>({
+  reason: '',
+})
+
+interface CouponGrantLine {
+  key: number
   templateId: string | null
   storeTarget: string | null
   expiresAt: number | null
-  reason: string
-}>({
-  templateId: null,
-  storeTarget: null,
-  expiresAt: null,
-  reason: '',
-})
+  quantity: number | null
+}
+
+let nextGrantLineKey = 0
+const grantLines = ref<CouponGrantLine[]>([])
 
 const memberTable = useDataTable<Member>({
   fetcher: memberService.list,
@@ -71,8 +77,20 @@ const allCurrentPageSelected = computed(
 const partiallySelectedCurrentPage = computed(
   () => selectedCurrentPageCount.value > 0 && !allCurrentPageSelected.value,
 )
-const selectedCouponKind = computed(() =>
-  couponKinds.value.find((item) => String(item.canonicalTemplateId) === form.templateId),
+const selectedTemplateIds = computed(() => new Set(
+  grantLines.value
+    .map((line) => line.templateId)
+    .filter((templateId): templateId is string => templateId != null),
+))
+const couponKindsPerMember = computed(() => selectedTemplateIds.value.size)
+const couponsPerMember = computed(() => grantLines.value.reduce((total, line) => {
+  if (!line.templateId) return total
+  const quantity = Number(line.quantity)
+  return total + (Number.isInteger(quantity) && quantity > 0 ? quantity : 0)
+}, 0))
+const totalCouponCount = computed(() => couponsPerMember.value * selectedList.value.length)
+const canAddCouponKind = computed(
+  () => grantLines.value.length < Math.min(20, couponTemplateOptions.value.length),
 )
 const grantStoreOptions = computed(() => [
   { label: '全部门店', value: 'global' },
@@ -92,12 +110,21 @@ watch(
 function reset(): void {
   searchKeyword.value = ''
   selectedMembers.value = new Map()
-  form.templateId = null
-  form.storeTarget = null
-  form.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000
   form.reason = ''
+  grantLines.value = [createGrantLine()]
   memberTable.pagination.page = 1
   delete memberTable.filters.keyword
+}
+
+function createGrantLine(): CouponGrantLine {
+  nextGrantLineKey += 1
+  return {
+    key: nextGrantLineKey,
+    templateId: null,
+    storeTarget: null,
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    quantity: 1,
+  }
 }
 
 async function initialize(): Promise<void> {
@@ -178,11 +205,28 @@ function clearSelected(): void {
   selectedMembers.value = new Map()
 }
 
-function handleTemplateChange(templateId: string | null): void {
-  form.templateId = templateId
-  form.storeTarget = templateId ? 'global' : null
+function templateOptionsFor(line: CouponGrantLine) {
+  return couponTemplateOptions.value.map((option) => ({
+    ...option,
+    disabled: option.value !== line.templateId && selectedTemplateIds.value.has(option.value),
+  }))
+}
+
+function handleTemplateChange(line: CouponGrantLine, templateId: string | null): void {
+  line.templateId = templateId
+  line.storeTarget = templateId ? 'global' : null
   const kind = couponKinds.value.find((item) => String(item.canonicalTemplateId) === templateId)
-  form.expiresAt = Date.now() + (kind?.defaultValidityDays || 30) * 24 * 60 * 60 * 1000
+  line.expiresAt = Date.now() + (kind?.defaultValidityDays || 30) * 24 * 60 * 60 * 1000
+}
+
+function addGrantLine(): void {
+  if (!canAddCouponKind.value) return
+  grantLines.value.push(createGrantLine())
+}
+
+function removeGrantLine(key: number): void {
+  if (grantLines.value.length <= 1) return
+  grantLines.value = grantLines.value.filter((line) => line.key !== key)
 }
 
 async function grantToMembers(members: Member[], payload: Record<string, unknown>): Promise<Member[]> {
@@ -192,7 +236,7 @@ async function grantToMembers(members: Member[], payload: Record<string, unknown
     while (nextIndex < members.length) {
       const member = members[nextIndex++]
       try {
-        await http.post(API_PATHS.members.couponEntitlements(String(member.id)), payload, {
+        await http.post(API_PATHS.members.couponEntitlementBatch(String(member.id)), payload, {
           idempotent: true,
         })
       } catch {
@@ -208,39 +252,68 @@ async function submit(): Promise<void> {
   const members = selectedList.value
   const reason = form.reason.trim()
   if (!members.length) return toastError('请至少选择一位会员')
-  if (!form.templateId) return toastError('请选择需要补发的券种')
-  if (!form.storeTarget) return toastError('请选择优惠券适用门店')
-  if (!form.expiresAt || form.expiresAt <= Date.now()) return toastError('有效期必须晚于当前时间')
+  if (!grantLines.value.length) return toastError('请至少添加一种优惠券')
   if (!reason) return toastError('请填写补发原因')
 
-  const expiresAt = new Date(form.expiresAt).toISOString()
-  const storeLabel = form.storeTarget === 'global'
-    ? '全部门店'
-    : (storeOptions.value.find((item) => item.value === form.storeTarget)?.label
-      ?? `门店 #${form.storeTarget}`)
-  const templateLabel = selectedCouponKind.value?.name ?? `券种 #${form.templateId}`
+  const templateIds = new Set<string>()
+  const items: Array<{
+    templateId: number
+    scopeType: 'global' | 'store'
+    storeId: number | null
+    expiresAt: string
+    quantity: number
+  }> = []
+  const itemSummaries: string[] = []
+  for (const [index, line] of grantLines.value.entries()) {
+    const position = `第 ${index + 1} 种券`
+    if (!line.templateId) return toastError(`${position}尚未选择券种`)
+    if (templateIds.has(line.templateId)) return toastError('同一券种请合并数量后补发')
+    templateIds.add(line.templateId)
+    if (!line.storeTarget) return toastError(`${position}尚未选择适用门店`)
+    if (!line.expiresAt || line.expiresAt <= Date.now()) return toastError(`${position}的有效期必须晚于当前时间`)
+    const quantity = Number(line.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      return toastError(`${position}的数量须为 1 至 99 的整数`)
+    }
+    const expiresAt = new Date(line.expiresAt).toISOString()
+    const templateLabel = couponKinds.value.find(
+      (item) => String(item.canonicalTemplateId) === line.templateId,
+    )?.name ?? `券种 #${line.templateId}`
+    const storeLabel = line.storeTarget === 'global'
+      ? '全部门店'
+      : (storeOptions.value.find((item) => item.value === line.storeTarget)?.label
+        ?? `门店 #${line.storeTarget}`)
+    items.push({
+      templateId: Number(line.templateId),
+      scopeType: line.storeTarget === 'global' ? 'global' : 'store',
+      storeId: line.storeTarget === 'global' ? null : Number(line.storeTarget),
+      expiresAt,
+      quantity,
+    })
+    itemSummaries.push(`${templateLabel} × ${quantity}（${storeLabel}，至 ${formatDateTime(expiresAt)}）`)
+  }
+
+  const perMemberCount = items.reduce((total, item) => total + item.quantity, 0)
+  const totalCount = perMemberCount * members.length
   submitting.value = true
   try {
     const ok = await runAudited({
       title: '确认批量补发优惠券',
-      content: `将向 ${members.length} 位会员补发“${templateLabel}”，适用于${storeLabel}，有效期至 ${formatDateTime(expiresAt)}。原因：${reason}`,
+      content: `将向 ${members.length} 位会员补发 ${items.length} 种券，每人 ${perMemberCount} 张，共 ${totalCount} 张。${itemSummaries.join('；')}。原因：${reason}`,
       highRisk: true,
-      positiveText: `确认补发（${members.length} 人）`,
+      positiveText: `确认补发（共 ${totalCount} 张）`,
       execute: async () => {
         const failures = await grantToMembers(members, {
-          templateId: Number(form.templateId),
-          scopeType: form.storeTarget === 'global' ? 'global' : 'store',
-          storeId: form.storeTarget === 'global' ? null : Number(form.storeTarget),
-          expiresAt,
+          items,
           reason,
         })
         if (failures.length) {
           selectedMembers.value = new Map(failures.map((member) => [String(member.id), member]))
           const succeeded = members.length - failures.length
-          throw new Error(`已成功补发 ${succeeded} 人，失败 ${failures.length} 人；失败会员已保留，可重试`)
+          throw new Error(`已成功补发 ${succeeded} 人、${succeeded * perMemberCount} 张，失败 ${failures.length} 人；失败会员已保留，可重试`)
         }
       },
-      successText: `已向 ${members.length} 位会员补发优惠券`,
+      successText: `已向 ${members.length} 位会员补发 ${items.length} 种优惠券，共 ${totalCount} 张`,
     })
     if (ok) emit('update:show', false)
   } finally {
@@ -352,35 +425,81 @@ async function submit(): Promise<void> {
       </div>
 
       <section class="grant-form">
-        <label>
-          <span>券种</span>
-          <NSelect
-            v-model:value="form.templateId"
-            :options="couponTemplateOptions"
-            :loading="initializing"
-            filterable
-            placeholder="选择启用中的券种"
-            @update:value="handleTemplateChange"
-          />
-        </label>
-        <label>
-          <span>适用门店</span>
-          <NSelect
-            v-model:value="form.storeTarget"
-            :options="grantStoreOptions"
-            :disabled="!form.templateId"
-            placeholder="请先选择券种"
-          />
-        </label>
-        <label>
-          <span>有效期至</span>
-          <NDatePicker
-            v-model:value="form.expiresAt"
-            type="datetime"
-            clearable
-            style="width: 100%"
-          />
-        </label>
+        <div class="grant-form__header">
+          <div>
+            <strong>补发券明细</strong>
+            <span>每位已选会员都会收到以下全部券种</span>
+          </div>
+          <NButton
+            size="small"
+            :disabled="!canAddCouponKind"
+            @click="addGrantLine"
+          >
+            添加券种
+          </NButton>
+        </div>
+        <div
+          v-for="(line, index) in grantLines"
+          :key="line.key"
+          class="grant-form__row"
+        >
+          <label>
+            <span>券种 {{ index + 1 }}</span>
+            <NSelect
+              v-model:value="line.templateId"
+              :options="templateOptionsFor(line)"
+              :loading="initializing"
+              filterable
+              placeholder="选择启用中的券种"
+              @update:value="(value) => handleTemplateChange(line, value)"
+            />
+          </label>
+          <label>
+            <span>适用门店</span>
+            <NSelect
+              v-model:value="line.storeTarget"
+              :options="grantStoreOptions"
+              :disabled="!line.templateId"
+              placeholder="请先选择券种"
+            />
+          </label>
+          <label>
+            <span>有效期至</span>
+            <NDatePicker
+              v-model:value="line.expiresAt"
+              type="datetime"
+              clearable
+              style="width: 100%"
+            />
+          </label>
+          <label>
+            <span>每人数量</span>
+            <NInputNumber
+              v-model:value="line.quantity"
+              :min="1"
+              :max="99"
+              :precision="0"
+              placeholder="数量"
+              style="width: 100%"
+            />
+          </label>
+          <NButton
+            v-if="grantLines.length > 1"
+            class="grant-form__remove"
+            text
+            type="error"
+            @click="removeGrantLine(line.key)"
+          >
+            移除
+          </NButton>
+        </div>
+        <p
+          class="grant-form__summary"
+          aria-live="polite"
+        >
+          每人 {{ couponKindsPerMember }} 种、{{ couponsPerMember }} 张；当前已选
+          {{ selectedList.length }} 人，共补发 {{ totalCouponCount }} 张
+        </p>
         <label class="grant-form__reason">
           <span>补发原因</span>
           <NInput
@@ -406,10 +525,10 @@ async function submit(): Promise<void> {
         <PermissionButton
           :permission="PERMISSIONS.COUPON_GLOBAL_WRITE"
           type="primary"
-          :disabled="submitting || !selectedList.length"
+          :disabled="submitting || !selectedList.length || !totalCouponCount"
           @click="submit"
         >
-          {{ submitting ? '补发中…' : `确认补发（${selectedList.length} 人）` }}
+          {{ submitting ? '补发中…' : `确认补发（${totalCouponCount} 张）` }}
         </PermissionButton>
       </NSpace>
     </template>
@@ -497,10 +616,35 @@ async function submit(): Promise<void> {
   text-align: center;
 }
 .grant-form {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--ic-space-md);
+  display: flex;
+  flex-direction: column;
   padding-top: var(--ic-space-lg);
+  border-top: 1px solid var(--ic-color-divider);
+}
+.grant-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ic-space-md);
+  padding-bottom: var(--ic-space-md);
+}
+.grant-form__header > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ic-space-xs);
+}
+.grant-form__header span,
+.grant-form__summary {
+  color: var(--ic-color-text-secondary);
+  font-size: var(--ic-font-sm);
+}
+.grant-form__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(160px, 1fr) minmax(190px, 1.2fr) 104px auto;
+  align-items: end;
+  gap: var(--ic-space-md);
+  padding: var(--ic-space-md) 0;
   border-top: 1px solid var(--ic-color-divider);
 }
 .grant-form label {
@@ -510,8 +654,17 @@ async function submit(): Promise<void> {
   gap: var(--ic-space-sm);
   font-size: var(--ic-font-sm);
 }
+.grant-form__remove {
+  min-height: 34px;
+}
+.grant-form__summary {
+  margin: 0;
+  padding: var(--ic-space-sm) 0 var(--ic-space-md);
+  text-align: right;
+}
 .grant-form__reason {
-  grid-column: 1 / -1;
+  padding-top: var(--ic-space-md);
+  border-top: 1px solid var(--ic-color-divider);
 }
 @media (max-width: 840px) {
   .member-picker {
@@ -529,11 +682,11 @@ async function submit(): Promise<void> {
   .selected-members__list {
     max-height: 220px;
   }
-  .grant-form {
-    grid-template-columns: 1fr;
+  .grant-form__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .grant-form__reason {
-    grid-column: auto;
+  .grant-form__remove {
+    justify-self: start;
   }
 }
 @media (max-width: 560px) {
@@ -546,6 +699,15 @@ async function submit(): Promise<void> {
   .member-picker__page-select {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .grant-form__header {
+    align-items: flex-start;
+  }
+  .grant-form__row {
+    grid-template-columns: 1fr;
+  }
+  .grant-form__summary {
+    text-align: left;
   }
 }
 </style>

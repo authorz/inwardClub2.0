@@ -169,6 +169,7 @@ export const API_PATHS = {
     walletAdjustments: (id: string) => `/admin/members/${id}/wallet-adjustments`,
     walletLedger: '/admin/wallet-ledger',
     couponEntitlements: (id: string) => `/admin/members/${id}/coupon-entitlements`,
+    couponEntitlementBatch: (id: string) => `/admin/members/${id}/coupon-entitlement-batches`,
     couponEntitlement: (memberId: string, entitlementId: string) =>
       `/admin/members/${memberId}/coupon-entitlements/${entitlementId}`,
     voidCouponEntitlement: (memberId: string, entitlementId: string) =>

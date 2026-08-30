@@ -248,6 +248,32 @@ func (r *fakeConsoleRepo) GrantMemberEntitlement(_ context.Context, scope Consol
 	return view, err
 }
 
+func (r *fakeConsoleRepo) GrantMemberEntitlements(_ context.Context, memberID int64, req MemberGrantBatchRequest, _ string, _ audit.Entry) (MemberGrantBatchView, error) {
+	originalTemplates := append([]Template(nil), r.templates...)
+	originalEntCount := len(r.ents)
+	originalNextEntID := r.nextEntID
+	views := make([]EntitlementView, 0)
+	for _, item := range req.Items {
+		for range item.Quantity {
+			view, err := r.GrantMemberEntitlement(context.Background(), ConsoleScope{}, memberID, GrantRequest{
+				TemplateID: item.TemplateID,
+				ScopeType:  item.ScopeType,
+				StoreID:    item.StoreID,
+				ExpiresAt:  item.ExpiresAt,
+				Reason:     req.Reason,
+			}, "", audit.Entry{})
+			if err != nil {
+				r.templates = originalTemplates
+				r.ents = r.ents[:originalEntCount]
+				r.nextEntID = originalNextEntID
+				return MemberGrantBatchView{}, err
+			}
+			views = append(views, view)
+		}
+	}
+	return MemberGrantBatchView{Entitlements: views, Total: len(views)}, nil
+}
+
 func (r *fakeConsoleRepo) UpdateMemberEntitlementExpiry(_ context.Context, memberID, entitlementID int64, req UpdateEntitlementExpiryRequest, _ string, _ audit.Entry) (EntitlementView, error) {
 	e := r.entByID(entitlementID)
 	if e == nil || e.memberID != memberID {
@@ -536,6 +562,69 @@ func TestAdminMemberEntitlementLifecycle(t *testing.T) {
 	}
 }
 
+func TestAdminMemberEntitlementBatchSupportsMultipleKindsAndQuantities(t *testing.T) {
+	repo := &fakeConsoleRepo{templates: []Template{
+		{ID: 1, Name: "饮料券", ScopeType: "global", Status: "published"},
+		{ID: 2, Name: "餐券", ScopeType: "global", Status: "published"},
+	}}
+	svc := NewConsoleService(repo)
+	expiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+	view, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+		Reason: "活动异常补发",
+		Items: []MemberGrantBatchItem{
+			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 2},
+			{TemplateID: 2, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 3},
+		},
+	}, "batch-idem", audit.Entry{ActorID: 9})
+	if err != nil {
+		t.Fatalf("grant member entitlement batch: %v", err)
+	}
+	if view.Total != 5 || len(view.Entitlements) != 5 || len(repo.ents) != 5 {
+		t.Fatalf("unexpected batch result: view=%+v entitlements=%d", view, len(repo.ents))
+	}
+	if repo.templates[0].IssuedQty != 2 || repo.templates[1].IssuedQty != 3 {
+		t.Fatalf("unexpected issued quantities: %+v", repo.templates)
+	}
+}
+
+func TestAdminMemberEntitlementBatchRejectsDuplicateKinds(t *testing.T) {
+	repo := &fakeConsoleRepo{templates: []Template{{ID: 1, ScopeType: "global", Status: "published"}}}
+	svc := NewConsoleService(repo)
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	_, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+		Reason: "重复券种",
+		Items: []MemberGrantBatchItem{
+			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 1},
+			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 2},
+		},
+	}, "batch-idem", audit.Entry{})
+	if apperr.From(err).Code != apperr.CodeInvalidArgument || len(repo.ents) != 0 {
+		t.Fatalf("expected duplicate kind rejection without grants, err=%v entitlements=%d", err, len(repo.ents))
+	}
+}
+
+func TestAdminMemberEntitlementBatchRollsBackOneMemberOnFailure(t *testing.T) {
+	repo := &fakeConsoleRepo{templates: []Template{
+		{ID: 1, ScopeType: "global", Status: "published"},
+		{ID: 2, ScopeType: "global", Status: "published", StockQty: 1, IssuedQty: 1},
+	}}
+	svc := NewConsoleService(repo)
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	_, err := svc.GrantMemberEntitlements(context.Background(), 100, MemberGrantBatchRequest{
+		Reason: "原子补发",
+		Items: []MemberGrantBatchItem{
+			{TemplateID: 1, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 2},
+			{TemplateID: 2, ScopeType: "global", ExpiresAt: &expiresAt, Quantity: 1},
+		},
+	}, "batch-idem", audit.Entry{})
+	if apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("expected stock conflict, got %v", err)
+	}
+	if len(repo.ents) != 0 || repo.templates[0].IssuedQty != 0 || repo.templates[1].IssuedQty != 1 {
+		t.Fatalf("failed batch was not rolled back: entitlements=%d templates=%+v", len(repo.ents), repo.templates)
+	}
+}
+
 func TestResolveMemberGrantStore(t *testing.T) {
 	global := Template{ID: 1, ScopeType: "global"}
 	storeFive := Template{ID: 2, ScopeType: "store", StoreID: storeIDPtr(5)}
@@ -577,6 +666,35 @@ func TestGrantMemberEntitlementHandlerUsesPathMemberID(t *testing.T) {
 	}
 	if len(repo.ents) != 1 || repo.ents[0].memberID != 100 || repo.ents[0].storeID == nil || *repo.ents[0].storeID != 5 {
 		t.Fatalf("path member and selected store were not persisted: %+v", repo.ents)
+	}
+}
+
+func TestGrantMemberEntitlementsHandlerUsesPathMemberID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &fakeConsoleRepo{templates: []Template{
+		{ID: 1, Name: "饮料券", ScopeType: "global", Status: "published"},
+		{ID: 2, Name: "餐券", ScopeType: "global", Status: "published"},
+	}}
+	handler := NewConsoleHandler(NewConsoleService(repo))
+	router := gin.New()
+	router.POST("/admin/members/:memberID/coupon-entitlement-batches", handler.GrantMemberEntitlements)
+
+	body := `{"items":[{"templateId":1,"scopeType":"global","expiresAt":"2099-09-30T15:24:14Z","quantity":2},{"templateId":2,"scopeType":"global","expiresAt":"2099-09-30T15:24:14Z","quantity":3}],"reason":"测试批量补发"}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/members/100/coupon-entitlement-batches", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", response.Code, response.Body.String())
+	}
+	if len(repo.ents) != 5 {
+		t.Fatalf("expected five entitlements for path member, got %+v", repo.ents)
+	}
+	for _, entitlement := range repo.ents {
+		if entitlement.memberID != 100 {
+			t.Fatalf("batch entitlement used a non-path member: %+v", entitlement)
+		}
 	}
 }
 

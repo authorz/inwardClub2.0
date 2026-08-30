@@ -326,6 +326,7 @@ func (a *App) registerAdminConsole(p *gin.RouterGroup) {
 	idem := p.Group("", idempotency.Require())
 	idem.POST("/members/:memberID/wallet-adjustments", a.adminHandler.CreateWalletAdjustment)
 	idem.POST("/members/:memberID/coupon-entitlements", a.couponConsoleHandler.GrantMemberEntitlement)
+	idem.POST("/members/:memberID/coupon-entitlement-batches", a.couponConsoleHandler.GrantMemberEntitlements)
 	idem.PATCH("/members/:memberID/coupon-entitlements/:entitlementID", a.couponConsoleHandler.UpdateMemberEntitlementExpiry)
 	idem.POST("/members/:memberID/coupon-entitlements/:entitlementID/void", a.couponConsoleHandler.VoidMemberEntitlement)
 	idem.POST("/coupon-voids", a.couponConsoleHandler.Void)
