@@ -2,14 +2,17 @@ package authn
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	apperr "github.com/inwardclub/server/internal/platform/errors"
+	"github.com/inwardclub/server/internal/platform/httpx"
 )
 
 // fakeVersions is a canned TokenVersionChecker for exercising the stale-token
@@ -67,6 +70,61 @@ func TestRequireAuth_SubjectTypeRestricted(t *testing.T) {
 	pair, _ := mgr.Issue(Identity{SubjectID: 9, SubjectType: SubjectCashier, Role: RoleCashier, Audience: AudienceStore, StoreID: 3})
 	if got := doGet(r, pair.AccessToken).Code; got != http.StatusForbidden {
 		t.Fatalf("expected 403 for disallowed subject, got %d", got)
+	}
+}
+
+func TestRequireAuth_PreMemberRestrictedReturnsLoginPromptAndIdentityContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mgr := NewManager("k", "inwardclub", time.Hour, time.Hour)
+	mw := NewMiddleware(mgr, AudienceMini)
+	var subjectType string
+	var subjectID int64
+	var loggedError string
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Next()
+		if value, ok := c.Get(httpx.CtxSubjectType); ok {
+			subjectType, _ = value.(string)
+		}
+		if value, ok := c.Get(httpx.CtxSubjectID); ok {
+			subjectID, _ = value.(int64)
+		}
+		if len(c.Errors) > 0 {
+			loggedError = c.Errors.Last().Error()
+		}
+	})
+	r.POST("/food-orders", mw.RequireAuth(SubjectMember, SubjectStaff), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	pair, err := mgr.Issue(Identity{
+		SubjectID: 27, SubjectType: SubjectPreMember, Role: RolePreMember, Audience: AudienceMini,
+	})
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/food-orders", nil)
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Error.Message != "你当前还未登录，请先登录" {
+		t.Fatalf("unexpected message %q", body.Error.Message)
+	}
+	if subjectType != string(SubjectPreMember) || subjectID != 27 {
+		t.Fatalf("unexpected identity context: type=%q id=%d", subjectType, subjectID)
+	}
+	if !strings.Contains(loggedError, "pre_member member_id=27") {
+		t.Fatalf("internal error log missing member id: %q", loggedError)
 	}
 }
 

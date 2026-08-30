@@ -2,6 +2,7 @@ package authn
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -67,7 +68,19 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 			httpx.Fail(c, apperr.Unauthenticated("access token required"))
 			return
 		}
+		// Make a structurally valid identity observable to the outer access logger
+		// even when this endpoint rejects its subject type. This is especially useful
+		// for OpenID-only pre-members, whose numeric subject maps directly to the
+		// members row without printing the raw OpenID in general-purpose logs.
+		c.Set(httpx.CtxSubjectType, string(claims.SubjectType))
+		c.Set(httpx.CtxSubjectID, claims.SubjectID())
 		if len(allowed) > 0 && !slices.Contains(allowed, claims.SubjectType) {
+			if claims.SubjectType == SubjectPreMember {
+				httpx.Fail(c, apperr.Forbidden("你当前还未登录，请先登录").WithCause(
+					fmt.Errorf("pre_member member_id=%d", claims.SubjectID()),
+				))
+				return
+			}
 			httpx.Fail(c, apperr.Forbidden("subject type not permitted for this endpoint"))
 			return
 		}

@@ -6,10 +6,12 @@ import "github.com/gin-gonic/gin"
 // that own the value (authn for claims, storescope for scope) but the key
 // strings are centralised here to avoid collisions.
 const (
-	CtxRequestID  = "ctx.request_id"
-	CtxClaims     = "ctx.claims"
-	CtxStoreScope = "ctx.store_scope"
-	CtxIdemKey    = "ctx.idempotency_key"
+	CtxRequestID   = "ctx.request_id"
+	CtxClaims      = "ctx.claims"
+	CtxSubjectID   = "ctx.subject_id"
+	CtxSubjectType = "ctx.subject_type"
+	CtxStoreScope  = "ctx.store_scope"
+	CtxIdemKey     = "ctx.idempotency_key"
 )
 
 // RequestIDFromContext returns the request ID assigned by the RequestID middleware.

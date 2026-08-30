@@ -56,6 +56,16 @@ func AccessLog(log *slog.Logger) gin.HandlerFunc {
 			slog.Int("status", c.Writer.Status()),
 			slog.Duration("latency", time.Since(start)),
 		}
+		if subjectType, ok := c.Get(CtxSubjectType); ok {
+			if value, ok := subjectType.(string); ok && value != "" {
+				attrs = append(attrs, slog.String("subject_type", value))
+			}
+		}
+		if subjectID, ok := c.Get(CtxSubjectID); ok {
+			if value, ok := subjectID.(int64); ok && value > 0 {
+				attrs = append(attrs, slog.Int64("subject_id", value))
+			}
+		}
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, slog.String("error", c.Errors.Last().Error()))
 		}
