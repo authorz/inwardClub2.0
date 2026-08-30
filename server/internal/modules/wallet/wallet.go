@@ -25,6 +25,10 @@ const (
 	AssetGrowthValue = "growth_value"
 )
 
+// AssetCoupons is a ledger-only filter. Coupon quantities are derived from
+// discrete entitlements and are not stored in wallet_accounts.
+const AssetCoupons = "coupons"
+
 // assetOrder is the stable display order for wallet accounts.
 var assetOrder = []string{AssetPoints, AssetCoins, AssetCashBalance, AssetGrowthValue}
 
@@ -39,6 +43,7 @@ type Account struct {
 type LedgerEntry struct {
 	ID           int64     `json:"id"`
 	AssetType    string    `json:"assetType"`
+	AssetName    string    `json:"assetName,omitempty"`
 	Direction    string    `json:"direction"`
 	Amount       int64     `json:"amount"`
 	BalanceAfter int64     `json:"balanceAfter"`
@@ -103,6 +108,9 @@ func (r *sqlRepository) ListAccounts(ctx context.Context, memberID int64) (map[s
 }
 
 func (r *sqlRepository) ListLedger(ctx context.Context, memberID int64, assetType string, limit, offset int) ([]LedgerEntry, int64, error) {
+	if assetType == AssetCoupons {
+		return r.listCouponLedger(ctx, memberID, limit, offset)
+	}
 	where := `member_id = ?`
 	args := []any{memberID}
 	if assetType != "" {
@@ -130,6 +138,49 @@ func (r *sqlRepository) ListLedger(ctx context.Context, memberID int64, assetTyp
 		out = append(out, e)
 	}
 	return out, total, rows.Err()
+}
+
+// listCouponLedger projects issued coupon entitlements into the member ledger.
+// Coupons are discrete entitlements rather than wallet account balances, so
+// their income records live in coupon_entitlements instead of
+// wallet_ledger_entries.
+func (r *sqlRepository) listCouponLedger(ctx context.Context, memberID int64, limit, offset int) ([]LedgerEntry, int64, error) {
+	const countQuery = `SELECT COUNT(*)
+		FROM coupon_entitlements e
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		WHERE e.member_id = ?`
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, memberID).Scan(&total); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+
+	const query = `SELECT e.id, 'coupons', ct.name, 'credit', 1, 0,
+		'coupon_grant', 'coupon_grant', e.created_at
+		FROM coupon_entitlements e
+		JOIN coupon_templates ct ON ct.id = e.coupon_template_id
+		WHERE e.member_id = ?
+		ORDER BY e.id DESC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, query, memberID, limit, offset)
+	if err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	defer rows.Close()
+
+	out := make([]LedgerEntry, 0, limit)
+	for rows.Next() {
+		var entry LedgerEntry
+		if err := rows.Scan(
+			&entry.ID, &entry.AssetType, &entry.AssetName, &entry.Direction, &entry.Amount,
+			&entry.BalanceAfter, &entry.Reason, &entry.SourceType, &entry.CreatedAt,
+		); err != nil {
+			return nil, 0, apperr.Internal(err)
+		}
+		out = append(out, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperr.Internal(err)
+	}
+	return out, total, nil
 }
 
 // AdjustBalance applies an admin-initiated credit or debit to the member's

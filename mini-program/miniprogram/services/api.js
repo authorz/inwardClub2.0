@@ -36,12 +36,18 @@ function normalizeWallet(accounts) {
 // (server/internal/modules/order/write_repository.go,
 // payment/settlement_repository.go, wallet/points_repository.go, wallet/wallet.go).
 const LEDGER_REASON_LABEL = {
+  point_saving: '存积分',
+  point_saving_reward: '存积分审核到账',
+  point_saving_coin_reward: '存积分金币奖励',
+  point_withdrawal: '取积分',
   order_payment: '订单支付',
   food_order_reward: '购买餐品赠送积分',
   food_order_cancel_clawback: '取消订单扣回赠送积分',
   food_order_cancel_rollback: '取消订单失败返还积分',
   refund: '订单退款返还',
   recharge: '金币充值到账',
+  recharge_growth: '充值成长值',
+  wechat_payment_growth: '微信支付获得成长值',
   first_recharge_reward: '用户首充获得积分',
   first_recharge_reward_correction: '首充双倍积分补发',
   high_value_recharge_reward: '满额充值获得积分',
@@ -49,19 +55,33 @@ const LEDGER_REASON_LABEL = {
   invitation_first_low_spend: '邀请奖励',
   invitation_commission: '邀请奖励',
   invitation_refund_clawback: '邀请奖励退款冲正',
+  coupon_grant: '优惠券到账',
+  coupon_used: '优惠券使用',
+  coupon_void: '优惠券作废',
+  coupon_expired: '优惠券过期',
+  coupon_return: '优惠券退回',
   sign_in: '签到奖励',
   admin_adjustment: '系统调整',
 };
 
-// Ledger entries come back as {id,assetType,direction,amount,balanceAfter,
-// reason,sourceType,createdAt} with direction 'credit'|'debit'. Normalize to
-// the {title,note,direction,delta,createdAt} shape pages already render.
+function ledgerReasonLabel(entry) {
+  const reason = String(entry.reason || '').trim();
+  if (LEDGER_REASON_LABEL[reason]) return LEDGER_REASON_LABEL[reason];
+  // Preserve meaningful Chinese operator remarks, but never expose internal
+  // English reason codes directly in the member-facing ledger.
+  if (/[㐀-鿿]/.test(reason)) return reason;
+  return entry.direction === 'debit' ? '资产支出' : '资产收入';
+}
+
+// Ledger entries come back as {id,assetType,assetName,direction,amount,
+// balanceAfter,reason,sourceType,createdAt} with direction 'credit'|'debit'.
+// Normalize to the {title,note,direction,delta,createdAt} shape pages render.
 function normalizeLedgerEntry(e) {
   const isDebit = e.direction === 'debit';
   return {
     id: e.id,
-    title: LEDGER_REASON_LABEL[e.reason] || e.reason,
-    note: '',
+    title: ledgerReasonLabel(e),
+    note: e.assetName || '',
     direction: isDebit ? 'expense' : 'income',
     delta: (isDebit ? -1 : 1) * e.amount,
     createdAt: e.createdAt,
