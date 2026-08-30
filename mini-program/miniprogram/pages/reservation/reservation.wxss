@@ -361,19 +361,23 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 14rpx;
+  box-sizing: border-box;
   overflow: hidden;
 }
 .rsv__wait-avatar {
-  flex: 0 0 94rpx;
-  width: 94rpx;
-  height: 100%;
+  flex: 0 0 72rpx;
+  width: 72rpx;
+  height: 72rpx;
   display: block;
+  border-radius: 50%;
   opacity: 0.66;
 }
 .rsv__wait-avatar--fallback {
   box-sizing: border-box;
-  padding: 24rpx 14rpx;
+  padding: 18rpx 10rpx;
   background: rgba(255, 255, 255, 0.9);
 }
 .rsv__wait-shade {

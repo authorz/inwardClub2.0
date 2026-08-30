@@ -374,6 +374,23 @@ func (r *sqlRepository) GetReservation(ctx context.Context, id int64) (Reservati
 
 func (r *sqlRepository) CancelReservation(ctx context.Context, id, memberID int64, dailyStart time.Time) error {
 	return r.db.WithinTx(ctx, func(tx *sql.Tx) error {
+		var ownerID int64
+		var status string
+		if err := tx.QueryRowContext(ctx,
+			`SELECT member_id, status FROM reservations WHERE id = ? FOR UPDATE`, id,
+		).Scan(&ownerID, &status); errors.Is(err, sql.ErrNoRows) {
+			// Cancellation is idempotent: a retry after the first request already
+			// deleted the booking is still a successful cancellation.
+			return nil
+		} else if err != nil {
+			return apperr.Internal(err)
+		}
+		if ownerID != memberID {
+			return apperr.NotFound("reservation not found")
+		}
+		if status != StatusBooked {
+			return apperr.Conflict("已到店的预约不能取消")
+		}
 		const q = `DELETE FROM reservations WHERE id = ? AND member_id = ? AND status = ?`
 		result, err := tx.ExecContext(ctx, q, id, memberID, StatusBooked)
 		if err != nil {

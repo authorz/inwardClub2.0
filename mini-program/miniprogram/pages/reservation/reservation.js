@@ -187,8 +187,11 @@ Page({
       isMineTable: Boolean(ownReservation),
       mineReservationId: ownReservation ? ownReservation.id : '',
       mineSeatNo: ownReservation ? ownReservation.seatNo || '' : '',
-      actionText: ownReservation ? '取消预约' : '预约座位',
-      actionDisabled: ownReservation ? false : hasDailyReservation || free === 0,
+      mineReservationStatus: ownReservation ? ownReservation.status : '',
+      actionText: ownReservation
+        ? (ownReservation.status === 'booked' ? '取消预约' : '已到店')
+        : '预约座位',
+      actionDisabled: ownReservation ? ownReservation.status !== 'booked' : hasDailyReservation || free === 0,
       seats,
     };
   },
@@ -258,6 +261,12 @@ Page({
         .catch((err) => {
           ui.hideLoading();
           this.setData({ cancellingReservationId: '' });
+          if (err && err.code === 'CONFLICT' && err.message === '该预约已取消或不存在') {
+            this.loadTables(this.data.store.id);
+            ui.success('已取消预约');
+            return;
+          }
+          this.loadTables(this.data.store.id);
           ui.error((err && err.message) || '取消失败');
         });
     });

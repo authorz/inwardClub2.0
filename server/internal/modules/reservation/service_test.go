@@ -172,13 +172,20 @@ func (r *memRepo) GetReservation(_ context.Context, id int64) (Reservation, erro
 func (r *memRepo) CancelReservation(_ context.Context, id, memberID int64, dailyStart time.Time) error {
 	for i := range r.reservations {
 		res := r.reservations[i]
-		if res.ID == id && res.MemberID == memberID && res.Status == StatusBooked {
-			r.reservations = append(r.reservations[:i], r.reservations[i+1:]...)
-			delete(r.dailyClaims, fmt.Sprintf("%d/%s", memberID, dailyStart.UTC().Format(time.RFC3339)))
-			return nil
+		if res.ID != id {
+			continue
 		}
+		if res.MemberID != memberID {
+			return apperr.NotFound("reservation not found")
+		}
+		if res.Status != StatusBooked {
+			return apperr.Conflict("已到店的预约不能取消")
+		}
+		r.reservations = append(r.reservations[:i], r.reservations[i+1:]...)
+		delete(r.dailyClaims, fmt.Sprintf("%d/%s", memberID, dailyStart.UTC().Format(time.RFC3339)))
+		return nil
 	}
-	return apperr.Conflict("reservation cannot be cancelled")
+	return nil
 }
 
 func (r *memRepo) CancelStoreReservation(_ context.Context, id, storeID int64, dailyStart time.Time) error {
@@ -480,6 +487,9 @@ func TestCancelReservation(t *testing.T) {
 	svc, _ := newTestService()
 	view, _ := svc.CreateReservation(context.Background(), 42, validCreateReq())
 
+	if err := svc.CancelReservation(context.Background(), 99, view.ID); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("another member must not cancel the reservation, got %v", err)
+	}
 	if err := svc.CancelReservation(context.Background(), 42, view.ID); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
@@ -489,9 +499,17 @@ func TestCancelReservation(t *testing.T) {
 	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); err != nil {
 		t.Fatalf("member should be able to reserve again after cancellation, got %v", err)
 	}
-	// Second cancel must conflict (already cancelled).
-	if err := svc.CancelReservation(context.Background(), 42, view.ID); apperr.From(err).Code != apperr.CodeConflict {
-		t.Fatalf("expected CONFLICT on double cancel, got %v", err)
+	// A retry after the first request deleted the row must remain successful.
+	if err := svc.CancelReservation(context.Background(), 42, view.ID); err != nil {
+		t.Fatalf("repeated cancel must be idempotent, got %v", err)
+	}
+}
+
+func TestCancelArrivedReservationIsRejected(t *testing.T) {
+	svc, repo := newTestService()
+	repo.reservations = []Reservation{{ID: 1, MemberID: 42, StoreID: 1, Status: StatusArrived}}
+	if err := svc.CancelReservation(context.Background(), 42, 1); apperr.From(err).Code != apperr.CodeConflict {
+		t.Fatalf("arrived reservation cancellation = %v", err)
 	}
 }
 
