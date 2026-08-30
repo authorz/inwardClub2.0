@@ -22,6 +22,13 @@ type TokenVersionChecker interface {
 	CurrentTokenVersion(ctx context.Context, subjectType SubjectType, subjectID int64) (int64, error)
 }
 
+// SubjectExternalIDResolver optionally resolves a provider identity for
+// diagnostics. Mini-program member token checkers use it to attach the WeChat
+// OpenID to a denied pre-member event without putting that identifier in JWTs.
+type SubjectExternalIDResolver interface {
+	ExternalID(ctx context.Context, subjectType SubjectType, subjectID int64) (string, error)
+}
+
 // Middleware verifies bearer tokens for a fixed audience and stores the claims
 // in the gin context. One Middleware instance is created per audience so the
 // three consoles cannot accept each other's tokens.
@@ -76,9 +83,20 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 		c.Set(httpx.CtxSubjectID, claims.SubjectID())
 		if len(allowed) > 0 && !slices.Contains(allowed, claims.SubjectType) {
 			if claims.SubjectType == SubjectPreMember {
-				httpx.Fail(c, apperr.Forbidden("你当前还未登录，请先登录").WithCause(
-					fmt.Errorf("pre_member member_id=%d", claims.SubjectID()),
-				))
+				requestID := httpx.RequestIDFromContext(c)
+				message := "你当前还未登录，请先登录"
+				if requestID != "" {
+					message += fmt.Sprintf("（错误 ID：%s）", visibleRequestID(requestID))
+				}
+				identity := fmt.Sprintf("pre_member member_id=%d", claims.SubjectID())
+				if resolver, ok := m.versions.(SubjectExternalIDResolver); ok {
+					if externalID, resolveErr := resolver.ExternalID(
+						c.Request.Context(), claims.SubjectType, claims.SubjectID(),
+					); resolveErr == nil && externalID != "" {
+						identity += " openid=" + externalID
+					}
+				}
+				httpx.Fail(c, apperr.Forbidden(message).WithCause(fmt.Errorf("%s", identity)))
 				return
 			}
 			httpx.Fail(c, apperr.Forbidden("subject type not permitted for this endpoint"))
@@ -116,6 +134,16 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 		c.Set(httpx.CtxClaims, claims)
 		c.Next()
 	}
+}
+
+// visibleRequestID keeps the correlation code readable in the legacy mini
+// program's toast while the server and error event retain the complete ID.
+func visibleRequestID(requestID string) string {
+	const visibleLength = 8
+	if len(requestID) <= visibleLength {
+		return requestID
+	}
+	return requestID[len(requestID)-visibleLength:]
 }
 
 // OptionalAuth attaches valid access-token claims when the caller is logged in,

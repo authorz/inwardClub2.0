@@ -598,6 +598,9 @@ func TestTokenVersionCheckersReflectLogout(t *testing.T) {
 		memberID = id
 	}
 	memberVersions := NewMemberTokenVersions(members)
+	if externalID, err := memberVersions.ExternalID(ctx, authn.SubjectMember, memberID); err != nil || externalID == "" {
+		t.Fatalf("member external id = %q, %v; want non-empty OpenID", externalID, err)
+	}
 	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID); err != nil || v != 0 {
 		t.Fatalf("member version before logout = %d, %v; want 0, nil", v, err)
 	}

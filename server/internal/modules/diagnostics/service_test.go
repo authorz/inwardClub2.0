@@ -37,15 +37,21 @@ func (r *memRepo) Insert(_ context.Context, e ErrorEvent) error {
 	return nil
 }
 
-func (r *memRepo) List(_ context.Context, limit, offset int) ([]ErrorEvent, int64, error) {
+func (r *memRepo) List(_ context.Context, requestID string, limit, offset int) ([]ErrorEvent, int64, error) {
 	if r.listErr != nil {
 		return nil, 0, r.listErr
 	}
-	total := int64(len(r.events))
+	filtered := make([]ErrorEvent, 0, len(r.events))
+	for _, event := range r.events {
+		if requestID == "" || strings.Contains(event.RequestID, requestID) {
+			filtered = append(filtered, event)
+		}
+	}
+	total := int64(len(filtered))
 	out := make([]ErrorEvent, 0, limit)
 	// events are stored oldest-first; walk backwards for newest-first, then page.
-	for i := len(r.events) - 1 - offset; i >= 0 && len(out) < limit; i-- {
-		out = append(out, r.events[i])
+	for i := len(filtered) - 1 - offset; i >= 0 && len(out) < limit; i-- {
+		out = append(out, filtered[i])
 	}
 	return out, total, nil
 }
@@ -72,7 +78,7 @@ func TestServiceListReturnsNewestFirst(t *testing.T) {
 	svc.Record(ctx, "req-1", http.MethodGet, "/a", 500, "boom-1")
 	svc.Record(ctx, "req-2", http.MethodGet, "/b", 500, "boom-2")
 
-	events, total, err := svc.List(ctx, httpx.Page{Page: 1, PageSize: 10})
+	events, total, err := svc.List(ctx, httpx.Page{Page: 1, PageSize: 10}, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -90,7 +96,7 @@ func TestServiceRecordPrunesToRetentionCap(t *testing.T) {
 	for i := 0; i < retentionMaxEvents+10; i++ {
 		svc.Record(ctx, "", http.MethodGet, "/x", 500, "err")
 	}
-	_, total, err := svc.List(ctx, httpx.Page{Page: 1, PageSize: 1})
+	_, total, err := svc.List(ctx, httpx.Page{Page: 1, PageSize: 1}, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -141,7 +147,7 @@ func TestCaptureMiddlewareRecordsFailedRequests(t *testing.T) {
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	events, total, err := svc.List(context.Background(), httpx.Page{Page: 1, PageSize: 10})
+	events, total, err := svc.List(context.Background(), httpx.Page{Page: 1, PageSize: 10}, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -159,21 +165,45 @@ func TestCaptureMiddlewareRecordsFailedRequests(t *testing.T) {
 func TestHandlerListErrorEvents(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc, _ := newTestService()
-	svc.Record(context.Background(), "req-1", http.MethodGet, "/a", 500, "boom")
+	svc.Record(context.Background(), "request-12345678", http.MethodGet, "/a", 500,
+		"PERMISSION_DENIED: 你当前还未登录，请先登录: pre_member member_id=27 openid=openid-27")
+	svc.Record(context.Background(), "request-other", http.MethodGet, "/b", 500, "other")
 	h := NewHandler(svc)
 
 	r := gin.New()
 	r.GET("/admin/error-events", h.ListErrorEvents)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/error-events", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/error-events?requestId=12345678", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "boom") {
-		t.Fatalf("expected event in response, got: %s", rec.Body.String())
+	body := rec.Body.String()
+	for _, expected := range []string{`"requestId":"request-12345678"`, `"memberId":27`, `"wechatOpenId":"openid-27"`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected %s in response, got: %s", expected, body)
+		}
+	}
+	if strings.Contains(body, "request-other") {
+		t.Fatalf("request ID search returned an unrelated event: %s", body)
+	}
+}
+
+func TestHandlerListErrorEventsRejectsInvalidRequestIDSearch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc, _ := newTestService()
+	h := NewHandler(svc)
+	r := gin.New()
+	r.GET("/admin/error-events", h.ListErrorEvents)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/error-events?requestId=%25", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

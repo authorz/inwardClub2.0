@@ -406,6 +406,8 @@ export interface ErrorEvent {
   status?: number
   message: string
   requestId?: string
+  memberId?: number
+  wechatOpenId?: string
   createdAt: string
 }
 

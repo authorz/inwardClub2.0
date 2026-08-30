@@ -18,12 +18,17 @@ import (
 // fakeVersions is a canned TokenVersionChecker for exercising the stale-token
 // gate without a datastore.
 type fakeVersions struct {
-	current int64
-	err     error
+	current    int64
+	externalID string
+	err        error
 }
 
 func (f fakeVersions) CurrentTokenVersion(context.Context, SubjectType, int64) (int64, error) {
 	return f.current, f.err
+}
+
+func (f fakeVersions) ExternalID(context.Context, SubjectType, int64) (string, error) {
+	return f.externalID, f.err
 }
 
 func setupRouter(aud Audience, allowed ...SubjectType) (*gin.Engine, *Manager) {
@@ -76,11 +81,12 @@ func TestRequireAuth_SubjectTypeRestricted(t *testing.T) {
 func TestRequireAuth_PreMemberRestrictedReturnsLoginPromptAndIdentityContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mgr := NewManager("k", "inwardclub", time.Hour, time.Hour)
-	mw := NewMiddleware(mgr, AudienceMini)
+	mw := NewMiddleware(mgr, AudienceMini, WithTokenVersions(fakeVersions{externalID: "openid-27"}))
 	var subjectType string
 	var subjectID int64
 	var loggedError string
 	r := gin.New()
+	r.Use(httpx.RequestID())
 	r.Use(func(c *gin.Context) {
 		c.Next()
 		if value, ok := c.Get(httpx.CtxSubjectType); ok {
@@ -104,6 +110,7 @@ func TestRequireAuth_PreMemberRestrictedReturnsLoginPromptAndIdentityContext(t *
 	}
 	req := httptest.NewRequest(http.MethodPost, "/food-orders", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	req.Header.Set("X-Request-ID", "request-12345678")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -117,13 +124,13 @@ func TestRequireAuth_PreMemberRestrictedReturnsLoginPromptAndIdentityContext(t *
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.Error.Message != "你当前还未登录，请先登录" {
+	if body.Error.Message != "你当前还未登录，请先登录（错误 ID：12345678）" {
 		t.Fatalf("unexpected message %q", body.Error.Message)
 	}
 	if subjectType != string(SubjectPreMember) || subjectID != 27 {
 		t.Fatalf("unexpected identity context: type=%q id=%d", subjectType, subjectID)
 	}
-	if !strings.Contains(loggedError, "pre_member member_id=27") {
+	if !strings.Contains(loggedError, "pre_member member_id=27 openid=openid-27") {
 		t.Fatalf("internal error log missing member id: %q", loggedError)
 	}
 }

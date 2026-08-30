@@ -13,7 +13,7 @@ type Repository interface {
 	// Insert appends one captured error event.
 	Insert(ctx context.Context, e ErrorEvent) error
 	// List returns a page of events, newest first, plus the total row count.
-	List(ctx context.Context, limit, offset int) ([]ErrorEvent, int64, error)
+	List(ctx context.Context, requestID string, limit, offset int) ([]ErrorEvent, int64, error)
 	// Prune deletes all but the newest keep events, bounding table growth.
 	Prune(ctx context.Context, keep int) error
 }
@@ -36,13 +36,20 @@ func (r *sqlRepository) Insert(ctx context.Context, e ErrorEvent) error {
 	return nil
 }
 
-func (r *sqlRepository) List(ctx context.Context, limit, offset int) ([]ErrorEvent, int64, error) {
+func (r *sqlRepository) List(ctx context.Context, requestID string, limit, offset int) ([]ErrorEvent, int64, error) {
+	where := ""
+	args := make([]any, 0, 3)
+	if requestID != "" {
+		where = ` WHERE request_id LIKE ?`
+		args = append(args, "%"+requestID+"%")
+	}
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM error_events`).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM error_events`+where, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Internal(err)
 	}
-	const q = `SELECT ` + errorEventColumns + ` FROM error_events ORDER BY id DESC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, q, limit, offset)
+	q := `SELECT ` + errorEventColumns + ` FROM error_events` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, 0, apperr.Internal(err)
 	}

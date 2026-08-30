@@ -9,6 +9,8 @@ package diagnostics
 import (
 	"context"
 	"log/slog"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/inwardclub/server/internal/platform/httpx"
@@ -26,14 +28,18 @@ const maxMessageLen = 1024
 
 // ErrorEvent is one captured server-side failure.
 type ErrorEvent struct {
-	ID        int64     `json:"id"`
-	RequestID string    `json:"requestId,omitempty"`
-	Method    string    `json:"method"`
-	Path      string    `json:"path"`
-	Status    int       `json:"status"`
-	Message   string    `json:"message,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID           int64     `json:"id"`
+	RequestID    string    `json:"requestId,omitempty"`
+	Method       string    `json:"method"`
+	Path         string    `json:"path"`
+	Status       int       `json:"status"`
+	Message      string    `json:"message,omitempty"`
+	MemberID     int64     `json:"memberId,omitempty"`
+	WeChatOpenID string    `json:"wechatOpenId,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
+
+var preMemberIdentityPattern = regexp.MustCompile(`pre_member member_id=([0-9]+)(?: openid=([^\s]+))?`)
 
 // Service records and reads persisted error events.
 type Service struct {
@@ -73,9 +79,27 @@ func (s *Service) Record(ctx context.Context, requestID, method, path string, st
 	}
 }
 
-// List returns a page of events, newest first, plus the total count.
-func (s *Service) List(ctx context.Context, page httpx.Page) ([]ErrorEvent, int64, error) {
-	return s.repo.List(ctx, page.Limit(), page.Offset())
+// List returns a page of events, newest first, plus the filtered total count.
+func (s *Service) List(ctx context.Context, page httpx.Page, requestID string) ([]ErrorEvent, int64, error) {
+	events, total, err := s.repo.List(ctx, requestID, page.Limit(), page.Offset())
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range events {
+		enrichPreMemberIdentity(&events[i])
+	}
+	return events, total, nil
+}
+
+func enrichPreMemberIdentity(event *ErrorEvent) {
+	match := preMemberIdentityPattern.FindStringSubmatch(event.Message)
+	if len(match) == 0 {
+		return
+	}
+	event.MemberID, _ = strconv.ParseInt(match[1], 10, 64)
+	if len(match) > 2 {
+		event.WeChatOpenID = match[2]
+	}
 }
 
 // truncate limits s to at most max runes, cutting on a rune boundary so a

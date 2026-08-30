@@ -56,9 +56,13 @@
 
 - `GET /api/v2/admin/error-events`（audience=admin，`super_admin`）。
 - 分页：复用 `httpx.ParsePage`（`page` / `pageSize`，`pageSize` 上限 100）。
+- 错误 ID：可传 `requestId`（1–64 位字母、数字、`_`、`-`），按 `request_id`
+  模糊匹配，因此可使用客户端展示的 Request ID 后 8 位定位完整事件。
 - 排序：`ORDER BY id DESC`——**最新在前**。
 - 响应：标准 List 信封 `{ data: ErrorEvent[], meta: { page, pageSize, total } }`；
-  `total` 为 `error_events` 全表行数（受保留上限约束，≤500）。
+  `total` 为当前筛选条件命中的事件数（受保留上限约束，≤500）。预注册会员被正式会员
+  接口拒绝时，事件还会从内部错误消息解析出 `memberId` 与 `wechatOpenId`；OpenID 不会
+  返回给小程序客户端。
 - 读失败（如数据库不可用）返回标准错误信封（`INTERNAL`，500）。
 
 ## 6. 验收

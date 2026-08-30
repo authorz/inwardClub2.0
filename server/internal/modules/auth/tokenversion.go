@@ -53,6 +53,16 @@ func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, subject a
 	return m.TokenVersion, nil
 }
 
+// ExternalID returns the member's WeChat OpenID for internal diagnostics. It is
+// never embedded in tokens or returned by the authentication middleware.
+func (v *MemberTokenVersions) ExternalID(ctx context.Context, _ authn.SubjectType, id int64) (string, error) {
+	m, err := v.members.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return m.WeChatOpenID, nil
+}
+
 // AccountTokenVersions adapts the account store to authn.TokenVersionChecker so
 // the admin/store access-token middleware can reject tokens minted before an
 // account logout, disable or password reset (all of which bump token_version).
