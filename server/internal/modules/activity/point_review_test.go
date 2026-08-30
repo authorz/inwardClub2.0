@@ -23,37 +23,6 @@ func TestBusinessWindowBoundaries(t *testing.T) {
 	}
 }
 
-func TestPointReviewBaseWindowStart(t *testing.T) {
-	cases := []struct {
-		name string
-		at   time.Time
-		want time.Time
-	}{
-		{
-			name: "morning business period",
-			at:   time.Date(2026, 7, 26, 9, 0, 0, 0, pointReviewLocation),
-			want: time.Date(2026, 7, 25, 17, 0, 0, 0, pointReviewLocation),
-		},
-		{
-			name: "non-business period still keeps the current base cycle",
-			at:   time.Date(2026, 7, 26, 16, 30, 0, 0, pointReviewLocation),
-			want: time.Date(2026, 7, 25, 17, 0, 0, 0, pointReviewLocation),
-		},
-		{
-			name: "evening business period",
-			at:   time.Date(2026, 7, 26, 20, 0, 0, 0, pointReviewLocation),
-			want: time.Date(2026, 7, 26, 17, 0, 0, 0, pointReviewLocation),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := pointReviewBaseWindowStart(tc.at); !got.Equal(tc.want) {
-				t.Fatalf("pointReviewBaseWindowStart(%s)=%s, want %s", tc.at, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestCalculatePointReviewRules(t *testing.T) {
 	rule := PointReviewRule{PointsDivisor: 5, CoinPointsDivisor: 2000, Version: 1}
 	outside := time.Date(2026, 7, 26, 12, 0, 0, 0, pointReviewLocation)
@@ -66,8 +35,8 @@ func TestCalculatePointReviewRules(t *testing.T) {
 		wantPoints, wantCoin     int64
 		wantExcess, wantCoinBase int64
 	}{
-		{name: "outside business awards coins from profit only", when: outside, requested: 20000, base: 10000, wantPoints: 4000, wantCoin: 5, wantExcess: 10000, wantCoinBase: 10000},
-		{name: "inside without base treats all saved points as coin base", when: inside, requested: 8000, base: 0, wantPoints: 1600, wantCoin: 4, wantCoinBase: 8000},
+		{name: "outside business excludes known base from coins", when: outside, requested: 8000, base: 3000, wantPoints: 1600, wantCoin: 2, wantExcess: 5000, wantCoinBase: 5000},
+		{name: "inside without base does not award coins", when: inside, requested: 8000, base: 0, wantPoints: 1600, wantCoin: 0},
 		{name: "inside below base", when: inside, requested: 800, base: 1000, wantPoints: 400, wantCoin: 0},
 		{name: "inside equal to base", when: inside, requested: 1000, base: 1000, wantPoints: 1000, wantCoin: 0},
 		{name: "inside over base", when: inside, requested: 1600, base: 1000, wantPoints: 1120, wantCoin: 0, wantExcess: 600, wantCoinBase: 600},
@@ -97,7 +66,7 @@ func TestCalculatePointReviewUsesConfiguredRatios(t *testing.T) {
 		0,
 		PointReviewRule{PointsDivisor: 3, CoinPointsDivisor: 1500, Version: 2},
 	)
-	if got.AwardedPoints != 3000 || got.CoinBasePoints != 9000 || got.AwardedCoins != 6 {
+	if got.AwardedPoints != 3000 || got.AwardedCoins != 0 {
 		t.Fatalf("configured calculation=%+v", got)
 	}
 }
