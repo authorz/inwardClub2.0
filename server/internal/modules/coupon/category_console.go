@@ -46,6 +46,7 @@ type CategoryRepository interface {
 	GetCategory(ctx context.Context, id int64) (CouponCategory, error)
 	CreateCategory(ctx context.Context, in CategoryInput) (CouponCategory, error)
 	UpdateCategory(ctx context.Context, id int64, in CategoryInput) (CouponCategory, error)
+	CountCategoryEntitlements(ctx context.Context, id int64) (int64, error)
 	DeleteCategory(ctx context.Context, id int64) error
 }
 
@@ -258,6 +259,17 @@ func (r *sqlConsoleRepository) DeleteCategory(ctx context.Context, id int64) err
 	return nil
 }
 
+func (r *sqlConsoleRepository) CountCategoryEntitlements(ctx context.Context, id int64) (int64, error) {
+	var count int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*)
+		FROM coupon_entitlements AS entitlement
+		JOIN coupon_templates AS template ON template.id = entitlement.coupon_template_id
+		WHERE template.category_id = ?`, id).Scan(&count); err != nil {
+		return 0, apperr.Internal(err)
+	}
+	return count, nil
+}
+
 func scanCategory(scanner scanner) (CouponCategory, error) {
 	var category CouponCategory
 	err := scanner.Scan(&category.ID, &category.Name, &category.BusinessType, &category.Description,
@@ -331,6 +343,13 @@ func (s *ConsoleService) DeleteCategory(ctx context.Context, id int64) error {
 	repo, err := s.categoryRepository()
 	if err != nil {
 		return err
+	}
+	entitlementCount, err := repo.CountCategoryEntitlements(ctx, id)
+	if err != nil {
+		return err
+	}
+	if entitlementCount > 0 {
+		return apperr.Conflict("已有用户持有该券种，不能删除，可改为停用")
 	}
 	return repo.DeleteCategory(ctx, id)
 }

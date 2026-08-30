@@ -30,6 +30,49 @@ type fakeConsoleRepo struct {
 	nextEntID  int64
 }
 
+type categoryGuardRepo struct {
+	*fakeConsoleRepo
+	deletedCategoryID int64
+}
+
+func (r *categoryGuardRepo) ListCategories(_ context.Context, _ httpx.Page, _, _ string, _ bool) ([]CouponCategory, int64, error) {
+	return r.categories, int64(len(r.categories)), nil
+}
+
+func (r *categoryGuardRepo) GetCategory(_ context.Context, id int64) (CouponCategory, error) {
+	category, ok := r.category(id)
+	if !ok {
+		return CouponCategory{}, apperr.NotFound("coupon category not found")
+	}
+	return category, nil
+}
+
+func (r *categoryGuardRepo) CreateCategory(_ context.Context, _ CategoryInput) (CouponCategory, error) {
+	return CouponCategory{}, apperr.NotImplemented("not implemented")
+}
+
+func (r *categoryGuardRepo) UpdateCategory(_ context.Context, _ int64, _ CategoryInput) (CouponCategory, error) {
+	return CouponCategory{}, apperr.NotImplemented("not implemented")
+}
+
+func (r *categoryGuardRepo) CountCategoryEntitlements(_ context.Context, categoryID int64) (int64, error) {
+	var count int64
+	for _, entitlement := range r.ents {
+		for _, template := range r.templates {
+			if template.ID == entitlement.tmplID && template.CategoryID == categoryID {
+				count++
+				break
+			}
+		}
+	}
+	return count, nil
+}
+
+func (r *categoryGuardRepo) DeleteCategory(_ context.Context, id int64) error {
+	r.deletedCategoryID = id
+	return nil
+}
+
 func (r *fakeConsoleRepo) category(id int64) (CouponCategory, bool) {
 	for _, category := range r.categories {
 		if category.ID == id {
@@ -173,6 +216,42 @@ func TestConsoleServicePublishesAndDisablesTemplate(t *testing.T) {
 	}
 	if disabled.Status != "disabled" {
 		t.Fatalf("disabled status = %q", disabled.Status)
+	}
+}
+
+func TestConsoleServiceRefusesToDeleteCategoryOwnedByMember(t *testing.T) {
+	repo := &categoryGuardRepo{fakeConsoleRepo: &fakeConsoleRepo{
+		categories: []CouponCategory{{ID: 14, Name: "周赛卡券"}},
+		templates:  []Template{{ID: 31, CategoryID: 14}},
+		ents:       []*fakeEnt{{id: 1, tmplID: 31, memberID: 5416}},
+	}}
+	svc := NewConsoleService(repo)
+
+	err := svc.DeleteCategory(context.Background(), 14)
+	if err == nil {
+		t.Fatal("delete category unexpectedly succeeded")
+	}
+	appErr := apperr.From(err)
+	if appErr.Code != apperr.CodeConflict || !strings.Contains(appErr.Message, "已有用户持有") {
+		t.Fatalf("delete category error = %#v", appErr)
+	}
+	if repo.deletedCategoryID != 0 {
+		t.Fatalf("repository delete called for category %d", repo.deletedCategoryID)
+	}
+}
+
+func TestConsoleServiceDeletesCategoryWithoutMemberEntitlements(t *testing.T) {
+	repo := &categoryGuardRepo{fakeConsoleRepo: &fakeConsoleRepo{
+		categories: []CouponCategory{{ID: 14, Name: "周赛卡券"}},
+		templates:  []Template{{ID: 31, CategoryID: 14}},
+	}}
+	svc := NewConsoleService(repo)
+
+	if err := svc.DeleteCategory(context.Background(), 14); err != nil {
+		t.Fatalf("delete category: %v", err)
+	}
+	if repo.deletedCategoryID != 14 {
+		t.Fatalf("repository delete category id = %d, want 14", repo.deletedCategoryID)
 	}
 }
 
