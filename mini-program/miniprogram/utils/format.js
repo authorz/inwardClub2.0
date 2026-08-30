@@ -24,8 +24,10 @@ function amount(value) {
 function maskPhone(phone) {
   if (!phone) return '';
   const s = String(phone);
-  if (s.length < 7) return s;
-  return s.slice(0, 3) + '****' + s.slice(-4);
+  const prefix = s.charAt(0) === '+' ? '+' : '';
+  const digits = prefix ? s.slice(1) : s;
+  if (digits.length < 7) return s;
+  return prefix + digits.slice(0, 3) + '****' + digits.slice(-4);
 }
 
 /** group a numeric code in blocks of 4: "83926174" -> "8392 6174" */

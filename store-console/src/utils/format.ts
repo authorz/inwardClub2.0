@@ -36,9 +36,10 @@ export function yuanToCent(yuan: number | null | undefined): number {
 export function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '-'
   if (phone.includes('*')) return phone
+  const prefix = phone.trim().startsWith('+') ? '+' : ''
   const digits = phone.replace(/\D/g, '')
   if (digits.length < 7) return phone
-  return `${digits.slice(0, 3)}****${digits.slice(-4)}`
+  return `${prefix}${digits.slice(0, 3)}****${digits.slice(-4)}`
 }
 
 /** ISO 时间 -> 本地日期时间展示。 */

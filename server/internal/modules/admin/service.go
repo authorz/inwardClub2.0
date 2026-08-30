@@ -164,10 +164,14 @@ func (s *Service) ListOrders(ctx context.Context, f ListFilter) ([]OrderView, in
 // maskPhone masks the middle of a phone number, keeping the leading 3 and
 // trailing 4 digits. Short or empty values are returned unchanged/empty.
 func maskPhone(phone string) string {
-	if len(phone) < 7 {
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
+	}
+	if len(digits) < 7 {
 		return phone
 	}
-	return phone[:3] + "****" + phone[len(phone)-4:]
+	return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 }
 
 // ListMembers returns a page of members.
@@ -859,12 +863,15 @@ func (s *Service) AdminDeleteStaffAccount(ctx context.Context, id int64) error {
 // at least 3 digits to avoid dumping the whole member table.
 func (s *Service) SearchMembersByPhone(ctx context.Context, phone string) ([]MemberView, error) {
 	phone = strings.TrimSpace(phone)
-	if len(phone) < 3 || len(phone) > 11 {
-		return nil, apperr.Invalid("admin: 请输入 3 至 11 位手机号")
+	if len(phone) < 3 || len(phone) > 20 {
+		return nil, apperr.Invalid("admin: 请输入 3 至 20 位手机号或号码片段")
 	}
-	for _, ch := range phone {
+	for index, ch := range phone {
+		if index == 0 && ch == '+' {
+			continue
+		}
 		if ch < '0' || ch > '9' {
-			return nil, apperr.Invalid("admin: 手机号只能包含数字")
+			return nil, apperr.Invalid("admin: 手机号只能包含数字或开头的 +")
 		}
 	}
 	rows, err := s.repo.SearchMembersByPhone(ctx, phone)

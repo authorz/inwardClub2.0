@@ -175,8 +175,8 @@ const channelLabels = COLLECTION_PAY_CHANNELS.map((channel) => PAY_CHANNEL[chann
     <NFormItem label="会员手机号（可选，仅用于匹配会员）">
       <NInput
         v-model:value="form.memberPhone"
-        placeholder="用于关联会员权益，服务端返回掩码"
-        maxlength="11"
+        placeholder="仅匹配已注册会员，海外号码需含国家码"
+        maxlength="20"
       />
     </NFormItem>
 

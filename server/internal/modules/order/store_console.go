@@ -442,10 +442,14 @@ func (r *sqlStoreConsoleRepository) RollbackFoodOrderCancellation(ctx context.Co
 }
 
 func maskStorePhone(phone string) string {
-	if len(phone) < 7 {
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
+	}
+	if len(digits) < 7 {
 		return phone
 	}
-	return phone[:3] + "****" + phone[len(phone)-4:]
+	return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 }
 
 type FoodOrderRefundService interface {

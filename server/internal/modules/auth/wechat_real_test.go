@@ -141,7 +141,7 @@ func TestWeChatGetPhoneNumberRetriesOnTokenError(t *testing.T) {
 			}
 			writeJSON(t, w, map[string]any{
 				"errcode": 0, "errmsg": "ok",
-				"phone_info": map[string]any{"purePhoneNumber": "13900139000"},
+				"phone_info": map[string]any{"phoneNumber": "+8613900139000"},
 			})
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
@@ -158,6 +158,60 @@ func TestWeChatGetPhoneNumberRetriesOnTokenError(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&phoneHits); got != 2 {
 		t.Fatalf("expected 2 phone calls (retry after token error), got %d", got)
+	}
+}
+
+func TestNormalizeWeChatPhone(t *testing.T) {
+	tests := []struct {
+		name    string
+		info    weChatPhoneInfo
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "mainland keeps legacy representation",
+			info: weChatPhoneInfo{PhoneNumber: "+8613800138000", PurePhoneNumber: "13800138000", CountryCode: "86"},
+			want: "13800138000",
+		},
+		{
+			name: "hong kong becomes e164",
+			info: weChatPhoneInfo{PhoneNumber: "+85291234567", PurePhoneNumber: "91234567", CountryCode: "852"},
+			want: "+85291234567",
+		},
+		{
+			name: "e164 fallback without split fields",
+			info: weChatPhoneInfo{PhoneNumber: "+12025550123"},
+			want: "+12025550123",
+		},
+		{
+			name: "mainland pure number fallback",
+			info: weChatPhoneInfo{PurePhoneNumber: "13900139000"},
+			want: "13900139000",
+		},
+		{
+			name:    "ambiguous overseas number is rejected",
+			info:    weChatPhoneInfo{PurePhoneNumber: "91234567"},
+			wantErr: true,
+		},
+		{
+			name:    "oversized e164 number is rejected",
+			info:    weChatPhoneInfo{PurePhoneNumber: "123456789012345", CountryCode: "852"},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeWeChatPhone(tt.info)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil || got != tt.want {
+				t.Fatalf("normalizeWeChatPhone() = %q, %v; want %q", got, err, tt.want)
+			}
+		})
 	}
 }
 

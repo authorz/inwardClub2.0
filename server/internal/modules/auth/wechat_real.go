@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -93,14 +94,16 @@ func (c *WeChatHTTPClient) Code2Session(ctx context.Context, code string) (WeCha
 	}, nil
 }
 
+type weChatPhoneInfo struct {
+	PhoneNumber     string `json:"phoneNumber"`
+	PurePhoneNumber string `json:"purePhoneNumber"`
+	CountryCode     string `json:"countryCode"`
+}
+
 type getPhoneResponse struct {
-	ErrCode   int    `json:"errcode"`
-	ErrMsg    string `json:"errmsg"`
-	PhoneInfo struct {
-		PhoneNumber     string `json:"phoneNumber"`
-		PurePhoneNumber string `json:"purePhoneNumber"`
-		CountryCode     string `json:"countryCode"`
-	} `json:"phone_info"`
+	ErrCode   int             `json:"errcode"`
+	ErrMsg    string          `json:"errmsg"`
+	PhoneInfo weChatPhoneInfo `json:"phone_info"`
 }
 
 // GetPhoneNumber resolves a phone number from a mini-program phone code via
@@ -127,16 +130,67 @@ func (c *WeChatHTTPClient) GetPhoneNumber(ctx context.Context, phoneCode string)
 	if resp.ErrCode != 0 {
 		return "", weChatAPIError("getuserphonenumber", resp.ErrCode, resp.ErrMsg)
 	}
-	// Prefer the country-code-free number so it matches the 11-digit CN format the
-	// member store and masking assume; fall back to phoneNumber if absent.
-	phone := resp.PhoneInfo.PurePhoneNumber
-	if phone == "" {
-		phone = resp.PhoneInfo.PhoneNumber
+	return normalizeWeChatPhone(resp.PhoneInfo)
+}
+
+// normalizeWeChatPhone converts the verified WeChat response into the canonical
+// member phone key. Mainland numbers retain the existing 11-digit representation
+// so they remain compatible with current rows; overseas numbers use E.164.
+func normalizeWeChatPhone(info weChatPhoneInfo) (string, error) {
+	countryCode := strings.TrimPrefix(strings.TrimSpace(info.CountryCode), "+")
+	pure := strings.TrimSpace(info.PurePhoneNumber)
+	full := strings.TrimSpace(info.PhoneNumber)
+
+	if countryCode == "" && pure != "" {
+		if len(pure) == 11 && decimalDigits(pure) {
+			return pure, nil
+		}
+		return "", fmt.Errorf("wechat getuserphonenumber returned phone without country code")
 	}
-	if phone == "" {
-		return "", fmt.Errorf("wechat getuserphonenumber returned empty phone")
+	if countryCode != "" || pure != "" {
+		if !decimalDigits(countryCode) || len(countryCode) > 3 || countryCode[0] == '0' {
+			return "", fmt.Errorf("wechat getuserphonenumber returned invalid country code")
+		}
+		if !decimalDigits(pure) || len(countryCode)+len(pure) > 15 {
+			return "", fmt.Errorf("wechat getuserphonenumber returned invalid phone")
+		}
+		if countryCode == "86" {
+			if len(pure) != 11 {
+				return "", fmt.Errorf("wechat getuserphonenumber returned invalid mainland phone")
+			}
+			return pure, nil
+		}
+		return "+" + countryCode + pure, nil
 	}
-	return phone, nil
+
+	// Some older responses omit split fields. Accept only an unambiguous E.164
+	// phoneNumber, or the established 11-digit mainland representation.
+	if strings.HasPrefix(full, "+") {
+		digits := strings.TrimPrefix(full, "+")
+		if !decimalDigits(digits) || len(digits) > 15 || digits[0] == '0' {
+			return "", fmt.Errorf("wechat getuserphonenumber returned invalid phone")
+		}
+		if strings.HasPrefix(digits, "86") && len(digits) == 13 {
+			return digits[2:], nil
+		}
+		return "+" + digits, nil
+	}
+	if len(full) == 11 && decimalDigits(full) {
+		return full, nil
+	}
+	return "", fmt.Errorf("wechat getuserphonenumber returned empty or ambiguous phone")
+}
+
+func decimalDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *WeChatHTTPClient) callGetPhone(ctx context.Context, token, phoneCode string) (getPhoneResponse, error) {

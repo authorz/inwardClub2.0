@@ -1632,8 +1632,11 @@ func TestSearchMembersByPhone(t *testing.T) {
 	if _, err := svc.SearchMembersByPhone(context.Background(), "%%%"); apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT for wildcard input, got %v", err)
 	}
-	if _, err := svc.SearchMembersByPhone(context.Background(), "138000000071"); apperr.From(err).Code != apperr.CodeInvalidArgument {
-		t.Fatalf("expected INVALID_ARGUMENT for >11 digits, got %v", err)
+	if _, err := svc.SearchMembersByPhone(context.Background(), "+85291234567"); err != nil {
+		t.Fatalf("expected E.164 phone search to be accepted, got %v", err)
+	}
+	if _, err := svc.SearchMembersByPhone(context.Background(), "123456789012345678901"); apperr.From(err).Code != apperr.CodeInvalidArgument {
+		t.Fatalf("expected INVALID_ARGUMENT for >20 characters, got %v", err)
 	}
 	// No match returns an empty list (not an error).
 	empty, err := svc.SearchMembersByPhone(context.Background(), "999")

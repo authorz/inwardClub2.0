@@ -3,7 +3,7 @@
 <scroll-view class="ic-scroll-view spr__scroll" scroll-y enhanced show-scrollbar="{{false}}" lower-threshold="120" bindscrolltolower="loadMore" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="onPullDownRefresh">
 <view class="spr">
   <view class="spr__search">
-    <input class="spr__search-input" type="number" maxlength="11" value="{{keyword}}" placeholder="输入手机号任意数字，常用后四位" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
+    <input class="spr__search-input" type="text" maxlength="20" value="{{keyword}}" placeholder="输入手机号或尾号，海外号码可含国家码" placeholder-class="spr__search-ph" confirm-type="search" bindinput="onSearch" bindconfirm="search" />
     <text wx:if="{{keyword}}" class="spr__search-clear" bindtap="clearSearch">清除</text>
     <text class="spr__search-button" bindtap="search">搜索</text>
   </view>

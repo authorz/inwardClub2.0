@@ -578,12 +578,15 @@ func (s *StoreService) ListPointSavings(ctx context.Context, storeID int64, page
 	}
 	phone = strings.TrimSpace(phone)
 	if phone != "" {
-		if len(phone) > 11 {
-			return nil, 0, apperr.Invalid("手机号搜索内容不能超过 11 位")
+		if len(phone) > 20 {
+			return nil, 0, apperr.Invalid("手机号搜索内容不能超过 20 位")
 		}
-		for _, ch := range phone {
+		for index, ch := range phone {
+			if index == 0 && ch == '+' {
+				continue
+			}
 			if ch < '0' || ch > '9' {
-				return nil, 0, apperr.Invalid("手机号只能包含数字")
+				return nil, 0, apperr.Invalid("手机号只能包含数字或开头的 +")
 			}
 		}
 	}

@@ -28,7 +28,7 @@
 | 用途 | 方法 & 路径 | 说明 |
 | --- | --- | --- |
 | 登录换 openid | `GET /sns/jscode2session` | 参数 `appid/secret/js_code/grant_type=authorization_code`；返回 `openid/unionid/session_key`。 |
-| 手机号解析 | `POST /wxa/business/getuserphonenumber?access_token=...` | body `{"code": <phoneCode>}`；返回 `phone_info.purePhoneNumber`（无国家码，匹配 11 位 CN 格式）。 |
+| 手机号解析 | `POST /wxa/business/getuserphonenumber?access_token=...` | body `{"code": <phoneCode>}`；使用微信验证后的 `phone_info.countryCode`、`purePhoneNumber` 与 `phoneNumber`。 |
 | 应用令牌 | `POST /cgi-bin/stable_token` | body `{grant_type:client_credential, appid, secret, force_refresh}`；返回 `access_token/expires_in`。 |
 
 Host 默认 `https://api.weixin.qq.com`，测试用 `httptest` 覆盖（`baseURL` 字段）。
@@ -63,6 +63,11 @@ fake 默认下（本地/测试）无需任何微信凭证，也不触网。
 
 - `WeChatClient` 接口签名不变；真实与 fake 均实现 `Code2Session` /
   `GetPhoneNumber`，切换只在组合根一处。
-- 手机号取 `purePhoneNumber`，与 `member` 侧 `maskPhone`（保留前 3 后 4）一致。
+- 手机号只能通过微信一次性 `phoneCode` 在服务端换取。注册 DTO 不接收手机号，换绑 DTO
+  也只接收 `code`，客户端不能手工提交号码完成注册或换绑。
+- 中国大陆 `countryCode=86` 继续保存 11 位 `purePhoneNumber`，兼容已有会员；海外号码
+  规范化为 E.164（如 `+85291234567`），以“国家码 + 本地号码”参与唯一约束。
+- 国家码缺失且无法明确判断为大陆号码时拒绝绑定，避免把不同国家的同号号码错误合并。
+- 大陆与海外号码均按保留前 3、后 4 的规则掩码展示。
 - `session_key` 已随 `WeChatSession` 返回；当前登录只用 `openid`，如未来改用
   加密数据解密手机号可直接复用。

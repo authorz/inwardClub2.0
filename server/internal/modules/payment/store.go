@@ -731,10 +731,14 @@ func normalizePhone(phone string) string {
 // maskPhone keeps the leading 3 and trailing 4 digits, masking the middle. Short
 // values are returned unchanged so a malformed stored value is not exposed.
 func maskPhone(phone string) string {
-	if len(phone) < 7 {
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
+	}
+	if len(digits) < 7 {
 		return phone
 	}
-	return phone[:3] + "****" + phone[len(phone)-4:]
+	return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 }
 
 // maskNickname reveals only the first rune, so the operator can confirm the

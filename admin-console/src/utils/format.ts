@@ -46,5 +46,9 @@ export function formatDate(value: string | number | Date | null | undefined): st
 /** 手机号掩码展示，例：138****8000 */
 export function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '-'
-  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+  if (phone.includes('*')) return phone
+  const prefix = phone.trim().startsWith('+') ? '+' : ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 7) return phone
+  return `${prefix}${digits.slice(0, 3)}****${digits.slice(-4)}`
 }

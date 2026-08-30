@@ -89,6 +89,16 @@ func TestCompletePreRegisteredMemberRejectsDuplicatePhone(t *testing.T) {
 		t.Fatalf("duplicate phone: got %s, want %s", code, apperr.CodeConflict)
 	}
 }
+
+func TestMaskPhoneSupportsE164(t *testing.T) {
+	if got := maskPhone("+85291234567"); got != "+852****4567" {
+		t.Fatalf("unexpected overseas phone mask %q", got)
+	}
+	if got := maskPhone("13800138000"); got != "138****8000" {
+		t.Fatalf("unexpected mainland phone mask %q", got)
+	}
+}
+
 func (r *memMemberRepo) BumpTokenVersion(_ context.Context, id int64) error {
 	m := r.byID[id]
 	m.TokenVersion++

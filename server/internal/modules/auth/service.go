@@ -309,12 +309,16 @@ func (s *Service) RegisterAvatar(ctx context.Context, registerTicket string, r i
 	return s.avatars.UploadAvatar(ctx, r, size, contentType)
 }
 
-// maskPhone returns a masked phone number for display (e.g. "13812345678" -> "138****5678").
+// maskPhone returns a masked mainland or E.164 phone number for display.
 func maskPhone(phone string) string {
-	if len(phone) != 11 {
-		return phone // fallback for non-standard formats
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
 	}
-	return phone[:3] + "****" + phone[7:]
+	if len(digits) < 7 {
+		return phone
+	}
+	return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 }
 
 // issueMemberSession mints a mini access/refresh pair for an active member.

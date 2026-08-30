@@ -236,8 +236,12 @@ func hydrateFoodReceipt(ctx context.Context, tx *sql.Tx, r Receipt) (Receipt, er
 // MaskedMember returns the receipt-safe member identifier shared by payment
 // and coupon receipt producers.
 func MaskedMember(phone, nickname string) string {
-	if len(phone) >= 7 {
-		return phone[:3] + "****" + phone[len(phone)-4:]
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
+	}
+	if len(digits) >= 7 {
+		return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 	}
 	if strings.TrimSpace(nickname) != "" {
 		return nickname

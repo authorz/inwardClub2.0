@@ -268,7 +268,10 @@ func TestListPointSavingsFiltersPendingByPhone(t *testing.T) {
 	if total != 1 || len(views) != 1 || views[0].ID != 1 {
 		t.Fatalf("expected one single-digit phone match, got %+v (total %d)", views, total)
 	}
-	for _, phone := range []string{"12A4", "123456789012"} {
+	if _, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{}, PointSavingPending, "+85291234567"); err != nil {
+		t.Fatalf("expected E.164 phone filter to be accepted, got %v", err)
+	}
+	for _, phone := range []string{"12A4", "123456789012345678901"} {
 		if _, _, err := svc.ListPointSavings(context.Background(), 7, httpx.Page{}, PointSavingPending, phone); apperr.From(err).Code != apperr.CodeInvalidArgument {
 			t.Fatalf("expected invalid phone filter %q, got %v", phone, err)
 		}

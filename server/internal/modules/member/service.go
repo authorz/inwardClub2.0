@@ -604,8 +604,12 @@ func normalizeRankingPeriod(period string) (string, error) {
 // maskPhone masks the middle of a phone number, keeping the leading 3 and
 // trailing 4 digits. Short or empty values are returned unchanged/empty.
 func maskPhone(phone string) string {
-	if len(phone) < 7 {
+	prefix, digits := "", phone
+	if len(phone) > 0 && phone[0] == '+' {
+		prefix, digits = "+", phone[1:]
+	}
+	if len(digits) < 7 {
 		return phone
 	}
-	return phone[:3] + "****" + phone[len(phone)-4:]
+	return prefix + digits[:3] + "****" + digits[len(digits)-4:]
 }
