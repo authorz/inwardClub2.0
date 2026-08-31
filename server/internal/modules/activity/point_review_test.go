@@ -43,7 +43,9 @@ func TestCalculatePointReviewRules(t *testing.T) {
 		wantExcess, wantCoinBase int64
 	}{
 		{name: "outside business excludes known base from coins", window: outsideWindow, requested: 8000, base: 3000, wantPoints: 1600, wantCoin: 2, wantExcess: 5000, wantCoinBase: 5000},
-		{name: "inside without base does not award coins", window: insideWindow, requested: 8000, base: 0, wantPoints: 1600, wantCoin: 0},
+		{name: "inside without base awards coins from saved points", window: insideWindow, requested: 8000, base: 0, wantPoints: 1600, wantCoin: 4, wantCoinBase: 8000},
+		{name: "inside without base below coin divisor", window: insideWindow, requested: 1999, base: 0, wantPoints: 399, wantCoin: 0, wantCoinBase: 1999},
+		{name: "inside without base at coin divisor", window: insideWindow, requested: 2000, base: 0, wantPoints: 400, wantCoin: 1, wantCoinBase: 2000},
 		{name: "inside below base", window: insideWindow, requested: 800, base: 1000, wantPoints: 400, wantCoin: 0},
 		{name: "inside equal to base", window: insideWindow, requested: 1000, base: 1000, wantPoints: 1000, wantCoin: 0},
 		{name: "inside over base", window: insideWindow, requested: 1600, base: 1000, wantPoints: 1120, wantCoin: 0, wantExcess: 600, wantCoinBase: 600},
@@ -74,7 +76,7 @@ func TestCalculatePointReviewUsesConfiguredRatios(t *testing.T) {
 		0,
 		PointReviewRule{PointsDivisor: 3, CoinPointsDivisor: 1500, Version: 2},
 	)
-	if got.AwardedPoints != 3000 || got.AwardedCoins != 0 {
+	if got.AwardedPoints != 3000 || got.AwardedCoins != 6 || got.CoinBasePoints != 9000 {
 		t.Fatalf("configured calculation=%+v", got)
 	}
 }

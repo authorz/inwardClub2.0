@@ -64,8 +64,15 @@ func calculatePointReview(window pointReviewWindow, requested, base int64, rule 
 		rule.CoinPointsDivisor = defaultCoinPointsDivisor
 	}
 	calc := PointReviewCalculation{RequestedPoints: requested, Window: window}
-	coinDescription := "奖励金币 = 0；无正数基数积分，不将总存入积分计为盈利"
-	if base > 0 {
+	var coinDescription string
+	if base <= 0 {
+		calc.CoinBasePoints = requested
+		calc.AwardedCoins = calc.CoinBasePoints / rule.CoinPointsDivisor
+		coinDescription = fmt.Sprintf(
+			"奖励金币 = 存入积分 %d ÷ %d（向下取整）= %d",
+			calc.CoinBasePoints, rule.CoinPointsDivisor, calc.AwardedCoins,
+		)
+	} else {
 		calc.BasePoints = base
 		if requested > base {
 			calc.ExcessPoints = requested - base
