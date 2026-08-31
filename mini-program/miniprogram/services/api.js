@@ -370,7 +370,7 @@ const BENEFIT_TYPE_LABEL = {
   beverage: '饮料券', drink: '饮品或啤酒券', meal: '餐食券', gift: '礼品券',
 };
 const BENEFIT_TYPE_ICON = {
-  event_ticket: '/assets/icons/ticket-qr.svg',
+  event_ticket: 'https://assets.inwardclub.com/public/images/coupon-gpt.png',
   admission_ticket: '/assets/icons/ticket-qr.svg',
   snack: '/pages/benefits/assets/monthly-snack-coupon.svg',
   alcohol: '/pages/benefits/assets/exclusive-wine-glass.svg',
@@ -390,6 +390,8 @@ function benefitRuleText(item, suffix) {
   return period + trigger + suffix;
 }
 function benefitValidityText(item) {
+  const validityDays = Number(item.validityDays);
+  if (Number.isFinite(validityDays) && validityDays > 0) return validityDays + '天有效';
   if (item.trigger === 'weekday_event') return '本周一至周五有效';
   if (item.trigger === 'weekly_event') return '本自然周有效';
   if (item.trigger === 'monthly_event') return '本自然月有效';
