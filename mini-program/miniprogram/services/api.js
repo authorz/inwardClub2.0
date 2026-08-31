@@ -397,7 +397,7 @@ function benefitValidityText(item) {
   if (item.trigger === 'monthly_event') return '本自然月有效';
   return '30天有效';
 }
-function benefitItems(tier) {
+function benefitItems(tier, couponCategoriesByID) {
   const config = tier && tier.benefitConfig;
   if (!config) {
     return String((tier && tier.benefits) || '').split(/[\n;；]+/).map((title) => title.trim()).filter(Boolean)
@@ -408,11 +408,15 @@ function benefitItems(tier) {
     title: Number(item.amount || 0) + ' 积分',
     desc: benefitRuleText(item, '赠送'),
   }));
-  const coupons = (config.coupons || []).map((item) => ({
-    icon: BENEFIT_TYPE_ICON[item.couponType] || '/pages/benefits/assets/more-rewards.svg',
-    title: (BENEFIT_TYPE_LABEL[item.couponType] || '福利券') + ' × ' + Number(item.quantity || 0),
-    desc: benefitRuleText(item, '发放') + ' · ' + benefitValidityText(item),
-  }));
+  const coupons = (config.coupons || []).map((item) => {
+    const category = (couponCategoriesByID || {})[String(item.categoryId)] || {};
+    const couponType = item.couponType || category.businessType;
+    return {
+      icon: BENEFIT_TYPE_ICON[couponType] || '/pages/benefits/assets/more-rewards.svg',
+      title: (category.name || BENEFIT_TYPE_LABEL[couponType] || '福利券') + ' × ' + Number(item.quantity || 0),
+      desc: benefitRuleText(item, '发放') + ' · ' + benefitValidityText(item),
+    };
+  });
   const descriptions = (config.descriptions || []).map((title) => ({
     icon: '/pages/benefits/assets/more-rewards.svg', title, desc: '专属权益',
   }));
@@ -442,11 +446,21 @@ const api = {
   getBanners: (storeId) => http.get(m(`/stores/${storeId}/banners`)),
   getMembershipTiers: () => http.get(m('/membership-tiers')),
   // Benefits overview: composes the flat tier array + member current tier
-  // (/mini/me) + wallet growth into the object shape the 会员权益 page reads.
+  // (/mini/me) + wallet growth + coupon category names into the object shape
+  // the 会员权益 page reads.
   getBenefitsOverview: () =>
-    Promise.all([http.get(m('/membership-tiers')), api.getMe(), http.get(m('/wallet'))]).then(
-      ([tiersRes, meRes, walletRes]) => {
+    Promise.all([
+      http.get(m('/membership-tiers')),
+      api.getMe(),
+      http.get(m('/wallet')),
+      api.getCouponCategories().catch(() => ({ data: [] })),
+    ]).then(
+      ([tiersRes, meRes, walletRes, categoriesRes]) => {
         const tiers = (tiersRes.data || []).slice().sort((a, b) => (a.level || 0) - (b.level || 0));
+        const couponCategoriesByID = (categoriesRes.data || []).reduce((byID, category) => {
+          byID[String(category.id)] = category;
+          return byID;
+        }, {});
         const vip = (meRes.data || {}).vipTier || {};
         const wallet = normalizeWallet(walletRes.data);
         const curLevel = vip.level || (tiers[0] && tiers[0].level) || 1;
@@ -458,7 +472,7 @@ const api = {
             currentLevel: curLevel,
             growthValue: wallet.growthValue || 0,
             growthMax: (next && next.threshold) || curTier.threshold || 1000,
-            benefits: benefitItems(curTier),
+            benefits: benefitItems(curTier, couponCategoriesByID),
             levels: tiers.map((t) => ({
               code: levelToCode(t.level),
               level: t.level,
@@ -466,7 +480,7 @@ const api = {
               threshold: t.threshold || 0,
               desc: t.benefits || '',
               benefitConfig: t.benefitConfig || null,
-              privileges: benefitItems(t),
+              privileges: benefitItems(t, couponCategoriesByID),
             })),
           },
         };
