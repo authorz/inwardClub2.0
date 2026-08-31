@@ -56,3 +56,6 @@ output/
 bug/
 tasks/
 design-demo/
+
+# ===== 本地数据库备份 / 生产回滚快照 =====
+/database/

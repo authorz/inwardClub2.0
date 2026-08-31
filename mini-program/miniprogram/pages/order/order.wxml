@@ -46,8 +46,8 @@
             </view>
             <text class="ord__item-name ic-ellipsis">{{it.name}}</text>
             <text wx:if="{{it.description}}" class="ord__item-desc">{{it.description}}</text>
-            <text wx:if="{{it.isCoupon}}" class="ord__item-benefit">券到账后 30 天有效</text>
-            <text wx:if="{{it.pointsReward > 0}}" class="ord__item-benefit">购买每份赠 {{it.pointsReward}} 积分</text>
+<!--            <text wx:if="{{it.isCoupon}}" class="ord__item-benefit">券到账后 30 天有效</text>-->
+<!--            <text wx:if="{{it.pointsReward > 0}}" class="ord__item-benefit">购买每份赠 {{it.pointsReward}} 积分</text>-->
             <view class="ord__item-foot">
               <view class="ord__item-row">
                 <text class="ord__item-yuan {{it.priceCompact ? 'ord__item-yuan--compact' : ''}}">¥{{it.priceText}}</text>
