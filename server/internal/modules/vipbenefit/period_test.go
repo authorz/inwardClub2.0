@@ -68,6 +68,44 @@ func TestPeriodKeyUsesNaturalWeek(t *testing.T) {
 	}
 }
 
+func TestPeriodKeyUsesShanghaiNaturalDayAndMonth(t *testing.T) {
+	tests := []struct {
+		name   string
+		period string
+		now    string
+		want   string
+	}{
+		{name: "day before Shanghai midnight", period: "daily", now: "2026-08-31T15:59:59Z", want: "20260831"},
+		{name: "day after Shanghai midnight", period: "daily", now: "2026-08-31T16:00:00Z", want: "20260901"},
+		{name: "month before Shanghai midnight", period: "monthly", now: "2026-08-31T15:59:59Z", want: "202608"},
+		{name: "month after Shanghai midnight", period: "monthly", now: "2026-08-31T16:00:00Z", want: "202609"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := periodKey(test.period, mustTime(t, test.now))
+			if !ok || got != test.want {
+				t.Fatalf("periodKey(%q) = %q, %v; want %q, true", test.period, got, ok, test.want)
+			}
+		})
+	}
+}
+
+func TestBenefitKeySeparatesIndependentNaturalPeriods(t *testing.T) {
+	now := mustTime(t, "2026-09-01T12:00:00+08:00")
+	keys := make(map[string]string)
+	for _, period := range []string{"daily", "weekly", "monthly"} {
+		periodValue, ok := periodKey(period, now)
+		if !ok {
+			t.Fatalf("periodKey(%q) was rejected", period)
+		}
+		key := benefitKey("c", 7, 3, period, "low_spend:category:12", periodValue, 0)
+		if previousPeriod, exists := keys[key]; exists {
+			t.Fatalf("%s and %s benefits share idempotency key %q", previousPeriod, period, key)
+		}
+		keys[key] = period
+	}
+}
+
 func TestLegacyEventCouponCategoryNameFollowsTrigger(t *testing.T) {
 	tests := []struct {
 		trigger string

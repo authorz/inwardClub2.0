@@ -544,6 +544,11 @@ components:
         status: { type: string }
     TierBenefitConfig:
       type: object
+      description: >-
+        VIP tier benefits. Each benefit is evaluated independently when its trigger occurs.
+        Daily, weekly, and monthly periods use Asia/Shanghai natural calendar boundaries;
+        one matching benefit is granted at most once in its period, while benefits with
+        different periods may be granted by the same event.
       properties:
         points:
           type: array
@@ -552,7 +557,7 @@ components:
             required: [amount, period, trigger]
             properties:
               amount: { type: integer, format: int64, minimum: 1 }
-              period: { type: string, enum: [once, daily, weekly, monthly] }
+              period: { type: string, enum: [once, daily, weekly, monthly], description: Grant frequency; once means once while holding this tier. }
               trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
         coupons:
           type: array
@@ -563,7 +568,7 @@ components:
               categoryId: { type: integer, format: int64, description: Exact admin-managed coupon category to grant. }
               couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift], deprecated: true, description: Legacy fallback for benefit configurations saved before category management. }
               quantity: { type: integer, minimum: 1, maximum: 99 }
-              period: { type: string, enum: [once, daily, weekly, monthly] }
+              period: { type: string, enum: [once, daily, weekly, monthly], description: Grant frequency; daily/weekly/monthly follow Asia/Shanghai natural calendar boundaries. }
               trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
         descriptions:
           type: array

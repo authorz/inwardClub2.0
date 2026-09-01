@@ -379,7 +379,7 @@ const BENEFIT_TYPE_ICON = {
   meal: '/pages/benefits/assets/monthly-snack-coupon.svg',
   gift: '/pages/benefits/assets/more-rewards.svg',
 };
-const BENEFIT_PERIOD_LABEL = { once: '达级', daily: '每日', weekly: '每周', monthly: '每月' };
+const BENEFIT_PERIOD_LABEL = { once: '仅一次', daily: '每自然日', weekly: '每自然周', monthly: '每自然月' };
 const BENEFIT_TRIGGER_LABEL = {
   tier_achieved: '达到等级', low_spend: '低消达标', first_order: '首次下单', visit: '到店', period_start: '周期自动',
   weekday_event: '工作日赛事', weekly_event: '周赛', monthly_event: '月赛',

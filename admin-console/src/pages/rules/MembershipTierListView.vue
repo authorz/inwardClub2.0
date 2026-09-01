@@ -17,10 +17,10 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 
 const couponTypes = ref<{ label: string; value: string | number; businessType: string; defaultValidityDays: number }[]>([])
 const periods = [
-  { label: '达级时', value: 'once' },
-  { label: '每日', value: 'daily' },
-  { label: '每周', value: 'weekly' },
-  { label: '每月', value: 'monthly' },
+  { label: '仅一次', value: 'once' },
+  { label: '每自然日', value: 'daily' },
+  { label: '每自然周', value: 'weekly' },
+  { label: '每自然月', value: 'monthly' },
 ]
 const triggers = [
   { label: '达到等级', value: 'tier_achieved' },
@@ -182,7 +182,7 @@ const toolbarActions = [{
     <ResourceListView
       ref="listRef"
       title="VIP 等级"
-      description="配置成长值门槛、积分、券与文字权益；资产福利在会员达级后自动发放"
+      description="配置成长值门槛、积分、券与文字权益；资产权益按各自设置的周期和条件独立发放"
       :breadcrumb="['权益规则', 'VIP 等级']"
       :fields="fields"
       :columns="columns"
@@ -220,7 +220,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>积分福利</h3><p>可以配置多条不同周期或场景的积分规则。</p></div><NButton
+            <div><h3>积分福利</h3><p>达到设置条件后发放；每条规则按自然周期独立计算。</p></div><NButton
               size="small"
               @click="addPointBenefit"
             >
@@ -263,7 +263,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>赠送券</h3><p>直接选择总后台券种，并设置每次发放数量与有效期。</p></div><NButton
+            <div><h3>赠送券</h3><p>达到设置条件后发放；同一规则在当前自然周期内不重复发放。</p></div><NButton
               size="small"
               @click="addCouponBenefit"
             >
@@ -328,7 +328,7 @@ const toolbarActions = [{
         </NFormItem>
       </NForm>
       <p class="form-note">
-        自动发放的积分流水说明统一为“VIP等级福利”；每张赠券从实际发放时间开始，按该权益配置的有效天数计算到期时间。
+        每自然日、每自然周、每自然月的权益互不排斥，同一次达标可同时触发多条规则。自动发放的积分流水说明统一为“VIP等级福利”；每张赠券从实际发放时间开始，按该权益配置的有效天数计算到期时间。
       </p>
     </FormDrawer>
   </div>
