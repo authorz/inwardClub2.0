@@ -385,7 +385,9 @@ const BENEFIT_TRIGGER_LABEL = {
   weekday_event: '工作日赛事', weekly_event: '周赛', monthly_event: '月赛',
 };
 function benefitRuleText(item, suffix) {
-  const period = BENEFIT_PERIOD_LABEL[item.period] || '';
+  const period = item.period === 'daily' && item.trigger === 'low_spend'
+    ? '每营业场次'
+    : (BENEFIT_PERIOD_LABEL[item.period] || '');
   const trigger = BENEFIT_TRIGGER_LABEL[item.trigger] || '';
   return period + trigger + suffix;
 }

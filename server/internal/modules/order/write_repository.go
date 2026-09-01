@@ -755,7 +755,7 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 				); err != nil {
 					return err
 				}
-				lowSpendQualified, err := wallet.TimedLowSpendQualified(
+				vipLowSpend, err := wallet.EvaluateVIPLowSpend(
 					ctx, tx, in.MemberID, storeID.Int64, in.Now,
 				)
 				if err != nil {
@@ -764,7 +764,8 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 				if _, err := vipbenefit.GrantFoodPayment(ctx, tx, vipbenefit.FoodPayment{
 					PaymentOrderID: in.PaymentOrderID, BusinessOrderID: businessID,
 					MemberID: in.MemberID, StoreID: storeID.Int64,
-					PaidAt: in.Now, LowSpend: lowSpendQualified,
+					PaidAt: in.Now, LowSpend: vipLowSpend.Qualified,
+					LowSpendPeriodKey: vipLowSpend.PeriodKey,
 				}); err != nil {
 					return err
 				}

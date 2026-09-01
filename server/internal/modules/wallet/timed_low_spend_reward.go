@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/inwardclub/server/internal/platform/businesshours"
 	platdb "github.com/inwardclub/server/internal/platform/db"
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 )
@@ -31,6 +32,20 @@ type timedLowSpendWindow struct {
 	DayStart          time.Time
 	ReservationCutoff time.Time
 	ConsumptionCutoff time.Time
+}
+
+// VIPLowSpendResult identifies whether the member reached the configured low
+// spend amount and the store business session used for daily idempotency.
+type VIPLowSpendResult struct {
+	Qualified bool
+	PeriodKey string
+}
+
+type vipLowSpendWindow struct {
+	Start             time.Time
+	End               time.Time
+	MinimumAmountCent int64
+	PeriodKey         string
 }
 
 // GrantTimedLowSpendReward grants the current store's configured points reward
@@ -132,34 +147,86 @@ func GrantTimedLowSpendReward(
 	return settings.RewardPoints, nil
 }
 
-// TimedLowSpendQualified reports whether this paid food order has brought the
-// member to the store's configured low-spend threshold for the current Beijing
-// calendar day. Unlike GrantTimedLowSpendReward it does not use the ordinary
-// reward ledger as its result, so VIP benefits can still observe qualification
-// after that store reward has already been granted once today.
-func TimedLowSpendQualified(
+// EvaluateVIPLowSpend checks low-spend eligibility across the store business
+// session containing paidAt. It intentionally uses the configured store hours
+// instead of the timed points-reward cutoff, while retaining that rule's
+// configured minimum spend amount.
+func EvaluateVIPLowSpend(
 	ctx context.Context,
 	tx *sql.Tx,
 	memberID, storeID int64,
 	paidAt time.Time,
-) (bool, error) {
-	settings, err := loadTimedLowSpendSettings(ctx, tx, storeID)
-	if err != nil || !settings.Enabled {
-		return false, err
+) (VIPLowSpendResult, error) {
+	var (
+		businessHours string
+		enabled       bool
+		raw           []byte
+	)
+	err := tx.QueryRowContext(ctx, `SELECT s.business_hours, sr.enabled, sr.config_json
+		FROM stores s
+		JOIN store_rules sr ON sr.store_id = s.id AND sr.rule_key = 'timed_low_spend_reward'
+		WHERE s.id = ? AND s.status = 'active'`, storeID).Scan(&businessHours, &enabled, &raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return VIPLowSpendResult{}, nil
 	}
-	window, err := buildTimedLowSpendWindow(paidAt, settings)
 	if err != nil {
-		return false, err
+		return VIPLowSpendResult{}, apperr.Internal(err)
 	}
-	paidAt = paidAt.UTC()
-	if paidAt.Before(window.DayStart) || !paidAt.Before(window.ConsumptionCutoff) {
-		return false, nil
+	window, active, err := buildVIPLowSpendWindow(businessHours, enabled, raw, paidAt)
+	if err != nil || !active {
+		return VIPLowSpendResult{}, err
 	}
-	totalCent, err := cumulativeFoodSpend(ctx, tx, memberID, storeID, window)
+
+	var lockedMemberID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM members WHERE id = ? FOR UPDATE`, memberID).
+		Scan(&lockedMemberID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return VIPLowSpendResult{}, apperr.NotFound("member not found")
+		}
+		return VIPLowSpendResult{}, apperr.Internal(err)
+	}
+	totalCent, err := cumulativeFoodSpendBetween(ctx, tx, memberID, storeID, window.Start, window.End)
 	if err != nil {
-		return false, err
+		return VIPLowSpendResult{}, err
 	}
-	return lowSpendAmountQualified(totalCent, settings.MinimumAmountCent), nil
+	return VIPLowSpendResult{
+		Qualified: lowSpendAmountQualified(totalCent, window.MinimumAmountCent),
+		PeriodKey: window.PeriodKey,
+	}, nil
+}
+
+func buildVIPLowSpendWindow(
+	businessHours string,
+	enabled bool,
+	raw json.RawMessage,
+	paidAt time.Time,
+) (vipLowSpendWindow, bool, error) {
+	if !enabled {
+		return vipLowSpendWindow{}, false, nil
+	}
+	var config struct {
+		MinimumAmountCent int64 `json:"minimumAmountCent"`
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return vipLowSpendWindow{}, false, apperr.Internal(err)
+	}
+	if config.MinimumAmountCent <= 0 {
+		return vipLowSpendWindow{}, false, nil
+	}
+	schedule, err := businesshours.Parse(businessHours)
+	if err != nil {
+		return vipLowSpendWindow{}, false, nil
+	}
+	start, end, active := schedule.CurrentWindow(paidAt, businesshours.ShanghaiLocation())
+	if !active {
+		return vipLowSpendWindow{}, false, nil
+	}
+	return vipLowSpendWindow{
+		Start:             start.UTC(),
+		End:               end.UTC(),
+		MinimumAmountCent: config.MinimumAmountCent,
+		PeriodKey:         start.Format("20060102"),
+	}, true, nil
 }
 
 func lowSpendAmountQualified(totalCent, minimumAmountCent int64) bool {
@@ -355,6 +422,15 @@ func cumulativeFoodSpend(
 	memberID, storeID int64,
 	window timedLowSpendWindow,
 ) (int64, error) {
+	return cumulativeFoodSpendBetween(ctx, tx, memberID, storeID, window.DayStart, window.ConsumptionCutoff)
+}
+
+func cumulativeFoodSpendBetween(
+	ctx context.Context,
+	tx *sql.Tx,
+	memberID, storeID int64,
+	start, end time.Time,
+) (int64, error) {
 	const q = `SELECT COALESCE(SUM(bo.total_amount_cent), 0)
 		FROM business_orders bo
 		WHERE bo.member_id = ? AND bo.store_id = ?
@@ -367,7 +443,7 @@ func cumulativeFoodSpend(
 		  )`
 	var total int64
 	if err := tx.QueryRowContext(ctx, q,
-		memberID, storeID, window.DayStart, window.ConsumptionCutoff,
+		memberID, storeID, start, end,
 	).Scan(&total); err != nil {
 		return 0, apperr.Internal(err)
 	}

@@ -18,7 +18,7 @@ import { toastError, toastSuccess } from '@/utils/feedback'
 const couponTypes = ref<{ label: string; value: string | number; businessType: string; defaultValidityDays: number }[]>([])
 const periods = [
   { label: '仅一次', value: 'once' },
-  { label: '每自然日', value: 'daily' },
+  { label: '每日', value: 'daily' },
   { label: '每自然周', value: 'weekly' },
   { label: '每自然月', value: 'monthly' },
 ]
@@ -220,7 +220,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>积分福利</h3><p>达到设置条件后发放；每条规则按自然周期独立计算。</p></div><NButton
+            <div><h3>积分福利</h3><p>达到设置条件后发放；每日低消按门店营业场次独立计算。</p></div><NButton
               size="small"
               @click="addPointBenefit"
             >
@@ -263,7 +263,7 @@ const toolbarActions = [{
 
         <div class="benefit-section">
           <div class="benefit-head">
-            <div><h3>赠送券</h3><p>达到设置条件后发放；同一规则在当前自然周期内不重复发放。</p></div><NButton
+            <div><h3>赠送券</h3><p>达到设置条件后发放；每日低消按门店营业场次独立计算。</p></div><NButton
               size="small"
               @click="addCouponBenefit"
             >
@@ -328,7 +328,7 @@ const toolbarActions = [{
         </NFormItem>
       </NForm>
       <p class="form-note">
-        每自然日、每自然周、每自然月的权益互不排斥，同一次达标可同时触发多条规则。自动发放的积分流水说明统一为“VIP等级福利”；每张赠券从实际发放时间开始，按该权益配置的有效天数计算到期时间。
+        “每日 + 低消达标”按门店营业时间计为一个场次，同场次只发一次；每自然周、每自然月权益与其互不排斥。自动发放的积分流水说明统一为“VIP等级福利”；每张赠券从实际发放时间开始，按该权益配置的有效天数计算到期时间。
       </p>
     </FormDrawer>
   </div>

@@ -106,6 +106,42 @@ func TestBenefitKeySeparatesIndependentNaturalPeriods(t *testing.T) {
 	}
 }
 
+func TestLowSpendDailyKeyUsesBusinessSessionWhileWeekAndMonthStayNatural(t *testing.T) {
+	evening := mustTime(t, "2026-08-31T23:00:00+08:00")
+	morning := mustTime(t, "2026-09-01T07:00:00+08:00")
+	afternoon := mustTime(t, "2026-09-01T16:00:00+08:00")
+	morningSession := "20260831"
+	afternoonSession := "20260901"
+
+	morningDaily, ok := benefitPeriodKey("daily", "low_spend", morning, morningSession)
+	if !ok {
+		t.Fatal("morning daily key was rejected")
+	}
+	afternoonDaily, ok := benefitPeriodKey("daily", "low_spend", afternoon, afternoonSession)
+	if !ok {
+		t.Fatal("afternoon daily key was rejected")
+	}
+	if morningDaily == afternoonDaily {
+		t.Fatalf("separate business sessions share daily key %q", morningDaily)
+	}
+	eveningDaily, _ := benefitPeriodKey("daily", "low_spend", evening, morningSession)
+	if eveningDaily != morningDaily {
+		t.Fatalf("one overnight business session has two daily keys: %q != %q", eveningDaily, morningDaily)
+	}
+	legacyAfternoonKey, _ := periodKey("daily", afternoon)
+	if afternoonDaily != legacyAfternoonKey {
+		t.Fatalf("afternoon session key %q breaks compatibility with existing daily key %q", afternoonDaily, legacyAfternoonKey)
+	}
+
+	for _, period := range []string{"weekly", "monthly"} {
+		morningKey, _ := benefitPeriodKey(period, "low_spend", morning, morningSession)
+		afternoonKey, _ := benefitPeriodKey(period, "low_spend", afternoon, afternoonSession)
+		if morningKey != afternoonKey {
+			t.Fatalf("%s keys differ within one natural period: %q != %q", period, morningKey, afternoonKey)
+		}
+	}
+}
+
 func TestLegacyEventCouponCategoryNameFollowsTrigger(t *testing.T) {
 	tests := []struct {
 		trigger string

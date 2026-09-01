@@ -546,9 +546,10 @@ components:
       type: object
       description: >-
         VIP tier benefits. Each benefit is evaluated independently when its trigger occurs.
-        Daily, weekly, and monthly periods use Asia/Shanghai natural calendar boundaries;
-        one matching benefit is granted at most once in its period, while benefits with
-        different periods may be granted by the same event.
+        Weekly and monthly periods use Asia/Shanghai natural calendar boundaries. A daily
+        low_spend benefit instead uses the paid order's configured store-business-hours
+        session, including overnight sessions. One matching benefit is granted at most
+        once in its period, while benefits with different periods may share the same event.
       properties:
         points:
           type: array
@@ -568,7 +569,7 @@ components:
               categoryId: { type: integer, format: int64, description: Exact admin-managed coupon category to grant. }
               couponType: { type: string, enum: [event_ticket, snack, alcohol, beverage, drink, meal, gift], deprecated: true, description: Legacy fallback for benefit configurations saved before category management. }
               quantity: { type: integer, minimum: 1, maximum: 99 }
-              period: { type: string, enum: [once, daily, weekly, monthly], description: Grant frequency; daily/weekly/monthly follow Asia/Shanghai natural calendar boundaries. }
+              period: { type: string, enum: [once, daily, weekly, monthly], description: Grant frequency; daily low_spend uses the store business session, while other daily and all weekly/monthly benefits use Asia/Shanghai calendar boundaries. }
               trigger: { type: string, enum: [tier_achieved, low_spend, first_order, visit, period_start, weekday_event, weekly_event, monthly_event] }
         descriptions:
           type: array

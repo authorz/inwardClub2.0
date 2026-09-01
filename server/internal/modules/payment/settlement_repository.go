@@ -173,7 +173,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 			}
 		}
 		lowSpendQualified := false
-		vipLowSpendQualified := false
+		var vipLowSpend wallet.VIPLowSpendResult
 		if orderType == "food" && memberID.Valid {
 			if _, err := wallet.GrantFoodOrderPoints(
 				ctx, tx, paymentID, businessID, memberID.Int64, now,
@@ -191,7 +191,7 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				); err != nil {
 					return err
 				}
-				vipLowSpendQualified, err = wallet.TimedLowSpendQualified(
+				vipLowSpend, err = wallet.EvaluateVIPLowSpend(
 					ctx, tx, memberID.Int64, storeID.Int64, now,
 				)
 				if err != nil {
@@ -237,7 +237,8 @@ func (r *settlementSQLRepository) SettleWeChat(ctx context.Context, n WeChatNoti
 				if _, err := vipbenefit.GrantFoodPayment(ctx, tx, vipbenefit.FoodPayment{
 					PaymentOrderID: paymentID, BusinessOrderID: businessID,
 					MemberID: memberID.Int64, StoreID: storeID.Int64,
-					PaidAt: now, LowSpend: vipLowSpendQualified,
+					PaidAt: now, LowSpend: vipLowSpend.Qualified,
+					LowSpendPeriodKey: vipLowSpend.PeriodKey,
 				}); err != nil {
 					return err
 				}

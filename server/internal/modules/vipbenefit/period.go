@@ -36,6 +36,15 @@ func periodKey(period string, now time.Time) (string, bool) {
 	}
 }
 
+// benefitPeriodKey keeps weekly/monthly benefits on calendar periods while a
+// daily low-spend benefit follows the store business session that qualified it.
+func benefitPeriodKey(period, trigger string, now time.Time, lowSpendPeriodKey string) (string, bool) {
+	if period == "daily" && trigger == "low_spend" && lowSpendPeriodKey != "" {
+		return lowSpendPeriodKey, true
+	}
+	return periodKey(period, now)
+}
+
 func couponExpiry(trigger string, now time.Time) time.Time {
 	local := now.In(businessLocation)
 	dayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, businessLocation)

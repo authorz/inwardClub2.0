@@ -55,6 +55,9 @@ type FoodPayment struct {
 	StoreID         int64
 	PaidAt          time.Time
 	LowSpend        bool
+	// LowSpendPeriodKey identifies the store business session containing PaidAt.
+	// Daily low-spend benefits use it instead of the natural calendar date.
+	LowSpendPeriodKey string
 }
 
 type growthTier struct {
@@ -140,7 +143,7 @@ func grantTierReached(
 	if err != nil {
 		return err
 	}
-	if _, err := grantMatching(ctx, tx, memberID, tier, now, businessOrderID, func(trigger string) bool {
+	if _, err := grantMatching(ctx, tx, memberID, tier, now, businessOrderID, "", func(trigger string) bool {
 		return trigger == "tier_achieved"
 	}); err != nil {
 		return err
@@ -150,7 +153,7 @@ func grantTierReached(
 }
 
 // GrantFoodPayment applies benefits driven by a paid food order: first paid
-// order of the local day, qualified low spend, and the first in-hours visit.
+// order of the local day, business-session low spend, and the first in-hours visit.
 func GrantFoodPayment(ctx context.Context, tx *sql.Tx, in FoodPayment) (int64, error) {
 	tier, ok, err := loadCurrentTier(ctx, tx, in.MemberID)
 	if err != nil || !ok {
@@ -164,7 +167,7 @@ func GrantFoodPayment(ctx context.Context, tx *sql.Tx, in FoodPayment) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	return grantMatching(ctx, tx, in.MemberID, tier, in.PaidAt, in.BusinessOrderID, func(trigger string) bool {
+	return grantMatching(ctx, tx, in.MemberID, tier, in.PaidAt, in.BusinessOrderID, in.LowSpendPeriodKey, func(trigger string) bool {
 		switch trigger {
 		case "low_spend":
 			return in.LowSpend
@@ -250,7 +253,7 @@ func grantScheduledForOrder(
 	businessOrderID int64,
 	now time.Time,
 ) (int64, error) {
-	return grantMatching(ctx, tx, memberID, tier, now, businessOrderID, func(trigger string) bool {
+	return grantMatching(ctx, tx, memberID, tier, now, businessOrderID, "", func(trigger string) bool {
 		return scheduledTrigger(trigger) && scheduledTriggerActive(trigger, now)
 	})
 }
@@ -262,6 +265,7 @@ func grantMatching(
 	tier tierBenefits,
 	now time.Time,
 	businessOrderID int64,
+	lowSpendPeriodKey string,
 	match func(string) bool,
 ) (int64, error) {
 	var granted int64
@@ -269,7 +273,7 @@ func grantMatching(
 		if benefit.Amount <= 0 || !match(benefit.Trigger) {
 			continue
 		}
-		key, ok := periodKey(benefit.Period, now)
+		key, ok := benefitPeriodKey(benefit.Period, benefit.Trigger, now, lowSpendPeriodKey)
 		if !ok {
 			continue
 		}
@@ -285,7 +289,7 @@ func grantMatching(
 		if benefit.Quantity <= 0 || benefit.Quantity > 99 || !match(benefit.Trigger) {
 			continue
 		}
-		key, ok := periodKey(benefit.Period, now)
+		key, ok := benefitPeriodKey(benefit.Period, benefit.Trigger, now, lowSpendPeriodKey)
 		if !ok {
 			continue
 		}
