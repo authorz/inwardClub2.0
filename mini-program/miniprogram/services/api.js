@@ -280,7 +280,7 @@ function couponRedemptionBody(data) {
 
 // A seat reservation has no member-selected arrival time. The server records
 // its creation time and keeps the seat occupied until cancellation or the
-// daily 04:00 reset; `partySize` remains one seat by default.
+// daily midnight reset; `partySize` remains one seat by default.
 function reservationBody(data) {
   const d = data || {};
   return Object.assign({}, d, {

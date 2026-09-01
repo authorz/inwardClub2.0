@@ -6,7 +6,7 @@ import (
 )
 
 // noShowGrace applies only to table-only bookings. Seat bookings remain occupied
-// until manual cancellation or the daily 04:00 SeatResetService sweep.
+// until manual cancellation or the daily midnight SeatResetService sweep.
 const noShowGrace = 2 * time.Hour
 
 // ExpiryService runs the reservation cleanup sweep. It deletes table-only

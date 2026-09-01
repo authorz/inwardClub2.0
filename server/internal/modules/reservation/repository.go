@@ -36,6 +36,7 @@ type Repository interface {
 
 	// ExpireBookings deletes table-only reservations after their no-show grace.
 	ExpireBookings(ctx context.Context, reservedBefore, now time.Time) (int64, error)
+	// ClearSeatBookings releases seat bookings at the daily midnight boundary.
 	ClearSeatBookings(ctx context.Context, createdBefore, now time.Time) (int64, error)
 }
 
@@ -558,8 +559,8 @@ func (r *sqlRepository) ExpireBookings(ctx context.Context, reservedBefore, _ ti
 	return n, nil
 }
 
-// ClearSeatBookings releases seat reservations created before the latest
-// business-day 04:00 boundary. The cutoff makes startup catch-up safe: bookings
+// ClearSeatBookings releases seat reservations created before the latest local
+// midnight boundary. The cutoff makes startup catch-up safe: bookings
 // created after the boundary remain occupied until the next reset.
 func (r *sqlRepository) ClearSeatBookings(ctx context.Context, createdBefore, _ time.Time) (int64, error) {
 	const q = `DELETE FROM reservations WHERE status IN (?, ?) AND seat_id IS NOT NULL AND created_at < ?`

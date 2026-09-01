@@ -261,13 +261,13 @@ func newTestService() (*Service, *memRepo) {
 	return svc, repo
 }
 
-func TestLatestSeatResetUsesBusinessFourAM(t *testing.T) {
+func TestLatestSeatResetUsesCurrentMidnight(t *testing.T) {
 	svc, _ := newTestService()
 	svc.location = time.FixedZone("CST", 8*60*60)
 	svc.now = func() time.Time {
 		return time.Date(2026, 7, 18, 3, 0, 0, 0, svc.location)
 	}
-	want := time.Date(2026, 7, 17, 4, 0, 0, 0, svc.location).UTC()
+	want := time.Date(2026, 7, 18, 0, 0, 0, 0, svc.location).UTC()
 	if got := svc.latestSeatReset(); !got.Equal(want) {
 		t.Fatalf("latest reset: got %s, want %s", got, want)
 	}

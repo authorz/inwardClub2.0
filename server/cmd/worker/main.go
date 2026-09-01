@@ -206,7 +206,7 @@ func run() error {
 	if _, err := scheduler.Register(vipMonthlyBenefitCron, asynq.NewTask(TaskVipMonthlyBenefit, nil)); err != nil {
 		return fmt.Errorf("register benefit:vip-monthly schedule: %w", err)
 	}
-	if _, err := scheduler.Register("0 4 * * *", asynq.NewTask(TaskSeatReservationReset, nil)); err != nil {
+	if _, err := scheduler.Register("0 0 * * *", asynq.NewTask(TaskSeatReservationReset, nil)); err != nil {
 		return fmt.Errorf("register reservation:seat-reset schedule: %w", err)
 	}
 	// Expiry sweeps on their spec §11 cadence: per-minute expiries, hourly

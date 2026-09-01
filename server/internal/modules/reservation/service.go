@@ -61,9 +61,6 @@ func (s *Service) ListSeats(ctx context.Context, storeID int64) ([]SeatView, err
 func (s *Service) latestSeatReset() time.Time {
 	now := s.now().In(s.location)
 	cutoff := time.Date(now.Year(), now.Month(), now.Day(), seatResetHour, 0, 0, 0, s.location)
-	if now.Before(cutoff) {
-		cutoff = cutoff.AddDate(0, 0, -1)
-	}
 	return cutoff.UTC()
 }
 

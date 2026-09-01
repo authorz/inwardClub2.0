@@ -59,6 +59,15 @@ func TestLowSpendAmountQualifiedIncludesExactThreshold(t *testing.T) {
 	}
 }
 
+func TestTimedLowSpendRewardRequiresReservationOrWaitlist(t *testing.T) {
+	if timedLowSpendRewardQualified(false, 8800, 8800) {
+		t.Fatal("low spend without a reservation or waitlist must not grant the reservation reward")
+	}
+	if !timedLowSpendRewardQualified(true, 8800, 8800) {
+		t.Fatal("reserved member reaching the exact threshold must qualify")
+	}
+}
+
 func TestVIPLowSpendWindowUsesStoreBusinessSession(t *testing.T) {
 	raw := json.RawMessage(`{"minimumAmountCent":8800}`)
 	tests := []struct {
