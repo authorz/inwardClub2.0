@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "gen:icons": "node scripts/gen-tab-icons.js",
+    "test": "node --test tests/*.test.js",
     "lint": "eslint \"miniprogram/**/*.js\" \"scripts/**/*.js\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "node scripts/build.js"

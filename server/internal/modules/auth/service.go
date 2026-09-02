@@ -82,7 +82,7 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 		return LoginResponse{}, err
 	}
 	if !member.ProfileCompleted {
-		// A reservation-only pre-registration is still an incomplete member. A
+		// An activity-purchase pre-registration is still an incomplete member. A
 		// deliberate login must continue through avatar/nickname/phone/gender.
 		ticket, terr := s.tokens.IssueRegisterTicket(session.OpenID, "")
 		if terr != nil {
@@ -103,8 +103,8 @@ func (s *Service) MiniLogin(ctx context.Context, code string) (LoginResponse, er
 }
 
 // MiniPreRegister creates or reuses an OpenID-backed member. Completed members
-// recover their ordinary session; new users receive restricted reservation and
-// activity-purchase access without completing registration.
+// recover their ordinary session; new users receive restricted shared-activity
+// purchase access without completing registration.
 func (s *Service) MiniPreRegister(ctx context.Context, code string) (LoginResponse, error) {
 	var err error
 	code, err = inputvalidation.OpaqueToken("微信登录凭证", code, 2048)

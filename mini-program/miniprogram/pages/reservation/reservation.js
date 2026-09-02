@@ -5,7 +5,7 @@ const auth = require('../../utils/auth');
 const http = require('../../utils/request');
 const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
-const silentLogin = require('../../utils/silent-login');
+const memberAccess = require('../../utils/member-access');
 
 const RESERVATION_DAY_START_HOUR = 4;
 const FALLBACK_WAITLIST_AVATAR = 'https://assets.inwardclub.com/public/images/inward-logo-optimized.gif?imageMogr2/format/png';
@@ -97,7 +97,7 @@ Page({
     // the booked member's display profile. Group the real seats by table.
     // When logged in, load the member's active reservation as well so their
     // occupied seat can be identified from their own point of view.
-    const ownReservations = auth.hasReservationIdentity()
+    const ownReservations = auth.isLoggedIn()
       ? api.getReservations({ pageSize: 50 }).catch(() => ({ data: [] }))
       : Promise.resolve({ data: [] });
     Promise.all([api.getTables(storeId), api.getSeats(storeId), ownReservations])
@@ -214,6 +214,10 @@ Page({
   },
 
   onTableAction(e) {
+    memberAccess.requireCompleteProfile(() => this.handleTableAction(e));
+  },
+
+  handleTableAction(e) {
     const id = e.currentTarget.dataset.id;
     const tables = this.data.tables;
     const table = tables.find((item) => String(item.id) === String(id));
@@ -306,16 +310,9 @@ Page({
   },
 
   requireLogin(next) {
-    if (auth.isLoggedIn()) return next();
-    wx.navigateTo({
-      url: '/pages/login/login',
-      success: (res) => {
-        if (!res.eventChannel) return;
-        res.eventChannel.on('loginSuccess', () => {
-          this.loadSignInStatus();
-          next();
-        });
-      },
+    memberAccess.requireCompleteProfile(() => {
+      this.loadSignInStatus();
+      next();
     });
   },
 
@@ -373,6 +370,10 @@ Page({
   },
 
   onConfirm() {
+    memberAccess.requireCompleteProfile(() => this.submitReservation());
+  },
+
+  submitReservation() {
     const sel = this.data.selected;
     const store = this.data.store;
     if (!sel || this.data.submitting) return;
@@ -385,12 +386,11 @@ Page({
 	}
     this.setData({ submitting: true });
     ui.showLoading('提交中');
-    this.ensureReservationIdentity()
-      .then(() => api.createReservation({
-        storeId: store && store.id,
-        tableId: sel.tableId,
-        tableName: sel.tableName,
-      }))
+    api.createReservation({
+      storeId: store && store.id,
+      tableId: sel.tableId,
+      tableName: sel.tableName,
+    })
       .then(() => {
         ui.hideLoading();
         this.setData({ showConfirm: false, selected: null, submitting: false });
@@ -405,19 +405,14 @@ Page({
       });
   },
 
-  ensureReservationIdentity() {
-    if (auth.hasReservationIdentity()) return Promise.resolve();
-    return silentLogin.ensure();
-  },
-
   onWaitlist() {
     if (this.data.waitlisting) return;
+    memberAccess.requireCompleteProfile(() => this.joinWaitlist());
+  },
+
+  joinWaitlist() {
     this.clearSelection();
     const store = this.data.store;
-    if (!auth.isLoggedIn()) {
-      ui.toast('请先登录后排队');
-      return;
-    }
     if (this.data.hasDailyReservation) {
       ui.toast('你已经预约座位了，如需排队请先取消预约');
       return;

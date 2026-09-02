@@ -64,10 +64,6 @@ function isPreRegistered() {
 	return !!(s && s.accessToken && s.subjectType === 'pre_member');
 }
 
-function hasReservationIdentity() {
-	return !!getAccessToken();
-}
-
 module.exports = {
   load,
   save,
@@ -78,6 +74,5 @@ module.exports = {
   getStoreId,
 	isLoggedIn,
 	isPreRegistered,
-	hasReservationIdentity,
 	clear,
 };

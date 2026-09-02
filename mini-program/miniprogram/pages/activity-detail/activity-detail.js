@@ -2,6 +2,8 @@
 const api = require('../../services/api');
 const fmt = require('../../utils/format');
 const storeCtx = require('../../utils/store-context');
+const memberAccess = require('../../utils/member-access');
+const activityEntry = require('../../utils/activity-entry');
 
 const STATUS_LABEL = { enrolling: '报名中', upcoming: '即将开始', ended: '已结束', soldout: '已售罄' };
 
@@ -30,6 +32,7 @@ Page({
     loadError: '',
     activity: null,
     minPriceText: '',
+    guestPurchaseAllowed: false,
 
     // Custom navigation metrics (px).
     navStatusBar: 20,
@@ -44,6 +47,7 @@ Page({
   onLoad(options) {
     this.measureNav();
     const id = options.id;
+    this.setData({ guestPurchaseAllowed: activityEntry.allowsGuestPurchase(options) });
     Promise.all([api.getActivity(id), storeCtx.listNearby()])
       .then(([res, stores]) => {
         const a = res.data || {};
@@ -160,7 +164,7 @@ Page({
     const activity = this.data.activity || {};
     return {
       title: activity.title || 'InwardClub 活动',
-      path: `/pages/activity-detail/activity-detail?id=${activity.id || ''}`,
+      path: activityEntry.sharePath(activity.id),
       imageUrl: activity.imageUrl || 'https://assets.inwardclub.com/logo/logo-2.jpg',
     };
   },
@@ -169,7 +173,7 @@ Page({
     const activity = this.data.activity || {};
     return {
       title: activity.title || 'InwardClub 活动',
-      query: `id=${activity.id || ''}`,
+      query: activityEntry.shareQuery(activity.id),
       imageUrl: activity.imageUrl || 'https://assets.inwardclub.com/logo/logo-2.jpg',
     };
   },
@@ -184,6 +188,13 @@ Page({
   openPurchase() {
     const a = this.data.activity;
     if (!a || !a.id || !a.hasTickets || a.isExpired) return;
-    wx.navigateTo({ url: `/pages/activity-purchase/activity-purchase?id=${a.id}` });
+    const open = () => wx.navigateTo({
+      url: activityEntry.purchasePath(a.id, this.data.guestPurchaseAllowed),
+    });
+    if (this.data.guestPurchaseAllowed) {
+      open();
+      return;
+    }
+    memberAccess.requireCompleteProfile(open);
   },
 });

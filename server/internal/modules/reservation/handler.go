@@ -86,9 +86,7 @@ func (h *Handler) CreateReservation(c *gin.Context) {
 		httpx.Fail(c, apperr.Invalid("请求内容格式不正确"))
 		return
 	}
-	view, err := h.svc.CreateReservationForActor(
-		c.Request.Context(), claims.SubjectID(), claims.SubjectType == authn.SubjectPreMember, req,
-	)
+	view, err := h.svc.CreateReservation(c.Request.Context(), claims.SubjectID(), req)
 	if err != nil {
 		httpx.Fail(c, err)
 		return

@@ -1,7 +1,7 @@
 // Custom tab bar — the reusable bottom navigation (首页/预约/点餐/我的).
 // Uses the design-frozen tab icons from assets/tab (converted from
 // design/mini-program/tab-icons SVGs). Tab pages set `selected` in onShow.
-const auth = require('../utils/auth');
+const memberAccess = require('../utils/member-access');
 
 Component({
   data: {
@@ -18,14 +18,8 @@ Component({
     onTap(e) {
       const index = Number(e.currentTarget.dataset.index);
       const path = this.data.list[index].pagePath;
-      if (index === 3 && !auth.isLoggedIn()) {
-        wx.navigateTo({
-          url: '/pages/login/login',
-          success: (res) => {
-            if (!res.eventChannel) return;
-            res.eventChannel.on('loginSuccess', () => wx.switchTab({ url: path }));
-          },
-        });
+      if (index > 0) {
+        memberAccess.requireCompleteProfile(() => wx.switchTab({ url: path }));
         return;
       }
       wx.switchTab({ url: path });

@@ -6,6 +6,7 @@ const storeCtx = require('../../utils/store-context');
 const ui = require('../../utils/ui');
 const fmt = require('../../utils/format');
 const draft = require('../../utils/order-draft');
+const memberAccess = require('../../utils/member-access');
 
 const SELECTED_COUPON_KEY = 'ic_selected_coupon_v1';
 
@@ -216,6 +217,10 @@ Page({
   },
 
   onQtyChange(e) {
+    memberAccess.requireCompleteProfile(() => this.applyQtyChange(e));
+  },
+
+  applyQtyChange(e) {
     const id = e.currentTarget.dataset.id;
     const qty = e.detail.value;
     if (qty > 0) this.qty[id] = qty;
@@ -323,6 +328,10 @@ Page({
   },
 
   onCheckout() {
+    memberAccess.requireCompleteProfile(() => this.checkout());
+  },
+
+  checkout() {
     if (!this.data.cartCount) {
       ui.toast('请先选择商品');
       return;

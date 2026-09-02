@@ -92,18 +92,17 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)
 	p.GET("/coupon-redemptions/:id", a.couponHandler.GetRedemption)
 
-	// Reservations also accept a restricted OpenID-only pre-registration
-	// identity.
-	reservationRead := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember))
+	// Reservations require a completed member profile (or staff identity).
+	reservationRead := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff))
 	reservationRead.GET("/reservations", a.reservationHandler.ListReservations)
 	reservationRead.GET("/reservations/:reservationID", a.reservationHandler.GetReservation)
-	reservationWrite := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember), idempotency.Require())
+	reservationWrite := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff), idempotency.Require())
 	reservationWrite.POST("/reservations", a.reservationHandler.CreateReservation)
 	reservationWrite.POST("/reservations/:reservationID/cancel", a.reservationHandler.CancelReservation)
 
-	// OpenID-only identities may buy an activity with WeChat and read the
-	// resulting order/tickets. Coin payment and all other member assets remain
-	// restricted to completed member/staff identities.
+	// The shared-activity purchase flow may use an OpenID-only identity with
+	// WeChat and read the resulting order/tickets. Coin payment and all other
+	// member assets remain restricted to completed member/staff identities.
 	activityBuyer := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff, authn.SubjectPreMember))
 	activityBuyer.GET("/activity-orders", a.orderHandler.ListActivityOrders)
 	activityBuyer.GET("/activity-orders/:orderID", a.orderHandler.GetActivityOrder)

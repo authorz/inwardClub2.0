@@ -101,13 +101,6 @@ func (s *Service) ListStoreReservations(ctx context.Context, storeID int64, filt
 
 // CreateReservation books a table/seat for the member.
 func (s *Service) CreateReservation(ctx context.Context, memberID int64, req CreateReservationRequest) (ReservationView, error) {
-	return s.CreateReservationForActor(ctx, memberID, false, req)
-}
-
-// CreateReservationForActor records whether this booking was made from a
-// reservation-only pre-registration session. Public seat reads use that flag
-// to show the generic brand identity instead of exposing a member profile.
-func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64, bookedAsGuest bool, req CreateReservationRequest) (ReservationView, error) {
 	if req.StoreID <= 0 {
 		return ReservationView{}, apperr.Invalid("storeId is required")
 	}
@@ -139,7 +132,6 @@ func (s *Service) CreateReservationForActor(ctx context.Context, memberID int64,
 		ReservationNo: s.newReservationNo(now),
 		StoreID:       req.StoreID,
 		MemberID:      memberID,
-		BookedAsGuest: bookedAsGuest,
 		TableID:       req.TableID,
 		// Seat selection is no longer exposed to members. Keep the request field
 		// backward-compatible, but always let the repository allocate a current

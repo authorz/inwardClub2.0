@@ -354,16 +354,8 @@ func TestCreateReservationLeavesCurrentWaitlistForSameStore(t *testing.T) {
 	}
 }
 
-func TestCreateGuestReservationPreservesGenericSeatIdentity(t *testing.T) {
+func TestHistoricalGuestReservationPreservesGenericSeatIdentity(t *testing.T) {
 	svc, repo := newTestService()
-	view, err := svc.CreateReservationForActor(context.Background(), 42, true, validCreateReq())
-	if err != nil {
-		t.Fatalf("create guest reservation: %v", err)
-	}
-	if view.ID == 0 || len(repo.reservations) != 1 || !repo.reservations[0].BookedAsGuest {
-		t.Fatalf("guest booking marker was not persisted: %+v", repo.reservations)
-	}
-
 	repo.seats = []Seat{{
 		ID: 1, StoreID: 1, Status: AvailabilityReserved, BookedAsGuest: true,
 		MemberNickname: "inward会员",

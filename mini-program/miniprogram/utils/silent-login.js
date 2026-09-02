@@ -1,7 +1,7 @@
 /**
  * OpenID-only silent identity bootstrap. It creates/reuses the member row from
  * wx.login without asking for profile data, and shares one in-flight request
- * across app launch, reservations and activity purchases.
+ * across app launch and shared activity purchases.
  */
 const api = require('../services/api');
 const auth = require('./auth');

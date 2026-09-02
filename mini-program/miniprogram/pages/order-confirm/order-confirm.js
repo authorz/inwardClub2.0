@@ -8,6 +8,7 @@ const pay = require('../../utils/pay');
 const draft = require('../../utils/order-draft');
 const validation = require('../../utils/validation');
 const money = require('../../utils/money');
+const memberAccess = require('../../utils/member-access');
 
 // 商品缺失 payChannels 时的兼容默认（老数据视为两种都支持）
 const DEFAULT_CHANNELS = ['wechat', 'coin'];
@@ -99,6 +100,10 @@ Page({
   },
 
   confirmPay() {
+    memberAccess.requireCompleteProfile(() => this.submitPayment());
+  },
+
+  submitPayment() {
     const store = this.data.store;
     if (!store || this.data.submitting) return;
     const payChannel = this.data.payMethod;

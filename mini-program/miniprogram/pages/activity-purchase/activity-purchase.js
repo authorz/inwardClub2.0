@@ -7,6 +7,8 @@ const auth = require('../../utils/auth');
 const silentLogin = require('../../utils/silent-login');
 const { PAY_METHOD } = require('../../constants/index');
 const validation = require('../../utils/validation');
+const memberAccess = require('../../utils/member-access');
+const activityEntry = require('../../utils/activity-entry');
 
 const COUPON_ICON_URL = 'https://assets.inwardclub.com/public/images/coupon-gpt.png';
 
@@ -40,10 +42,12 @@ Page({
     couponIconUrl: COUPON_ICON_URL,
     totalText: '0.00',
     submitting: false,
+    guestPurchaseAllowed: false,
   },
 
   onLoad(options) {
     const id = options.id;
+    this.setData({ guestPurchaseAllowed: activityEntry.allowsGuestPurchase(options) });
     if (!id) {
       this.setData({ loading: false, loadError: '缺少活动信息，请返回后重试' });
       return;
@@ -254,6 +258,14 @@ Page({
   noop() {},
 
   confirmPurchase() {
+    if (!this.data.guestPurchaseAllowed) {
+      memberAccess.requireCompleteProfile(() => this.submitPurchase());
+      return;
+    }
+    this.submitPurchase();
+  },
+
+  submitPurchase() {
     const ticket = this.data.ticket;
     const activity = this.data.activity;
     const payMethod = this.data.payMethod;
