@@ -3,6 +3,7 @@
 const api = require('../../services/api');
 const auth = require('../../utils/auth');
 const ui = require('../../utils/ui');
+const storeCtx = require('../../utils/store-context');
 
 const BOARD_CONFIG = {
   month: {
@@ -142,8 +143,11 @@ Page({
     const rankingScope = scope || this.data.scope;
     const loggedIn = auth.isLoggedIn();
     const meRequest = loggedIn ? api.getMe().catch(() => ({ data: null })) : Promise.resolve({ data: null });
+    const rankingsRequest = storeCtx.ensureStore().then((store) =>
+      api.getRankings({ period: rankingScope, storeId: store && store.id })
+    );
     this.setData({ loading: true, loggedIn });
-    Promise.all([api.getRankings({ period: rankingScope }), meRequest])
+    Promise.all([rankingsRequest, meRequest])
       .then(([rankingsRes, meRes]) => {
         const rows = Array.isArray(rankingsRes.data) ? rankingsRes.data : [];
         this.setData({

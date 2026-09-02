@@ -14,7 +14,7 @@ import (
 
 // Repository is the member persistence port. Profile/phone/invitation reads and
 // writes hit the members table directly; rankings aggregate approved point
-// savings across all stores.
+// savings globally or for one store.
 type Repository interface {
 	// Member self-service (backed by the members table).
 	GetMember(ctx context.Context, id int64) (Member, error)
@@ -31,7 +31,7 @@ type Repository interface {
 	// Read-only catalogues (membership_tiers / recharge_products / point_savings).
 	ListMembershipTiers(ctx context.Context) ([]MembershipTier, error)
 	ListRechargeProducts(ctx context.Context) ([]RechargeProduct, error)
-	ListRankings(ctx context.Context, period string, limit int) ([]RankingEntry, error)
+	ListRankings(ctx context.Context, period string, storeID int64, limit int) ([]RankingEntry, error)
 
 	// Admin membership tier reads (all statuses; backed by the membership_tiers table).
 	ListAllMembershipTiers(ctx context.Context) ([]MembershipTier, error)
@@ -527,7 +527,7 @@ func (r *sqlRepository) ValidateRechargeCouponTemplate(ctx context.Context, id i
 // rank by deposited points; water ranks by the awarded (profit) points in the
 // current natural month. GrowthValue is the member's current wallet balance and
 // is returned for display only. Rank is 1-based by descending score.
-func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit int) ([]RankingEntry, error) {
+func (r *sqlRepository) ListRankings(ctx context.Context, period string, storeID int64, limit int) ([]RankingEntry, error) {
 	metric := "ps.points"
 	if period == RankingWater {
 		metric = "ps.awarded_points"
@@ -541,10 +541,14 @@ func (r *sqlRepository) ListRankings(ctx context.Context, period string, limit i
 		LEFT JOIN wallet_accounts growth
 			ON growth.member_id = m.id AND growth.asset_type = 'growth_value'
 		WHERE ps.status = 'approved' AND m.status = 'active'`
-	args := make([]any, 0, 3)
+	args := make([]any, 0, 4)
 	if hasWindow {
 		q += ` AND ps.reviewed_at >= ? AND ps.reviewed_at < ?`
 		args = append(args, start, end)
+	}
+	if storeID > 0 {
+		q += ` AND ps.store_id = ?`
+		args = append(args, storeID)
 	}
 	q += ` GROUP BY m.id, m.nickname, m.avatar_asset_id, m.avatar_url, m.gender, growth.available_amount
 		HAVING score > 0

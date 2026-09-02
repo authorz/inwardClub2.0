@@ -403,13 +403,17 @@ func (s *Service) DisableRechargeProduct(ctx context.Context, productID int64) (
 	return rechargeProductView(p), nil
 }
 
-// ListRankings returns a leaderboard snapshot for the requested period.
-func (s *Service) ListRankings(ctx context.Context, period string) ([]RankingEntryView, error) {
+// ListRankings returns a leaderboard snapshot for the requested period. A zero
+// storeID keeps the cross-store result used by older mini-program versions.
+func (s *Service) ListRankings(ctx context.Context, period string, storeID int64) ([]RankingEntryView, error) {
 	period, err := normalizeRankingPeriod(period)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := s.repo.ListRankings(ctx, period, defaultRankingLimit)
+	if storeID < 0 {
+		return nil, apperr.Invalid("storeId must be a positive integer")
+	}
+	entries, err := s.repo.ListRankings(ctx, period, storeID, defaultRankingLimit)
 	if err != nil {
 		return nil, err
 	}

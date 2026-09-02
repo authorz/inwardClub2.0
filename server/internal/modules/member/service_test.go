@@ -21,6 +21,7 @@ type fakeRepo struct {
 	tiers             []MembershipTier
 	products          []RechargeProduct
 	rankings          []RankingEntry
+	lastRankingStore  int64
 	notReady          bool // when true, catalogue reads return NOT_IMPLEMENTED
 	lastPhone         string
 	lastPhoneInterval int
@@ -112,7 +113,8 @@ func (r *fakeRepo) ListRechargeProducts(_ context.Context) ([]RechargeProduct, e
 	return r.products, nil
 }
 
-func (r *fakeRepo) ListRankings(_ context.Context, _ string, _ int) ([]RankingEntry, error) {
+func (r *fakeRepo) ListRankings(_ context.Context, _ string, storeID int64, _ int) ([]RankingEntry, error) {
+	r.lastRankingStore = storeID
 	if r.notReady {
 		return nil, apperr.NotImplemented("rankings not available")
 	}
@@ -467,15 +469,36 @@ func TestRankingPeriodValidation(t *testing.T) {
 	svc := NewService(repo, fakeAssets{}, nil)
 
 	for _, period := range []string{RankingMonth, RankingAll, RankingWater} {
-		if _, err := svc.ListRankings(context.Background(), period); err != nil {
+		if _, err := svc.ListRankings(context.Background(), period, 0); err != nil {
 			t.Fatalf("period %q should be valid: %v", period, err)
 		}
 	}
-	if _, err := svc.ListRankings(context.Background(), "yearly"); codeOf(err) != apperr.CodeInvalidArgument {
+	if _, err := svc.ListRankings(context.Background(), "yearly", 0); codeOf(err) != apperr.CodeInvalidArgument {
 		t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
 	}
-	if _, err := svc.ListRankings(context.Background(), "week"); codeOf(err) != apperr.CodeInvalidArgument {
+	if _, err := svc.ListRankings(context.Background(), "week", 0); codeOf(err) != apperr.CodeInvalidArgument {
 		t.Fatalf("legacy week period should be invalid, got %v", err)
+	}
+}
+
+func TestRankingStoreScopeIsOptionalAndForwarded(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, fakeAssets{}, nil)
+
+	if _, err := svc.ListRankings(context.Background(), RankingMonth, 0); err != nil {
+		t.Fatalf("global rankings: %v", err)
+	}
+	if repo.lastRankingStore != 0 {
+		t.Fatalf("global rankings store = %d, want 0", repo.lastRankingStore)
+	}
+	if _, err := svc.ListRankings(context.Background(), RankingMonth, 7); err != nil {
+		t.Fatalf("store rankings: %v", err)
+	}
+	if repo.lastRankingStore != 7 {
+		t.Fatalf("store rankings store = %d, want 7", repo.lastRankingStore)
+	}
+	if _, err := svc.ListRankings(context.Background(), RankingMonth, -1); codeOf(err) != apperr.CodeInvalidArgument {
+		t.Fatalf("negative store: expected INVALID_ARGUMENT, got %v", err)
 	}
 }
 
@@ -487,7 +510,7 @@ func TestListRankingsMapsView(t *testing.T) {
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	views, err := svc.ListRankings(context.Background(), "") // empty period defaults to all
+	views, err := svc.ListRankings(context.Background(), "", 0) // empty period defaults to all
 	if err != nil {
 		t.Fatalf("rankings: %v", err)
 	}
@@ -507,7 +530,7 @@ func TestListRankingsPrefersStoredAvatarURL(t *testing.T) {
 	}
 	svc := NewService(repo, fakeAssets{}, nil)
 
-	views, err := svc.ListRankings(context.Background(), RankingAll)
+	views, err := svc.ListRankings(context.Background(), RankingAll, 0)
 	if err != nil {
 		t.Fatalf("rankings: %v", err)
 	}
@@ -528,7 +551,7 @@ func TestCatalogueNotImplementedWhenTablesMissing(t *testing.T) {
 	if _, err := svc.ListRechargeProducts(ctx); codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("products: expected NOT_IMPLEMENTED, got %v", err)
 	}
-	if _, err := svc.ListRankings(ctx, RankingWater); codeOf(err) != apperr.CodeNotImplemented {
+	if _, err := svc.ListRankings(ctx, RankingWater, 0); codeOf(err) != apperr.CodeNotImplemented {
 		t.Fatalf("rankings: expected NOT_IMPLEMENTED, got %v", err)
 	}
 }

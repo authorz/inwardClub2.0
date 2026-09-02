@@ -197,14 +197,32 @@ func (h *Handler) DisableRechargeProduct(c *gin.Context) {
 	httpx.OK(c, view)
 }
 
-// Rankings handles GET /mini/rankings?period=.
+// Rankings handles GET /mini/rankings?period=&storeId=. Omitting storeId keeps
+// the backwards-compatible cross-store leaderboard.
 func (h *Handler) Rankings(c *gin.Context) {
-	views, err := h.svc.ListRankings(c.Request.Context(), c.Query("period"))
+	storeID, err := optionalStoreID(c.Query("storeId"))
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	views, err := h.svc.ListRankings(c.Request.Context(), c.Query("period"), storeID)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
 	}
 	httpx.OK(c, views)
+}
+
+func optionalStoreID(value string) (int64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, nil
+	}
+	storeID, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || storeID <= 0 {
+		return 0, apperr.Invalid("storeId must be a positive integer")
+	}
+	return storeID, nil
 }
 
 // UpdateProfile handles PATCH /mini/me.
