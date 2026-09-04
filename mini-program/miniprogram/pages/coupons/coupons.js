@@ -54,8 +54,9 @@ Page({
     submittingId: '',
   },
 
-  onLoad() {
-    Promise.all([
+  loadCoupons() {
+    this.setData({ loading: true });
+    return Promise.all([
       api.getCouponCategories(),
       api.getCoupons({ status: 'active', pageSize: 100 }),
     ])
@@ -103,7 +104,7 @@ Page({
   },
 
   onShow() {
-    if (this.data.all.length) this.startCountdown();
+    return this.loadCoupons();
   },
 
   onHide() {

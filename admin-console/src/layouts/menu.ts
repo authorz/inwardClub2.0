@@ -117,6 +117,12 @@ export const MENU: MenuNode[] = [
         path: '/catalog/items',
         permission: PERMISSIONS.CATALOG_READ,
       },
+      {
+        key: 'coupon-items',
+        label: '券商品',
+        path: '/catalog/coupons',
+        permission: PERMISSIONS.CATALOG_READ,
+      },
     ],
   },
   {

@@ -51,6 +51,7 @@ const businessRoutes: { path: string; component: NonNullable<RouteRecordRaw['com
   { path: '/accounts/staff', component: () => import('@/pages/accounts/StaffAccountsView.vue') },
   { path: '/catalog/categories', component: () => import('@/pages/catalog/CategoryListView.vue') },
   { path: '/catalog/items', component: () => import('@/pages/catalog/ItemListView.vue') },
+  { path: '/catalog/coupons', component: () => import('@/pages/catalog/CouponItemListView.vue') },
   { path: '/activities', component: () => import('@/pages/activities/ActivityListView.vue') },
   { path: '/coupons', component: () => import('@/pages/coupons/CouponTypeListView.vue') },
   {

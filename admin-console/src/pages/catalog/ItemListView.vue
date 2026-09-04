@@ -47,12 +47,17 @@ import { runAudited } from '@/composables/useAuditedAction'
 import type { CatalogCategory, CatalogItem, CouponCategory } from '@/api/models'
 import { toastError, toastSuccess } from '@/utils/feedback'
 
+const props = withDefaults(defineProps<{ couponOnly?: boolean }>(), { couponOnly: false })
+
 const listRef = ref<ResourceListInstance | null>(null)
 const selectedItemIds = ref<DataTableRowKey[]>([])
 const stores = ref<OptionItem[]>([])
 const categories = ref<CatalogCategory[]>([])
 const couponKinds = ref<CouponCategory[]>([])
 const uploadKey = ref(0)
+const visibleCategories = computed(() => props.couponOnly
+  ? categories.value.filter((category) => category.categoryType === 'coupon')
+  : categories.value)
 
 const itemStatusOptions = RESOURCE_STATUS_OPTIONS.filter(({ value }) =>
   [RESOURCE_STATUS.DRAFT, RESOURCE_STATUS.PUBLISHED].includes(
@@ -65,7 +70,7 @@ function couponTemplateName(id: string | number): string {
     ?? `券 ID ${id}`
 }
 const categoryFilterOptions = computed<OptionItem[]>(() =>
-  categories.value.map((category) => ({
+  visibleCategories.value.map((category) => ({
     label: category.storeName ? `${category.storeName} / ${category.name}` : category.name,
     value: String(category.id),
   })),
@@ -210,7 +215,7 @@ const form = reactive<ItemForm>({
 })
 
 const formCategoryOptions = computed<OptionItem[]>(() =>
-  categories.value
+  visibleCategories.value
     .filter((category) => String(category.storeId ?? '') === String(form.storeId ?? ''))
     .map((category) => ({
       label: `${category.name} · ${category.categoryType === 'coupon' ? '券商品' : '普通商品'}`,
@@ -413,7 +418,7 @@ const toolbarActions = computed<ToolbarAction[]>(() => [
   },
   {
     key: 'create',
-    label: '新增商品',
+    label: props.couponOnly ? '新增券商品' : '新增商品',
     type: 'primary',
     permission: PERMISSIONS.CATALOG_GLOBAL_WRITE,
     onClick: openCreate,
@@ -428,19 +433,20 @@ onMounted(loadReferences)
     <ResourceListView
       ref="listRef"
       v-model:checked-row-keys="selectedItemIds"
-      title="商品管理"
-      description="按门店维护商品、分类、图片、价格与库存"
-      :breadcrumb="['商品管理', '商品管理']"
+      :title="props.couponOnly ? '券商品管理' : '商品管理'"
+      :description="props.couponOnly ? '跨门店管理购买后自动到账的券商品' : '按门店维护商品、分类、图片、价格与库存'"
+      :breadcrumb="['餐品管理', props.couponOnly ? '券商品' : '商品管理']"
       :fields="fields"
       :columns="columns"
       :fetcher="catalogItemService.list"
+      :initial-filters="props.couponOnly ? { itemType: 'coupon' } : undefined"
       :toolbar-actions="toolbarActions"
-      empty-text="暂无商品，请先创建门店商品分类"
+      :empty-text="props.couponOnly ? '暂无券商品，请先为门店创建券商品分类' : '暂无商品，请先创建门店商品分类'"
     />
 
     <FormDrawer
       v-model:show="drawerShow"
-      :title="editingId ? '编辑商品' : '新增商品'"
+      :title="editingId ? (props.couponOnly ? '编辑券商品' : '编辑商品') : (props.couponOnly ? '新增券商品' : '新增商品')"
       :width="760"
       :submitting="submitting"
       @submit="submit"
