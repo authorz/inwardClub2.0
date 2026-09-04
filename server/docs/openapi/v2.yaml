@@ -1254,7 +1254,7 @@ components:
         entitlementId: { type: integer, format: int64 }
         entitlementNo: { type: string }
         templateId: { type: integer, format: int64 }
-        name: { type: string }
+        name: { type: string, description: Purchased entitlements use the order-line product name snapshot; other entitlements use the coupon template name. }
         description: { type: string }
         categoryId: { type: integer, format: int64 }
         categoryName: { type: string }

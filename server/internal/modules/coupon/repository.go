@@ -68,13 +68,18 @@ type sqlRepository struct{ db *platdb.DB }
 // NewRepository builds the MySQL coupon repository.
 func NewRepository(db *platdb.DB) Repository { return &sqlRepository{db: db} }
 
-const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id, t.name,
+const couponSelect = `SELECT e.id, e.entitlement_no, e.coupon_template_id,
+		CASE WHEN e.granted_by_type = 'purchase'
+			THEN COALESCE(NULLIF(source_line.name_snapshot, ''), t.name)
+			ELSE t.name END,
 		COALESCE(t.description,''), t.category_id, COALESCE(cc.name, ''), t.coupon_type,
 		e.admission_count, t.value_cent, e.store_id, e.status, e.expires_at,
 		COALESCE(e.idem_key, ''), e.created_at
 	FROM coupon_entitlements e
 	JOIN coupon_templates t ON t.id = e.coupon_template_id
-	JOIN coupon_categories cc ON cc.id = t.category_id`
+	JOIN coupon_categories cc ON cc.id = t.category_id
+	LEFT JOIN food_order_items source_line
+		ON e.granted_by_type = 'purchase' AND source_line.id = e.granted_by_id`
 
 func (r *sqlRepository) ListActiveCategories(ctx context.Context) ([]CouponCategory, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, name, business_type, description, admission_count,

@@ -75,10 +75,10 @@ func GrantPurchasedCoupons(
 			entitlementNo := fmt.Sprintf("FC%d-%d-%d", paymentOrderID, line.lineID, sequence)
 			const insertEntitlement = `INSERT INTO coupon_entitlements
 				(entitlement_no, coupon_template_id, admission_count, member_id, store_id, status, granted_reason,
-				 granted_by_type, expires_at, idem_key, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, 'active', '购买券商品', 'purchase', ?, ?, ?, ?)`
+				 granted_by_type, granted_by_id, expires_at, idem_key, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, 'active', '购买券商品', 'purchase', ?, ?, ?, ?, ?)`
 			if _, err := tx.ExecContext(ctx, insertEntitlement, entitlementNo, line.templateID,
-				admissionCount, memberID, line.storeID, expiresAt, idemKey, now, now); err != nil {
+				admissionCount, memberID, line.storeID, line.lineID, expiresAt, idemKey, now, now); err != nil {
 				if platdb.IsDuplicate(err) {
 					continue
 				}

@@ -114,8 +114,9 @@ function normalizeItem(it) {
   });
 }
 
-// GET /mini/coupons returns MemberCouponView {entitlementId,description,
-// couponType,expiresAt,status}. Coupons do not have a face value.
+// GET /mini/coupons returns MemberCouponView {entitlementId,name,description,
+// couponType,expiresAt,status}. Purchased coupons use the order-line product
+// name snapshot while categoryId/categoryName remain the coupon classification.
 const COUPON_STATUS_MAP = { active: 'unused', used: 'used', expired: 'expired', void: 'expired' };
 function normalizeCoupon(c) {
   if (!c) return c;

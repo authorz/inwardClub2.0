@@ -39,7 +39,7 @@ test('coupon list refreshes whenever the page becomes visible again', async () =
         id: 42,
         templateId: 7,
         storeId: 1,
-        name: '畅饮券',
+        name: '88畅饮酒券套餐',
         type: 'alcohol',
         categoryId: 3,
         categoryName: '酒水券',
@@ -57,4 +57,10 @@ test('coupon list refreshes whenever the page becomes visible again', async () =
   assert.equal(requests, 2);
   assert.equal(page.data.couponCount, 1);
   assert.equal(page.data.list[0].id, 42);
+  assert.equal(page.data.list[0].name, '88畅饮酒券套餐');
+  assert.equal(page.data.list[0].categoryLabel, '酒水券');
+  assert.deepEqual(page.data.typeOptions, [
+    { label: '全部', value: 'all' },
+    { label: '酒水券', value: '3' },
+  ]);
 });
