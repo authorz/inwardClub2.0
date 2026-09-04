@@ -2,14 +2,13 @@
 <ic-loading wx:if="{{loading}}" />
 
 <view wx:elif="{{home}}" class="st">
-  <!-- fixed bound store, no switch -->
-  <view class="st__store ic-card">
+  <view class="st__store ic-card" bind:tap="chooseStore">
     <view class="st__store-ico"><view class="ic-ic ic-ic-pin"></view></view>
     <view class="st__store-main">
       <text class="st__store-label">当前门店</text>
       <text class="st__store-name ic-ellipsis">{{home.storeName}}</text>
     </view>
-    <text class="st__store-lock">已绑定 · 不可切换</text>
+    <text class="st__store-lock">{{stores.length > 1 ? '切换门店' : '已绑定'}}</text>
   </view>
 
   <view class="st__list ic-card">
@@ -30,5 +29,5 @@
     </ic-cell>
   </view>
 
-  <text class="st__note">工作人员仅可操作已绑定门店的数据</text>
+  <text class="st__note">工作人员仅可操作当前所选门店的数据</text>
 </view>

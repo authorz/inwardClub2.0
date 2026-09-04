@@ -25,7 +25,7 @@ func NewMemberTokenVersions(members MemberRepository, staff ...StaffRepository) 
 }
 
 // CurrentTokenVersion returns the member or staff binding token_version.
-func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, subject authn.SubjectType, id int64) (int64, error) {
+func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, subject authn.SubjectType, id, storeID int64) (int64, error) {
 	if subject == authn.SubjectStaff {
 		if v.staff == nil {
 			return 0, apperr.NotFound("staff account not found")
@@ -37,7 +37,7 @@ func (v *MemberTokenVersions) CurrentTokenVersion(ctx context.Context, subject a
 		if member.Status != StatusActive {
 			return 0, apperr.NotFound("member not found")
 		}
-		staff, err := v.staff.GetByMemberID(ctx, id)
+		staff, err := v.staff.GetByMemberIDAndStore(ctx, id, storeID)
 		if err != nil {
 			return 0, err
 		}
@@ -74,7 +74,7 @@ func NewAccountTokenVersions(accounts AccountRepository) *AccountTokenVersions {
 }
 
 // CurrentTokenVersion returns the account's stored token_version.
-func (v *AccountTokenVersions) CurrentTokenVersion(ctx context.Context, _ authn.SubjectType, id int64) (int64, error) {
+func (v *AccountTokenVersions) CurrentTokenVersion(ctx context.Context, _ authn.SubjectType, id, _ int64) (int64, error) {
 	a, err := v.accounts.GetByID(ctx, id)
 	if err != nil {
 		return 0, err

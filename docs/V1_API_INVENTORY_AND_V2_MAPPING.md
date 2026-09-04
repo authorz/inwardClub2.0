@@ -144,7 +144,7 @@
 | `quick/recharge/list/info/add/update/delete` | 快捷充币产品 CRUD | `admin/recharge-products`，重建 |
 | `global-settings/list/add/update/delete` | KV 全局配置 | 仅保留非业务规则配置；业务规则迁移至 `admin/rules` |
 | `transactions/list` | 交易流水查询 | `admin/wallet-ledger`、`admin/payment-transactions`，拆分重建 |
-| `staff/list/add/update/delete` | 全局员工 CRUD | `admin/staff`，重建；总后台可为员工指定唯一绑定门店，但同一微信用户/员工账号不得绑定多个门店 |
+| `staff/list/add/update/delete` | 全局员工 CRUD | `admin/staff`，重建；总后台可为同一员工绑定多个门店，同一员工在同一门店不可重复绑定 |
 | `dashboard/stats`、`all-record/stats` | 总后台统计、全记录统计 | `admin/reports/dashboard`、`admin/reports/records`，重建 |
 
 下列控制器方法存在但未挂 v1 路由：支付设置读写、错误日志、日志统计/清理、会员创建、活动订单退款、详细 Dashboard 分项。v2 必须根据权限重新暴露为：`admin/payment-channel-settings`、`admin/error-events`、`admin/audit-log-maintenance`、`admin/members`、`admin/refunds`、`admin/reports/revenue|members|reservations|stores`；不得保留未鉴权维护接口。

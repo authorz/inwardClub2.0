@@ -466,7 +466,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, audience aut
 			if s.staff == nil {
 				return authn.TokenPair{}, apperr.Unauthenticated("session expired")
 			}
-			staff, err := s.staff.GetByMemberID(ctx, member.ID)
+			staff, err := s.staff.GetByMemberIDAndStore(ctx, member.ID, claims.StoreID)
 			if err != nil {
 				if apperr.From(err).Code == apperr.CodeNotFound {
 					return authn.TokenPair{}, apperr.Unauthenticated("session expired")
@@ -495,6 +495,34 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, audience aut
 		return authn.TokenPair{}, apperr.Unauthenticated("session expired")
 	}
 	return s.issueAccountToken(account, audience)
+}
+
+// StaffStores returns every active store the current staff member may operate.
+func (s *Service) StaffStores(ctx context.Context, memberID int64) ([]StaffStore, error) {
+	if s.staff == nil {
+		return nil, apperr.NotFound("staff account not found")
+	}
+	return s.staff.ListActiveStoresByMemberID(ctx, memberID)
+}
+
+// SwitchStaffStore verifies the requested binding and issues a new token pair
+// scoped to that store. The store scope is never trusted from the client alone.
+func (s *Service) SwitchStaffStore(ctx context.Context, memberID, storeID int64) (LoginResponse, error) {
+	if storeID <= 0 {
+		return LoginResponse{}, apperr.Invalid("storeId is required")
+	}
+	if s.staff == nil {
+		return LoginResponse{}, apperr.NotFound("staff account not found")
+	}
+	member, err := s.members.GetByID(ctx, memberID)
+	if err != nil {
+		return LoginResponse{}, err
+	}
+	staff, err := s.staff.GetByMemberIDAndStore(ctx, memberID, storeID)
+	if err != nil {
+		return LoginResponse{}, err
+	}
+	return s.issueStaffSession(member, staff, false)
 }
 
 // MemberProfile returns the member profile payload, including the member's

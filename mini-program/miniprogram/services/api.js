@@ -591,8 +591,10 @@ const api = {
   getRedemptionOrders: (params) => http.get(m('/coupon-redemptions') + qs(params)),
   getRedemptionOrder: (id) => http.get(m(`/coupon-redemptions/${id}`)),
 
-  /* ---------- staff (store scope, single bound store) ---------- */
+  /* ---------- staff (store scope from the selected staff binding) ---------- */
   staff: {
+    getStores: () => http.get(m('/auth/staff-stores')),
+    switchStore: (storeId) => http.post(m('/auth/staff-store'), { storeId: Number(storeId) }),
     home: () => http.get(s('/home')),
     getPointSavings: (params) => http.get(s('/point-savings') + qs(params)),
     getPointSaving: (id) => http.get(s(`/point-savings/${id}`)),

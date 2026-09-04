@@ -34,7 +34,7 @@
 | 22 | `seats` | `seats` | 同名重构 | 有损（seat_number 唯一约束放松；status 枚举变化） |
 | 23 | `reservations` | `reservations` | 同名重构 | 有损（丢用户快照字段；status 枚举变化） |
 | 24 | `invitations` | *(无独立表)* → `members.invited_by_member_id` + `benefit_grants` | 降级 | **有损**（无邀请记录表；数据量≈0） |
-| 25 | `staff` | `staff_accounts` | 重命名 | 有损（丢 phone；多店→一人一店 UNIQUE 收紧） |
+| 25 | `staff` | `staff_accounts` | 重命名 | 有损（丢 phone；保留同一员工的多店绑定） |
 | 26 | `admins` | `admin_accounts` | 重命名 | 有损（phone→username；role int→string；丢 last_login_at） |
 | 27 | `banner` | `banners` | 重命名 | **有损**（丢 activity_id/is_active；image URL→asset） |
 | 28 | `printer_device` | `printer_devices` | 重命名 | 有损（丢 voice 语音播报开关） |
@@ -72,10 +72,10 @@
 - 2.0：`recharge_products.asset_type` 只能是 coin 或 point 之一
 - 处理：拆两行，或业务确认丢弃其中一种
 
-### G. staff 多店 → 一人一店 UNIQUE 收紧
+### G. staff 多店绑定保留
 - 1.0：UNIQUE(store_id, user_id)，同一 user 可在多店当员工
-- 2.0：UNIQUE(wechat_openid) / UNIQUE(member_id)，全局唯一
-- 处理：迁移前核验生产库有无一人多店记录
+- 2.0：UNIQUE(wechat_openid, store_id) / UNIQUE(member_id, store_id)，同店唯一、跨店允许
+- 处理：迁移前核验生产库有无同一人员在同一门店的重复记录
 
 ---
 

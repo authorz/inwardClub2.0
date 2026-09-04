@@ -197,6 +197,33 @@ func (h *Handler) MiniMe(c *gin.Context) {
 	httpx.OK(c, profile)
 }
 
+// MiniStaffStores lists the active stores bound to the current staff member.
+func (h *Handler) MiniStaffStores(c *gin.Context) {
+	claims := authn.MustFromContext(c)
+	stores, err := h.svc.StaffStores(c.Request.Context(), claims.SubjectID())
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, stores)
+}
+
+// MiniSwitchStaffStore issues a fresh staff session for another bound store.
+func (h *Handler) MiniSwitchStaffStore(c *gin.Context) {
+	var req StaffStoreSwitchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Fail(c, apperr.Invalid("invalid request body"))
+		return
+	}
+	claims := authn.MustFromContext(c)
+	resp, err := h.svc.SwitchStaffStore(c.Request.Context(), claims.SubjectID(), req.StoreID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, resp)
+}
+
 // AdminMe handles GET /admin/auth/me.
 func (h *Handler) AdminMe(c *gin.Context) { h.accountMe(c) }
 

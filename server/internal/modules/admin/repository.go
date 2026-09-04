@@ -1439,11 +1439,11 @@ func (r *sqlRepository) GetStaffAccount(ctx context.Context, storeID, id int64) 
 	return a, nil
 }
 
-// CreateStaffAccount binds an existing mini-program member (by id) as store
-// staff. A disabled binding is reusable: it is moved to the requested store and
-// reactivated, while an active binding remains protected from cross-store
-// takeover. The member token version is bumped so an already-open mini-program
-// session must re-resolve its identity and receive a staff-scoped token.
+// CreateStaffAccount binds an existing mini-program member (by id) to a store.
+// A member may serve multiple stores, while the same member/store pair remains
+// unique. A disabled binding for the requested store is reactivated in place.
+// The member token version is bumped so an already-open mini-program session
+// must re-resolve its identity and receive a staff-scoped token.
 func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID, memberID int64, name string) (StaffAccount, error) {
 	var staffID int64
 	err := r.db.WithinTx(ctx, func(tx *sql.Tx) error {
@@ -1467,21 +1467,22 @@ func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID, memberI
 
 		var existingStatus string
 		err = tx.QueryRowContext(ctx, `SELECT id, status FROM staff_accounts
-			WHERE member_id = ? OR (wechat_openid IS NOT NULL AND wechat_openid <> '' AND wechat_openid = ?)
-			FOR UPDATE`, memberID, openID).Scan(&staffID, &existingStatus)
+			WHERE store_id = ?
+				AND (member_id = ? OR (wechat_openid IS NOT NULL AND wechat_openid <> '' AND wechat_openid = ?))
+			FOR UPDATE`, storeID, memberID, openID).Scan(&staffID, &existingStatus)
 		switch {
 		case err == nil && existingStatus != "disabled":
-			return apperr.Conflict("该会员已被绑定为员工")
+			return apperr.Conflict("该会员已绑定当前门店")
 		case err == nil:
 			res, updateErr := tx.ExecContext(ctx, `UPDATE staff_accounts
-				SET member_id = ?, wechat_openid = ?, name = ?, store_id = ?, status = 'active',
+				SET member_id = ?, wechat_openid = ?, name = ?, status = 'active',
 					token_version = token_version + 1, updated_at = NOW()
-				WHERE id = ? AND status = 'disabled'`, memberID, openID, displayName, storeID, staffID)
+				WHERE id = ? AND store_id = ? AND status = 'disabled'`, memberID, openID, displayName, staffID, storeID)
 			if updateErr != nil {
 				return apperr.Internal(updateErr)
 			}
 			if n, _ := res.RowsAffected(); n == 0 {
-				return apperr.Conflict("该会员已被绑定为员工")
+				return apperr.Conflict("该会员已绑定当前门店")
 			}
 		case err == sql.ErrNoRows:
 			res, insertErr := tx.ExecContext(ctx, `INSERT INTO staff_accounts
@@ -1490,7 +1491,7 @@ func (r *sqlRepository) CreateStaffAccount(ctx context.Context, storeID, memberI
 				memberID, openID, displayName, storeID)
 			if insertErr != nil {
 				if platdb.IsDuplicate(insertErr) {
-					return apperr.Conflict("该会员已被绑定为员工")
+					return apperr.Conflict("该会员已绑定当前门店")
 				}
 				return apperr.Internal(insertErr)
 			}

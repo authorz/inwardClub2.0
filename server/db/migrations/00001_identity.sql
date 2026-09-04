@@ -54,9 +54,9 @@ CREATE TABLE staff_accounts (
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   PRIMARY KEY (id),
-  -- A WeChat user / member may only ever bind to ONE store.
-  UNIQUE KEY uq_staff_openid (wechat_openid),
-  UNIQUE KEY uq_staff_member (member_id),
+  -- A WeChat user / member may bind to multiple stores, but only once per store.
+  UNIQUE KEY uq_staff_openid_store (wechat_openid, store_id),
+  UNIQUE KEY uq_staff_member_store (member_id, store_id),
   KEY idx_staff_store (store_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

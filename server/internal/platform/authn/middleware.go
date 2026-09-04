@@ -19,7 +19,7 @@ import (
 // Implementations are backed by the member/account stores and are audience-
 // specific (member-backed for mini, account-backed for admin/store).
 type TokenVersionChecker interface {
-	CurrentTokenVersion(ctx context.Context, subjectType SubjectType, subjectID int64) (int64, error)
+	CurrentTokenVersion(ctx context.Context, subjectType SubjectType, subjectID, storeID int64) (int64, error)
 }
 
 // SubjectExternalIDResolver optionally resolves a provider identity for
@@ -116,7 +116,7 @@ func (m *Middleware) RequireAuth(allowed ...SubjectType) gin.HandlerFunc {
 		// one that touches the datastore; all cheaper structural checks run first.
 		if m.versions != nil {
 			current, err := m.versions.CurrentTokenVersion(
-				c.Request.Context(), claims.SubjectType, claims.SubjectID(),
+				c.Request.Context(), claims.SubjectType, claims.SubjectID(), claims.StoreID,
 			)
 			if err != nil {
 				if apperr.From(err).Code == apperr.CodeNotFound {
@@ -176,7 +176,7 @@ func (m *Middleware) OptionalAuth(allowed ...SubjectType) gin.HandlerFunc {
 		}
 		if m.versions != nil {
 			current, err := m.versions.CurrentTokenVersion(
-				c.Request.Context(), claims.SubjectType, claims.SubjectID(),
+				c.Request.Context(), claims.SubjectType, claims.SubjectID(), claims.StoreID,
 			)
 			if err != nil || current != claims.TokenVersion {
 				c.Next()

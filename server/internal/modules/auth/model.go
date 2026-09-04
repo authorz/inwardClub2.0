@@ -43,6 +43,12 @@ type Staff struct {
 	TokenVersion int64
 }
 
+// StaffStore is one active store binding available to a staff member.
+type StaffStore struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 // Account status values.
 const (
 	StatusActive   = "active"

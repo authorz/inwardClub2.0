@@ -32,6 +32,8 @@ type AccountRepository interface {
 // login, refresh, logout and token invalidation.
 type StaffRepository interface {
 	GetByMemberID(ctx context.Context, memberID int64) (Staff, error)
+	GetByMemberIDAndStore(ctx context.Context, memberID, storeID int64) (Staff, error)
+	ListActiveStoresByMemberID(ctx context.Context, memberID int64) ([]StaffStore, error)
 	BumpTokenVersionByMemberID(ctx context.Context, memberID int64) error
 }
 
@@ -154,8 +156,11 @@ func (r *sqlMemberRepository) BumpTokenVersion(ctx context.Context, id int64) er
 }
 
 func (r *sqlStaffRepository) GetByMemberID(ctx context.Context, memberID int64) (Staff, error) {
-	const q = `SELECT id, COALESCE(member_id,0), store_id, status, token_version
-		FROM staff_accounts WHERE member_id = ?`
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.store_id, sa.status, sa.token_version
+		FROM staff_accounts sa
+		JOIN stores s ON s.id = sa.store_id
+		WHERE sa.member_id = ? AND sa.status = 'active' AND s.status = 'active'
+		ORDER BY sa.id LIMIT 1`
 	var staff Staff
 	err := r.db.QueryRowContext(ctx, q, memberID).Scan(
 		&staff.ID, &staff.MemberID, &staff.StoreID, &staff.Status, &staff.TokenVersion,
@@ -167,6 +172,49 @@ func (r *sqlStaffRepository) GetByMemberID(ctx context.Context, memberID int64) 
 		return Staff{}, apperr.Internal(err)
 	}
 	return staff, nil
+}
+
+func (r *sqlStaffRepository) GetByMemberIDAndStore(ctx context.Context, memberID, storeID int64) (Staff, error) {
+	const q = `SELECT sa.id, COALESCE(sa.member_id,0), sa.store_id, sa.status, sa.token_version
+		FROM staff_accounts sa
+		JOIN stores s ON s.id = sa.store_id
+		WHERE sa.member_id = ? AND sa.store_id = ? AND s.status = 'active'`
+	var staff Staff
+	err := r.db.QueryRowContext(ctx, q, memberID, storeID).Scan(
+		&staff.ID, &staff.MemberID, &staff.StoreID, &staff.Status, &staff.TokenVersion,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Staff{}, apperr.NotFound("staff account not found")
+	}
+	if err != nil {
+		return Staff{}, apperr.Internal(err)
+	}
+	return staff, nil
+}
+
+func (r *sqlStaffRepository) ListActiveStoresByMemberID(ctx context.Context, memberID int64) ([]StaffStore, error) {
+	const q = `SELECT s.id, s.name
+		FROM staff_accounts sa
+		JOIN stores s ON s.id = sa.store_id
+		WHERE sa.member_id = ? AND sa.status = 'active' AND s.status = 'active'
+		ORDER BY sa.id`
+	rows, err := r.db.QueryContext(ctx, q, memberID)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	defer rows.Close()
+	stores := make([]StaffStore, 0)
+	for rows.Next() {
+		var store StaffStore
+		if err := rows.Scan(&store.ID, &store.Name); err != nil {
+			return nil, apperr.Internal(err)
+		}
+		stores = append(stores, store)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return stores, nil
 }
 
 func (r *sqlStaffRepository) BumpTokenVersionByMemberID(ctx context.Context, memberID int64) error {

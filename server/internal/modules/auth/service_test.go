@@ -112,24 +112,74 @@ type memAccountRepo struct {
 }
 
 type memStaffRepo struct {
-	byMember map[int64]Staff
+	byMember      map[int64]Staff
+	byMemberStore map[[2]int64]Staff
+	storeNames    map[int64]string
 }
 
 func (r *memStaffRepo) GetByMemberID(_ context.Context, memberID int64) (Staff, error) {
+	var selected Staff
+	for key, staff := range r.byMemberStore {
+		if key[0] == memberID && staff.Status == StatusActive && (selected.ID == 0 || staff.ID < selected.ID) {
+			selected = staff
+		}
+	}
+	if selected.ID != 0 {
+		return selected, nil
+	}
 	staff, ok := r.byMember[memberID]
-	if !ok {
+	if !ok || staff.Status != StatusActive {
 		return Staff{}, apperr.NotFound("staff account not found")
 	}
 	return staff, nil
 }
 
-func (r *memStaffRepo) BumpTokenVersionByMemberID(_ context.Context, memberID int64) error {
+func (r *memStaffRepo) GetByMemberIDAndStore(_ context.Context, memberID, storeID int64) (Staff, error) {
+	if staff, ok := r.byMemberStore[[2]int64{memberID, storeID}]; ok {
+		return staff, nil
+	}
 	staff, ok := r.byMember[memberID]
-	if !ok {
+	if !ok || staff.StoreID != storeID {
+		return Staff{}, apperr.NotFound("staff account not found")
+	}
+	return staff, nil
+}
+
+func (r *memStaffRepo) ListActiveStoresByMemberID(_ context.Context, memberID int64) ([]StaffStore, error) {
+	stores := make([]StaffStore, 0)
+	for key, staff := range r.byMemberStore {
+		if key[0] == memberID && staff.Status == StatusActive {
+			stores = append(stores, StaffStore{ID: staff.StoreID, Name: r.storeNames[staff.StoreID]})
+		}
+	}
+	if len(stores) > 0 {
+		return stores, nil
+	}
+	staff, ok := r.byMember[memberID]
+	if !ok || staff.Status != StatusActive {
+		return stores, nil
+	}
+	return []StaffStore{{ID: staff.StoreID, Name: r.storeNames[staff.StoreID]}}, nil
+}
+
+func (r *memStaffRepo) BumpTokenVersionByMemberID(_ context.Context, memberID int64) error {
+	found := false
+	for key, staff := range r.byMemberStore {
+		if key[0] != memberID {
+			continue
+		}
+		staff.TokenVersion++
+		r.byMemberStore[key] = staff
+		found = true
+	}
+	staff, ok := r.byMember[memberID]
+	if !ok && !found {
 		return apperr.NotFound("staff account not found")
 	}
-	staff.TokenVersion++
-	r.byMember[memberID] = staff
+	if ok {
+		staff.TokenVersion++
+		r.byMember[memberID] = staff
+	}
 	return nil
 }
 
@@ -515,12 +565,19 @@ func TestMiniLoginUsesActiveStaffBinding(t *testing.T) {
 	for id := range members.byID {
 		memberID = id
 	}
-	staff := &memStaffRepo{byMember: map[int64]Staff{
-		memberID: {
-			ID: 9, MemberID: memberID, StoreID: 42,
-			Status: StatusActive, TokenVersion: 3,
+	staff := &memStaffRepo{
+		byMemberStore: map[[2]int64]Staff{
+			{memberID, 42}: {
+				ID: 9, MemberID: memberID, StoreID: 42,
+				Status: StatusActive, TokenVersion: 3,
+			},
+			{memberID, 99}: {
+				ID: 10, MemberID: memberID, StoreID: 99,
+				Status: StatusActive, TokenVersion: 5,
+			},
 		},
-	}}
+		storeNames: map[int64]string{42: "东门店", 99: "西门店"},
+	}
 	svc.staff = staff
 
 	login, err := svc.MiniLogin(ctx, "staff-code")
@@ -542,15 +599,39 @@ func TestMiniLoginUsesActiveStaffBinding(t *testing.T) {
 	if _, err := svc.Refresh(ctx, login.Token.RefreshToken, authn.AudienceMini); err != nil {
 		t.Fatalf("staff refresh: %v", err)
 	}
+	stores, err := svc.StaffStores(ctx, memberID)
+	if err != nil || len(stores) != 2 {
+		t.Fatalf("staff stores = %+v, %v; want two bindings", stores, err)
+	}
+	switched, err := svc.SwitchStaffStore(ctx, memberID, 99)
+	if err != nil {
+		t.Fatalf("switch staff store: %v", err)
+	}
+	switchedClaims, err := svc.tokens.Parse(switched.Token.AccessToken, authn.AudienceMini)
+	if err != nil || switchedClaims.StoreID != 99 || switchedClaims.TokenVersion != 5 {
+		t.Fatalf("unexpected switched claims: %+v, %v", switchedClaims, err)
+	}
+	if _, err := svc.Refresh(ctx, switched.Token.RefreshToken, authn.AudienceMini); err != nil {
+		t.Fatalf("switched staff refresh: %v", err)
+	}
+	if _, err := svc.SwitchStaffStore(ctx, memberID, 77); apperr.From(err).Code != apperr.CodeNotFound {
+		t.Fatalf("unbound store switch: got %v", err)
+	}
 	checker := NewMemberTokenVersions(members, staff)
-	if version, err := checker.CurrentTokenVersion(ctx, authn.SubjectStaff, memberID); err != nil || version != 3 {
+	if version, err := checker.CurrentTokenVersion(ctx, authn.SubjectStaff, memberID, 42); err != nil || version != 3 {
 		t.Fatalf("staff token version = %d, %v; want 3, nil", version, err)
+	}
+	if version, err := checker.CurrentTokenVersion(ctx, authn.SubjectStaff, memberID, 99); err != nil || version != 5 {
+		t.Fatalf("switched staff token version = %d, %v; want 5, nil", version, err)
 	}
 	if err := svc.LogoutMini(ctx, authn.SubjectStaff, memberID); err != nil {
 		t.Fatalf("staff logout: %v", err)
 	}
 	if _, err := svc.Refresh(ctx, login.Token.RefreshToken, authn.AudienceMini); err == nil {
 		t.Fatal("staff refresh must fail after logout")
+	}
+	if _, err := svc.Refresh(ctx, switched.Token.RefreshToken, authn.AudienceMini); err == nil {
+		t.Fatal("switched staff refresh must fail after logout")
 	}
 }
 
@@ -581,13 +662,13 @@ func TestTokenVersionCheckersReflectLogout(t *testing.T) {
 
 	// Account (admin/store audiences). Account #1 starts at version 0.
 	accountVersions := NewAccountTokenVersions(accounts)
-	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1); err != nil || v != 0 {
+	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1, 0); err != nil || v != 0 {
 		t.Fatalf("account version before logout = %d, %v; want 0, nil", v, err)
 	}
 	if err := svc.LogoutAccount(ctx, 1); err != nil {
 		t.Fatalf("account logout: %v", err)
 	}
-	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1); err != nil || v != 1 {
+	if v, err := accountVersions.CurrentTokenVersion(ctx, authn.SubjectSuperAdmin, 1, 0); err != nil || v != 1 {
 		t.Fatalf("account version after logout = %d, %v; want 1, nil", v, err)
 	}
 
@@ -611,19 +692,19 @@ func TestTokenVersionCheckersReflectLogout(t *testing.T) {
 	if externalID, err := memberVersions.ExternalID(ctx, authn.SubjectMember, memberID); err != nil || externalID == "" {
 		t.Fatalf("member external id = %q, %v; want non-empty OpenID", externalID, err)
 	}
-	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID); err != nil || v != 0 {
+	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID, 0); err != nil || v != 0 {
 		t.Fatalf("member version before logout = %d, %v; want 0, nil", v, err)
 	}
 	if err := svc.LogoutMini(ctx, authn.SubjectMember, memberID); err != nil {
 		t.Fatalf("member logout: %v", err)
 	}
-	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID); err != nil || v != 1 {
+	if v, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, memberID, 0); err != nil || v != 1 {
 		t.Fatalf("member version after logout = %d, %v; want 1, nil", v, err)
 	}
 
 	// A missing subject surfaces the store's NotFound (mapped to 401 by the
 	// middleware), never a silent zero that would masquerade as a valid version.
-	if _, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, 9999); apperr.From(err).Code != apperr.CodeNotFound {
+	if _, err := memberVersions.CurrentTokenVersion(ctx, authn.SubjectMember, 9999, 0); apperr.From(err).Code != apperr.CodeNotFound {
 		t.Fatalf("missing member: want NOT_FOUND, got %v", err)
 	}
 }

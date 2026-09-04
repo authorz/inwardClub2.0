@@ -92,6 +92,10 @@ func (a *App) registerMini(r *gin.Engine, mw *authn.Middleware) {
 	p.GET("/coupon-redemptions", a.couponHandler.ListRedemptions)
 	p.GET("/coupon-redemptions/:id", a.couponHandler.GetRedemption)
 
+	staffSession := g.Group("", mw.RequireAuth(authn.SubjectStaff))
+	staffSession.GET("/auth/staff-stores", a.authHandler.MiniStaffStores)
+	staffSession.POST("/auth/staff-store", a.authHandler.MiniSwitchStaffStore)
+
 	// Reservations require a completed member profile (or staff identity).
 	reservationRead := g.Group("", mw.RequireAuth(authn.SubjectMember, authn.SubjectStaff))
 	reservationRead.GET("/reservations", a.reservationHandler.ListReservations)

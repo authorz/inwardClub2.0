@@ -513,13 +513,12 @@ func (f *fakeRepo) CreateStaffAccount(_ context.Context, storeID, memberID int64
 		name = "会员"
 	}
 	for id, existing := range f.staffAccounts {
-		if existing.MemberID != memberID {
+		if existing.MemberID != memberID || existing.StoreID != storeID {
 			continue
 		}
 		if existing.Status != "disabled" {
-			return StaffAccount{}, apperr.Conflict("该会员已被绑定为员工")
+			return StaffAccount{}, apperr.Conflict("该会员已绑定当前门店")
 		}
-		existing.StoreID = storeID
 		existing.Name = name
 		existing.Phone = phone
 		existing.Status = StatusActive
@@ -1528,7 +1527,7 @@ func TestStoreCreateStaffAccountRejectsMissingMember(t *testing.T) {
 	}
 }
 
-func TestStoreCreateStaffAccountReactivatesDisabledBindingAtCurrentStore(t *testing.T) {
+func TestStoreCreateStaffAccountKeepsDisabledBindingAndCreatesAnotherStore(t *testing.T) {
 	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
 	created, err := svc.StoreCreateStaffAccount(context.Background(), 99, StaffAccountCreateRequest{MemberID: 7})
@@ -1543,21 +1542,41 @@ func TestStoreCreateStaffAccountReactivatesDisabledBindingAtCurrentStore(t *test
 	if err != nil {
 		t.Fatalf("reactivate: %v", err)
 	}
-	if reactivated.ID != created.ID || reactivated.StoreID != 42 || reactivated.Status != StatusActive {
-		t.Fatalf("unexpected reactivated binding: %+v", reactivated)
+	if reactivated.ID == created.ID || reactivated.StoreID != 42 || reactivated.Status != StatusActive {
+		t.Fatalf("unexpected cross-store binding: %+v", reactivated)
+	}
+	if old := repo.staffAccounts[created.ID]; old.StoreID != 99 || old.Status != "disabled" {
+		t.Fatalf("disabled binding in other store changed: %+v", old)
 	}
 }
 
-func TestStoreCreateStaffAccountKeepsActiveCrossStoreBindingProtected(t *testing.T) {
+func TestStoreCreateStaffAccountAllowsActiveCrossStoreBinding(t *testing.T) {
 	repo := staffMemberRepo()
 	svc := NewService(repo, fakeStores{}, nil)
-	if _, err := svc.StoreCreateStaffAccount(context.Background(), 99, StaffAccountCreateRequest{MemberID: 7}); err != nil {
+	first, err := svc.StoreCreateStaffAccount(context.Background(), 99, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
 		t.Fatalf("create old binding: %v", err)
+	}
+
+	second, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
+	if err != nil {
+		t.Fatalf("create cross-store binding: %v", err)
+	}
+	if second.ID == first.ID || second.StoreID != 42 {
+		t.Fatalf("unexpected second binding: %+v", second)
+	}
+}
+
+func TestStoreCreateStaffAccountRejectsDuplicateBindingAtSameStore(t *testing.T) {
+	repo := staffMemberRepo()
+	svc := NewService(repo, fakeStores{}, nil)
+	if _, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7}); err != nil {
+		t.Fatalf("create binding: %v", err)
 	}
 
 	_, err := svc.StoreCreateStaffAccount(context.Background(), 42, StaffAccountCreateRequest{MemberID: 7})
 	if apperr.From(err).Code != apperr.CodeConflict {
-		t.Fatalf("expected active binding conflict, got %v", err)
+		t.Fatalf("expected same-store conflict, got %v", err)
 	}
 }
 

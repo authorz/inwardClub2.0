@@ -31,6 +31,11 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
+// StaffStoreSwitchRequest selects one of the caller's existing staff bindings.
+type StaffStoreSwitchRequest struct {
+	StoreID int64 `json:"storeId" binding:"required"`
+}
+
 // LoginResponse is returned on successful authentication. IsNew is true only for
 // a mini member's first-time registration login, so the client can prompt the
 // new user for profile details (phone, avatar, nickname) and skip that prompt

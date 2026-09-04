@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 员工账号：复用 AccountListView，展示绑定门店（同一员工只能绑定一个门店）。 */
+/** 员工账号：复用 AccountListView，每行展示一条员工与门店的绑定关系。 */
 import AccountListView from './AccountListView.vue'
 import { staffAccountService } from '@/api/services'
 import { API_PATHS } from '@/constants/api-paths'
@@ -8,7 +8,7 @@ import { API_PATHS } from '@/constants/api-paths'
 <template>
   <AccountListView
     title="员工"
-    description="门店工作人员账号；同一微信用户 / 员工账号只能绑定一个门店"
+    description="门店工作人员账号；同一微信用户可绑定多个门店"
     variant="staff"
     :service="staffAccountService"
     :disable-path="API_PATHS.staffAccounts.disable"
