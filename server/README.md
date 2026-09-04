@@ -37,6 +37,13 @@ go run ./cmd/worker     # 异步任务（需 Redis）
 默认 `USE_FAKE_ADAPTERS=true`，微信登录/支付、七牛、打印机、线下聚合收单均使用
 fake adapter，本地开发与测试不依赖外网。
 
+`migrate up` 只应用 `db/migrations` 中待执行的 schema/data migration，不会自动运行
+历史业务补偿。历史充值邀请奖励修复必须在单独确认影响范围后显式执行：
+
+```bash
+go run ./cmd/migrate reconcile-recharge-rewards
+```
+
 生产环境必须为后台二次密码确认配置独立 RSA 私钥，并让所有 API 实例挂载同一文件：
 
 ```bash

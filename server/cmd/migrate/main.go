@@ -2,7 +2,7 @@
 //
 // Usage:
 //
-//	go run ./cmd/migrate up|down|status|version|reset
+//	go run ./cmd/migrate up|down|status|version|reset|reconcile-recharge-rewards
 package main
 
 import (
@@ -56,10 +56,7 @@ func run() error {
 
 	switch command {
 	case "up":
-		if err := goose.Up(db, migrationsDir); err != nil {
-			return err
-		}
-		return referral.ReconcileMissedRechargeRewards(context.Background(), &platdb.DB{DB: db})
+		return goose.Up(db, migrationsDir)
 	case "down":
 		return goose.Down(db, migrationsDir)
 	case "status":
@@ -68,6 +65,8 @@ func run() error {
 		return goose.Version(db, migrationsDir)
 	case "reset":
 		return goose.Reset(db, migrationsDir)
+	case "reconcile-recharge-rewards":
+		return referral.ReconcileMissedRechargeRewards(context.Background(), &platdb.DB{DB: db})
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
