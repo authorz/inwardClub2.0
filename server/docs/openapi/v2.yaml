@@ -1398,6 +1398,15 @@ components:
         nickname: { type: string, description: Present when the seat is reserved }
         avatarUrl: { type: string, description: Reserved member avatar URL }
         gender: { type: string, enum: [male, female, other], description: Reserved member gender }
+    ReservationAvailabilityView:
+      type: object
+      required: [reservable, reservationCutoff, serverTime]
+      properties:
+        reservable: { type: boolean }
+        reservationCutoff: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        cutoffAt: { type: string, format: date-time }
+        serverTime: { type: string, format: date-time }
+        unavailableReason: { type: string }
     ReservationView:
       type: object
       properties:
@@ -5899,6 +5908,25 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/SeatView' } }
         default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /api/v2/mini/stores/{storeID}/reservation-availability:
+    get:
+      tags: [mini]
+      summary: Get the store's current reservation availability (public)
+      description: Uses the enabled store low-spend reward rule. Reservations and waitlist entries are accepted from local midnight until, but not including, the configured reservation cutoff.
+      security: []
+      parameters:
+        - { in: path, name: storeID, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Current reservation availability and server-aligned cutoff
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ReservationAvailabilityView' }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/v2/mini/reservations:
     get:
       tags: [mini]
@@ -5921,7 +5949,7 @@ paths:
     post:
       tags: [mini]
       summary: Book a table/seat reservation
-      description: Books a seat for the authenticated member. There is no member-selected arrival time; the server records the creation time and occupancy remains active until cancellation or the daily reset.
+      description: Books a seat for the authenticated member before the store's configured reservation cutoff. There is no member-selected arrival time; the server records the creation time and occupancy remains active until cancellation or the daily reset.
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }
@@ -5983,6 +6011,7 @@ paths:
     post:
       tags: [mini]
       summary: Join a store's walk-in waitlist
+      description: Creates a waitlist entry only while the store's configured reservation window is open.
       security: [{ bearerAuth: [] }]
       parameters:
         - { in: header, name: Idempotency-Key, required: true, schema: { type: string } }

@@ -559,6 +559,7 @@ const api = {
   getTables: (storeId, params) => http.get(m(`/stores/${storeId}/tables`) + qs(params)),
   getSeats: (storeId, params) => http.get(m(`/stores/${storeId}/seats`) + qs(params)),
   getWaitlistAvatars: (storeId) => http.get(m(`/stores/${storeId}/waitlist-avatars`)),
+  getReservationAvailability: (storeId) => http.get(m(`/stores/${storeId}/reservation-availability`)),
   getReservations: (params) => http.get(m('/reservations') + qs(params)),
   getReservation: (id) => http.get(m(`/reservations/${id}`)),
   createReservation: (data, key) =>

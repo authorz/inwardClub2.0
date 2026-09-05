@@ -180,7 +180,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, err
 		cfg.WeChatPayAmountOverrideCent(),
 	)
 	reservationSvc := reservation.NewService(
-		reservation.NewRepository(database), assetSvc, businessClock.Location(),
+		reservation.NewRepository(database), assetSvc, businessClock.Location(), storeLowSpendRuleSvc,
 	)
 	couponSvc := coupon.NewService(coupon.NewRepository(database), catalogSvc)
 	wechatPayAmountOverrideCent := cfg.WeChatPayAmountOverrideCent()

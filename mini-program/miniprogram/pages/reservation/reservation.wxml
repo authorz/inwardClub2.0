@@ -14,7 +14,10 @@
   <scroll-view class="rsv__scroll" scroll-y enhanced show-scrollbar="{{false}}" bounces="{{false}}">
     <view class="rsv">
       <view class="rsv__sec">
-        <text class="ic-h2">可预约桌台</text>
+        <view class="rsv__sec-title">
+          <text class="ic-h2">可预约桌台</text>
+          <text class="rsv__availability {{reservationAvailability.reservable ? '' : 'rsv__availability--closed'}}">{{reservationAvailability.availabilityHint}}</text>
+        </view>
         <button
           class="rsv__sign-in ic-glass-control {{signInStatus.signedToday ? 'rsv__sign-in--done' : ''}} {{signInSubmitting ? 'rsv__sign-in--loading' : ''}}"
           size="mini"
@@ -72,7 +75,7 @@
   </scroll-view>
 
   <view class="rsv__waitbar ic-glass-recessed">
-    <button class="rsv__waitbtn" loading="{{waitlisting}}" disabled="{{waitlisting}}" bindtap="onWaitlist">
+    <button class="rsv__waitbtn" loading="{{waitlisting}}" disabled="{{waitlisting || !reservationAvailability.reservable}}" bindtap="onWaitlist">
       <view wx:if="{{waitlistAvatars.length}}" class="rsv__wait-avatars" aria-hidden="true">
         <image
           class="rsv__wait-avatar {{item.isFallback ? 'rsv__wait-avatar--fallback' : ''}}"
@@ -165,6 +168,6 @@
   </view>
   <view slot="footer" class="rsvc__footer">
     <button class="ic-btn ic-btn-ghost rsvc__btn" bindtap="onCloseConfirm">取消</button>
-    <button class="ic-btn ic-btn-primary rsvc__btn" loading="{{submitting}}" bindtap="onConfirm">确认预约</button>
+    <button class="ic-btn ic-btn-primary rsvc__btn" loading="{{submitting}}" disabled="{{submitting || !reservationAvailability.reservable}}" bindtap="onConfirm">确认预约</button>
   </view>
 </ic-bottom-sheet>

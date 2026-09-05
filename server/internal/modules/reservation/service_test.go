@@ -24,6 +24,12 @@ type memRepo struct {
 
 type fakeAssetResolver struct{}
 
+type closedReservationWindow struct{}
+
+func (closedReservationWindow) ValidateReservationTime(context.Context, int64) error {
+	return apperr.Conflict("今日预约已截止")
+}
+
 func (fakeAssetResolver) PublicURLByID(_ context.Context, id int64) (string, error) {
 	return fmt.Sprintf("https://cdn.example.com/assets/%d", id), nil
 }
@@ -256,7 +262,7 @@ func newTestService() (*Service, *memRepo) {
 			ID: 1, StoreID: 1, TableID: &tableID, Status: AvailabilityAvailable,
 		}},
 	}
-	svc := NewService(repo, fakeAssetResolver{}, time.UTC)
+	svc := NewService(repo, fakeAssetResolver{}, time.UTC, nil)
 	svc.now = func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) }
 	return svc, repo
 }
@@ -328,6 +334,21 @@ func TestCreateReservationBooks(t *testing.T) {
 	}
 	if !repo.reservations[0].ReservedAt.Equal(svc.now().UTC()) {
 		t.Fatalf("reserved_at must mirror server creation time, got %s", repo.reservations[0].ReservedAt)
+	}
+}
+
+func TestReservationWindowBlocksReservationAndWaitlist(t *testing.T) {
+	svc, repo := newTestService()
+	svc.policy = closedReservationWindow{}
+
+	if _, err := svc.CreateReservation(context.Background(), 42, validCreateReq()); apperr.From(err).Message != "今日预约已截止" {
+		t.Fatalf("reservation error = %v", err)
+	}
+	if _, err := svc.CreateWaitlistEntry(context.Background(), 42, CreateWaitlistRequest{StoreID: 1, PartySize: 1}); apperr.From(err).Message != "今日预约已截止" {
+		t.Fatalf("waitlist error = %v", err)
+	}
+	if len(repo.reservations) != 0 || len(repo.waitlist) != 0 {
+		t.Fatalf("closed window persisted data: reservations=%d waitlist=%d", len(repo.reservations), len(repo.waitlist))
 	}
 }
 

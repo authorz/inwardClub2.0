@@ -217,7 +217,7 @@ Page({
   },
 
   onQtyChange(e) {
-    memberAccess.requireCompleteProfile(() => this.applyQtyChange(e));
+    this.applyQtyChange(e);
   },
 
   applyQtyChange(e) {

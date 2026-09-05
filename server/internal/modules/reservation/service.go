@@ -16,19 +16,24 @@ import (
 type Service struct {
 	repo     Repository
 	assets   AssetResolver
+	policy   ReservationWindowPolicy
 	location *time.Location
 	now      func() time.Time
+}
+
+type ReservationWindowPolicy interface {
+	ValidateReservationTime(ctx context.Context, storeID int64) error
 }
 
 const waitlistAvatarLimit = 16
 
 // NewService builds the reservation service.
-func NewService(repo Repository, assets AssetResolver, location *time.Location) *Service {
+func NewService(repo Repository, assets AssetResolver, location *time.Location, policy ReservationWindowPolicy) *Service {
 	if location == nil {
 		location = time.UTC
 	}
 	return &Service{
-		repo: repo, assets: assets, location: location, now: time.Now,
+		repo: repo, assets: assets, policy: policy, location: location, now: time.Now,
 	}
 }
 
@@ -118,6 +123,11 @@ func (s *Service) CreateReservation(ctx context.Context, memberID int64, req Cre
 	}
 	if req.TableID == nil || *req.TableID <= 0 {
 		return ReservationView{}, apperr.Invalid("tableId is required")
+	}
+	if s.policy != nil {
+		if err := s.policy.ValidateReservationTime(ctx, req.StoreID); err != nil {
+			return ReservationView{}, err
+		}
 	}
 	dailyStart, dailyEnd := s.reservationDay()
 	exists, err := s.repo.HasMemberReservation(ctx, memberID, dailyStart, dailyEnd)
@@ -212,6 +222,11 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, memberID int64, req C
 	}
 	if req.PartySize > 50 {
 		return WaitlistEntryView{}, apperr.Invalid("排队人数不能超过50人")
+	}
+	if s.policy != nil {
+		if err := s.policy.ValidateReservationTime(ctx, req.StoreID); err != nil {
+			return WaitlistEntryView{}, err
+		}
 	}
 	now := s.now().UTC()
 	entry := WaitlistEntry{

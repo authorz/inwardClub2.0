@@ -7,7 +7,10 @@
 .rsv__ic { width: 34rpx; height: 34rpx; flex: none; display: block; }
 
 .rsv__sec { min-height: 96rpx; padding: 24rpx 8rpx 8rpx; display: flex; align-items: center; gap: 24rpx; }
+.rsv__sec-title { min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
 .rsv__sec .ic-h2 { color: rgba(255, 255, 255, 0.94); }
+.rsv__availability { font-size: 20rpx; line-height: 1.4; color: rgba(255, 255, 255, 0.68); }
+.rsv__availability--closed { color: rgba(255, 255, 255, 0.58); }
 
 /* ---- daily sign-in ---- */
 .rsv__sign-in {

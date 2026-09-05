@@ -40,6 +40,11 @@ Page({
     waitlistAvatars: [],
     cancellingReservationId: '',
     hasDailyReservation: false,
+    reservationAvailability: {
+      reservable: false,
+      reservationCutoff: '',
+      availabilityHint: '预约时间加载中',
+    },
     selected: null, // { tableId, tableName }
     signInStatus: {
       signedToday: false,
@@ -58,6 +63,10 @@ Page({
   onLoad() {
     this._waitlistKey = http.uuid();
     this.load();
+  },
+
+  onUnload() {
+    clearTimeout(this._reservationCutoffTimer);
   },
 
   onShow() {
@@ -91,6 +100,7 @@ Page({
   },
 
   loadTables(storeId) {
+    clearTimeout(this._reservationCutoffTimer);
     this.setData({ loading: true });
     this.loadWaitlistAvatars(storeId);
     // Tables carry no seats; the seat endpoint includes current occupancy and
@@ -100,8 +110,15 @@ Page({
     const ownReservations = auth.isLoggedIn()
       ? api.getReservations({ pageSize: 50 }).catch(() => ({ data: [] }))
       : Promise.resolve({ data: [] });
-    Promise.all([api.getTables(storeId), api.getSeats(storeId), ownReservations])
-      .then(([tRes, sRes, rRes]) => {
+    const availabilityRequest = api.getReservationAvailability(storeId)
+      .catch(() => ({ data: {
+        reservable: false,
+        reservationCutoff: '',
+        unavailableReason: '预约时间暂不可用',
+      } }));
+    Promise.all([api.getTables(storeId), api.getSeats(storeId), ownReservations, availabilityRequest])
+      .then(([tRes, sRes, rRes, availabilityRes]) => {
+        const availability = this.normalizeReservationAvailability(availabilityRes.data);
         const activeReservations = (rRes.data || []).filter((reservation) =>
           (reservation.status === 'booked' || reservation.status === 'arrived') &&
           isCurrentReservationDay(reservation.createdAt || reservation.reservedAt)
@@ -131,14 +148,17 @@ Page({
             byTable[t.id],
             ownReservationsBySeat,
             ownReservationsByTable,
-            activeReservations.length > 0
+            activeReservations.length > 0,
+            availability.reservable
           )
         );
         this.setData({
           tables,
           hasDailyReservation: activeReservations.length > 0,
+          reservationAvailability: availability,
           loading: false,
         });
+        this.scheduleReservationCutoff(availability);
       })
       .catch(() => this.setData({ loading: false }));
   },
@@ -169,7 +189,7 @@ Page({
   },
 
   /** Attach fixed-row display fields to a table. */
-  decorate(t, realSeats, ownReservationsBySeat, ownReservationsByTable, hasDailyReservation) {
+  decorate(t, realSeats, ownReservationsBySeat, ownReservationsByTable, hasDailyReservation, reservationOpen) {
     const seats = (realSeats || []).map((s) =>
       this.decorateSeat(s, ownReservationsBySeat)
     );
@@ -191,9 +211,47 @@ Page({
       actionText: ownReservation
         ? (ownReservation.status === 'booked' ? '取消预约' : '已到店')
         : '预约座位',
-      actionDisabled: ownReservation ? ownReservation.status !== 'booked' : hasDailyReservation || free === 0,
+      actionDisabled: ownReservation
+        ? ownReservation.status !== 'booked'
+        : !reservationOpen || hasDailyReservation || free === 0,
       seats,
     };
+  },
+
+  normalizeReservationAvailability(value) {
+    const availability = value || {};
+    const cutoff = availability.reservationCutoff || '';
+    const reservable = availability.reservable === true;
+    let availabilityHint = availability.unavailableReason || '预约时间暂不可用';
+    if (reservable && cutoff) availabilityHint = `预约开放至 ${cutoff}`;
+    else if (!reservable && cutoff && availabilityHint === '今日预约已截止') {
+      availabilityHint = `今日预约已于 ${cutoff} 截止`;
+    }
+    return Object.assign({}, availability, { reservable, reservationCutoff: cutoff, availabilityHint });
+  },
+
+  scheduleReservationCutoff(availability) {
+    clearTimeout(this._reservationCutoffTimer);
+    if (!availability.reservable || !availability.cutoffAt || !availability.serverTime) return;
+    const remaining = Date.parse(availability.cutoffAt) - Date.parse(availability.serverTime);
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      this.closeReservationWindow(availability);
+      return;
+    }
+    this._reservationCutoffTimer = setTimeout(() => this.closeReservationWindow(availability), remaining + 50);
+  },
+
+  closeReservationWindow(availability) {
+    const closed = this.normalizeReservationAvailability(Object.assign({}, availability, {
+      reservable: false,
+      unavailableReason: '今日预约已截止',
+    }));
+    const tables = this.data.tables.map((table) => Object.assign({}, table, {
+      actionDisabled: table.isMineTable
+        ? table.mineReservationStatus !== 'booked'
+        : true,
+    }));
+    this.setData({ tables, reservationAvailability: closed });
   },
 
   loadWaitlistAvatars(storeId) {
@@ -413,6 +471,10 @@ Page({
   joinWaitlist() {
     this.clearSelection();
     const store = this.data.store;
+    if (!this.data.reservationAvailability.reservable) {
+      ui.toast(this.data.reservationAvailability.availabilityHint);
+      return;
+    }
     if (this.data.hasDailyReservation) {
       ui.toast('你已经预约座位了，如需排队请先取消预约');
       return;

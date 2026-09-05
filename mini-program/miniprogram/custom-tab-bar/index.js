@@ -18,7 +18,7 @@ Component({
     onTap(e) {
       const index = Number(e.currentTarget.dataset.index);
       const path = this.data.list[index].pagePath;
-      if (index > 0) {
+      if (index > 0 && index !== 2) {
         memberAccess.requireCompleteProfile(() => wx.switchTab({ url: path }));
         return;
       }

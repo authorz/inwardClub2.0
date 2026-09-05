@@ -19,6 +19,8 @@ import (
 
 const timedLowSpendRuleKey = "timed_low_spend_reward"
 
+var reservationRuleLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
 type StoreLowSpendRuleConfig struct {
 	ReservationCutoff string `json:"reservationCutoff"`
 	ConsumptionCutoff string `json:"consumptionCutoff"`
@@ -36,6 +38,14 @@ type StoreLowSpendRuleView struct {
 	MinimumAmount     int64      `json:"minimumAmount"`
 	RewardPoints      int64      `json:"rewardPoints"`
 	UpdatedAt         *time.Time `json:"updatedAt,omitempty"`
+}
+
+type ReservationAvailabilityView struct {
+	Reservable        bool       `json:"reservable"`
+	ReservationCutoff string     `json:"reservationCutoff"`
+	CutoffAt          *time.Time `json:"cutoffAt,omitempty"`
+	ServerTime        time.Time  `json:"serverTime"`
+	UnavailableReason string     `json:"unavailableReason,omitempty"`
 }
 
 type UpdateStoreLowSpendRuleRequest struct {
@@ -189,6 +199,47 @@ func (s *StoreLowSpendRuleService) Get(ctx context.Context, storeID int64) (Stor
 	return s.repo.Get(ctx, storeID)
 }
 
+func (s *StoreLowSpendRuleService) ReservationAvailability(ctx context.Context, storeID int64) (ReservationAvailabilityView, error) {
+	rule, err := s.repo.Get(ctx, storeID)
+	if err != nil {
+		return ReservationAvailabilityView{}, err
+	}
+	now := s.now().In(reservationRuleLocation)
+	cutoffClock, parseErr := time.Parse("15:04", rule.ReservationCutoff)
+	if parseErr != nil {
+		return ReservationAvailabilityView{
+			ServerTime: now, UnavailableReason: "门店预约时间配置异常",
+		}, nil
+	}
+	cutoffAt := time.Date(
+		now.Year(), now.Month(), now.Day(), cutoffClock.Hour(), cutoffClock.Minute(), 0, 0,
+		reservationRuleLocation,
+	)
+	view := ReservationAvailabilityView{
+		Reservable:        rule.Configured && rule.Enabled && now.Before(cutoffAt),
+		ReservationCutoff: rule.ReservationCutoff,
+		CutoffAt:          &cutoffAt,
+		ServerTime:        now,
+	}
+	if !rule.Configured || !rule.Enabled {
+		view.UnavailableReason = "门店暂未开放预约"
+	} else if !view.Reservable {
+		view.UnavailableReason = "今日预约已截止"
+	}
+	return view, nil
+}
+
+func (s *StoreLowSpendRuleService) ValidateReservationTime(ctx context.Context, storeID int64) error {
+	availability, err := s.ReservationAvailability(ctx, storeID)
+	if err != nil {
+		return err
+	}
+	if availability.Reservable {
+		return nil
+	}
+	return apperr.Conflict(availability.UnavailableReason)
+}
+
 func (s *StoreLowSpendRuleService) Update(ctx context.Context, storeID int64, req UpdateStoreLowSpendRuleRequest) (StoreLowSpendRuleView, error) {
 	reservation := strings.TrimSpace(req.ReservationCutoff)
 	consumption := strings.TrimSpace(req.ConsumptionCutoff)
@@ -263,6 +314,20 @@ func (h *StoreLowSpendRuleHandler) StoreGet(c *gin.Context) {
 		return
 	}
 	view, err := h.svc.Get(c.Request.Context(), storeID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	httpx.OK(c, view)
+}
+
+func (h *StoreLowSpendRuleHandler) MiniReservationAvailability(c *gin.Context) {
+	storeID, err := pathPositiveID(c, "storeID")
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	view, err := h.svc.ReservationAvailability(c.Request.Context(), storeID)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
