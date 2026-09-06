@@ -37,6 +37,7 @@ const props = defineProps<{
   rowKey?: (row: T) => string
   checkedRowKeys?: DataTableRowKey[]
   emptyText?: string
+  scrollX?: number
 }>()
 
 const emit = defineEmits<{
@@ -146,6 +147,7 @@ defineExpose({ reload })
       :row-key="rowKey"
       :checked-row-keys="checkedRowKeys"
       :empty-text="emptyText"
+      :scroll-x="scrollX"
       @update:page="changePage"
       @update:page-size="changePageSize"
       @update:sorter="changeSorter"

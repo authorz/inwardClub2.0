@@ -28,6 +28,7 @@ const props = withDefaults(
     pageSize?: number
     itemCount?: number
     emptyText?: string
+    scrollX?: number
   }>(),
   {
     loading: false,
@@ -74,6 +75,7 @@ const pagination = computed<PaginationProps>(() => ({
       :row-key="tableRowKey"
       :checked-row-keys="checkedRowKeys"
       :pagination="pagination"
+      :scroll-x="scrollX"
       remote
       :bordered="false"
       size="small"

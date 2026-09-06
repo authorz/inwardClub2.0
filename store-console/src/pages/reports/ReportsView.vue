@@ -93,6 +93,27 @@ function windowFromTimestamps(value: [number, number]) {
 }
 
 const selectedWindow = computed(() => windowFromTimestamps(dateRange.value))
+const mobileRangeStart = ref(selectedWindow.value.from)
+const mobileRangeEnd = ref(selectedWindow.value.to)
+watch(dateRange, () => {
+  mobileRangeStart.value = selectedWindow.value.from
+  mobileRangeEnd.value = selectedWindow.value.to
+})
+
+function applyMobileRange(): void {
+  const start = new Date(`${mobileRangeStart.value}T00:00:00`).getTime()
+  const end = new Date(`${mobileRangeEnd.value}T00:00:00`).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+    rangeError.value = '请选择完整日期，且开始日期不能晚于结束日期。'
+    return
+  }
+  if (disableFutureDate(end)) {
+    rangeError.value = '分析时间不能晚于今天。'
+    return
+  }
+  updateCustomRange([start, end])
+}
+
 const rangeLabel = computed(() => (
   `${selectedWindow.value.from.replaceAll('-', '/')} – ${selectedWindow.value.to.replaceAll('-', '/')}`
 ))
@@ -266,6 +287,7 @@ const chartWidth = ref(960)
 const chartHeight = 300
 const chartPadding = { top: 24, right: 24, bottom: 48, left: 72 }
 const activePointIndex = ref<number | null>(null)
+const selectedPointIndex = ref<number | null>(null)
 let chartResizeObserver: ResizeObserver | null = null
 
 function niceStep(value: number): number {
@@ -324,23 +346,42 @@ const revenueAreaPath = computed(() => {
 const activePoint = computed(() => (
   activePointIndex.value == null ? null : chartPoints.value[activePointIndex.value] ?? null
 ))
+const mobilePoint = computed(() => (
+  chartPoints.value[selectedPointIndex.value ?? chartPoints.value.length - 1]
+))
+
+function selectChartPoint(index: number): void {
+  selectedPointIndex.value = index
+  activePointIndex.value = index
+}
+
+function selectMobilePoint(event: Event): void {
+  selectChartPoint(Number((event.target as HTMLInputElement).value))
+}
+
+watch([dateRange, paymentChannel], () => {
+  activePointIndex.value = null
+  selectedPointIndex.value = null
+})
 
 function showDateLabel(index: number): boolean {
   const pointCount = chartPoints.value.length
   if (pointCount <= 1) return true
   const availableWidth = chartWidth.value - chartPadding.left - chartPadding.right
   const maxLabelCount = Math.max(2, Math.floor(availableWidth / 72))
-  const step = Math.max(1, Math.ceil((pointCount - 1) / (maxLabelCount - 1)))
-  return index === 0 || index === pointCount - 1 || index % step === 0
+  const labelCount = Math.min(pointCount, maxLabelCount)
+  return Array.from({ length: labelCount }, (_, labelIndex) => (
+    Math.round(labelIndex * (pointCount - 1) / (labelCount - 1))
+  )).includes(index)
 }
 
 watch(chartHost, (element, previousElement) => {
   if (previousElement) chartResizeObserver?.unobserve(previousElement)
   if (!element || typeof ResizeObserver === 'undefined') return
   chartResizeObserver ??= new ResizeObserver(([entry]) => {
-    if (entry) chartWidth.value = Math.max(680, Math.floor(entry.contentRect.width))
+    if (entry?.contentRect.width) chartWidth.value = Math.floor(entry.contentRect.width)
   })
-  chartWidth.value = Math.max(680, Math.floor(element.clientWidth))
+  if (element.clientWidth) chartWidth.value = Math.floor(element.clientWidth)
   chartResizeObserver.observe(element)
 }, { flush: 'post' })
 
@@ -408,12 +449,14 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
             size="small"
             :type="quickRange === option.value ? 'primary' : 'default'"
             :secondary="quickRange !== option.value"
+            :aria-pressed="quickRange === option.value"
             @click="setQuickRange(option.value as RangeKey)"
           >
             {{ option.label }}
           </NButton>
         </div>
         <NDatePicker
+          class="desktop-date-range"
           :value="dateRange"
           type="daterange"
           format="yyyy-MM-dd"
@@ -422,11 +465,43 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
           aria-label="选择自定义分析时间"
           @update:value="updateCustomRange"
         />
+        <form
+          class="mobile-date-range"
+          @submit.prevent="applyMobileRange"
+        >
+          <label>
+            <span>开始日期</span>
+            <input
+              v-model="mobileRangeStart"
+              type="date"
+              required
+              :max="formatDateKey(new Date())"
+              :aria-invalid="!!rangeError"
+              :aria-describedby="rangeError ? 'report-range-error' : undefined"
+            >
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input
+              v-model="mobileRangeEnd"
+              type="date"
+              required
+              :min="mobileRangeStart"
+              :max="formatDateKey(new Date())"
+              :aria-invalid="!!rangeError"
+              :aria-describedby="rangeError ? 'report-range-error' : undefined"
+            >
+          </label>
+          <NButton attr-type="submit">
+            应用日期
+          </NButton>
+        </form>
       </div>
     </section>
 
     <NAlert
       v-if="rangeError"
+      id="report-range-error"
       type="warning"
       :show-icon="false"
       class="reports__alert"
@@ -555,9 +630,9 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                   tabindex="0"
                   :aria-label="`${point.date}，${channelLabel} ${formatChannelValue(point.value)}，${point.channelOrders} 单`"
                   @mouseenter="activePointIndex = index"
-                  @focus="activePointIndex = index"
+                  @focus="selectChartPoint(index)"
                   @blur="activePointIndex = null"
-                  @click="activePointIndex = index"
+                  @click="selectChartPoint(index)"
                 >
                   <line
                     v-if="activePointIndex === index"
@@ -569,9 +644,9 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                   />
                   <rect
                     class="trend-chart__hit-area"
-                    :x="point.x - Math.max(16, (chartWidth - chartPadding.left - chartPadding.right) / chartPoints.length / 2)"
+                    :x="point.x - (chartWidth - chartPadding.left - chartPadding.right) / Math.max(1, chartPoints.length - 1) / 2"
                     :y="chartPadding.top"
-                    :width="Math.max(32, (chartWidth - chartPadding.left - chartPadding.right) / chartPoints.length)"
+                    :width="(chartWidth - chartPadding.left - chartPadding.right) / Math.max(1, chartPoints.length - 1)"
                     :height="chartHeight - chartPadding.top - chartPadding.bottom"
                   />
                   <circle
@@ -604,6 +679,30 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
                 <span>{{ activePoint.date }}</span>
                 <strong>{{ formatChannelValue(activePoint.value) }}</strong>
                 <small>{{ activePoint.channelOrders }} 单{{ channelLabel }}</small>
+              </div>
+            </div>
+            <div
+              v-if="mobilePoint"
+              class="mobile-chart-detail"
+            >
+              <label
+                v-if="chartPoints.length > 1"
+                for="report-trend-date"
+              >拖动查看每日明细</label>
+              <input
+                v-if="chartPoints.length > 1"
+                id="report-trend-date"
+                type="range"
+                min="0"
+                :max="chartPoints.length - 1"
+                :value="selectedPointIndex ?? chartPoints.length - 1"
+                :aria-valuetext="`${mobilePoint.date}，${formatChannelValue(mobilePoint.value)}，${mobilePoint.channelOrders} 单`"
+                @input="selectMobilePoint"
+              >
+              <div class="mobile-chart-detail__value">
+                <span>{{ mobilePoint.date }} · {{ channelLabel }}</span>
+                <strong>{{ formatChannelValue(mobilePoint.value) }}</strong>
+                <span>{{ formatCount(mobilePoint.channelOrders) }} 单</span>
               </div>
             </div>
           </div>
@@ -662,8 +761,8 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
             >
               <span>{{ String(index + 1).padStart(2, '0') }}</span>
               <strong>{{ row.itemName }}</strong>
-              <span>{{ formatCount(row.soldQty) }} 份</span>
-              <span>{{ formatCent(row.grossCent) }}</span>
+              <span><small class="rank-table__label">销量</small>{{ formatCount(row.soldQty) }} 份</span>
+              <span><small class="rank-table__label">销售流水</small>{{ formatCent(row.grossCent) }}</span>
             </div>
           </div>
           <EmptyState
@@ -721,8 +820,8 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
             >
               <span>{{ String(index + 1).padStart(2, '0') }}</span>
               <strong>{{ row.activityName }}</strong>
-              <span>{{ formatCount(row.orderCount) }} 单</span>
-              <span>{{ formatCount(row.ticketCount) }} 张</span>
+              <span><small class="rank-table__label">订单数</small>{{ formatCount(row.orderCount) }} 单</span>
+              <span><small class="rank-table__label">售票数</small>{{ formatCount(row.ticketCount) }} 张</span>
             </div>
           </div>
           <EmptyState
@@ -737,7 +836,14 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 
 <style scoped>
 .reports {
+  min-width: 0;
   max-width: 1480px;
+}
+
+.mobile-date-range,
+.mobile-chart-detail,
+.rank-table__label {
+  display: none;
 }
 
 .summary-section {
@@ -800,12 +906,10 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 
 .summary-strip strong {
   margin-top: var(--ic-space-2);
-  overflow: hidden;
   color: var(--ic-color-text);
   font-size: var(--ic-font-lg);
   font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .report-controls {
@@ -925,6 +1029,8 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 }
 
 .channel-summary strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--ic-font-md);
   font-variant-numeric: tabular-nums;
 }
@@ -954,13 +1060,14 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 
 .trend-chart-stage {
   position: relative;
-  min-width: 680px;
   height: 300px;
+  max-width: 100%;
 }
 
 .trend-chart {
   display: block;
-  overflow: visible;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .trend-chart__grid line {
@@ -971,7 +1078,7 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 
 .trend-chart__grid text,
 .trend-chart__date {
-  fill: var(--ic-color-text-tertiary);
+  fill: var(--ic-color-text-secondary);
   font-size: var(--ic-font-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -1156,11 +1263,180 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
   }
 
   .channel-summary > span {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr minmax(0, 2fr);
+  }
+
+  .channel-summary strong {
+    text-align: right;
   }
 
   .channel-summary em {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .report-controls__actions .desktop-date-range {
+    display: none;
+  }
+
+  .range-presets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .range-presets :deep(.n-button),
+  .mobile-date-range :deep(.n-button) {
+    min-height: 44px;
+  }
+
+  .mobile-date-range {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ic-space-3);
+    min-width: 0;
+  }
+
+  .mobile-date-range label {
+    display: grid;
+    gap: var(--ic-space-1);
+    min-width: 0;
+    color: var(--ic-color-text-secondary);
+    font-size: var(--ic-font-xs);
+  }
+
+  .mobile-date-range input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px;
+    border: 1px solid var(--ic-color-border-strong);
+    border-radius: var(--ic-radius-sm);
+    background: var(--ic-color-surface);
+    color: var(--ic-color-text);
+    font: inherit;
+    font-size: 16px;
+    color-scheme: light;
+  }
+
+  .mobile-date-range input:focus-visible,
+  .mobile-chart-detail input:focus-visible {
+    outline: 2px solid var(--ic-color-primary);
+    outline-offset: 2px;
+  }
+
+  .mobile-date-range :deep(.n-button) {
+    grid-column: 1 / -1;
+  }
+
+  .reports__tabs :deep(.n-tabs-tab) {
+    padding-inline: var(--ic-space-3);
+  }
+
+  .analysis-panel__header :deep(.n-radio-group) {
+    display: flex;
+  }
+
+  .analysis-panel__header :deep(.n-radio-button) {
+    flex: 1;
+    min-height: 44px;
+    line-height: 42px;
+    text-align: center;
+  }
+
+  .trend-chart__tooltip {
+    display: none;
+  }
+
+  .mobile-chart-detail {
+    display: grid;
+    gap: var(--ic-space-2);
+    padding-bottom: var(--ic-space-3);
+    color: var(--ic-color-text-secondary);
+    font-size: var(--ic-font-xs);
+  }
+
+  .mobile-chart-detail input {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    margin: 0;
+    accent-color: var(--ic-color-primary);
+  }
+
+  .mobile-chart-detail__value {
+    display: grid;
+    gap: var(--ic-space-1);
+    padding-top: var(--ic-space-3);
+    border-top: var(--ic-divider);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-chart-detail__value strong {
+    color: var(--ic-color-text);
+    font-size: var(--ic-font-md);
+    overflow-wrap: anywhere;
+  }
+
+  .rank-table__head {
+    display: none;
+  }
+
+  .rank-table__row {
+    min-width: 0;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: var(--ic-space-2) var(--ic-space-3);
+    padding: var(--ic-space-4) 0;
+    align-items: baseline;
+  }
+
+  .rank-table__row strong {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .rank-table__row > span:nth-child(n + 3) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--ic-space-1) var(--ic-space-3);
+    grid-column: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .rank-table__label {
+    display: inline;
+    color: var(--ic-color-text-secondary);
+    font-size: var(--ic-font-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-strip article:nth-child(n) {
+    display: grid;
+    grid-template-columns: minmax(88px, 1fr) minmax(0, 2fr);
+    align-items: baseline;
+    gap: var(--ic-space-3);
+    padding: var(--ic-space-3) 0;
+    border-left: 0;
+    border-top: 0;
+  }
+
+  .summary-strip article:nth-child(n + 2) {
+    border-top: var(--ic-divider);
+  }
+
+  .summary-strip strong {
+    margin-top: 0;
+    text-align: right;
+    font-size: var(--ic-font-md);
   }
 }
 

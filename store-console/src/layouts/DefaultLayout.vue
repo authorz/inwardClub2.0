@@ -5,12 +5,14 @@
  * 侧边菜单来自 MENU 配置并按权限过滤。顶部展示当前门店（只读，来自 token scope/me），
  * 不提供门店选择器或切换。
  */
-import { computed, h, ref, watch, type Component } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import {
   NAvatar,
   NButton,
   NDropdown,
+  NDrawer,
+  NDrawerContent,
   NLayout,
   NLayoutContent,
   NLayoutHeader,
@@ -27,6 +29,18 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
+const mobileNavigationOpen = ref(false)
+const mobileMedia = window.matchMedia('(max-width: 768px)')
+const isMobile = ref(mobileMedia.matches)
+
+function updateViewport() {
+  isMobile.value = mobileMedia.matches
+  if (!isMobile.value) mobileNavigationOpen.value = false
+}
+
+onMounted(() => mobileMedia.addEventListener('change', updateViewport))
+onBeforeUnmount(() => mobileMedia.removeEventListener('change', updateViewport))
+watch(() => route.fullPath, () => { mobileNavigationOpen.value = false })
 
 function renderIcon(name: string) {
   return () => h(AppIcon as Component, { name })
@@ -83,6 +97,7 @@ function onMenuExpanded(keys: Array<string | number>) {
 }
 
 function onMenuSelect(key: string) {
+  mobileNavigationOpen.value = false
   router.push({ name: key })
 }
 
@@ -117,10 +132,11 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
 
 <template>
   <NLayout
-    has-sider
-    style="height: 100vh"
+    :has-sider="!isMobile"
+    class="app-layout"
   >
     <NLayoutSider
+      v-if="!isMobile"
       bordered
       collapse-mode="width"
       :collapsed-width="64"
@@ -165,13 +181,35 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
       </div>
     </NLayoutSider>
 
-    <NLayout>
+    <NLayout class="main-layout">
       <NLayoutHeader
         bordered
         class="topbar"
       >
         <div class="topbar__store">
+          <NButton
+            v-if="isMobile"
+            quaternary
+            class="topbar__menu-toggle"
+            aria-label="打开门店导航"
+            aria-controls="mobile-store-navigation"
+            :aria-expanded="mobileNavigationOpen"
+            @click="mobileNavigationOpen = true"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              aria-hidden="true"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </NButton>
           <AppIcon
+            v-else
             name="store"
             :size="16"
           />
@@ -187,6 +225,7 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
           <NButton
             text
             class="topbar__account"
+            :aria-label="`${accountName}，${roleLabel}，账号菜单`"
           >
             <NAvatar
               round
@@ -208,9 +247,53 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
       </NLayoutContent>
     </NLayout>
   </NLayout>
+  <NDrawer
+    v-model:show="mobileNavigationOpen"
+    placement="left"
+    :width="296"
+    :style="{ maxWidth: 'calc(100vw - 32px)' }"
+  >
+    <NDrawerContent
+      title="门店导航"
+      closable
+      :native-scrollbar="false"
+      :body-content-style="{ padding: '8px 8px 24px' }"
+    >
+      <nav
+        id="mobile-store-navigation"
+        aria-label="门店后台导航"
+      >
+        <p class="mobile-navigation__store">
+          {{ storeName }}
+        </p>
+        <NMenu
+          class="side-menu"
+          :options="menuOptions"
+          :value="activeKey"
+          :expanded-keys="expandedKeys"
+          :indent="18"
+          :root-indent="16"
+          @update:value="onMenuSelect"
+          @update:expanded-keys="onMenuExpanded"
+        />
+      </nav>
+    </NDrawerContent>
+  </NDrawer>
 </template>
 
 <style scoped>
+.app-layout {
+  height: 100vh;
+  height: 100dvh;
+}
+.main-layout {
+  min-width: 0;
+}
+.mobile-navigation__store {
+  margin: 8px 16px 16px;
+  color: var(--ic-color-text-secondary);
+  overflow-wrap: anywhere;
+}
 .brand {
   display: flex;
   align-items: center;
@@ -305,6 +388,43 @@ const storeName = computed(() => auth.store?.name ?? '当前门店')
   padding: var(--ic-space-5);
   overflow: auto;
   height: calc(100vh - var(--ic-header-height));
+  height: calc(100dvh - var(--ic-header-height));
   background: var(--ic-color-bg);
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    gap: var(--ic-space-2);
+    padding: 0 var(--ic-space-3);
+  }
+  .topbar__store {
+    min-width: 0;
+  }
+  .topbar__menu-toggle {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+  }
+  .topbar__store-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar__store-tag,
+  .topbar__account-text {
+    display: none;
+  }
+  .topbar__account {
+    flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .content {
+    padding: var(--ic-space-4);
+    padding-bottom: max(var(--ic-space-5), env(safe-area-inset-bottom));
+  }
+  .side-menu {
+    --n-item-height: 44px !important;
+  }
 }
 </style>

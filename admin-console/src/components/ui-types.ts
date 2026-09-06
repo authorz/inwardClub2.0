@@ -36,6 +36,7 @@ export interface FilterField {
   options?: OptionItem[]
   /** daterange 会写入 `${key}From` / `${key}To` 两个参数 */
   width?: number
+  mobileNative?: boolean
 }
 
 export interface ToolbarAction {

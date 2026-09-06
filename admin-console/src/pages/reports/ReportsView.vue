@@ -42,9 +42,14 @@ const reportTabs = [
   { key: 'reservations', label: '预约趋势' },
   { key: 'stores', label: '门店对比' },
 ]
+const reportOptions = reportTabs.map((item) => ({ label: item.label, value: item.key }))
+
+function reportWidth(columns: Array<{ width?: string | number }>): number {
+  return columns.reduce((width, column) => width + Number(column.width ?? 120), 0)
+}
 
 const rangeFields: FilterField[] = [
-  { key: 'created', label: '时间范围', type: 'daterange', width: 280 },
+  { key: 'created', label: '时间范围', type: 'daterange', width: 280, mobileNative: true },
 ]
 
 const selectedStoreName = computed(
@@ -277,25 +282,40 @@ const storeColumns = [
       {{ storesError }}
     </NAlert>
 
+    <div class="report-controls">
+      <div class="report-controls__category">
+        <span id="report-category-label">报表类型</span>
+        <NSelect
+          v-model:value="tab"
+          :options="reportOptions"
+          aria-labelledby="report-category-label"
+          size="large"
+        />
+      </div>
+      <div class="report-tabs__scope">
+        <span>统计范围</span>
+        <NSelect
+          v-model:value="selectedStoreId"
+          :options="storeOptions"
+          :loading="storesLoading"
+          placeholder="全部门店"
+          aria-label="选择统计门店"
+          filterable
+          clearable
+        />
+      </div>
+    </div>
+    <p
+      v-if="tab !== 'overview'"
+      class="reports__scroll-hint"
+    >
+      左右滑动表格查看完整指标
+    </p>
     <NTabs
       v-model:value="tab"
       type="line"
       class="report-tabs"
     >
-      <template #suffix>
-        <div class="report-tabs__scope">
-          <span>统计范围</span>
-          <NSelect
-            v-model:value="selectedStoreId"
-            :options="storeOptions"
-            :loading="storesLoading"
-            placeholder="全部门店"
-            aria-label="选择统计门店"
-            filterable
-            clearable
-          />
-        </div>
-      </template>
       <NTabPane
         v-for="item in reportTabs"
         :key="item.key"
@@ -441,6 +461,7 @@ const storeColumns = [
           :description="`${selectedStoreName}按支付日期汇总的已支付订单`"
           :fields="rangeFields"
           :columns="revenueColumns"
+          :scroll-x="reportWidth(revenueColumns)"
           :fetcher="revenueFetcher"
         />
         <ResourceListView
@@ -451,6 +472,7 @@ const storeColumns = [
           :description="`${selectedStoreName}商品销量与销售流水`"
           :fields="rangeFields"
           :columns="catalogColumns"
+          :scroll-x="reportWidth(catalogColumns)"
           :fetcher="catalogFetcher"
         />
         <ResourceListView
@@ -461,6 +483,7 @@ const storeColumns = [
           :description="`${selectedStoreName}活动订单与售票数量`"
           :fields="rangeFields"
           :columns="activityColumns"
+          :scroll-x="reportWidth(activityColumns)"
           :fetcher="activityFetcher"
         />
         <ResourceListView
@@ -471,6 +494,7 @@ const storeColumns = [
           :description="`${selectedStoreName}券发放、核销数量与核销率`"
           :fields="rangeFields"
           :columns="couponColumns"
+          :scroll-x="reportWidth(couponColumns)"
           :fetcher="couponFetcher"
         />
         <ResourceListView
@@ -481,6 +505,7 @@ const storeColumns = [
           :description="`${selectedStoreName}活动票与优惠券核销明细`"
           :fields="rangeFields"
           :columns="recordColumns"
+          :scroll-x="reportWidth(recordColumns)"
           :fetcher="recordFetcher"
         />
         <ResourceListView
@@ -491,6 +516,7 @@ const storeColumns = [
           :description="`${selectedStoreName}产生订单的会员及订单数量`"
           :fields="rangeFields"
           :columns="memberColumns"
+          :scroll-x="reportWidth(memberColumns)"
           :fetcher="memberFetcher"
         />
         <ResourceListView
@@ -501,6 +527,7 @@ const storeColumns = [
           :description="`${selectedStoreName}每日预约数量`"
           :fields="rangeFields"
           :columns="reservationColumns"
+          :scroll-x="reportWidth(reservationColumns)"
           :fetcher="reservationFetcher"
         />
         <ResourceListView
@@ -511,6 +538,7 @@ const storeColumns = [
           description="对比各门店的订单、会员、预约、流水与券核销表现"
           :fields="rangeFields"
           :columns="storeColumns"
+          :scroll-x="reportWidth(storeColumns)"
           :fetcher="storeFetcher"
         />
       </NTabPane>
@@ -521,6 +549,18 @@ const storeColumns = [
 <style scoped>
 .reports {
   max-width: 1480px;
+  min-width: 0;
+}
+
+.report-controls {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: var(--ic-space-md);
+}
+
+.report-controls__category,
+.reports__scroll-hint {
+  display: none;
 }
 
 .section-heading p,
@@ -575,6 +615,10 @@ const storeColumns = [
 
 .report-tabs__scope :deep(.n-select) {
   width: 260px;
+}
+
+.report-tabs__scope :deep(.n-base-selection-placeholder) {
+  color: var(--ic-color-text-secondary);
 }
 
 :deep(.report-list-pane > .page-header) {
@@ -745,27 +789,66 @@ const storeColumns = [
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .report-controls {
+    display: grid;
+    justify-content: stretch;
+    gap: 12px;
+  }
+
+  .report-controls__category,
+  .report-tabs__scope {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    font-size: var(--ic-font-sm);
+  }
+
+  .report-tabs :deep(.n-tabs-nav) {
+    display: none;
+  }
+
+  .reports__scroll-hint {
+    display: block;
+    margin: 0;
+    color: var(--ic-color-text-secondary);
+    font-size: var(--ic-font-sm);
+  }
+
   .section-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
   .report-tabs__scope > span {
-    display: none;
+    font-size: var(--ic-font-sm);
   }
 
   .report-tabs__scope :deep(.n-select) {
-    width: 190px;
+    width: 100%;
   }
 
   .metric-grid,
-  .today-grid,
+  .today-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-item strong,
+  .today-item strong {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    font-size: 20px;
+  }
+
   .breakdown-grid {
     grid-template-columns: 1fr;
   }
 
   .trend-chart {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px;
     padding-inline: 0;
   }
@@ -777,6 +860,43 @@ const storeColumns = [
   .breakdown-row small {
     grid-column: 1 / -1;
     text-align: left;
+  }
+
+  .breakdown-row strong {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  :deep(.report-list-pane .filter-bar),
+  :deep(.report-list-pane .data-table) {
+    min-width: 0;
+    padding: 12px 0;
+    border-radius: 0;
+    border-inline: 0;
+    background: transparent;
+  }
+
+  :deep(.report-list-pane .filter-bar__fields),
+  :deep(.report-list-pane .filter-bar__field) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  :deep(.report-list-pane .n-date-picker) {
+    width: 100% !important;
+  }
+
+  :deep(.report-list-pane .n-pagination) {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px 0;
+  }
+
+  :deep(.n-base-selection-label),
+  :deep(.report-list-pane .n-input),
+  :deep(.report-list-pane .n-button) {
+    min-height: 44px;
+    align-items: center;
   }
 }
 </style>

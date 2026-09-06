@@ -3,13 +3,15 @@
  * 总后台主布局：侧边菜单 + 顶部用户信息 + 面包屑 + 内容区。
  * 菜单从 MENU 配置派生，并按权限过滤；点击叶子节点导航。
  */
-import { computed, h, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NBreadcrumb,
   NBreadcrumbItem,
   NButton,
   NDropdown,
+  NDrawer,
+  NDrawerContent,
   NIcon,
   NLayout,
   NLayoutContent,
@@ -30,7 +32,24 @@ const auth = useAuthStore()
 const permission = usePermissionStore()
 
 const collapsed = ref<boolean>(readStorage<boolean>(STORAGE_KEYS.SIDER_COLLAPSED) ?? false)
+const mobileQuery = window.matchMedia('(max-width: 768px)')
+const isMobile = ref(mobileQuery.matches)
+const mobileMenuOpen = ref(false)
+
+function syncViewport(): void {
+  isMobile.value = mobileQuery.matches
+  mobileMenuOpen.value = false
+}
+
+onMounted(() => mobileQuery.addEventListener('change', syncViewport))
+onBeforeUnmount(() => mobileQuery.removeEventListener('change', syncViewport))
+watch(() => route.fullPath, () => { mobileMenuOpen.value = false })
+
 function toggleCollapsed(): void {
+  if (isMobile.value) {
+    mobileMenuOpen.value = !mobileMenuOpen.value
+    return
+  }
   collapsed.value = !collapsed.value
   writeStorage(STORAGE_KEYS.SIDER_COLLAPSED, collapsed.value)
 }
@@ -64,6 +83,7 @@ const menuOptions = computed(() => toMenuOptions(MENU))
 const activeKey = computed(() => route.path)
 
 function handleMenuSelect(key: string): void {
+  mobileMenuOpen.value = false
   if (key !== route.path) void router.push(key)
 }
 
@@ -99,6 +119,7 @@ function renderCollapseIcon(): ReturnType<typeof h> {
     class="layout"
   >
     <NLayoutSider
+      v-if="!isMobile"
       bordered
       collapse-mode="width"
       :collapsed="collapsed"
@@ -125,7 +146,7 @@ function renderCollapseIcon(): ReturnType<typeof h> {
       />
     </NLayoutSider>
 
-    <NLayout>
+    <NLayout class="layout__main">
       <NLayoutHeader
         bordered
         class="layout__header"
@@ -134,9 +155,16 @@ function renderCollapseIcon(): ReturnType<typeof h> {
           <NButton
             quaternary
             size="small"
+            class="layout__menu-toggle"
+            :aria-label="isMobile ? '打开导航菜单' : (collapsed ? '展开导航菜单' : '收起导航菜单')"
+            :aria-expanded="isMobile ? mobileMenuOpen : !collapsed"
             @click="toggleCollapsed"
           >
-            <component :is="renderCollapseIcon" />
+            <span v-if="isMobile">☰ 菜单</span>
+            <component
+              :is="renderCollapseIcon"
+              v-else
+            />
           </NButton>
           <NBreadcrumb class="layout__breadcrumb">
             <NBreadcrumbItem
@@ -172,11 +200,36 @@ function renderCollapseIcon(): ReturnType<typeof h> {
       </NLayoutContent>
     </NLayout>
   </NLayout>
+  <NDrawer
+    v-model:show="mobileMenuOpen"
+    placement="left"
+    :width="280"
+    style="max-width: 85vw"
+  >
+    <NDrawerContent
+      title="InwardClub 总后台"
+      closable
+      :native-scrollbar="false"
+    >
+      <NMenu
+        class="layout__menu"
+        :value="activeKey"
+        :options="menuOptions"
+        :indent="20"
+        accordion
+        @update:value="handleMenuSelect"
+      />
+    </NDrawerContent>
+  </NDrawer>
 </template>
 
 <style scoped>
 .layout {
   height: 100vh;
+  height: 100dvh;
+}
+.layout__main {
+  min-width: 0;
 }
 .layout__brand {
   display: flex;
@@ -260,5 +313,33 @@ function renderCollapseIcon(): ReturnType<typeof h> {
 .layout__content {
   padding: var(--ic-space-lg);
   background: var(--ic-color-bg);
+  height: calc(100% - var(--ic-header-height));
+}
+@media (max-width: 768px) {
+  .layout__header {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+  .layout__header-left {
+    min-width: 0;
+    gap: 8px;
+  }
+  .layout__menu-toggle {
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+  .layout__breadcrumb {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .layout__user-name {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .layout__content {
+    padding: 16px;
+  }
 }
 </style>
