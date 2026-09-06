@@ -4,7 +4,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NAlert,
   NButton,
-  NDatePicker,
   NRadioButton,
   NRadioGroup,
   NSkeleton,
@@ -16,6 +15,8 @@ import { reportService } from '@/api/services'
 import { ApiError } from '@/api/error'
 import { formatCent, formatCompactCent } from '@/utils/format'
 import { EmptyState, PageHeader } from '@/components/common'
+import ReportPeriodSummary from '@/components/ReportPeriodSummary.vue'
+import { periodDays, reportPreset, type ReportPeriod } from '@/utils/report-period'
 import type {
   ActivityReportRow,
   CatalogItemReportRow,
@@ -23,7 +24,6 @@ import type {
   RevenueReportRow,
 } from '@/types/models'
 
-type RangeKey = 'today' | '7d' | '30d'
 type PaymentChannel = 'wechat' | 'coin'
 
 const tab = ref('revenue')
@@ -40,15 +40,8 @@ const catalogError = ref<string | null>(null)
 const activityLoading = ref(false)
 const activityRows = ref<ActivityReportRow[]>([])
 const activityError = ref<string | null>(null)
-const quickRange = ref<RangeKey | null>('7d')
-const rangeError = ref('')
+const selectedPeriod = ref(reportPreset('today'))
 let reportRequestVersion = 0
-
-const rangeOptions = [
-  { label: '今日', value: 'today' },
-  { label: '近 7 天', value: '7d' },
-  { label: '近 30 天', value: '30d' },
-]
 
 const countFormatter = new Intl.NumberFormat('zh-CN')
 const compactFormatter = new Intl.NumberFormat('zh-CN', {
@@ -71,47 +64,11 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function atLocalDayStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
+const selectedWindow = computed(() => ({ ...selectedPeriod.value, days: periodDays(selectedPeriod.value) }))
 
-function presetTimestamps(key: RangeKey): [number, number] {
-  const end = atLocalDayStart(new Date())
-  const days = key === 'today' ? 1 : key === '7d' ? 7 : 30
-  const start = new Date(end)
-  start.setDate(end.getDate() - (days - 1))
-  return [start.getTime(), end.getTime()]
-}
-
-const dateRange = ref<[number, number]>(presetTimestamps('7d'))
-
-function windowFromTimestamps(value: [number, number]) {
-  const start = atLocalDayStart(new Date(value[0]))
-  const end = atLocalDayStart(new Date(value[1]))
-  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
-  return { from: formatDateKey(start), to: formatDateKey(end), days }
-}
-
-const selectedWindow = computed(() => windowFromTimestamps(dateRange.value))
-const mobileRangeStart = ref(selectedWindow.value.from)
-const mobileRangeEnd = ref(selectedWindow.value.to)
-watch(dateRange, () => {
-  mobileRangeStart.value = selectedWindow.value.from
-  mobileRangeEnd.value = selectedWindow.value.to
-})
-
-function applyMobileRange(): void {
-  const start = new Date(`${mobileRangeStart.value}T00:00:00`).getTime()
-  const end = new Date(`${mobileRangeEnd.value}T00:00:00`).getTime()
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
-    rangeError.value = '请选择完整日期，且开始日期不能晚于结束日期。'
-    return
-  }
-  if (disableFutureDate(end)) {
-    rangeError.value = '分析时间不能晚于今天。'
-    return
-  }
-  updateCustomRange([start, end])
+function updatePeriod(period: ReportPeriod): void {
+  selectedPeriod.value = period
+  void loadRangeReports()
 }
 
 const rangeLabel = computed(() => (
@@ -150,6 +107,8 @@ const revenueTrend = computed<RevenueReportRow[]>(() => {
 const wechatTotalCent = computed(() => (
   revenueTrend.value.reduce((sum, row) => sum + row.wechatRevenueCent, 0)
 ))
+const grossTotalCent = computed(() => revenueTrend.value.reduce((sum, row) => sum + row.grossCent, 0))
+const paidOrderCount = computed(() => revenueTrend.value.reduce((sum, row) => sum + row.orderCount, 0))
 const coinTotal = computed(() => (
   revenueTrend.value.reduce((sum, row) => sum + row.coinConsumption, 0)
 ))
@@ -214,7 +173,9 @@ async function loadRangeReports(): Promise<void> {
   if (revenueResult.status === 'fulfilled') {
     const rows = revenueResult.value
     const missingChannelFields = rows.some((row) => (
-      !Number.isFinite(row.wechatOrderCount)
+      !Number.isFinite(row.grossCent)
+      || !Number.isFinite(row.orderCount)
+      || !Number.isFinite(row.wechatOrderCount)
       || !Number.isFinite(row.wechatRevenueCent)
       || !Number.isFinite(row.coinOrderCount)
       || !Number.isFinite(row.coinConsumption)
@@ -242,32 +203,6 @@ async function loadRangeReports(): Promise<void> {
   revenueLoading.value = false
   catalogLoading.value = false
   activityLoading.value = false
-}
-
-function setQuickRange(value: RangeKey): void {
-  quickRange.value = value
-  dateRange.value = presetTimestamps(value)
-  rangeError.value = ''
-  void loadRangeReports()
-}
-
-function updateCustomRange(value: [number, number] | null): void {
-  if (!value) return
-  const window = windowFromTimestamps(value)
-  if (window.days > 90) {
-    rangeError.value = '自定义时间范围最多支持 90 天，请缩短后重试。'
-    return
-  }
-  quickRange.value = null
-  dateRange.value = value
-  rangeError.value = ''
-  void loadRangeReports()
-}
-
-function disableFutureDate(timestamp: number): boolean {
-  const tomorrow = atLocalDayStart(new Date())
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  return timestamp >= tomorrow.getTime()
 }
 
 function formatDateLabel(date: string): string {
@@ -359,7 +294,7 @@ function selectMobilePoint(event: Event): void {
   selectChartPoint(Number((event.target as HTMLInputElement).value))
 }
 
-watch([dateRange, paymentChannel], () => {
+watch([selectedPeriod, paymentChannel], () => {
   activePointIndex.value = null
   selectedPointIndex.value = null
 })
@@ -394,120 +329,19 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 
 <template>
   <section class="reports">
-    <PageHeader
-      title="本店报表"
-      description="累计经营概览，以及可按时间筛选的收款、商品和活动分析"
+    <PageHeader title="本店报表" />
+
+    <ReportPeriodSummary
+      :model-value="selectedPeriod"
+      :gross-cent="grossTotalCent"
+      :wechat-revenue-cent="wechatTotalCent"
+      :coin-consumption="coinTotal"
+      :order-count="paidOrderCount"
+      :loading="revenueLoading"
+      :error="revenueError"
+      @update:model-value="updatePeriod"
+      @retry="loadRangeReports"
     />
-
-    <NSpin :show="overviewLoading">
-      <section
-        class="summary-section"
-        aria-label="累计经营概览"
-      >
-        <header class="section-heading">
-          <div>
-            <h2>累计经营概览</h2>
-            <p>累计口径不受下方时间筛选影响</p>
-          </div>
-        </header>
-        <div class="summary-strip">
-          <article
-            v-for="metric in summaryMetrics"
-            :key="metric.key"
-          >
-            <span>{{ metric.label }}</span>
-            <strong>{{ metric.value }}</strong>
-          </article>
-        </div>
-        <NAlert
-          v-if="overviewError"
-          type="error"
-          :show-icon="false"
-          class="reports__alert"
-        >
-          {{ overviewError }}
-        </NAlert>
-      </section>
-    </NSpin>
-
-    <section
-      class="report-controls"
-      aria-label="报表时间筛选"
-    >
-      <div class="report-controls__copy">
-        <strong>分析时间</strong>
-        <span>{{ rangeLabel }}，筛选同步作用于下方三个分析页面</span>
-      </div>
-      <div class="report-controls__actions">
-        <div
-          class="range-presets"
-          aria-label="快捷时间范围"
-        >
-          <NButton
-            v-for="option in rangeOptions"
-            :key="option.value"
-            size="small"
-            :type="quickRange === option.value ? 'primary' : 'default'"
-            :secondary="quickRange !== option.value"
-            :aria-pressed="quickRange === option.value"
-            @click="setQuickRange(option.value as RangeKey)"
-          >
-            {{ option.label }}
-          </NButton>
-        </div>
-        <NDatePicker
-          class="desktop-date-range"
-          :value="dateRange"
-          type="daterange"
-          format="yyyy-MM-dd"
-          :is-date-disabled="disableFutureDate"
-          :clearable="false"
-          aria-label="选择自定义分析时间"
-          @update:value="updateCustomRange"
-        />
-        <form
-          class="mobile-date-range"
-          @submit.prevent="applyMobileRange"
-        >
-          <label>
-            <span>开始日期</span>
-            <input
-              v-model="mobileRangeStart"
-              type="date"
-              required
-              :max="formatDateKey(new Date())"
-              :aria-invalid="!!rangeError"
-              :aria-describedby="rangeError ? 'report-range-error' : undefined"
-            >
-          </label>
-          <label>
-            <span>结束日期</span>
-            <input
-              v-model="mobileRangeEnd"
-              type="date"
-              required
-              :min="mobileRangeStart"
-              :max="formatDateKey(new Date())"
-              :aria-invalid="!!rangeError"
-              :aria-describedby="rangeError ? 'report-range-error' : undefined"
-            >
-          </label>
-          <NButton attr-type="submit">
-            应用日期
-          </NButton>
-        </form>
-      </div>
-    </section>
-
-    <NAlert
-      v-if="rangeError"
-      id="report-range-error"
-      type="warning"
-      :show-icon="false"
-      class="reports__alert"
-    >
-      {{ rangeError }}
-    </NAlert>
 
     <NTabs
       v-model:value="tab"
@@ -831,6 +665,38 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
         </section>
       </NTabPane>
     </NTabs>
+    <details class="cumulative-details">
+      <summary>累计经营概览</summary>
+      <NSpin :show="overviewLoading">
+        <section
+          class="summary-section"
+          aria-label="累计经营概览"
+        >
+          <header class="section-heading">
+            <div>
+              <h2>累计经营概览</h2>
+            </div>
+          </header>
+          <div class="summary-strip">
+            <article
+              v-for="metric in summaryMetrics"
+              :key="metric.key"
+            >
+              <span>{{ metric.label }}</span>
+              <strong>{{ metric.value }}</strong>
+            </article>
+          </div>
+          <NAlert
+            v-if="overviewError"
+            type="error"
+            :show-icon="false"
+            class="reports__alert"
+          >
+            {{ overviewError }}
+          </NAlert>
+        </section>
+      </NSpin>
+    </details>
   </section>
 </template>
 
@@ -840,7 +706,17 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
   max-width: 1480px;
 }
 
-.mobile-date-range,
+.cumulative-details {
+  margin-top: 24px;
+  border-top: var(--ic-divider);
+}
+
+.cumulative-details > summary {
+  padding-block: 16px;
+  cursor: pointer;
+  font-size: var(--ic-font-sm);
+}
+
 .mobile-chart-detail,
 .rank-table__label {
   display: none;
@@ -910,46 +786,6 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
   font-size: var(--ic-font-lg);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-.report-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ic-space-5);
-  padding: var(--ic-space-3) 0;
-  border-top: var(--ic-divider);
-  border-bottom: var(--ic-divider);
-}
-
-.report-controls__copy {
-  min-width: 0;
-}
-
-.report-controls__copy strong,
-.report-controls__copy span {
-  display: block;
-}
-
-.report-controls__copy strong {
-  font-size: var(--ic-font-sm);
-}
-
-.report-controls__copy span {
-  margin-top: 3px;
-  color: var(--ic-color-text-secondary);
-  font-size: var(--ic-font-xs);
-}
-
-.report-controls__actions,
-.range-presets {
-  display: flex;
-  align-items: center;
-  gap: var(--ic-space-2);
-}
-
-.report-controls__actions :deep(.n-date-picker) {
-  width: 260px;
 }
 
 .reports__alert {
@@ -1212,19 +1048,9 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 }
 
 @media (max-width: 860px) {
-  .report-controls,
   .analysis-panel__header {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .report-controls__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .report-controls__actions :deep(.n-date-picker) {
-    width: 100%;
   }
 
   .channel-summary {
@@ -1257,11 +1083,6 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
     border-top: var(--ic-divider);
   }
 
-  .range-presets {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-  }
-
   .channel-summary > span {
     grid-template-columns: 1fr minmax(0, 2fr);
   }
@@ -1276,58 +1097,10 @@ onBeforeUnmount(() => chartResizeObserver?.disconnect())
 }
 
 @media (max-width: 768px) {
-  .report-controls__actions .desktop-date-range {
-    display: none;
-  }
 
-  .range-presets {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .range-presets :deep(.n-button),
-  .mobile-date-range :deep(.n-button) {
-    min-height: 44px;
-  }
-
-  .mobile-date-range {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ic-space-3);
-    min-width: 0;
-  }
-
-  .mobile-date-range label {
-    display: grid;
-    gap: var(--ic-space-1);
-    min-width: 0;
-    color: var(--ic-color-text-secondary);
-    font-size: var(--ic-font-xs);
-  }
-
-  .mobile-date-range input {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    min-height: 44px;
-    padding: 8px;
-    border: 1px solid var(--ic-color-border-strong);
-    border-radius: var(--ic-radius-sm);
-    background: var(--ic-color-surface);
-    color: var(--ic-color-text);
-    font: inherit;
-    font-size: 16px;
-    color-scheme: light;
-  }
-
-  .mobile-date-range input:focus-visible,
   .mobile-chart-detail input:focus-visible {
     outline: 2px solid var(--ic-color-primary);
     outline-offset: 2px;
-  }
-
-  .mobile-date-range :deep(.n-button) {
-    grid-column: 1 / -1;
   }
 
   .reports__tabs :deep(.n-tabs-tab) {

@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NAlert, NEmpty, NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
 import PageHeader from '@/components/PageHeader.vue'
 import ResourceListView from '@/components/ResourceListView.vue'
+import ReportPeriodSummary from '@/components/ReportPeriodSummary.vue'
+import { reportPreset, type ReportPeriod } from '@/utils/report-period'
 import { moneyColumn, renderColumn, textColumn } from '@/utils/columns'
 import { formatCent } from '@/utils/format'
 import { reportService, storeService } from '@/api/services'
@@ -20,9 +22,8 @@ import type {
   StoreReportRow,
 } from '@/api/models'
 import type { ListQuery, NormalizedError } from '@/api/types'
-import type { FilterField } from '@/components/ui-types'
 
-const tab = ref('overview')
+const tab = ref('revenue')
 const selectedStoreId = ref<string | null>(null)
 const storeOptions = ref<Array<{ label: string; value: string }>>([])
 const storesLoading = ref(false)
@@ -30,9 +31,14 @@ const storesError = ref('')
 const overview = ref<ReportOverview | null>(null)
 const overviewLoading = ref(false)
 const overviewError = ref('')
+const selectedPeriod = ref(reportPreset('today'))
+const periodRows = ref<RevenueReportRow[]>([])
+const periodLoading = ref(false)
+const periodError = ref('')
+let periodRequestVersion = 0
+let overviewRequestVersion = 0
 
 const reportTabs = [
-  { key: 'overview', label: '总览' },
   { key: 'revenue', label: '收款趋势' },
   { key: 'catalog', label: '商品销售' },
   { key: 'activities', label: '活动经营' },
@@ -41,6 +47,7 @@ const reportTabs = [
   { key: 'members', label: '会员消费' },
   { key: 'reservations', label: '预约趋势' },
   { key: 'stores', label: '门店对比' },
+  { key: 'overview', label: '累计总览' },
 ]
 const reportOptions = reportTabs.map((item) => ({ label: item.label, value: item.key }))
 
@@ -48,14 +55,10 @@ function reportWidth(columns: Array<{ width?: string | number }>): number {
   return columns.reduce((width, column) => width + Number(column.width ?? 120), 0)
 }
 
-const rangeFields: FilterField[] = [
-  { key: 'created', label: '时间范围', type: 'daterange', width: 280, mobileNative: true },
-]
-
 const selectedStoreName = computed(
   () => storeOptions.value.find((item) => item.value === selectedStoreId.value)?.label ?? '全部门店',
 )
-const reportScopeKey = computed(() => selectedStoreId.value ?? 'all')
+const reportScopeKey = computed(() => `${selectedStoreId.value ?? 'all'}:${selectedPeriod.value.from}:${selectedPeriod.value.to}`)
 const countFormatter = new Intl.NumberFormat('zh-CN')
 
 function formatCount(value: number | null | undefined): string {
@@ -76,8 +79,39 @@ function formatRate(numerator: number, denominator: number): string {
 }
 
 function scopedQuery(query?: Record<string, unknown>): Record<string, unknown> | undefined {
-  if (!selectedStoreId.value) return query
-  return { ...query, storeId: selectedStoreId.value }
+  return { ...query, ...selectedPeriod.value, ...(selectedStoreId.value ? { storeId: selectedStoreId.value } : {}) }
+}
+
+const periodTotals = computed(() => periodRows.value.reduce((total, row) => ({
+  grossCent: total.grossCent + row.grossCent,
+  wechatRevenueCent: total.wechatRevenueCent + row.wechatRevenueCent,
+  coinConsumption: total.coinConsumption + row.coinConsumption,
+  orderCount: total.orderCount + row.orderCount,
+}), { grossCent: 0, wechatRevenueCent: 0, coinConsumption: 0, orderCount: 0 }))
+
+async function loadPeriod(): Promise<void> {
+  const version = ++periodRequestVersion
+  periodLoading.value = true
+  periodError.value = ''
+  try {
+    const result = await reportService.revenue(scopedQuery({ page: 1, pageSize: 100 }))
+    if (version !== periodRequestVersion) return
+    if (result.meta.total > result.items.length || result.items.some((row) =>
+      [row.grossCent, row.wechatRevenueCent, row.coinConsumption, row.orderCount].some((value) => !Number.isFinite(value)),
+    )) throw new Error('经营数据不完整，请重试或更新报表服务。')
+    periodRows.value = result.items
+  } catch (error) {
+    if (version !== periodRequestVersion) return
+    periodRows.value = []
+    periodError.value = (error as Error).message || '经营数据加载失败'
+  } finally {
+    if (version === periodRequestVersion) periodLoading.value = false
+  }
+}
+
+function updatePeriod(period: ReportPeriod): void {
+  selectedPeriod.value = period
+  void loadPeriod()
 }
 
 async function loadStores(): Promise<void> {
@@ -97,20 +131,25 @@ async function loadStores(): Promise<void> {
 }
 
 async function loadOverview(): Promise<void> {
+  const version = ++overviewRequestVersion
   overviewLoading.value = true
   overviewError.value = ''
   try {
-    overview.value = await reportService.overview(scopedQuery())
+    const result = await reportService.overview(selectedStoreId.value ? { storeId: selectedStoreId.value } : undefined)
+    if (version === overviewRequestVersion) overview.value = result
   } catch (error) {
-    overviewError.value = (error as NormalizedError).message || '经营总览加载失败'
+    if (version === overviewRequestVersion) overviewError.value = (error as NormalizedError).message || '经营总览加载失败'
   } finally {
-    overviewLoading.value = false
+    if (version === overviewRequestVersion) overviewLoading.value = false
   }
 }
 
-watch(selectedStoreId, loadOverview)
+watch(selectedStoreId, () => {
+  void loadOverview()
+  void loadPeriod()
+})
 onMounted(() => {
-  void Promise.all([loadStores(), loadOverview()])
+  void Promise.all([loadStores(), loadOverview(), loadPeriod()])
 })
 
 const summaryMetrics = computed(() => {
@@ -269,8 +308,6 @@ const storeColumns = [
   <section class="reports">
     <PageHeader
       title="经营报表"
-      :description="`当前范围：${selectedStoreName}。经营指标、趋势和明细均按同一门店口径统计。`"
-      :breadcrumb="['报表', '经营报表']"
     />
 
     <NAlert
@@ -282,16 +319,7 @@ const storeColumns = [
       {{ storesError }}
     </NAlert>
 
-    <div class="report-controls">
-      <div class="report-controls__category">
-        <span id="report-category-label">报表类型</span>
-        <NSelect
-          v-model:value="tab"
-          :options="reportOptions"
-          aria-labelledby="report-category-label"
-          size="large"
-        />
-      </div>
+    <div class="period-scope">
       <div class="report-tabs__scope">
         <span>统计范围</span>
         <NSelect
@@ -302,6 +330,29 @@ const storeColumns = [
           aria-label="选择统计门店"
           filterable
           clearable
+        />
+      </div>
+    </div>
+    <ReportPeriodSummary
+      :model-value="selectedPeriod"
+      :gross-cent="periodTotals.grossCent"
+      :wechat-revenue-cent="periodTotals.wechatRevenueCent"
+      :coin-consumption="periodTotals.coinConsumption"
+      :order-count="periodTotals.orderCount"
+      :loading="periodLoading"
+      :error="periodError"
+      @update:model-value="updatePeriod"
+      @retry="loadPeriod"
+    />
+
+    <div class="report-controls">
+      <div class="report-controls__category">
+        <span id="report-category-label">报表类型</span>
+        <NSelect
+          v-model:value="tab"
+          :options="reportOptions"
+          aria-labelledby="report-category-label"
+          size="large"
         />
       </div>
     </div>
@@ -459,7 +510,6 @@ const storeColumns = [
           class="report-list-pane"
           title="收款趋势"
           :description="`${selectedStoreName}按支付日期汇总的已支付订单`"
-          :fields="rangeFields"
           :columns="revenueColumns"
           :scroll-x="reportWidth(revenueColumns)"
           :fetcher="revenueFetcher"
@@ -470,7 +520,6 @@ const storeColumns = [
           class="report-list-pane"
           title="商品销售"
           :description="`${selectedStoreName}商品销量与销售流水`"
-          :fields="rangeFields"
           :columns="catalogColumns"
           :scroll-x="reportWidth(catalogColumns)"
           :fetcher="catalogFetcher"
@@ -481,7 +530,6 @@ const storeColumns = [
           class="report-list-pane"
           title="活动经营"
           :description="`${selectedStoreName}活动订单与售票数量`"
-          :fields="rangeFields"
           :columns="activityColumns"
           :scroll-x="reportWidth(activityColumns)"
           :fetcher="activityFetcher"
@@ -492,7 +540,6 @@ const storeColumns = [
           class="report-list-pane"
           title="券效率"
           :description="`${selectedStoreName}券发放、核销数量与核销率`"
-          :fields="rangeFields"
           :columns="couponColumns"
           :scroll-x="reportWidth(couponColumns)"
           :fetcher="couponFetcher"
@@ -503,7 +550,6 @@ const storeColumns = [
           class="report-list-pane"
           title="核销记录"
           :description="`${selectedStoreName}活动票与优惠券核销明细`"
-          :fields="rangeFields"
           :columns="recordColumns"
           :scroll-x="reportWidth(recordColumns)"
           :fetcher="recordFetcher"
@@ -514,7 +560,6 @@ const storeColumns = [
           class="report-list-pane"
           title="会员消费"
           :description="`${selectedStoreName}产生订单的会员及订单数量`"
-          :fields="rangeFields"
           :columns="memberColumns"
           :scroll-x="reportWidth(memberColumns)"
           :fetcher="memberFetcher"
@@ -525,7 +570,6 @@ const storeColumns = [
           class="report-list-pane"
           title="预约趋势"
           :description="`${selectedStoreName}每日预约数量`"
-          :fields="rangeFields"
           :columns="reservationColumns"
           :scroll-x="reportWidth(reservationColumns)"
           :fetcher="reservationFetcher"
@@ -536,7 +580,6 @@ const storeColumns = [
           class="report-list-pane"
           title="门店经营对比"
           description="对比各门店的订单、会员、预约、流水与券核销表现"
-          :fields="rangeFields"
           :columns="storeColumns"
           :scroll-x="reportWidth(storeColumns)"
           :fetcher="storeFetcher"
@@ -550,6 +593,14 @@ const storeColumns = [
 .reports {
   max-width: 1480px;
   min-width: 0;
+}
+
+.period-scope {
+  margin-bottom: 12px;
+}
+
+.period-scope .report-tabs__scope {
+  padding-left: 0;
 }
 
 .report-controls {
@@ -867,23 +918,12 @@ const storeColumns = [
     min-width: 0;
   }
 
-  :deep(.report-list-pane .filter-bar),
   :deep(.report-list-pane .data-table) {
     min-width: 0;
     padding: 12px 0;
     border-radius: 0;
     border-inline: 0;
     background: transparent;
-  }
-
-  :deep(.report-list-pane .filter-bar__fields),
-  :deep(.report-list-pane .filter-bar__field) {
-    width: 100%;
-    min-width: 0;
-  }
-
-  :deep(.report-list-pane .n-date-picker) {
-    width: 100% !important;
   }
 
   :deep(.report-list-pane .n-pagination) {
