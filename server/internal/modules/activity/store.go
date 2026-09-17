@@ -464,7 +464,7 @@ func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID i
 		JOIN payment_orders po ON po.id = w.source_id
 		JOIN business_orders bo ON bo.id = po.business_order_id
 		WHERE bo.store_id = ? AND w.asset_type = 'coins' AND w.direction = 'debit'
-			AND w.reason = 'order_payment' AND w.source_type = 'payment_order'
+			AND w.reason IN ('order_payment', '订单支付') AND w.source_type = 'payment_order'
 			AND w.created_at >= ? AND w.created_at < ?`
 	if err := r.db.QueryRowContext(ctx, coinSummary, storeID, dayStart, dayEnd).
 		Scan(&data.CoinConsumptionCount, &data.CoinConsumptionAmount); err != nil {
@@ -493,7 +493,7 @@ func (r *storeSQLRepository) StaffTodayOperations(ctx context.Context, storeID i
 			JOIN business_orders bo ON bo.id = po.business_order_id
 			LEFT JOIN members m ON m.id = w.member_id
 			WHERE bo.store_id = ? AND w.asset_type = 'coins' AND w.direction = 'debit'
-				AND w.reason = 'order_payment' AND w.source_type = 'payment_order'
+				AND w.reason IN ('order_payment', '订单支付') AND w.source_type = 'payment_order'
 				AND w.created_at >= ? AND w.created_at < ?
 			UNION ALL
 			SELECT CONCAT('point_deposit:', ps.id), 'point_deposit', ps.member_id,

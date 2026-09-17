@@ -125,7 +125,7 @@ func (r *sqlPointsRepository) RecordSignIn(ctx context.Context, memberID int64, 
 			return apperr.Internal(err)
 		}
 
-		if err := creditPoints(ctx, tx, memberID, points, "sign_in", "sign_in", recordID, idemKey, now); err != nil {
+		if err := creditPoints(ctx, tx, memberID, points, "签到奖励", "sign_in", recordID, idemKey, now); err != nil {
 			return err
 		}
 
@@ -278,7 +278,7 @@ func (r *sqlPointsRepository) WithdrawPoints(ctx context.Context, memberID, stor
 		const insertLedger = `INSERT INTO wallet_ledger_entries
 			(account_id, member_id, asset_type, direction, amount, balance_after,
 			 reason, source_type, source_id, idem_key, created_at)
-			VALUES (?, ?, ?, 'debit', ?, ?, 'point_withdrawal', 'point_withdrawal', ?, ?, ?)`
+			VALUES (?, ?, ?, 'debit', ?, ?, '取积分', 'point_withdrawal', ?, ?, ?)`
 		if _, err := tx.ExecContext(
 			ctx, insertLedger, accountID, memberID, AssetPoints, amount, balanceAfter,
 			withdrawalID, idemKey, now,

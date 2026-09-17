@@ -370,7 +370,7 @@ func (r *sqlStoreConsoleRepository) PrepareFoodOrderCancellation(ctx context.Con
 			idem := fmt.Sprintf("food_order_cancel_points:%d", in.FoodOrderID)
 			if _, err := tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
 				(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-				VALUES (?, ?, 'points', 'debit', ?, ?, 'food_order_cancel_clawback', 'food_order', ?, ?, ?)`,
+				VALUES (?, ?, 'points', 'debit', ?, ?, '取消订单扣回赠送积分', 'food_order', ?, ?, ?)`,
 				accountID, memberID, out.PointsRecovered, newBalance, in.FoodOrderID, idem, in.Now); err != nil {
 				return apperr.Internal(err)
 			}
@@ -426,7 +426,7 @@ func (r *sqlStoreConsoleRepository) RollbackFoodOrderCancellation(ctx context.Co
 			idem := fmt.Sprintf("food_order_cancel_rollback:%d", cancellationID)
 			if _, err := tx.ExecContext(ctx, `INSERT INTO wallet_ledger_entries
 				(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-				VALUES (?, ?, 'points', 'credit', ?, ?, 'food_order_cancel_rollback', 'food_order', ?, ?, ?)`,
+				VALUES (?, ?, 'points', 'credit', ?, ?, '取消订单失败返还积分', 'food_order', ?, ?, ?)`,
 				accountID, memberID, recovered, newBalance, foodOrderID, idem, now); err != nil {
 				return apperr.Internal(err)
 			}

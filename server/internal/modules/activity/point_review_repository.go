@@ -67,7 +67,7 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		lastSavingID := evaluation.LastApprovedSavingID
 		if err := creditPointReviewAsset(
 			ctx, tx, saving.MemberID, "points", calc.AwardedPoints,
-			"point_saving_reward", requestID,
+			"存积分审核到账", requestID,
 			fmt.Sprintf("point-saving:%d:points", requestID), now,
 		); err != nil {
 			return err
@@ -75,7 +75,7 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		if calc.AwardedCoins > 0 {
 			if err := creditPointReviewAsset(
 				ctx, tx, saving.MemberID, "coins", calc.AwardedCoins,
-				"point_saving_coin_reward", requestID,
+				"存积分金币奖励", requestID,
 				fmt.Sprintf("point-saving:%d:coins", requestID), now,
 			); err != nil {
 				return err

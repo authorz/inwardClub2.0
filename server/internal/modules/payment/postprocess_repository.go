@@ -226,7 +226,7 @@ func creditConsumeAsset(ctx context.Context, tx *sql.Tx, memberID int64, asset s
 	newBalance := available + amount
 	const insLedger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, ?, 'credit', ?, ?, 'low_spend_reward', ?, ?, ?, ?)`
+		VALUES (?, ?, ?, 'credit', ?, ?, '预约低消达标奖励', ?, ?, ?, ?)`
 	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, asset, amount, newBalance, collectionType, sourceID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			// The ledger already has this credit (a replay racing the grant row);

@@ -241,7 +241,7 @@ func (r *sqlRepository) adjustBalance(ctx context.Context, memberID int64, store
 
 		reason := req.Reason
 		if reason == "" {
-			reason = "admin_adjustment"
+			reason = "管理员调账"
 		}
 		const insLedger = `INSERT INTO wallet_ledger_entries
 			(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	refundBenefitReason         = "refund_benefit_clawback"
-	refundBenefitRollbackReason = "refund_benefit_rollback"
+	refundBenefitReason         = "退款扣回订单赠送权益"
+	refundBenefitRollbackReason = "退款失败返还已扣回权益"
 	refundBenefitSource         = "refund_order"
 	refundPendingCouponStatus   = "refund_pending"
 )
@@ -144,7 +144,7 @@ func refundWalletGrants(ctx context.Context, tx *sql.Tx, paymentOrderID, busines
 			(source_id = ? AND source_type IN
 			 ('recharge_order', 'first_recharge_reward', 'food_order', 'low_spend_reward',
 			  'wechat_payment_growth', 'vip_benefit_order'))
-			OR (source_id = ? AND source_type = 'offline_collection' AND reason = 'low_spend_reward')
+			OR (source_id = ? AND source_type = 'offline_collection' AND reason IN ('low_spend_reward', '预约低消达标奖励'))
 		)
 		ORDER BY account_id, id FOR UPDATE`
 	rows, err := tx.QueryContext(ctx, q, businessOrderID, paymentOrderID)
@@ -285,7 +285,7 @@ func completeRefundBenefits(
 	}
 	var growthClawedBack bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM wallet_ledger_entries
-		WHERE source_type = ? AND source_id = ? AND reason = ? AND asset_type = 'growth_value')`,
+		WHERE source_type = ? AND source_id = ? AND reason IN (?, 'refund_benefit_clawback') AND asset_type = 'growth_value')`,
 		refundBenefitSource, refundID, refundBenefitReason,
 	).Scan(&growthClawedBack); err != nil {
 		return apperr.Internal(err)
@@ -304,7 +304,7 @@ func rollbackRefundBenefits(
 ) error {
 	rows, err := tx.QueryContext(ctx, `SELECT account_id, member_id, asset_type, amount
 		FROM wallet_ledger_entries WHERE source_type = ? AND source_id = ?
-		AND direction = 'debit' AND reason = ? ORDER BY account_id FOR UPDATE`,
+		AND direction = 'debit' AND reason IN (?, 'refund_benefit_clawback') ORDER BY account_id FOR UPDATE`,
 		refundBenefitSource, refundID, refundBenefitReason,
 	)
 	if err != nil {

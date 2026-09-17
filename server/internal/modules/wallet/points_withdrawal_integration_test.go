@@ -119,7 +119,7 @@ func TestWithdrawPointsIntegration(t *testing.T) {
 		t.Fatalf("select withdrawal ledger: %v", err)
 	}
 	if direction != "debit" || ledgerAmount != 300 || ledgerBalance != 700 ||
-		reason != "point_withdrawal" || sourceType != "point_withdrawal" || sourceID != withdrawalID {
+		reason != "取积分" || sourceType != "point_withdrawal" || sourceID != withdrawalID {
 		t.Fatalf("unexpected withdrawal ledger: direction=%s amount=%d balance=%d reason=%s source=%s/%d",
 			direction, ledgerAmount, ledgerBalance, reason, sourceType, sourceID)
 	}

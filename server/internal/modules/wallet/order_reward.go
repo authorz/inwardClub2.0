@@ -66,7 +66,7 @@ func GrantFoodOrderPoints(
 	const ledger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after,
 		 reason, source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, ?, 'credit', ?, ?, 'food_order_reward', 'food_order', ?, ?, ?)`
+		VALUES (?, ?, ?, 'credit', ?, ?, '购买餐品赠送积分', 'food_order', ?, ?, ?)`
 	if _, err := tx.ExecContext(ctx, ledger, accountID, memberID, AssetPoints,
 		points, newBalance, businessOrderID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {

@@ -160,7 +160,7 @@ func (r *sqlRepository) Overview(ctx context.Context, f OverviewFilter) (Overvie
 		JOIN business_orders bo ON bo.id = po.business_order_id
 		CROSS JOIN (SELECT ? AS today_start, ? AS tomorrow_start) bounds
 		WHERE w.asset_type = 'coins' AND w.direction = 'debit'
-			AND w.reason = 'order_payment' AND w.source_type = 'payment_order'`
+			AND w.reason IN ('order_payment', '订单支付') AND w.source_type = 'payment_order'`
 	if err := r.db.QueryRowContext(ctx, coinTotals+orderScope, coinArgs...).Scan(
 		&o.CoinConsumption.Total,
 		&o.CoinConsumption.Today,
@@ -240,7 +240,7 @@ func (r *sqlRepository) Revenue(ctx context.Context, f ReportFilter) ([]RevenueR
 			SELECT source_id AS payment_order_id, COALESCE(SUM(amount), 0) AS coin_amount
 			FROM wallet_ledger_entries
 			WHERE asset_type = 'coins' AND direction = 'debit'
-				AND reason = 'order_payment' AND source_type = 'payment_order'
+				AND reason IN ('order_payment', '订单支付') AND source_type = 'payment_order'
 			GROUP BY source_id
 		) coin_ledger ON coin_ledger.payment_order_id = po.id
 		WHERE po.status = 'paid'` + sd

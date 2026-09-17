@@ -79,7 +79,7 @@ func GrantWechatPayment(ctx context.Context, tx *sql.Tx, in WeChatPayment) error
 	)
 	if commissionCoins > 0 {
 		if err := adjustWallet(ctx, tx, inviterID, "coins", commissionCoins,
-			"invitation_commission", "payment_order", in.PaymentOrderID,
+			"邀请好友微信支付返佣", "payment_order", in.PaymentOrderID,
 			fmt.Sprintf("invitation_commission:payment:%d", in.PaymentOrderID), in.PaidAt); err != nil {
 			return err
 		}
@@ -91,14 +91,14 @@ func GrantWechatPayment(ctx context.Context, tx *sql.Tx, in WeChatPayment) error
 		firstPoints = rule.Config.FirstLowSpendRewardPoints
 		if firstCoins > 0 {
 			if err := adjustWallet(ctx, tx, inviterID, "coins", firstCoins,
-				"invitation_first_low_spend", "payment_order", in.PaymentOrderID,
+				"邀请好友首次低消达标奖励", "payment_order", in.PaymentOrderID,
 				fmt.Sprintf("invitation_first_low_spend:payment:%d:coins", in.PaymentOrderID), in.PaidAt); err != nil {
 				return err
 			}
 		}
 		if firstPoints > 0 {
 			if err := adjustWallet(ctx, tx, inviterID, "points", firstPoints,
-				"invitation_first_low_spend", "payment_order", in.PaymentOrderID,
+				"邀请好友首次低消达标奖励", "payment_order", in.PaymentOrderID,
 				fmt.Sprintf("invitation_first_low_spend:payment:%d:points", in.PaymentOrderID), in.PaidAt); err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ func ReverseWechatRefund(ctx context.Context, tx *sql.Tx, in WeChatRefund) error
 	)
 	if commissionCoins > 0 {
 		if err := adjustWallet(ctx, tx, original.InviterMemberID, "coins", -commissionCoins,
-			"invitation_refund_clawback", "refund_order", in.RefundOrderID,
+			"退款扣回邀请奖励", "refund_order", in.RefundOrderID,
 			fmt.Sprintf("invitation_commission:refund:%d", in.RefundOrderID), in.RefundedAt); err != nil {
 			return err
 		}
@@ -176,14 +176,14 @@ func ReverseWechatRefund(ctx context.Context, tx *sql.Tx, in WeChatRefund) error
 			firstPoints = account.FirstRewardPoints
 			if firstCoins > 0 {
 				if err := adjustWallet(ctx, tx, original.InviterMemberID, "coins", -firstCoins,
-					"invitation_refund_clawback", "refund_order", in.RefundOrderID,
+					"退款扣回邀请奖励", "refund_order", in.RefundOrderID,
 					fmt.Sprintf("invitation_first_low_spend:refund:%d:coins", in.RefundOrderID), in.RefundedAt); err != nil {
 					return err
 				}
 			}
 			if firstPoints > 0 {
 				if err := adjustWallet(ctx, tx, original.InviterMemberID, "points", -firstPoints,
-					"invitation_refund_clawback", "refund_order", in.RefundOrderID,
+					"退款扣回邀请奖励", "refund_order", in.RefundOrderID,
 					fmt.Sprintf("invitation_first_low_spend:refund:%d:points", in.RefundOrderID), in.RefundedAt); err != nil {
 					return err
 				}

@@ -34,7 +34,7 @@ func TestRechargePointRewards(t *testing.T) {
 			amountCent:    20000,
 			thresholdCent: 100000,
 			firstRecharge: true,
-			wantReasons:   []string{firstRechargeRewardReason},
+			wantReasons:   []string{"用户首充获得积分"},
 			wantAmounts:   []int64{600000},
 		},
 		{
@@ -62,7 +62,7 @@ func TestRechargePointRewards(t *testing.T) {
 			amountCent:    99999,
 			thresholdCent: 100000,
 			firstRecharge: true,
-			wantReasons:   []string{firstRechargeRewardReason},
+			wantReasons:   []string{"用户首充获得积分"},
 			wantAmounts:   []int64{35000},
 		},
 		{
@@ -71,7 +71,7 @@ func TestRechargePointRewards(t *testing.T) {
 			amountCent:    79999,
 			thresholdCent: 80000,
 			firstRecharge: true,
-			wantReasons:   []string{firstRechargeRewardReason},
+			wantReasons:   []string{"用户首充获得积分"},
 			wantAmounts:   []int64{12000},
 		},
 		{

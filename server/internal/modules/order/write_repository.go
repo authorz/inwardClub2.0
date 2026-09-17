@@ -692,7 +692,7 @@ func (r *sqlRepository) SettleByCoin(ctx context.Context, in CoinPayment) error 
 		}
 		const insLedger = `INSERT INTO wallet_ledger_entries
 			(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-			VALUES (?, ?, ?, 'debit', ?, ?, 'order_payment', 'payment_order', ?, ?, ?)`
+			VALUES (?, ?, ?, 'debit', ?, ?, '订单支付', 'payment_order', ?, ?, ?)`
 		if _, err := tx.ExecContext(ctx, insLedger, accountID, in.MemberID, assetCoins, coinAmount, newBalance,
 			in.PaymentOrderID, in.IdemKey, in.Now); err != nil {
 			return mapWriteErr(err)

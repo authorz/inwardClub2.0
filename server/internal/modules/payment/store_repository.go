@@ -576,7 +576,7 @@ func creditCoinRefund(
 	const ledger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason,
 		 source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, 'coins', 'credit', ?, ?, 'refund', 'refund_order', ?, ?, ?)`
+		VALUES (?, ?, 'coins', 'credit', ?, ?, '订单退款返还', 'refund_order', ?, ?, ?)`
 	idemKey := fmt.Sprintf("refund_order:%d", refundID)
 	if _, err := tx.ExecContext(
 		ctx, ledger, accountID, memberID, coinAmount, newBalance, refundID, idemKey, now,

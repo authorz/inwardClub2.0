@@ -277,7 +277,7 @@ const (
 	rechargePointsIdemPrefix = "recharge_points"
 
 	firstRechargeRewardSettingKey = "first_recharge_double_points_enabled"
-	firstRechargeRewardReason     = "first_recharge_reward"
+	firstRechargeRewardReason     = "用户首充获得积分"
 	firstRechargeRewardSource     = "first_recharge_reward"
 	firstRechargeRewardIdemPrefix = "first_recharge_reward"
 
@@ -329,10 +329,10 @@ func creditRechargeBenefit(ctx context.Context, tx *sql.Tx, paymentID, businessI
 		return err
 	}
 
-	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, coinsAsset, coins, "recharge", rechargeSourceType, rechargeCoinsIdemPrefix, now); err != nil {
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, coinsAsset, coins, "充值到账", rechargeSourceType, rechargeCoinsIdemPrefix, now); err != nil {
 		return err
 	}
-	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset, points, "recharge", rechargeSourceType, rechargePointsIdemPrefix, now); err != nil {
+	if err := creditRechargeAsset(ctx, tx, paymentID, businessID, memberID.Int64, pointsAsset, points, "充值到账", rechargeSourceType, rechargePointsIdemPrefix, now); err != nil {
 		return err
 	}
 	for _, reward := range rechargePointRewards(
@@ -589,7 +589,7 @@ func creditGrowthValue(ctx context.Context, tx *sql.Tx, paymentID, businessID, m
 	idemKey := fmt.Sprintf("%s:%d", wechatGrowthSourceType, paymentID)
 	const insLedger = `INSERT INTO wallet_ledger_entries
 		(account_id, member_id, asset_type, direction, amount, balance_after, reason, source_type, source_id, idem_key, created_at)
-		VALUES (?, ?, ?, 'credit', ?, ?, 'wechat_payment_growth', ?, ?, ?, ?)`
+		VALUES (?, ?, ?, 'credit', ?, ?, '微信支付获得成长值', ?, ?, ?, ?)`
 	if _, err := tx.ExecContext(ctx, insLedger, accountID, memberID, growthAsset, grant, newBalance, wechatGrowthSourceType, businessID, idemKey, now); err != nil {
 		if platdb.IsDuplicate(err) {
 			// A prior settlement already accrued this growth; return the current

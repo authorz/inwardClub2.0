@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	timedLowSpendReason = "low_spend_reward"
+	timedLowSpendReason = "预约低消达标奖励"
 	timedLowSpendSource = "low_spend_reward"
 )
 
