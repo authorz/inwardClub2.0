@@ -206,7 +206,6 @@ const couponTable = useDataTable<MemberCouponEntitlement>({
 const ledgerReasonLabels: Record<string, string> = {
   point_saving: '存积分',
   point_saving_reward: '存积分审核到账',
-  point_saving_coin_reward: '存积分金币奖励',
   point_withdrawal: '取积分',
   food_order_reward: '购买餐品赠送积分',
   food_order_cancel_clawback: '取消订单扣回赠送积分',

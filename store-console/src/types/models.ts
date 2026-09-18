@@ -228,11 +228,9 @@ export interface PointSavingRequest extends AuditFields {
   basePoints: number
   excessPoints: number
   awardedPoints: number
-  coinBasePoints: number
-  awardedCoins: number
   ruleVersion: number
   pointsDivisor: number
-  coinPointsDivisor: number
+  belowBasePointsDivisor: number
   calculationDescription?: string
   status: ReviewStatus
   note?: string

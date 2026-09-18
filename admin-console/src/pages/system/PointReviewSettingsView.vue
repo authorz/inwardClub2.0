@@ -13,7 +13,6 @@ const version = ref(0)
 const form = reactive({
   pointsDivisor: 5,
   belowBasePointsDivisor: 2,
-  coinPointsDivisor: 2000,
 })
 
 const pointRatioText = computed(
@@ -22,10 +21,6 @@ const pointRatioText = computed(
 const belowBaseRatioText = computed(
   () => `存入积分低于基数时，每 ${form.belowBasePointsDivisor || 0} 原始积分折算为 1 到账积分`,
 )
-const coinRatioText = computed(
-  () => `每 ${form.coinPointsDivisor || 0} 个金币计算基数积分兑换 1 金币`,
-)
-
 onMounted(load)
 
 async function load(): Promise<void> {
@@ -34,7 +29,6 @@ async function load(): Promise<void> {
     const settings = await systemService.getPointReviewSettings()
     form.pointsDivisor = settings.pointsDivisor
     form.belowBasePointsDivisor = settings.belowBasePointsDivisor
-    form.coinPointsDivisor = settings.coinPointsDivisor
     version.value = settings.version
   } catch (e) {
     toastError((e as { message?: string }).message ?? '读取积分审核配置失败')
@@ -50,9 +44,6 @@ async function save(): Promise<void> {
   if (!Number.isInteger(form.belowBasePointsDivisor) || form.belowBasePointsDivisor <= 0) {
     return toastError('低于基数折算比例必须是大于 0 的整数')
   }
-  if (!Number.isInteger(form.coinPointsDivisor) || form.coinPointsDivisor <= 0) {
-    return toastError('金币兑换比例必须是大于 0 的整数')
-  }
   saving.value = true
   try {
     await runAudited({
@@ -64,7 +55,6 @@ async function save(): Promise<void> {
         const settings = await systemService.updatePointReviewSettings({
           pointsDivisor: form.pointsDivisor,
           belowBasePointsDivisor: form.belowBasePointsDivisor,
-          coinPointsDivisor: form.coinPointsDivisor,
         })
         version.value = settings.version
         return settings
@@ -83,7 +73,7 @@ async function save(): Promise<void> {
   <section>
     <PageHeader
       title="积分审核配置"
-      description="配置员工审核存积分时使用的积分折算与金币奖励比例"
+      description="配置员工审核存积分时使用的积分折算比例"
       :breadcrumb="['系统设置', '积分审核配置']"
     />
     <AuditRiskAlert title="修改比例会影响后续审核产生的会员资产" />
@@ -116,19 +106,6 @@ async function save(): Promise<void> {
               />
               <NText depth="3">
                 {{ belowBaseRatioText }}，不足 1 积分的部分向下取整，默认值为 2。
-              </NText>
-            </div>
-          </NFormItem>
-          <NFormItem label="金币兑换比例">
-            <div class="field-stack">
-              <NInputNumber
-                v-model:value="form.coinPointsDivisor"
-                :min="1"
-                :precision="0"
-                class="number-input"
-              />
-              <NText depth="3">
-                {{ coinRatioText }}，不足 1 金币的部分向下取整。1.0 默认值为 2000。
               </NText>
             </div>
           </NFormItem>

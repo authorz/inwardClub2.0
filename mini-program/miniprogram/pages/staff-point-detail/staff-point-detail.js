@@ -34,7 +34,6 @@ Page({
             basePoints: p.basePoints || 0,
             excessPoints: p.excessPoints || 0,
             awardedPoints: p.awardedPoints || 0,
-            awardedCoins: p.awardedCoins || 0,
             calculationDescription: p.calculationDescription || '',
             storeName: p.storeName,
             note: p.note || '无',

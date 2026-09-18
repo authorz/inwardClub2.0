@@ -65,21 +65,12 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		window := calc.Window
 		calcStart := evaluation.CalculationStartAt
 		lastSavingID := evaluation.LastApprovedSavingID
-		if err := creditPointReviewAsset(
-			ctx, tx, saving.MemberID, "points", calc.AwardedPoints,
+		if err := creditPointReviewPoints(
+			ctx, tx, saving.MemberID, calc.AwardedPoints,
 			"存积分审核到账", requestID,
 			fmt.Sprintf("point-saving:%d:points", requestID), now,
 		); err != nil {
 			return err
-		}
-		if calc.AwardedCoins > 0 {
-			if err := creditPointReviewAsset(
-				ctx, tx, saving.MemberID, "coins", calc.AwardedCoins,
-				"存积分金币奖励", requestID,
-				fmt.Sprintf("point-saving:%d:coins", requestID), now,
-			); err != nil {
-				return err
-			}
 		}
 
 		var businessDate any
@@ -92,8 +83,8 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		const approve = `UPDATE point_savings SET
 			status = ?, remark = ?, reviewed_by = ?, reviewed_by_type = ?,
 			reviewer_snapshot_json = ?, reviewed_at = ?, updated_at = ?,
-			base_points = ?, excess_points = ?, awarded_points = ?, coin_base_points = ?,
-			awarded_coins = ?, rule_version = ?, points_divisor = ?, below_base_points_divisor = ?, coin_points_divisor = ?,
+			base_points = ?, excess_points = ?, awarded_points = ?,
+			rule_version = ?, points_divisor = ?, below_base_points_divisor = ?,
 			business_date = ?, business_start_at = ?, business_end_at = ?,
 			calculation_start_at = ?, calculation_end_at = ?, last_approved_saving_id = ?,
 			calculation_description = ?
@@ -101,8 +92,8 @@ func (r *storeSQLRepository) ReviewPointSaving(
 		res, err := tx.ExecContext(
 			ctx, approve,
 			PointSavingApproved, remark, byID, reviewerType, reviewerSnapshot, now, now,
-			calc.BasePoints, calc.ExcessPoints, calc.AwardedPoints, calc.CoinBasePoints,
-			calc.AwardedCoins, rule.Version, rule.PointsDivisor, rule.BelowBasePointsDivisor, rule.CoinPointsDivisor,
+			calc.BasePoints, calc.ExcessPoints, calc.AwardedPoints,
+			rule.Version, rule.PointsDivisor, rule.BelowBasePointsDivisor,
 			businessDate, businessStart, businessEnd, calcStart, now, lastSavingID,
 			calc.Description, requestID, storeID, PointSavingPending,
 		)
@@ -209,12 +200,9 @@ func (r *storeSQLRepository) PreviewPointSaving(
 	saving.BasePoints = calc.BasePoints
 	saving.ExcessPoints = calc.ExcessPoints
 	saving.AwardedPoints = calc.AwardedPoints
-	saving.CoinBasePoints = calc.CoinBasePoints
-	saving.AwardedCoins = calc.AwardedCoins
 	saving.RuleVersion = evaluation.Rule.Version
 	saving.PointsDivisor = evaluation.Rule.PointsDivisor
 	saving.BelowBasePointsDivisor = evaluation.Rule.BelowBasePointsDivisor
-	saving.CoinPointsDivisor = evaluation.Rule.CoinPointsDivisor
 	saving.CalculationStartAt = evaluation.CalculationStartAt
 	saving.LastApprovedSavingID = evaluation.LastApprovedSavingID
 	saving.CalculationDescription = calc.Description
@@ -286,31 +274,29 @@ func requireSingleReview(result sql.Result) error {
 
 func pointReviewRule(ctx context.Context, queryer pointReviewQueryer) (PointReviewRule, error) {
 	var rule PointReviewRule
-	const q = `SELECT points_divisor, below_base_points_divisor, coin_points_divisor, version
+	const q = `SELECT points_divisor, below_base_points_divisor, version
 		FROM point_review_settings WHERE id = 1`
 	err := queryer.QueryRowContext(ctx, q).Scan(
-		&rule.PointsDivisor, &rule.BelowBasePointsDivisor, &rule.CoinPointsDivisor, &rule.Version,
+		&rule.PointsDivisor, &rule.BelowBasePointsDivisor, &rule.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PointReviewRule{
-			PointsDivisor: defaultPointsDivisor, BelowBasePointsDivisor: defaultBelowBasePointsDivisor,
-			CoinPointsDivisor: defaultCoinPointsDivisor, Version: 1,
+			PointsDivisor: defaultPointsDivisor, BelowBasePointsDivisor: defaultBelowBasePointsDivisor, Version: 1,
 		}, nil
 	}
 	if err != nil {
 		return PointReviewRule{}, apperr.Internal(err)
 	}
-	if rule.PointsDivisor <= 0 || rule.BelowBasePointsDivisor <= 0 || rule.CoinPointsDivisor <= 0 {
+	if rule.PointsDivisor <= 0 || rule.BelowBasePointsDivisor <= 0 {
 		return PointReviewRule{}, apperr.Internal(errors.New("invalid point review settings"))
 	}
 	return rule, nil
 }
 
-func creditPointReviewAsset(
+func creditPointReviewPoints(
 	ctx context.Context,
 	tx *sql.Tx,
 	memberID int64,
-	assetType string,
 	amount int64,
 	reason string,
 	requestID int64,
@@ -320,12 +306,12 @@ func creditPointReviewAsset(
 	var accountID, available int64
 	const lock = `SELECT id, available_amount FROM wallet_accounts
 		WHERE member_id = ? AND asset_type = ? FOR UPDATE`
-	switch err := tx.QueryRowContext(ctx, lock, memberID, assetType).Scan(&accountID, &available); {
+	switch err := tx.QueryRowContext(ctx, lock, memberID, "points").Scan(&accountID, &available); {
 	case errors.Is(err, sql.ErrNoRows):
 		const create = `INSERT INTO wallet_accounts
 			(member_id, asset_type, available_amount, held_amount, version, created_at, updated_at)
 			VALUES (?, ?, 0, 0, 0, ?, ?)`
-		result, err := tx.ExecContext(ctx, create, memberID, assetType, now, now)
+		result, err := tx.ExecContext(ctx, create, memberID, "points", now, now)
 		if err != nil {
 			return apperr.Internal(err)
 		}
@@ -348,7 +334,7 @@ func creditPointReviewAsset(
 		 reason, source_type, source_id, idem_key, created_at)
 		VALUES (?, ?, ?, 'credit', ?, ?, ?, 'point_saving', ?, ?, ?)`
 	if _, err := tx.ExecContext(
-		ctx, ledger, accountID, memberID, assetType, amount, newBalance,
+		ctx, ledger, accountID, memberID, "points", amount, newBalance,
 		reason, requestID, idemKey, now,
 	); err != nil {
 		if platdb.IsDuplicate(err) {

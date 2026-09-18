@@ -20,7 +20,6 @@
     <block wx:if="{{item.status === 'approved'}}">
       <view class="od-row"><text class="od-row__label">基数积分</text><text class="od-row__value">{{item.basePoints}}</text></view>
       <view class="od-row"><text class="od-row__label">实际到账</text><text class="od-row__value od-row__value--big">{{item.awardedPoints}}</text></view>
-      <view class="od-row"><text class="od-row__label">奖励金币</text><text class="od-row__value">{{item.awardedCoins}}</text></view>
       <view class="od-row"><text class="od-row__label">计算说明</text><text class="od-row__value">{{item.calculationDescription}}</text></view>
     </block>
     <view class="od-row"><text class="od-row__label">门店</text><text class="od-row__value ic-ellipsis">{{item.storeName}}</text></view>

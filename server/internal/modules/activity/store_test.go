@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,26 @@ import (
 	apperr "github.com/inwardclub/server/internal/platform/errors"
 	"github.com/inwardclub/server/internal/platform/httpx"
 )
+
+func TestPointSavingViewOmitsRetiredRewardFields(t *testing.T) {
+	view := pointSavingView(PointSaving{
+		ID: 1, StoreID: 7, MemberID: 3, Points: 8000,
+		AwardedPoints:          1600,
+		CalculationDescription: "实际获得积分 = 1600；" + "\u5956\u52B1\u91D1\u5E01 = 4",
+	})
+	raw, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonText := string(raw)
+	for _, retiredField := range []string{
+		"coin" + "BasePoints", "awarded" + "Coins", "coin" + "PointsDivisor", "\u5956\u52B1\u91D1\u5E01",
+	} {
+		if strings.Contains(jsonText, retiredField) {
+			t.Fatalf("retired point-review field or copy leaked into response: %s", jsonText)
+		}
+	}
+}
 
 // storeMemRepo is an in-memory StoreRepository for service-level tests. It
 // records the store scope it was called with so tests can assert isolation.

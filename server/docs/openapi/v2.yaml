@@ -1500,18 +1500,18 @@ components:
 
     PointReviewSettings:
       type: object
-      required: [pointsDivisor, coinPointsDivisor, version]
+      required: [pointsDivisor, belowBasePointsDivisor, version]
       properties:
         pointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Raw points divided by this value for the standard awarded-points calculation' }
-        coinPointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Coin-base points divided by this value; integer result is credited as coins' }
+        belowBasePointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Raw points divided by this value when the saving is below the withdrawal base' }
         version: { type: integer, format: int64 }
         updatedAt: { type: string, format: date-time }
     UpdatePointReviewSettingsRequest:
       type: object
-      required: [pointsDivisor, coinPointsDivisor]
+      required: [pointsDivisor, belowBasePointsDivisor]
       properties:
         pointsDivisor: { type: integer, format: int64, minimum: 1 }
-        coinPointsDivisor: { type: integer, format: int64, minimum: 1 }
+        belowBasePointsDivisor: { type: integer, format: int64, minimum: 1 }
     GlobalSettings:
       type: object
       required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, rechargeNotice, franchiseInquirySources, franchiseHotline]
@@ -1591,11 +1591,9 @@ components:
         basePoints: { type: integer, format: int64, description: 'Approved withdrawal base B in the frozen business window' }
         excessPoints: { type: integer, format: int64, description: 'Points above the base E' }
         awardedPoints: { type: integer, format: int64, description: 'Actual points credited A' }
-        coinBasePoints: { type: integer, format: int64 }
-        awardedCoins: { type: integer, format: int64 }
         ruleVersion: { type: integer, format: int64 }
         pointsDivisor: { type: integer, format: int64 }
-        coinPointsDivisor: { type: integer, format: int64 }
+        belowBasePointsDivisor: { type: integer, format: int64 }
         calculationDescription: { type: string }
         status: { type: string, enum: [pending, approved, rejected] }
         reviewedBy: { type: integer, format: int64 }

@@ -2,6 +2,7 @@ package activity
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -41,12 +42,9 @@ type PointSavingView struct {
 	BasePoints             int64           `json:"basePoints"`
 	ExcessPoints           int64           `json:"excessPoints"`
 	AwardedPoints          int64           `json:"awardedPoints"`
-	CoinBasePoints         int64           `json:"coinBasePoints"`
-	AwardedCoins           int64           `json:"awardedCoins"`
 	RuleVersion            int64           `json:"ruleVersion"`
 	PointsDivisor          int64           `json:"pointsDivisor"`
 	BelowBasePointsDivisor int64           `json:"belowBasePointsDivisor"`
-	CoinPointsDivisor      int64           `json:"coinPointsDivisor"`
 	BusinessDate           *time.Time      `json:"businessDate,omitempty"`
 	BusinessStartAt        *time.Time      `json:"businessStartAt,omitempty"`
 	BusinessEndAt          *time.Time      `json:"businessEndAt,omitempty"`
@@ -155,17 +153,24 @@ func pointSavingView(p PointSaving) PointSavingView {
 		MemberAvatarURL: p.MemberAvatarURL,
 		Direction:       PointSavingDirection, Points: p.Points, StoreName: p.StoreName,
 		BasePoints: p.BasePoints, ExcessPoints: p.ExcessPoints, AwardedPoints: p.AwardedPoints,
-		CoinBasePoints: p.CoinBasePoints, AwardedCoins: p.AwardedCoins,
 		RuleVersion: p.RuleVersion, PointsDivisor: p.PointsDivisor,
 		BelowBasePointsDivisor: p.BelowBasePointsDivisor,
-		CoinPointsDivisor:      p.CoinPointsDivisor, BusinessDate: p.BusinessDate,
-		BusinessStartAt: p.BusinessStartAt, BusinessEndAt: p.BusinessEndAt,
+		BusinessDate:           p.BusinessDate,
+		BusinessStartAt:        p.BusinessStartAt, BusinessEndAt: p.BusinessEndAt,
 		CalculationStartAt: p.CalculationStartAt, CalculationEndAt: p.CalculationEndAt,
 		LastApprovedSavingID:   p.LastApprovedSavingID,
-		CalculationDescription: p.CalculationDescription, Status: p.Status, Note: p.Remark,
+		CalculationDescription: visiblePointCalculationDescription(p.CalculationDescription), Status: p.Status, Note: p.Remark,
 		ReviewedBy: p.ReviewedBy, ReviewedByType: p.ReviewedByType,
 		Reviewer: json.RawMessage(p.ReviewerSnapshotJSON), ReviewedAt: p.ReviewedAt, CreatedAt: p.CreatedAt,
 	}
+}
+
+func visiblePointCalculationDescription(description string) string {
+	const legacyRewardSuffix = "\uFF1B\u5956\u52B1\u91D1\u5E01"
+	if index := strings.Index(description, legacyRewardSuffix); index >= 0 {
+		return description[:index]
+	}
+	return description
 }
 
 func todayActivityView(a TodayActivity) TodayActivityView {

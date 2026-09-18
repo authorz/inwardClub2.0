@@ -665,8 +665,12 @@ func (r *sqlRepository) ListWalletLedger(ctx context.Context, f ListFilter) ([]W
 
 	const settledEntries = `SELECT wle.id, CONCAT('ledger:', wle.id) AS record_key,
 			wle.member_id, wle.asset_type, '' AS asset_name, wle.direction, wle.amount,
-			wle.balance_after, 'completed' AS status, wle.reason,
-			wle.source_type, wle.source_id,
+			wle.balance_after, 'completed' AS status,
+			CASE WHEN wle.source_type = 'point_saving' AND wle.asset_type = 'coins'
+				THEN '历史资产调整' ELSE wle.reason END AS reason,
+			CASE WHEN wle.source_type = 'point_saving' AND wle.asset_type = 'coins'
+				THEN 'legacy_asset_adjustment' ELSE wle.source_type END AS source_type,
+			wle.source_id,
 			COALESCE(payment_bo.store_id, recharge_bo.store_id, refund_bo.store_id,
 				food_bo.store_id, low_spend_bo.store_id, point_saving.store_id,
 				point_withdrawal.store_id) AS store_id,

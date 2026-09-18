@@ -438,7 +438,6 @@ export interface PaymentChannelSetting {
 export interface PointReviewSettings {
   pointsDivisor: number
   belowBasePointsDivisor: number
-  coinPointsDivisor: number
   version: number
   updatedAt?: string
 }

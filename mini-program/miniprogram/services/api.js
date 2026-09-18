@@ -38,7 +38,6 @@ function normalizeWallet(accounts) {
 const LEDGER_REASON_LABEL = {
   point_saving: '存积分',
   point_saving_reward: '存积分审核到账',
-  point_saving_coin_reward: '存积分金币奖励',
   point_withdrawal: '取积分',
   order_payment: '订单支付',
   food_order_reward: '购买餐品赠送积分',

@@ -229,6 +229,7 @@ export const WALLET_LEDGER_STATUS: Record<string, EnumOption> = {
 }
 
 export const WALLET_SOURCE_TYPE: Record<string, EnumOption> = {
+  legacy_asset_adjustment: { value: 'legacy_asset_adjustment', label: '历史资产调整', tone: 'default' },
   point_saving: { value: 'point_saving', label: '存积分', tone: 'success' },
   point_withdrawal: { value: 'point_withdrawal', label: '取积分', tone: 'warning' },
   food_order: { value: 'food_order', label: '购买餐品赠送', tone: 'success' },
@@ -255,7 +256,6 @@ export const WALLET_SOURCE_TYPE: Record<string, EnumOption> = {
 export const WALLET_REASON_LABELS: Record<string, string> = {
   point_saving: '存积分',
   point_saving_reward: '存积分审核到账',
-  point_saving_coin_reward: '存积分金币奖励',
   point_withdrawal: '取积分',
   food_order_reward: '购买餐品赠送积分',
   food_order_cancel_clawback: '取消订单扣回赠送积分',

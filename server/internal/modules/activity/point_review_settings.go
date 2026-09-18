@@ -17,7 +17,6 @@ import (
 type PointReviewSettings struct {
 	PointsDivisor          int64     `json:"pointsDivisor"`
 	BelowBasePointsDivisor int64     `json:"belowBasePointsDivisor"`
-	CoinPointsDivisor      int64     `json:"coinPointsDivisor"`
 	Version                int64     `json:"version"`
 	UpdatedAt              time.Time `json:"updatedAt"`
 }
@@ -25,14 +24,13 @@ type PointReviewSettings struct {
 type UpdatePointReviewSettingsRequest struct {
 	PointsDivisor          int64 `json:"pointsDivisor"`
 	BelowBasePointsDivisor int64 `json:"belowBasePointsDivisor"`
-	CoinPointsDivisor      int64 `json:"coinPointsDivisor"`
 }
 
 type PointReviewSettingsRepository interface {
 	GetPointReviewSettings(ctx context.Context) (PointReviewSettings, error)
 	UpdatePointReviewSettings(
 		ctx context.Context,
-		pointsDivisor, belowBasePointsDivisor, coinPointsDivisor, updatedBy int64,
+		pointsDivisor, belowBasePointsDivisor, updatedBy int64,
 		now time.Time,
 	) (PointReviewSettings, error)
 }
@@ -45,16 +43,14 @@ func NewPointReviewSettingsRepository(db *platdb.DB) PointReviewSettingsReposito
 
 func (r *sqlPointReviewSettingsRepository) GetPointReviewSettings(ctx context.Context) (PointReviewSettings, error) {
 	var settings PointReviewSettings
-	const q = `SELECT points_divisor, below_base_points_divisor, coin_points_divisor, version, updated_at
+	const q = `SELECT points_divisor, below_base_points_divisor, version, updated_at
 		FROM point_review_settings WHERE id = 1`
 	err := r.db.QueryRowContext(ctx, q).Scan(
-		&settings.PointsDivisor, &settings.BelowBasePointsDivisor, &settings.CoinPointsDivisor,
-		&settings.Version, &settings.UpdatedAt,
+		&settings.PointsDivisor, &settings.BelowBasePointsDivisor, &settings.Version, &settings.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PointReviewSettings{
-			PointsDivisor: defaultPointsDivisor, BelowBasePointsDivisor: defaultBelowBasePointsDivisor,
-			CoinPointsDivisor: defaultCoinPointsDivisor, Version: 1,
+			PointsDivisor: defaultPointsDivisor, BelowBasePointsDivisor: defaultBelowBasePointsDivisor, Version: 1,
 		}, nil
 	}
 	if err != nil {
@@ -65,21 +61,20 @@ func (r *sqlPointReviewSettingsRepository) GetPointReviewSettings(ctx context.Co
 
 func (r *sqlPointReviewSettingsRepository) UpdatePointReviewSettings(
 	ctx context.Context,
-	pointsDivisor, belowBasePointsDivisor, coinPointsDivisor, updatedBy int64,
+	pointsDivisor, belowBasePointsDivisor, updatedBy int64,
 	now time.Time,
 ) (PointReviewSettings, error) {
 	const q = `INSERT INTO point_review_settings
-		(id, points_divisor, below_base_points_divisor, coin_points_divisor, version, updated_by, created_at, updated_at)
-		VALUES (1, ?, ?, ?, 1, ?, ?, ?)
+		(id, points_divisor, below_base_points_divisor, version, updated_by, created_at, updated_at)
+		VALUES (1, ?, ?, 1, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 		  points_divisor = VALUES(points_divisor),
 		  below_base_points_divisor = VALUES(below_base_points_divisor),
-		  coin_points_divisor = VALUES(coin_points_divisor),
 		  version = version + 1,
 		  updated_by = VALUES(updated_by),
 		  updated_at = VALUES(updated_at)`
 	if _, err := r.db.ExecContext(
-		ctx, q, pointsDivisor, belowBasePointsDivisor, coinPointsDivisor, updatedBy, now, now,
+		ctx, q, pointsDivisor, belowBasePointsDivisor, updatedBy, now, now,
 	); err != nil {
 		return PointReviewSettings{}, apperr.Internal(err)
 	}
@@ -110,11 +105,8 @@ func (s *PointReviewSettingsService) Update(
 	if req.BelowBasePointsDivisor <= 0 {
 		return PointReviewSettings{}, apperr.Invalid("belowBasePointsDivisor must be greater than zero")
 	}
-	if req.CoinPointsDivisor <= 0 {
-		return PointReviewSettings{}, apperr.Invalid("coinPointsDivisor must be greater than zero")
-	}
 	return s.repo.UpdatePointReviewSettings(
-		ctx, req.PointsDivisor, req.BelowBasePointsDivisor, req.CoinPointsDivisor, updatedBy, s.now().UTC(),
+		ctx, req.PointsDivisor, req.BelowBasePointsDivisor, updatedBy, s.now().UTC(),
 	)
 }
 

@@ -135,6 +135,10 @@ func (r *sqlRepository) ListLedger(ctx context.Context, memberID int64, assetTyp
 		if err := rows.Scan(&e.ID, &e.AssetType, &e.Direction, &e.Amount, &e.BalanceAfter, &e.Reason, &e.SourceType, &e.CreatedAt); err != nil {
 			return nil, 0, apperr.Internal(err)
 		}
+		if e.SourceType == "point_saving" && e.AssetType == AssetCoins {
+			e.Reason = "历史资产调整"
+			e.SourceType = "legacy_asset_adjustment"
+		}
 		out = append(out, e)
 	}
 	return out, total, rows.Err()

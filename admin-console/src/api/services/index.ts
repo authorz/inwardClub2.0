@@ -269,7 +269,6 @@ export const systemService = {
   updatePointReviewSettings: (settings: {
     pointsDivisor: number
     belowBasePointsDivisor: number
-    coinPointsDivisor: number
   }) =>
     http.put<PointReviewSettings>(API_PATHS.system.pointReviewSettings, settings, {
       idempotent: true,
