@@ -140,47 +140,9 @@ func evaluatePointReview(
 	if err != nil {
 		return pointReviewEvaluation{}, apperr.Invalid(err.Error())
 	}
-	var (
-		basePoints   int64
-		calcStart    *time.Time
-		lastSavingID *int64
-	)
-	if window.InBusiness {
-		start := window.Start.UTC()
-		calcStart = &start
-		var lastAt time.Time
-		const lastApproved = `SELECT id, reviewed_at FROM point_savings
-			WHERE member_id = ? AND id <> ? AND status = ?
-			  AND reviewed_at >= ? AND reviewed_at < ?
-			ORDER BY reviewed_at DESC, id DESC LIMIT 1`
-		var lastID int64
-		err := queryer.QueryRowContext(
-			ctx, lastApproved, saving.MemberID, saving.ID, PointSavingApproved,
-			window.Start.UTC(), now,
-		).Scan(&lastID, &lastAt)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-		case err != nil:
-			return pointReviewEvaluation{}, apperr.Internal(err)
-		default:
-			lastSavingID = &lastID
-			lastAt = lastAt.UTC()
-			calcStart = &lastAt
-		}
-
-		const base = `SELECT COALESCE(SUM(points), 0) FROM point_withdrawals
-			WHERE member_id = ? AND status = 'approved'
-			  AND created_at >= ? AND created_at < ?`
-		if err := queryer.QueryRowContext(ctx, base, saving.MemberID, *calcStart, now).Scan(&basePoints); err != nil {
-			return pointReviewEvaluation{}, apperr.Internal(err)
-		}
-	}
-
 	return pointReviewEvaluation{
-		Calculation:          calculatePointReview(window, saving.Points, basePoints, rule),
-		Rule:                 rule,
-		CalculationStartAt:   calcStart,
-		LastApprovedSavingID: lastSavingID,
+		Calculation: calculatePointReview(window, saving.Points, 0, rule),
+		Rule:        rule,
 	}, nil
 }
 
@@ -287,9 +249,12 @@ func pointReviewRule(ctx context.Context, queryer pointReviewQueryer) (PointRevi
 	if err != nil {
 		return PointReviewRule{}, apperr.Internal(err)
 	}
-	if rule.PointsDivisor <= 0 || rule.BelowBasePointsDivisor <= 0 {
+	if rule.PointsDivisor <= 0 {
 		return PointReviewRule{}, apperr.Internal(errors.New("invalid point review settings"))
 	}
+	// The second divisor is a legacy snapshot field. New reviews always use
+	// the standard divisor, so keep the snapshot internally consistent.
+	rule.BelowBasePointsDivisor = rule.PointsDivisor
 	return rule, nil
 }
 

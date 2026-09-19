@@ -9,7 +9,7 @@ import (
 
 const (
 	defaultPointsDivisor          int64 = 5
-	defaultBelowBasePointsDivisor int64 = 2
+	defaultBelowBasePointsDivisor int64 = 5
 )
 
 var pointReviewLocation = businesshours.ShanghaiLocation()
@@ -53,53 +53,16 @@ func calculatePointReview(window pointReviewWindow, requested, base int64, rule 
 	if rule.PointsDivisor <= 0 {
 		rule.PointsDivisor = defaultPointsDivisor
 	}
-	if rule.BelowBasePointsDivisor <= 0 {
-		rule.BelowBasePointsDivisor = defaultBelowBasePointsDivisor
-	}
+	// base is retained in the function signature for compatibility with the
+	// historical calculation snapshots, but it is intentionally ignored. All
+	// new point-saving reviews use one uniform divisor regardless of business
+	// hours or the member's withdrawal base.
+	_ = base
 	calc := PointReviewCalculation{RequestedPoints: requested, Window: window}
-	if base > 0 {
-		calc.BasePoints = base
-		if requested > base {
-			calc.ExcessPoints = requested - base
-		}
-	}
-	if !calc.Window.InBusiness || base <= 0 {
-		calc.AwardedPoints = requested / rule.PointsDivisor
-		if calc.Window.InBusiness {
-			calc.Description = fmt.Sprintf(
-				"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；当前营业时段内无基数积分，按标准规则计算",
-				requested, rule.PointsDivisor, calc.AwardedPoints,
-			)
-		} else {
-			calc.Description = fmt.Sprintf(
-				"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；非营业积分时段按标准规则计算",
-				requested, rule.PointsDivisor, calc.AwardedPoints,
-			)
-		}
-		return calc
-	}
-
-	if requested < base {
-		calc.AwardedPoints = requested / rule.BelowBasePointsDivisor
-		calc.Description = fmt.Sprintf(
-			"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；存入积分低于基数积分 %d",
-			requested, rule.BelowBasePointsDivisor, calc.AwardedPoints, base,
-		)
-		return calc
-	}
-	if requested == base {
-		calc.AwardedPoints = requested
-		calc.Description = fmt.Sprintf(
-			"实际获得积分 = 存入积分 %d = %d；存入积分等于基数积分，按 1:1 计算",
-			requested, calc.AwardedPoints,
-		)
-		return calc
-	}
-
-	calc.AwardedPoints = base + calc.ExcessPoints/rule.PointsDivisor
+	calc.AwardedPoints = requested / rule.PointsDivisor
 	calc.Description = fmt.Sprintf(
-		"实际获得积分 = 基数积分 %d +（存入积分 %d - 基数积分 %d）÷ %d（超出部分向下取整）= %d",
-		base, requested, base, rule.PointsDivisor, calc.AwardedPoints,
+		"实际获得积分 = 存入积分 %d ÷ %d（向下取整）= %d；统一按折算比例计算，不考虑基础积分",
+		requested, rule.PointsDivisor, calc.AwardedPoints,
 	)
 	return calc
 }

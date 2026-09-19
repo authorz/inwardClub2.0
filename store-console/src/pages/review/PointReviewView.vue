@@ -267,7 +267,7 @@ const columns = computed<DataTableColumns<PointSavingRequest>>(() => {
             <h3>积分计算规则</h3>
             <p>{{ activeRow.calculationDescription || '正在读取当前积分计算规则…' }}</p>
             <span v-if="activeRow.pointsDivisor">
-              规则版本 v{{ activeRow.ruleVersion }} · 标准换算为每 {{ activeRow.pointsDivisor }} 存入积分获得 1 积分，除法结果向下取整。审核通过时服务端会按同一规则重新校验。
+              规则版本 v{{ activeRow.ruleVersion }} · 所有存入积分统一按每 {{ activeRow.pointsDivisor }} 存入积分获得 1 积分，除法结果向下取整，不考虑基础积分。审核通过时服务端会按同一规则重新校验。
             </span>
           </section>
         </div>

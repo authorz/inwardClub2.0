@@ -12,14 +12,10 @@ const saving = ref(false)
 const version = ref(0)
 const form = reactive({
   pointsDivisor: 5,
-  belowBasePointsDivisor: 2,
 })
 
 const pointRatioText = computed(
   () => `每 ${form.pointsDivisor || 0} 原始积分折算为 1 到账积分`,
-)
-const belowBaseRatioText = computed(
-  () => `存入积分低于基数时，每 ${form.belowBasePointsDivisor || 0} 原始积分折算为 1 到账积分`,
 )
 onMounted(load)
 
@@ -28,7 +24,6 @@ async function load(): Promise<void> {
   try {
     const settings = await systemService.getPointReviewSettings()
     form.pointsDivisor = settings.pointsDivisor
-    form.belowBasePointsDivisor = settings.belowBasePointsDivisor
     version.value = settings.version
   } catch (e) {
     toastError((e as { message?: string }).message ?? '读取积分审核配置失败')
@@ -41,9 +36,6 @@ async function save(): Promise<void> {
   if (!Number.isInteger(form.pointsDivisor) || form.pointsDivisor <= 0) {
     return toastError('积分比例必须是大于 0 的整数')
   }
-  if (!Number.isInteger(form.belowBasePointsDivisor) || form.belowBasePointsDivisor <= 0) {
-    return toastError('低于基数折算比例必须是大于 0 的整数')
-  }
   saving.value = true
   try {
     await runAudited({
@@ -54,7 +46,6 @@ async function save(): Promise<void> {
       execute: async () => {
         const settings = await systemService.updatePointReviewSettings({
           pointsDivisor: form.pointsDivisor,
-          belowBasePointsDivisor: form.belowBasePointsDivisor,
         })
         version.value = settings.version
         return settings
@@ -83,7 +74,7 @@ async function save(): Promise<void> {
           label-placement="left"
           label-width="150"
         >
-          <NFormItem label="标准及超出部分比例">
+          <NFormItem label="统一折算比例">
             <div class="field-stack">
               <NInputNumber
                 v-model:value="form.pointsDivisor"
@@ -92,20 +83,7 @@ async function save(): Promise<void> {
                 class="number-input"
               />
               <NText depth="3">
-                {{ pointRatioText }}。用于非营业时段、无基数和高于基数的超出部分，默认值为 5。
-              </NText>
-            </div>
-          </NFormItem>
-          <NFormItem label="低于基数折算比例">
-            <div class="field-stack">
-              <NInputNumber
-                v-model:value="form.belowBasePointsDivisor"
-                :min="1"
-                :precision="0"
-                class="number-input"
-              />
-              <NText depth="3">
-                {{ belowBaseRatioText }}，不足 1 积分的部分向下取整，默认值为 2。
+                {{ pointRatioText }}。所有存入积分统一按此比例折算，默认值为 5；不再计算基础积分。
               </NText>
             </div>
           </NFormItem>

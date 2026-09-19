@@ -42,12 +42,12 @@ func TestCalculatePointReviewRules(t *testing.T) {
 		wantPoints      int64
 		wantExcess      int64
 	}{
-		{name: "outside business uses standard ratio", window: outsideWindow, requested: 8000, base: 3000, wantPoints: 1600, wantExcess: 5000},
+		{name: "outside business ignores base", window: outsideWindow, requested: 8000, base: 3000, wantPoints: 1600},
 		{name: "inside without base uses standard ratio", window: insideWindow, requested: 8000, base: 0, wantPoints: 1600},
-		{name: "inside below base", window: insideWindow, requested: 800, base: 1000, wantPoints: 400},
-		{name: "inside equal to base", window: insideWindow, requested: 1000, base: 1000, wantPoints: 1000},
-		{name: "inside over base", window: insideWindow, requested: 1600, base: 1000, wantPoints: 1120, wantExcess: 600},
-		{name: "inside over base uses standard ratio for excess", window: insideWindow, requested: 8000, base: 3000, wantPoints: 4000, wantExcess: 5000},
+		{name: "inside below base ignores base", window: insideWindow, requested: 800, base: 1000, wantPoints: 160},
+		{name: "inside equal to base ignores base", window: insideWindow, requested: 1000, base: 1000, wantPoints: 200},
+		{name: "inside over base ignores base", window: insideWindow, requested: 1600, base: 1000, wantPoints: 320},
+		{name: "inside over base uses standard ratio", window: insideWindow, requested: 8000, base: 3000, wantPoints: 1600},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestCalculatePointReviewRules(t *testing.T) {
 			if got.AwardedPoints != tc.wantPoints || got.ExcessPoints != tc.wantExcess {
 				t.Fatalf("calculation=%+v", got)
 			}
-			if !strings.Contains(got.Description, "实际获得积分 =") || !strings.Contains(got.Description, "向下取整") && tc.name != "inside equal to base" {
+			if !strings.Contains(got.Description, "实际获得积分 =") || !strings.Contains(got.Description, "向下取整") || !strings.Contains(got.Description, "不考虑基础积分") {
 				t.Fatalf("calculation rule is not explicit: %q", got.Description)
 			}
 		})
@@ -74,7 +74,7 @@ func TestCalculatePointReviewUsesConfiguredRatios(t *testing.T) {
 	}
 }
 
-func TestCalculatePointReviewUsesConfiguredBelowBaseRatio(t *testing.T) {
+func TestCalculatePointReviewIgnoresBelowBaseRatio(t *testing.T) {
 	got := calculatePointReview(
 		pointReviewWindow{InBusiness: true},
 		800,
@@ -84,7 +84,7 @@ func TestCalculatePointReviewUsesConfiguredBelowBaseRatio(t *testing.T) {
 			Version: 2,
 		},
 	)
-	if got.AwardedPoints != 200 {
+	if got.AwardedPoints != 160 {
 		t.Fatalf("configured below-base calculation=%+v", got)
 	}
 }

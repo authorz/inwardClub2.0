@@ -29,16 +29,10 @@ func (r *pointReviewSettingsMemRepo) UpdatePointReviewSettings(
 func TestPointReviewSettingsValidation(t *testing.T) {
 	svc := NewPointReviewSettingsService(&pointReviewSettingsMemRepo{})
 	_, err := svc.Update(context.Background(), UpdatePointReviewSettingsRequest{
-		PointsDivisor: 0, BelowBasePointsDivisor: 2,
+		PointsDivisor: 0,
 	}, 1)
 	if apperr.From(err).Code != apperr.CodeInvalidArgument {
 		t.Fatalf("expected invalid points divisor, got %v", err)
-	}
-	_, err = svc.Update(context.Background(), UpdatePointReviewSettingsRequest{
-		PointsDivisor: 5, BelowBasePointsDivisor: 0,
-	}, 1)
-	if apperr.From(err).Code != apperr.CodeInvalidArgument {
-		t.Fatalf("expected invalid below-base points divisor, got %v", err)
 	}
 }
 
@@ -46,12 +40,12 @@ func TestPointReviewSettingsUpdate(t *testing.T) {
 	repo := &pointReviewSettingsMemRepo{settings: PointReviewSettings{Version: 1}}
 	svc := NewPointReviewSettingsService(repo)
 	got, err := svc.Update(context.Background(), UpdatePointReviewSettingsRequest{
-		PointsDivisor: 3, BelowBasePointsDivisor: 4,
+		PointsDivisor: 3,
 	}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.PointsDivisor != 3 || got.BelowBasePointsDivisor != 4 || got.Version != 2 {
+	if got.PointsDivisor != 3 || got.BelowBasePointsDivisor != 3 || got.Version != 2 {
 		t.Fatalf("settings=%+v", got)
 	}
 }

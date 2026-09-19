@@ -16,14 +16,14 @@ import (
 
 type PointReviewSettings struct {
 	PointsDivisor          int64     `json:"pointsDivisor"`
-	BelowBasePointsDivisor int64     `json:"belowBasePointsDivisor"`
+	BelowBasePointsDivisor int64     `json:"-"` // legacy database compatibility; no longer exposed or used
 	Version                int64     `json:"version"`
 	UpdatedAt              time.Time `json:"updatedAt"`
 }
 
 type UpdatePointReviewSettingsRequest struct {
 	PointsDivisor          int64 `json:"pointsDivisor"`
-	BelowBasePointsDivisor int64 `json:"belowBasePointsDivisor"`
+	BelowBasePointsDivisor int64 `json:"belowBasePointsDivisor,omitempty"` // legacy client compatibility; ignored
 }
 
 type PointReviewSettingsRepository interface {
@@ -56,6 +56,9 @@ func (r *sqlPointReviewSettingsRepository) GetPointReviewSettings(ctx context.Co
 	if err != nil {
 		return PointReviewSettings{}, apperr.Internal(err)
 	}
+	// The below-base setting is retained only for compatibility with existing
+	// rows and clients. New reviews use PointsDivisor for every saving.
+	settings.BelowBasePointsDivisor = settings.PointsDivisor
 	return settings, nil
 }
 
@@ -102,11 +105,8 @@ func (s *PointReviewSettingsService) Update(
 	if req.PointsDivisor <= 0 {
 		return PointReviewSettings{}, apperr.Invalid("pointsDivisor must be greater than zero")
 	}
-	if req.BelowBasePointsDivisor <= 0 {
-		return PointReviewSettings{}, apperr.Invalid("belowBasePointsDivisor must be greater than zero")
-	}
 	return s.repo.UpdatePointReviewSettings(
-		ctx, req.PointsDivisor, req.BelowBasePointsDivisor, updatedBy, s.now().UTC(),
+		ctx, req.PointsDivisor, req.PointsDivisor, updatedBy, s.now().UTC(),
 	)
 }
 

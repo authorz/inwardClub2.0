@@ -1500,18 +1500,16 @@ components:
 
     PointReviewSettings:
       type: object
-      required: [pointsDivisor, belowBasePointsDivisor, version]
+      required: [pointsDivisor, version]
       properties:
-        pointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Raw points divided by this value for the standard awarded-points calculation' }
-        belowBasePointsDivisor: { type: integer, format: int64, minimum: 1, description: 'Raw points divided by this value when the saving is below the withdrawal base' }
+        pointsDivisor: { type: integer, format: int64, minimum: 1, description: 'All raw points are divided by this value for the awarded-points calculation; withdrawal base points are ignored' }
         version: { type: integer, format: int64 }
         updatedAt: { type: string, format: date-time }
     UpdatePointReviewSettingsRequest:
       type: object
-      required: [pointsDivisor, belowBasePointsDivisor]
+      required: [pointsDivisor]
       properties:
         pointsDivisor: { type: integer, format: int64, minimum: 1 }
-        belowBasePointsDivisor: { type: integer, format: int64, minimum: 1 }
     GlobalSettings:
       type: object
       required: [firstRechargeDoublePointsEnabled, rechargeDoublePointsThresholdAmount, rechargeNotice, franchiseInquirySources, franchiseHotline]
@@ -1588,12 +1586,12 @@ components:
         id: { type: integer, format: int64 }
         memberId: { type: integer, format: int64 }
         points: { type: integer, format: int64, description: 'Original requested points S' }
-        basePoints: { type: integer, format: int64, description: 'Approved withdrawal base B in the frozen business window' }
-        excessPoints: { type: integer, format: int64, description: 'Points above the base E' }
+        basePoints: { type: integer, format: int64, description: 'Legacy snapshot field; always 0 for new reviews' }
+        excessPoints: { type: integer, format: int64, description: 'Legacy snapshot field; always 0 for new reviews' }
         awardedPoints: { type: integer, format: int64, description: 'Actual points credited A' }
         ruleVersion: { type: integer, format: int64 }
         pointsDivisor: { type: integer, format: int64 }
-        belowBasePointsDivisor: { type: integer, format: int64 }
+        belowBasePointsDivisor: { type: integer, format: int64, description: 'Legacy snapshot field; new reviews use pointsDivisor for all deposits' }
         calculationDescription: { type: string }
         status: { type: string, enum: [pending, approved, rejected] }
         reviewedBy: { type: integer, format: int64 }
