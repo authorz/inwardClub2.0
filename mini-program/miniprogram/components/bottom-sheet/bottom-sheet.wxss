@@ -8,6 +8,7 @@
 .sheet.is-show .sheet__mask { opacity: 1; }
 .sheet__panel {
   position: absolute; left: 0; right: 0; bottom: 0;
+  box-sizing: border-box;
   background: #fff; border-radius: 28rpx 28rpx 0 0;
   padding: 12rpx 32rpx calc(env(safe-area-inset-bottom) + 24rpx);
   transform: translateY(100%); transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
@@ -22,7 +23,7 @@
 .sheet__x::before, .sheet__x::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 3rpx; background: #888; }
 .sheet__x::before { transform: rotate(45deg); }
 .sheet__x::after { transform: rotate(-45deg); }
-.sheet__body { flex: 1; }
+.sheet__body { flex: 1; min-height: 0; }
 .sheet__body--static { overflow: hidden; }
 .sheet__footer:empty { display: none; }
 .sheet__footer { padding-top: 20rpx; }
